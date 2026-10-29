@@ -1,0 +1,686 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Kids Game Prototype v0.4 (3D)</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
+  canvas{display:block}
+  #hud{position:fixed;top:10px;left:10px;color:#fff;text-shadow:0 2px 4px #000;font-size:16px;line-height:1.4;pointer-events:none}
+  .bar{width:180px;height:14px;background:rgba(0,0,0,.5);margin:4px 0}
+  .bar>div{height:100%;width:0}
+  #msg{position:fixed;top:12px;left:50%;transform:translateX(-50%);color:#fff;font-size:22px;text-shadow:0 2px 4px #000;pointer-events:none;white-space:nowrap}
+  .btn{position:fixed;width:56px;height:50px;background:rgba(255,255,255,.3);color:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;touch-action:none}
+  #toggle{position:fixed;top:10px;right:10px;padding:6px 10px;background:rgba(0,0,0,.4);color:#fff;border-radius:8px;font-size:14px;cursor:pointer;z-index:10}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}
+</script>
+</head>
+<body>
+<div id="hud"></div>
+<div id="msg"></div>
+<div id="toggle">Controls</div>
+<div id="pad">
+  <div class="btn" id="bF" style="left:40px;bottom:110px">&#9650;</div>
+  <div class="btn" id="bL" style="left:10px;bottom:56px">&#9664;</div>
+  <div class="btn" id="bR" style="left:70px;bottom:56px">&#9654;</div>
+  <div class="btn" id="bB" style="left:40px;bottom:2px">&#9660;</div>
+  <div class="btn" id="bJ" style="right:14px;bottom:14px;width:80px">JUMP</div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ---- World settings ----
+const W = 40, H = 24, D = 40, SURF = 12;
+const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4 };
+const SPEED = 5, GRAV = 25, JUMP = 8, HW = 0.3, HH = 1.6, REACH = 7;
+const LABEL = { dig: 'Digging', build: 'Building', inv: 'Inventory', fight: 'Fighting' };
+const BAR = { dig: '#ffb347', build: '#66ccff', inv: '#9cff6b', fight: '#ff6b6b' };
+
+const grid = new Uint8Array(W * H * D);
+const idx = (x, y, z) => (y * D + z) * W + x;
+const inBounds = (x, y, z) => x >= 0 && x < W && y >= 0 && y < H && z >= 0 && z < D;
+// Out of the sides or below = solid wall. Above the world = open sky.
+function get(x, y, z) {
+  if (x < 0 || x >= W || z < 0 || z >= D || y < 0) return T.STONE;
+  if (y >= H) return T.AIR;
+  return grid[idx(x, y, z)];
+}
+
+// ---- Terrain generation ----
+function gen(seed) {
+  let s = seed;
+  const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const p = [r() * 6, r() * 6, r() * 6];
+  const hgt = (x, z) => Math.round(SURF + Math.sin(x * 0.15 + p[0]) * 2 + Math.cos(z * 0.18 + p[1]) * 2 + Math.sin((x + z) * 0.1 + p[2]) * 1.5);
+  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
+    const top = hgt(x, z);
+    for (let y = 0; y < H; y++) {
+      let t = T.AIR;
+      if (y === top) t = T.GRASS;
+      else if (y < top && y >= top - 2) t = T.DIRT;
+      else if (y < top - 2) t = T.STONE;
+      grid[idx(x, y, z)] = t;
+    }
+  }
+  // Caves and gems underground
+  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) for (let y = 1; y < H - 4; y++) {
+    const i = idx(x, y, z);
+    if (grid[i] === T.STONE) {
+      const n = Math.sin(x * 0.3 + y * 0.5) * Math.cos(z * 0.3 - y * 0.4) + Math.sin(z * 0.25 + x * 0.1) * 0.4;
+      if (n > 0.85) grid[i] = T.AIR;
+      else if (r() < 0.03) grid[i] = T.GEM;
+    }
+  }
+}
+gen(Math.floor(Math.random() * 1000000) + 1);
+
+// ---- Textures: small pixel-art textures made in code, so no image files are needed ----
+const rnd = (a, b) => a + Math.random() * (b - a);
+const clamp = v => Math.max(0, Math.min(255, Math.round(v)));
+function shade(hex, v) {
+  return `rgb(${clamp((hex >> 16 & 255) + v * 255)},${clamp((hex >> 8 & 255) + v * 255)},${clamp((hex & 255) + v * 255)})`;
+}
+function makeTex(draw) {
+  const S = 16;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    g.fillStyle = shade(0x808080, 0);
+    g.fillRect(x, y, 1, 1);
+  }
+  draw(g, S);
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+// Fill every pixel with a random shade of the base colour
+function noise(g, S, base, amt) {
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    g.fillStyle = shade(base, rnd(-amt, amt));
+    g.fillRect(x, y, 1, 1);
+  }
+}
+const texGrassTop = makeTex((g, S) => noise(g, S, 0x5fb83a, 0.07));
+const texDirt = makeTex((g, S) => noise(g, S, 0x8d5524, 0.09));
+const texGrassSide = makeTex((g, S) => {
+  noise(g, S, 0x8d5524, 0.09);
+  for (let y = 0; y < 4; y++) for (let x = 0; x < S; x++) {
+    g.fillStyle = shade(0x4caf50, rnd(-0.06, 0.06) + (y === 3 && Math.random() < 0.5 ? -0.1 : 0));
+    g.fillRect(x, y, 1, 1);
+  }
+});
+const texStone = makeTex((g, S) => {
+  noise(g, S, 0x7a7a7a, 0.11);
+  g.strokeStyle = shade(0x4a4a4a, 0);
+  for (let i = 0; i < 4; i++) {
+    g.beginPath();
+    g.moveTo(rnd(0, S), rnd(0, S));
+    g.lineTo(rnd(0, S), rnd(0, S));
+    g.stroke();
+  }
+});
+const texGem = makeTex((g, S) => {
+  noise(g, S, 0x7a7a7a, 0.1);
+  for (let i = 0; i < 7; i++) {
+    g.fillStyle = Math.random() < 0.5 ? shade(0x29d3ff, 0) : shade(0xbff3ff, 0);
+    g.fillRect(Math.floor(rnd(0, S - 2)), Math.floor(rnd(0, S - 2)), 2, 2);
+  }
+});
+
+const mapMat = map => new THREE.MeshLambertMaterial({ map });
+// Six faces per block: +x, -x, +y (top), -y (bottom), +z, -z
+const blockMats = {
+  [T.GRASS]: [mapMat(texGrassSide), mapMat(texGrassSide), mapMat(texGrassTop), mapMat(texDirt), mapMat(texGrassSide), mapMat(texGrassSide)],
+  [T.DIRT]: Array(6).fill(0).map(() => mapMat(texDirt)),
+  [T.STONE]: Array(6).fill(0).map(() => mapMat(texStone)),
+  [T.GEM]: Array(6).fill(0).map(() => mapMat(texGem)),
+};
+
+// ---- Three.js scene ----
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+scene.add(new THREE.HemisphereLight(0xbfe6ff, 0x5a4a3a, 0.9));
+const sun = new THREE.DirectionalLight(0xfff4e0, 0.9);
+sun.position.set(30, 50, 20);
+scene.add(sun);
+
+// One instanced mesh per block type (fast: many blocks, few draw calls)
+const dummy = new THREE.Object3D();
+const N = W * H * D;
+const meshes = {};
+for (const k of [T.GRASS, T.DIRT, T.STONE, T.GEM]) {
+  const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), blockMats[k], N);
+  m.count = 0;
+  scene.add(m);
+  meshes[k] = m;
+}
+let dirty = true;
+function rebuild() {
+  const cnt = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
+    const t = grid[idx(x, y, z)];
+    if (!t) continue;
+    dummy.position.set(x + 0.5, y + 0.5, z + 0.5);
+    dummy.updateMatrix();
+    meshes[t].setMatrixAt(cnt[t]++, dummy.matrix);
+  }
+  for (const k in meshes) {
+    meshes[k].count = cnt[k];
+    meshes[k].instanceMatrix.needsUpdate = true;
+    meshes[k].boundingSphere = null;
+  }
+}
+
+// Crack overlay that darkens the block being dug
+const crack = new THREE.Mesh(new THREE.BoxGeometry(1.03, 1.03, 1.03),
+  new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthWrite: false }));
+crack.visible = false;
+scene.add(crack);
+
+// ---- Character: head, hair, face, body, arms, legs, pickaxe ----
+const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, metalness: 0 });
+const SKIN = 0xf1c39a, SKIN_DARK = 0xd9a77e, SHIRT = 0x3a7bd5, PANTS = 0x333b6e, SHOE = 0x3b2a1e, HAIR = 0x4a2c17, BELT = 0x5a3a20;
+function part(w, h, d, c, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c));
+  m.position.set(x, y, z);
+  return m;
+}
+// A limb pivots at its top (shoulder or hip), so it swings like a real arm or leg
+function limb(w, h, d, c, x, y, z) {
+  const g = new THREE.Group();
+  g.position.set(x, y, z);
+  g.add(part(w, h, d, c, 0, -h / 2, 0));
+  return g;
+}
+
+const avatar = new THREE.Group();
+// Torso and belt
+avatar.add(part(0.5, 0.62, 0.3, SHIRT, 0, 1.02, 0));
+avatar.add(part(0.52, 0.08, 0.32, BELT, 0, 0.72, 0));
+avatar.add(part(0.1, 0.1, 0.02, 0xc9a23a, 0, 0.72, 0.17));   // belt buckle
+// Neck and head
+avatar.add(part(0.18, 0.1, 0.18, SKIN_DARK, 0, 1.36, 0));
+avatar.add(part(0.42, 0.44, 0.42, SKIN, 0, 1.6, 0));
+avatar.add(part(0.06, 0.1, 0.06, SKIN_DARK, -0.22, 1.6, 0));  // ears
+avatar.add(part(0.06, 0.1, 0.06, SKIN_DARK, 0.22, 1.6, 0));
+avatar.add(part(0.46, 0.14, 0.46, HAIR, 0, 1.8, 0));          // hair top
+avatar.add(part(0.44, 0.1, 0.1, HAIR, 0, 1.72, 0.19));        // fringe
+// Face
+for (const sx of [-1, 1]) {
+  avatar.add(part(0.1, 0.07, 0.02, 0xffffff, sx * 0.1, 1.62, 0.22));  // eye whites
+  avatar.add(part(0.05, 0.05, 0.03, 0x1a1a1a, sx * 0.1, 1.62, 0.23)); // pupils
+  avatar.add(part(0.1, 0.03, 0.02, HAIR, sx * 0.1, 1.7, 0.22));       // eyebrows
+}
+avatar.add(part(0.06, 0.1, 0.05, SKIN_DARK, 0, 1.56, 0.23));          // nose
+avatar.add(part(0.12, 0.03, 0.02, 0x8a3b3b, 0, 1.46, 0.22));          // mouth
+
+// Move the head parts into a group that turns on its own (pivot is the head's centre)
+const headGroup = new THREE.Group();
+avatar.add(headGroup);
+for (const c of [...avatar.children]) if (c.position.y >= 1.44) headGroup.add(c);
+
+// Legs: trousers with a shoe at the bottom
+const legL = limb(0.2, 0.7, 0.2, PANTS, -0.13, 0.7, 0);
+const legR = limb(0.2, 0.7, 0.2, PANTS, 0.13, 0.7, 0);
+legL.add(part(0.22, 0.12, 0.3, SHOE, 0, -0.73, 0.05));
+legR.add(part(0.22, 0.12, 0.3, SHOE, 0, -0.73, 0.05));
+// Arms: sleeves, skin hands
+const armL = limb(0.16, 0.6, 0.16, SHIRT, -0.34, 1.3, 0);
+const armR = limb(0.16, 0.6, 0.16, SHIRT, 0.34, 1.3, 0);
+armL.add(part(0.14, 0.14, 0.14, SKIN, 0, -0.66, 0));
+// Sword in the left hand
+armL.add(part(0.05, 0.5, 0.05, 0xdfe6ee, 0, -0.4, 0.12));
+armL.add(part(0.2, 0.05, 0.06, 0x8b5a2b, 0, -0.16, 0.12));
+armR.add(part(0.14, 0.14, 0.14, SKIN, 0, -0.66, 0));
+// Pickaxe in the right hand
+armR.add(part(0.06, 0.5, 0.06, 0x8b5a2b, 0, -0.4, 0.12));
+armR.add(part(0.3, 0.07, 0.07, 0x9e9e9e, 0, -0.66, 0.12));
+avatar.add(legL, legR, armL, armR);
+scene.add(avatar);
+
+function spawnPoint() {
+  const x = W >> 1, z = D >> 1;
+  let y = H - 1;
+  while (y > 0 && grid[idx(x, y, z)] === T.AIR) y--;
+  return [x + 0.5, y + 1.01, z + 0.5];
+}
+let [px, py, pz] = spawnPoint();
+let vx = 0, vy = 0, vz = 0, onGround = false, jumpHeld = false, squash = 0, walkT = 0;
+
+function hits(x, y, z) {
+  for (const dx of [-HW, HW]) for (const dz of [-HW, HW]) for (const dy of [0.01, HH - 0.01]) {
+    if (get(Math.floor(x + dx), Math.floor(y + dy), Math.floor(z + dz)) !== T.AIR) return true;
+  }
+  return false;
+}
+
+// ---- Input ----
+const keys = {};
+addEventListener('keydown', e => keys[e.code] = true);
+addEventListener('keyup', e => keys[e.code] = false);
+const touch = { L: false, R: false, F: false, B: false, J: false };
+function bindBtn(id, key) {
+  const el = document.getElementById(id);
+  el.addEventListener('pointerdown', e => { e.preventDefault(); touch[key] = true; });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, () => touch[key] = false);
+}
+bindBtn('bL', 'L'); bindBtn('bR', 'R'); bindBtn('bF', 'F'); bindBtn('bB', 'B'); bindBtn('bJ', 'J');
+
+// On-screen controls: on by default on touch devices (tablets), off on PCs.
+// The "Controls" button turns them on or off, and the choice is remembered.
+const isTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+let padOn = isTouch;
+try { const v = localStorage.getItem('padOn'); if (v !== null) padOn = v === '1'; } catch (e) {}
+const padEl = document.getElementById('pad');
+const toggleEl = document.getElementById('toggle');
+function applyPad() {
+  padEl.style.display = padOn ? 'block' : 'none';
+  toggleEl.textContent = 'Controls: ' + (padOn ? 'On' : 'Off');
+}
+toggleEl.addEventListener('click', () => {
+  padOn = !padOn;
+  try { localStorage.setItem('padOn', padOn ? '1' : '0'); } catch (e) {}
+  applyPad();
+});
+applyPad();
+
+// ---- Inventory and powers ----
+const inv = { dirt: 0, stone: 0, gem: 0 };
+const pw = { dig: { lvl: 1, xp: 0 }, build: { lvl: 1, xp: 0 }, inv: { lvl: 1, xp: 0 }, fight: { lvl: 1, xp: 0 } };
+const need = lvl => Math.floor(10 * Math.pow(1.5, lvl - 1));
+const invTotal = () => inv.dirt + inv.stone + inv.gem;
+const invCap = () => 8 + pw.inv.lvl * 4;
+// Digging takes longer than before, and gets quicker as the Digging level rises
+const digTime = () => 1.0 * Math.pow(0.92, pw.dig.lvl - 1);
+let invTimer = 0;
+
+const titles = ['Lord', 'Mistress', 'Sir', 'Dame'];
+const names = ['Kestrel', 'Elowen', 'Brannoc', 'Aldric'];
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const playerName = pick(titles) + ' ' + pick(names) + ' ' + (Math.floor(Math.random() * 999) + 1);
+
+const msgEl = document.getElementById('msg');
+let msgT = 0;
+function say(text, ms = 2000) { msgEl.textContent = text; msgT = ms; }
+say('Hold a block to dig it. Tap empty space to build. Arrows / WASD to move, Space to jump.', 5000);
+
+function gain(p, n) {
+  const s = pw[p];
+  s.xp += n;
+  const nd = need(s.lvl);
+  if (s.xp >= nd) { s.xp -= nd; s.lvl++; say(LABEL[p] + ' power up! Level ' + s.lvl, 2500); }
+}
+
+// Finish digging the block at (x,y,z). Returns false if the bag is full.
+function digCell(x, y, z) {
+  const t = get(x, y, z);
+  if (!t) return false;
+  if (invTotal() >= invCap()) { say('Bag is full! Place some blocks to make room.'); return false; }
+  grid[idx(x, y, z)] = T.AIR;
+  const key = (t === T.GRASS || t === T.DIRT) ? 'dirt' : (t === T.STONE ? 'stone' : 'gem');
+  inv[key]++;
+  if (key === 'gem') say('+1 gem!', 1200);
+  gain('dig', 1);
+  dirty = true;
+  return true;
+}
+
+let armSwing = 0; // quick arm swing when placing
+
+// Place a block in an empty cell
+function placeCell(x, y, z) {
+  if (!inBounds(x, y, z)) return;
+  const key = inv.stone > 0 ? 'stone' : (inv.dirt > 0 ? 'dirt' : null);
+  if (!key) { say('No blocks! Dig some first.'); return; }
+  if (x < px + HW && x + 1 > px - HW && y < py + HH && y + 1 > py && z < pz + HW && z + 1 > pz - HW) {
+    say("Can't build on yourself!");
+    return;
+  }
+  grid[idx(x, y, z)] = key === 'stone' ? T.STONE : T.DIRT;
+  inv[key]--;
+  gain('build', 1);
+  dirty = true;
+  armSwing = 0.3;
+}
+
+// ---- Pointer: hold to dig, tap to build ----
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let digging = null; // {x, y, z, t}
+
+// Which block the press landed on, and the cell it would dig or build in
+function aim(e) {
+  ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
+  ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects([...Object.values(meshes), ...enemies.map(en => en.group)], true)[0];
+  if (!hit) return null;
+  const enemy = hit.object.userData.enemy || null;
+  const d = ray.ray.direction, p = hit.point, e2 = 0.01;
+  const dig = [Math.floor(p.x + d.x * e2), Math.floor(p.y + d.y * e2), Math.floor(p.z + d.z * e2)];
+  // Reach is measured from the character, not the camera (the camera is far behind)
+  const dist = Math.hypot(dig[0] + 0.5 - px, dig[1] + 0.5 - (py + HH / 2), dig[2] + 0.5 - pz);
+  return {
+    enemy,
+    dist,
+    dig,
+    place: [Math.floor(p.x - d.x * e2), Math.floor(p.y - d.y * e2), Math.floor(p.z - d.z * e2)]
+  };
+}
+
+// ---- Zoom: mouse wheel, or pinch with two fingers on a tablet ----
+const canvas = renderer.domElement;
+let zoom = 1; // 1 = normal, smaller = closer, bigger = further away
+let camYaw = 0;      // camera angle around the character (drag left/right to turn the world)
+let headTarget = 0;  // head turns toward the mouse or finger
+let headYaw = 0;
+let press = null;        // the current press: {id, x, lastX, moved}
+let pendingPlace = null; // cell to build in, used only if the press was a tap (not a drag)
+function setZoom(z) { zoom = Math.min(5, Math.max(0.25, z)); }
+const touches = new Map();
+let pinchDist = 0;
+canvas.addEventListener('pointerdown', e => touches.set(e.pointerId, { x: e.clientX, y: e.clientY }));
+canvas.addEventListener('pointermove', e => {
+  headTarget = (e.clientX / window.innerWidth * 2 - 1) * 0.8; // head looks toward the pointer
+  if (!touches.has(e.pointerId)) return;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  // Press and move sideways to turn the world; a press without movement is a dig or build
+  if (press && press.id === e.pointerId && touches.size === 1) {
+    if (!press.moved && Math.abs(e.clientX - press.x) > 8) { press.moved = true; digging = null; fight = null; }
+    if (press.moved) camYaw -= (e.clientX - press.lastX) * 0.01;
+    press.lastX = e.clientX;
+  }
+  if (touches.size === 2) {
+    const [a, b] = [...touches.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (pinchDist > 0) setZoom(zoom * pinchDist / d); // fingers apart = zoom in
+    pinchDist = d;
+    digging = null; // a pinch is not a dig
+  }
+});
+function endTouch(e) {
+  touches.delete(e.pointerId);
+  if (touches.size < 2) pinchDist = 0;
+}
+canvas.addEventListener('pointerup', endTouch);
+canvas.addEventListener('pointercancel', endTouch);
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  setZoom(zoom * (1 + e.deltaY * 0.001)); // scroll down = zoom out
+}, { passive: false });
+
+canvas.addEventListener('pointerdown', e => {
+  if (touches.size > 1) return; // two fingers = pinch, not a dig or build
+  press = { id: e.pointerId, x: e.clientX, lastX: e.clientX, moved: false };
+  pendingPlace = null;
+  const a = aim(e);
+  if (!a) return;
+  if (a.enemy) {
+    // Hold on a slime to fight it
+    const en = a.enemy;
+    if (Math.hypot(en.x - px, en.y - py, en.z - pz) > REACH + 1) { say('Too far away! Get closer.'); return; }
+    fight = { e: en, t: 0 };
+    digging = null;
+    return;
+  }
+  if (a.dist > REACH) { say('Too far away! Get closer.'); return; }
+  const [dx, dy, dz] = a.dig;
+  if (get(dx, dy, dz) !== T.AIR) {
+    // Start digging: it finishes after holding for a while
+    digging = { x: dx, y: dy, z: dz, t: 0 };
+    armSwing = 0;
+  } else {
+    pendingPlace = a.place; // build on release, so a drag does not build
+  }
+});
+canvas.addEventListener('pointerup', e => {
+  if (press && press.id === e.pointerId && !press.moved && pendingPlace) placeCell(...pendingPlace);
+  pendingPlace = null;
+  press = null;
+});
+function stopDig() { digging = null; fight = null; }
+addEventListener('pointerup', stopDig);
+addEventListener('pointercancel', stopDig);
+
+// Keep digging progress in step with the held block, and cancel if we walk away
+function updateDig(dt) {
+  if (!digging) { crack.visible = false; return; }
+  const { x, y, z } = digging;
+  const dist = Math.hypot(x + 0.5 - px, y + 0.5 - (py + HH / 2), z + 0.5 - pz);
+  if (get(x, y, z) === T.AIR || dist > REACH + 1) { digging = null; crack.visible = false; return; }
+  digging.t += dt;
+  const progress = Math.min(1, digging.t / digTime());
+  crack.visible = true;
+  crack.position.set(x + 0.5, y + 0.5, z + 0.5);
+  crack.material.opacity = progress * 0.6;
+  if (progress >= 1) {
+    const done = digCell(x, y, z);
+    digging = null;
+    crack.visible = false;
+    if (!done) stopDig();
+  }
+}
+
+// ---- Slimes: gentle creatures to fight with the sword (they never hurt the player) ----
+const enemies = [];
+let fight = null; // {e, t}: the slime being hit, and how long we have been hitting it
+const fightTime = () => 1.0 * Math.pow(0.92, pw.fight.lvl - 1);
+const slimeGeo = new THREE.SphereGeometry(0.4, 16, 12);
+const slimeMat = new THREE.MeshStandardMaterial({ color: 0x5fdc5f, roughness: 0.3, transparent: true, opacity: 0.9 });
+const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+
+function spawnSlime() {
+  for (let tries = 0; tries < 20; tries++) {
+    const x = Math.floor(Math.random() * (W - 2)) + 1, z = Math.floor(Math.random() * (D - 2)) + 1;
+    let y = H - 1;
+    while (y > 0 && grid[idx(x, y, z)] === T.AIR) y--;
+    if (grid[idx(x, y, z)] !== T.GRASS) continue;
+    if (Math.hypot(x + 0.5 - px, z + 0.5 - pz) < 6) continue; // not right on top of the player
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(slimeGeo, slimeMat);
+    body.scale.set(1, 0.8, 1);
+    body.position.y = 0.32;
+    group.add(body);
+    for (const sx of [-0.14, 0.14]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), eyeMat);
+      eye.position.set(sx, 0.4, 0.34);
+      group.add(eye);
+    }
+    scene.add(group);
+    const en = { group, x: x + 0.5, y: y + 1.01, z: z + 0.5, vx: 0, vy: 0, vz: 0, timer: 1, hitP: 0 };
+    group.traverse(c => { c.userData.enemy = en; });
+    enemies.push(en);
+    return;
+  }
+}
+for (let i = 0; i < 6; i++) spawnSlime();
+let slimeSpawnT = 6;
+function updateSpawns(dt) {
+  slimeSpawnT -= dt;
+  if (enemies.length < 6 && slimeSpawnT <= 0) { spawnSlime(); slimeSpawnT = 6; }
+}
+
+// Like hits(), but for any size of box
+function solidBox(x, y, z, hw, hh) {
+  for (const dx of [-hw, hw]) for (const dz of [-hw, hw]) for (const dy of [0.01, hh - 0.01]) {
+    if (get(Math.floor(x + dx), Math.floor(y + dy), Math.floor(z + dz)) !== T.AIR) return true;
+  }
+  return false;
+}
+
+function updateSlimes(dt) {
+  const now = performance.now() / 1000;
+  for (const en of enemies) {
+    // Wander: pick a direction, walk, sometimes stop and wait
+    en.timer -= dt;
+    if (en.timer <= 0) {
+      en.timer = 1.5 + Math.random() * 2.5;
+      const a = Math.random() * Math.PI * 2;
+      en.vx = Math.sin(a) * 1.0;
+      en.vz = Math.cos(a) * 1.0;
+      if (Math.random() < 0.3) { en.vx = 0; en.vz = 0; }
+    }
+    const nx = en.x + en.vx * dt;
+    if (!solidBox(nx, en.y, en.z, 0.3, 0.8)) en.x = nx; else en.timer = 0;
+    const nz = en.z + en.vz * dt;
+    if (!solidBox(en.x, en.y, nz, 0.3, 0.8)) en.z = nz; else en.timer = 0;
+    en.vy = Math.max(en.vy - GRAV * dt, -30);
+    const ny = en.y + en.vy * dt;
+    if (!solidBox(en.x, ny, en.z, 0.3, 0.8)) en.y = ny; else en.vy = 0;
+
+    // Jelly wobble, and squash more while being hit
+    const sq = en.hitP * 0.25 + Math.sin(now * 5 + en.x) * 0.05;
+    en.group.position.set(en.x, en.y, en.z);
+    en.group.scale.set(1 + sq, 1 - sq, 1 + sq);
+    if (en.vx || en.vz) en.group.rotation.y = Math.atan2(en.vx, en.vz);
+  }
+}
+
+// Hold on a slime to attack it. Fighting XP is gained when it is defeated.
+function updateFight(dt) {
+  if (!fight) { for (const en of enemies) en.hitP = 0; return; }
+  const en = fight.e;
+  if (!enemies.includes(en)) { fight = null; return; }
+  const dist = Math.hypot(en.x - px, en.y - py, en.z - pz);
+  if (dist > REACH + 1) { fight = null; en.hitP = 0; return; }
+  fight.t += dt;
+  en.hitP = Math.min(1, fight.t / fightTime());
+  if (fight.t >= fightTime()) { en.hitP = 0; killSlime(en); fight = null; }
+}
+
+function killSlime(en) {
+  scene.remove(en.group);
+  enemies.splice(enemies.indexOf(en), 1);
+  inv.gem++;
+  gain('fight', 2);
+  say('Slime defeated! +1 gem', 1500);
+  dirty = false;
+}
+
+// ---- Game loop ----
+function update(dt) {
+  const k = c => !!keys[c];
+  const sx = ((k('KeyD') || k('ArrowRight') || touch.R) ? 1 : 0) - ((k('KeyA') || k('ArrowLeft') || touch.L) ? 1 : 0);
+  const sz = ((k('KeyS') || k('ArrowDown') || touch.B) ? 1 : 0) - ((k('KeyW') || k('ArrowUp') || touch.F) ? 1 : 0);
+  const norm = Math.hypot(sx, sz) || 1;
+  // Move relative to the camera, so "up" is always away from you on screen
+  const cosY = Math.cos(camYaw), sinY = Math.sin(camYaw);
+  const wx = sx * cosY + sz * sinY, wz = -sx * sinY + sz * cosY;
+  vx = wx * SPEED / norm;
+  vz = wz * SPEED / norm;
+
+  // Move on each axis separately so walls stop us cleanly
+  const nx = px + vx * dt;
+  if (!hits(nx, py, pz)) px = nx;
+  const nz = pz + vz * dt;
+  if (!hits(px, py, nz)) pz = nz;
+
+  // Jump and gravity
+  const jd = k('Space') || touch.J;
+  if (jd && !jumpHeld && onGround) { vy = JUMP; onGround = false; squash = 1; }
+  jumpHeld = jd;
+  vy = Math.max(vy - GRAV * dt, -30);
+  const ny = py + vy * dt;
+  if (!hits(px, ny, pz)) { py = ny; onGround = false; }
+  else { if (vy < 0) { onGround = true; squash = 1; } vy = 0; }
+
+  if (py < -10) { [px, py, pz] = spawnPoint(); vy = 0; }
+
+  // Inventory power grows while the bag is full
+  if (invTotal() >= invCap()) {
+    invTimer += dt;
+    if (invTimer >= 1) { invTimer -= 1; gain('inv', 1); }
+  } else invTimer = 0;
+
+  updateDig(dt);
+  updateFight(dt);
+  updateSlimes(dt);
+  updateSpawns(dt);
+
+  // Avatar: face the way we move
+  const moving = sx || sz;
+  if (moving) avatar.rotation.y = Math.atan2(vx, vz);
+
+  // Walking: legs and free arm swing; in the air, arms go up
+  walkT += dt * (moving && onGround ? 9 : 0);
+  const swing = Math.sin(walkT) * 0.8;
+  legL.rotation.x = swing;
+  legR.rotation.x = -swing;
+  armL.rotation.x = onGround ? -swing : -2.4;
+  if (fight) armL.rotation.x = -1.3 + Math.sin(performance.now() / 110) * 0.8; // sword swing
+  if (digging) {
+    // Pickaxe swing while digging
+    armR.rotation.x = -1.3 + Math.sin(performance.now() / 110) * 0.7;
+  } else if (armSwing > 0) {
+    armSwing -= dt;
+    armR.rotation.x = -1.2;
+  } else {
+    armR.rotation.x = onGround ? swing : -2.4;
+  }
+
+  squash = Math.max(0, squash - dt * 4);
+  const sq = squash * 0.2;
+  avatar.position.set(px, py, pz);
+  headYaw += (headTarget - headYaw) * 0.15;
+  headGroup.rotation.y = headYaw;
+  avatar.scale.set(1 + sq, 1 - sq, 1 + sq);
+
+  // Camera follows from behind
+  const camX = px + Math.sin(camYaw) * 9 * zoom, camZ = pz + Math.cos(camYaw) * 9 * zoom;
+  camera.position.lerp(new THREE.Vector3(camX, py + 5 * zoom, camZ), 0.12);
+  camera.lookAt(px, py + 1, pz);
+
+  // Underground = dark background
+  const under = get(Math.floor(px), Math.floor(py + HH), Math.floor(pz)) !== T.AIR;
+  scene.background.setHex(under ? 0x2b2238 : 0x87ceeb);
+
+  if (msgT > 0) { msgT -= dt * 1000; if (msgT <= 0) msgEl.textContent = ''; }
+  drawHud();
+}
+
+const hud = document.getElementById('hud');
+function drawHud() {
+  const cap = invCap(), total = invTotal();
+  const bar = (k, ratio) => `<div class="bar"><div style="width:${Math.min(1, ratio) * 100}%;background:${BAR[k]}"></div></div>`;
+  hud.innerHTML =
+    `${playerName}<br>` +
+    `Digging Lv ${pw.dig.lvl}${bar('dig', pw.dig.xp / need(pw.dig.lvl))}` +
+    `Building Lv ${pw.build.lvl}${bar('build', pw.build.xp / need(pw.build.lvl))}` +
+    `Inventory Lv ${pw.inv.lvl}${bar('inv', total / cap)}` +
+    `Fighting Lv ${pw.fight.lvl}${bar('fight', pw.fight.xp / need(pw.fight.lvl))}` +
+    `Bag ${total}/${cap} &nbsp; Gems ${inv.gem}`;
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  update(dt);
+  if (dirty) { rebuild(); dirty = false; }
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+rebuild();
+dirty = false;
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "appId": "com.example.kidsgame",
+  "appName": "Kids Game",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}

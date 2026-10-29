@@ -1,0 +1,85 @@
+# Builds the Android app and uploads it to Google Play.
+# Runs when you push a version tag (for example v0.5.0), or by hand from the Actions tab.
+#
+# Needed once, in GitHub → Settings → Secrets and variables → Actions:
+#   Secrets:
+#     ANDROID_KEYSTORE_BASE64   the upload keystore file, base64-encoded
+#     KEYSTORE_PASSWORD         keystore password
+#     KEY_ALIAS                 key alias inside the keystore
+#     KEY_PASSWORD              key password
+#     PLAY_SERVICE_ACCOUNT_JSON service account key JSON for the Play Console API
+#   Variables:
+#     APP_ID                    the appId from capacitor.config.json (com.yourname.kidsgame)
+
+name: Release to Google Play
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      APP_ID: ${{ vars.APP_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Capacitor
+        run: npm install
+
+      - name: Copy the game into the web folder
+        run: |
+          mkdir -p www
+          cp build/prototype-3d-v4.html www/index.html
+
+      - name: Create the Android project (first run only)
+        run: |
+          if [ ! -d android ]; then npx cap add android; fi
+          npx cap sync android
+
+      - name: Set version name and code
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then VERSION="0.0.0"; fi
+          sed -i "s/versionCode 1/versionCode ${GITHUB_RUN_NUMBER}/; s/versionName \"1.0\"/versionName \"${VERSION}\"/" android/app/build.gradle
+
+      - name: Add the signing setup
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
+          sed -i "s/    buildTypes {/    signingConfigs {\n        release {\n            storeFile file('release.keystore')\n            storePassword System.getenv('KEYSTORE_PASSWORD')\n            keyAlias System.getenv('KEY_ALIAS')\n            keyPassword System.getenv('KEY_PASSWORD')\n        }\n    }\n    buildTypes {/" android/app/build.gradle
+          sed -i "0,/minifyEnabled false/s//minifyEnabled false\n            signingConfig signingConfigs.release/" android/app/build.gradle
+
+      - name: Build the app bundle (.aab)
+        working-directory: android
+        run: ./gradlew bundleRelease
+
+      - name: Upload to Google Play (internal testing track)
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ vars.APP_ID }}
+          releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
+          track: internal
+          status: completed
+
+      - name: Keep the bundle as a download
+        uses: actions/upload-artifact@v4
+        with:
+          name: kids-game-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
