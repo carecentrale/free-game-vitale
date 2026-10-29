@@ -1,0 +1,19 @@
+# Dependencies and build output
+node_modules/
+build/*.aab
+build/*.apk
+build/*.zip
+
+# Signing keys: never commit these
+*.jks
+*.keystore
+*.p12
+keystore.properties
+
+# Secrets and local settings
+.env
+*.key
+
+# System files
+.DS_Store
+Thumbs.db

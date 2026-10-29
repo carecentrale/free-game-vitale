@@ -1,0 +1,335 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Kids Game Prototype v0.2 (3D)</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
+  canvas{display:block}
+  #hud{position:fixed;top:10px;left:10px;color:#fff;text-shadow:0 2px 4px #000;font-size:16px;line-height:1.4;pointer-events:none}
+  .bar{width:180px;height:14px;background:rgba(0,0,0,.5);margin:4px 0}
+  .bar>div{height:100%;width:0}
+  #msg{position:fixed;top:12px;left:50%;transform:translateX(-50%);color:#fff;font-size:22px;text-shadow:0 2px 4px #000;pointer-events:none;white-space:nowrap}
+  .btn{position:fixed;width:56px;height:50px;background:rgba(255,255,255,.3);color:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;touch-action:none}
+  #toggle{position:fixed;top:10px;right:10px;padding:6px 10px;background:rgba(0,0,0,.4);color:#fff;border-radius:8px;font-size:14px;cursor:pointer;z-index:10}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}
+</script>
+</head>
+<body>
+<div id="hud"></div>
+<div id="msg"></div>
+<div id="toggle">Controls</div>
+<div id="pad">
+  <div class="btn" id="bF" style="left:40px;bottom:110px">&#9650;</div>
+  <div class="btn" id="bL" style="left:10px;bottom:56px">&#9664;</div>
+  <div class="btn" id="bR" style="left:70px;bottom:56px">&#9654;</div>
+  <div class="btn" id="bB" style="left:40px;bottom:2px">&#9660;</div>
+  <div class="btn" id="bJ" style="right:14px;bottom:14px;width:80px">JUMP</div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ---- World settings ----
+const W = 40, H = 24, D = 40, SURF = 12;
+const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4 };
+const COL = { 1: 0x4caf50, 2: 0x8d5524, 3: 0x7a7a7a, 4: 0x29d3ff };
+const SPEED = 5, GRAV = 25, JUMP = 8, HW = 0.3, HH = 1.5;
+const LABEL = { dig: 'Digging', build: 'Building', inv: 'Inventory' };
+const BAR = { dig: '#ffb347', build: '#66ccff', inv: '#9cff6b' };
+
+const grid = new Uint8Array(W * H * D);
+const idx = (x, y, z) => (y * D + z) * W + x;
+const inBounds = (x, y, z) => x >= 0 && x < W && y >= 0 && y < H && z >= 0 && z < D;
+// Out of the sides or below = solid wall. Above the world = open sky.
+function get(x, y, z) {
+  if (x < 0 || x >= W || z < 0 || z >= D || y < 0) return T.STONE;
+  if (y >= H) return T.AIR;
+  return grid[idx(x, y, z)];
+}
+
+// ---- Terrain generation ----
+function gen(seed) {
+  let s = seed;
+  const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const p = [r() * 6, r() * 6, r() * 6];
+  const hgt = (x, z) => Math.round(SURF + Math.sin(x * 0.15 + p[0]) * 2 + Math.cos(z * 0.18 + p[1]) * 2 + Math.sin((x + z) * 0.1 + p[2]) * 1.5);
+  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
+    const top = hgt(x, z);
+    for (let y = 0; y < H; y++) {
+      let t = T.AIR;
+      if (y === top) t = T.GRASS;
+      else if (y < top && y >= top - 2) t = T.DIRT;
+      else if (y < top - 2) t = T.STONE;
+      grid[idx(x, y, z)] = t;
+    }
+  }
+  // Caves and gems underground
+  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) for (let y = 1; y < H - 4; y++) {
+    const i = idx(x, y, z);
+    if (grid[i] === T.STONE) {
+      const n = Math.sin(x * 0.3 + y * 0.5) * Math.cos(z * 0.3 - y * 0.4) + Math.sin(z * 0.25 + x * 0.1) * 0.4;
+      if (n > 0.85) grid[i] = T.AIR;
+      else if (r() < 0.03) grid[i] = T.GEM;
+    }
+  }
+}
+gen(Math.floor(Math.random() * 1000000) + 1);
+
+// ---- Three.js scene ----
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+sun.position.set(30, 50, 20);
+scene.add(sun);
+
+// One instanced mesh per block type (fast: many blocks, few draw calls)
+const dummy = new THREE.Object3D();
+const N = W * H * D;
+const meshes = {};
+for (const k of [T.GRASS, T.DIRT, T.STONE, T.GEM]) {
+  const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: COL[k] }), N);
+  m.count = 0;
+  scene.add(m);
+  meshes[k] = m;
+}
+let dirty = true;
+function rebuild() {
+  const cnt = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
+    const t = grid[idx(x, y, z)];
+    if (!t) continue;
+    dummy.position.set(x + 0.5, y + 0.5, z + 0.5);
+    dummy.updateMatrix();
+    meshes[t].setMatrixAt(cnt[t]++, dummy.matrix);
+  }
+  for (const k in meshes) {
+    meshes[k].count = cnt[k];
+    meshes[k].instanceMatrix.needsUpdate = true;
+    meshes[k].boundingSphere = null;
+  }
+}
+
+// ---- Player ----
+const avatar = new THREE.Group();
+const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, 0.4), new THREE.MeshLambertMaterial({ color: 0x3366ff }));
+bodyMesh.position.set(0, 0.6, 0);
+const headMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshLambertMaterial({ color: 0xffd9a0 }));
+headMesh.position.set(0, 1.25, 0);
+avatar.add(bodyMesh, headMesh);
+scene.add(avatar);
+
+function spawnPoint() {
+  const x = W >> 1, z = D >> 1;
+  let y = H - 1;
+  while (y > 0 && grid[idx(x, y, z)] === T.AIR) y--;
+  return [x + 0.5, y + 1.01, z + 0.5];
+}
+let [px, py, pz] = spawnPoint();
+let vx = 0, vy = 0, vz = 0, onGround = false, jumpHeld = false, squash = 0;
+
+function hits(x, y, z) {
+  for (const dx of [-HW, HW]) for (const dz of [-HW, HW]) for (const dy of [0.01, HH - 0.01]) {
+    if (get(Math.floor(x + dx), Math.floor(y + dy), Math.floor(z + dz)) !== T.AIR) return true;
+  }
+  return false;
+}
+
+// ---- Input ----
+const keys = {};
+addEventListener('keydown', e => keys[e.code] = true);
+addEventListener('keyup', e => keys[e.code] = false);
+const touch = { L: false, R: false, F: false, B: false, J: false };
+function bindBtn(id, key) {
+  const el = document.getElementById(id);
+  el.addEventListener('pointerdown', e => { e.preventDefault(); touch[key] = true; });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, () => touch[key] = false);
+}
+bindBtn('bL', 'L'); bindBtn('bR', 'R'); bindBtn('bF', 'F'); bindBtn('bB', 'B'); bindBtn('bJ', 'J');
+
+// On-screen controls: on by default on touch devices (tablets), off on PCs.
+// The "Controls" button turns them on or off, and the choice is remembered.
+const isTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+let padOn = isTouch;
+try { const v = localStorage.getItem('padOn'); if (v !== null) padOn = v === '1'; } catch (e) {}
+const padEl = document.getElementById('pad');
+const toggleEl = document.getElementById('toggle');
+function applyPad() {
+  padEl.style.display = padOn ? 'block' : 'none';
+  toggleEl.textContent = 'Controls: ' + (padOn ? 'On' : 'Off');
+}
+toggleEl.addEventListener('click', () => {
+  padOn = !padOn;
+  try { localStorage.setItem('padOn', padOn ? '1' : '0'); } catch (e) {}
+  applyPad();
+});
+applyPad();
+
+// ---- Inventory and powers (same rules as v0.1) ----
+const inv = { dirt: 0, stone: 0, gem: 0 };
+const pw = { dig: { lvl: 1, xp: 0 }, build: { lvl: 1, xp: 0 }, inv: { lvl: 1, xp: 0 } };
+const need = lvl => Math.floor(10 * Math.pow(1.5, lvl - 1));
+const invTotal = () => inv.dirt + inv.stone + inv.gem;
+const invCap = () => 8 + pw.inv.lvl * 4;
+let invTimer = 0;
+
+const titles = ['Lord', 'Mistress', 'Sir', 'Dame'];
+const names = ['Kestrel', 'Elowen', 'Brannoc', 'Aldric'];
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const playerName = pick(titles) + ' ' + pick(names) + ' ' + (Math.floor(Math.random() * 999) + 1);
+
+const msgEl = document.getElementById('msg');
+let msgT = 0;
+function say(text, ms = 2000) { msgEl.textContent = text; msgT = ms; }
+say('Tap or click a block to dig it. Tap empty space to build. Arrows / WASD to move, Space to jump.', 5000);
+
+function gain(p, n) {
+  const s = pw[p];
+  s.xp += n;
+  const nd = need(s.lvl);
+  if (s.xp >= nd) { s.xp -= nd; s.lvl++; say(LABEL[p] + ' power up! Level ' + s.lvl, 2500); }
+}
+
+// Dig the block at cell (x,y,z)
+function digCell(x, y, z) {
+  const t = get(x, y, z);
+  if (!t) return;
+  if (invTotal() >= invCap()) { say('Bag is full! Place some blocks to make room.'); return; }
+  grid[idx(x, y, z)] = T.AIR;
+  const key = (t === T.GRASS || t === T.DIRT) ? 'dirt' : (t === T.STONE ? 'stone' : 'gem');
+  inv[key]++;
+  if (key === 'gem') say('+1 gem!', 1200);
+  gain('dig', 1);
+  dirty = true;
+}
+
+// Place a block in an empty cell
+function placeCell(x, y, z) {
+  if (!inBounds(x, y, z)) return;
+  const key = inv.stone > 0 ? 'stone' : (inv.dirt > 0 ? 'dirt' : null);
+  if (!key) { say('No blocks! Dig some first.'); return; }
+  // Cannot place inside the player
+  if (x < px + HW && x + 1 > px - HW && y < py + HH && y + 1 > py && z < pz + HW && z + 1 > pz - HW) {
+    say("Can't build on yourself!");
+    return;
+  }
+  grid[idx(x, y, z)] = key === 'stone' ? T.STONE : T.DIRT;
+  inv[key]--;
+  gain('build', 1);
+  dirty = true;
+}
+
+// Tap or click: raycast into the blocks
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+renderer.domElement.addEventListener('pointerdown', e => {
+  ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
+  ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(Object.values(meshes), false)[0];
+  if (!hit) return;
+  if (hit.distance > 8) { say('Too far away! Get closer.'); return; }
+  const d = ray.ray.direction, p = hit.point, e2 = 0.01;
+  // Point just inside the hit block = block to dig
+  digOrPlace(Math.floor(p.x + d.x * e2), Math.floor(p.y + d.y * e2), Math.floor(p.z + d.z * e2),
+             Math.floor(p.x - d.x * e2), Math.floor(p.y - d.y * e2), Math.floor(p.z - d.z * e2));
+});
+// Digging comes from the block the ray hit; building goes in front of the face it hit
+function digOrPlace(dx, dy, dz, fx, fy, fz) {
+  if (get(dx, dy, dz) !== T.AIR) digCell(dx, dy, dz);
+  else placeCell(fx, fy, fz);
+}
+
+// ---- Game loop ----
+function update(dt) {
+  const k = c => !!keys[c];
+  const sx = ((k('KeyD') || k('ArrowRight') || touch.R) ? 1 : 0) - ((k('KeyA') || k('ArrowLeft') || touch.L) ? 1 : 0);
+  const sz = ((k('KeyS') || k('ArrowDown') || touch.B) ? 1 : 0) - ((k('KeyW') || k('ArrowUp') || touch.F) ? 1 : 0);
+  const norm = Math.hypot(sx, sz) || 1;
+  vx = sx * SPEED / norm;
+  vz = sz * SPEED / norm;
+
+  // Move on each axis separately so walls stop us cleanly
+  const nx = px + vx * dt;
+  if (!hits(nx, py, pz)) px = nx;
+  const nz = pz + vz * dt;
+  if (!hits(px, py, nz)) pz = nz;
+
+  // Jump and gravity
+  const jd = k('Space') || touch.J;
+  if (jd && !jumpHeld && onGround) { vy = JUMP; onGround = false; squash = 1; }
+  jumpHeld = jd;
+  vy = Math.max(vy - GRAV * dt, -30);
+  const ny = py + vy * dt;
+  if (!hits(px, ny, pz)) { py = ny; onGround = false; }
+  else { if (vy < 0) { onGround = true; squash = 1; } vy = 0; }
+
+  if (py < -10) { [px, py, pz] = spawnPoint(); vy = 0; }
+
+  // Inventory power grows while the bag is full
+  if (invTotal() >= invCap()) {
+    invTimer += dt;
+    if (invTimer >= 1) { invTimer -= 1; gain('inv', 1); }
+  } else invTimer = 0;
+
+  // Avatar: face the way we move, squash on jump and landing
+  if (sx || sz) avatar.rotation.y = Math.atan2(sx, sz);
+  squash = Math.max(0, squash - dt * 4);
+  const sq = squash * 0.2;
+  avatar.position.set(px, py, pz);
+  avatar.scale.set(1 + sq, 1 - sq, 1 + sq);
+
+  // Camera follows from behind
+  camera.position.lerp(new THREE.Vector3(px, py + 5, pz + 9), 0.12);
+  camera.lookAt(px, py + 1, pz);
+
+  // Underground = dark background
+  const under = get(Math.floor(px), Math.floor(py + HH), Math.floor(pz)) !== T.AIR;
+  scene.background.setHex(under ? 0x2b2238 : 0x87ceeb);
+
+  if (msgT > 0) { msgT -= dt * 1000; if (msgT <= 0) msgEl.textContent = ''; }
+  drawHud();
+}
+
+const hud = document.getElementById('hud');
+function drawHud() {
+  const cap = invCap(), total = invTotal();
+  const bar = (k, ratio) => `<div class="bar"><div style="width:${Math.min(1, ratio) * 100}%;background:${BAR[k]}"></div></div>`;
+  hud.innerHTML =
+    `${playerName}<br>` +
+    `Digging Lv ${pw.dig.lvl}${bar('dig', pw.dig.xp / need(pw.dig.lvl))}` +
+    `Building Lv ${pw.build.lvl}${bar('build', pw.build.xp / need(pw.build.lvl))}` +
+    `Inventory Lv ${pw.inv.lvl}${bar('inv', total / cap)}` +
+    `Bag ${total}/${cap} &nbsp; Gems ${inv.gem}`;
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  update(dt);
+  if (dirty) { rebuild(); dirty = false; }
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+rebuild();
+dirty = false;
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

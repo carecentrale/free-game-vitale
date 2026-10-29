@@ -1,0 +1,308 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Kids Game Prototype v0.1</title>
+<style>
+  html,body{margin:0;height:100%;background:#1b2a4a;overflow:hidden;touch-action:none;}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+</head>
+<body>
+<script>
+// ---- World settings ----
+const TILE = 32, COLS = 200, ROWS = 60, SURF = 20;
+const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4 };
+const COL = { 1: 0x4caf50, 2: 0x8d5524, 3: 0x7a7a7a, 4: 0x29d3ff };
+const PW = 20, PH = 28, GRAV = 900;
+const LABEL = { dig: 'Digging', build: 'Building', inv: 'Inventory' };
+const BAR = { dig: 0xffb347, build: 0x66ccff, inv: 0x9cff6b };
+
+let grid = [];
+
+// Generate a new world (simple, seeded terrain + caves)
+function gen(seed) {
+  let s = seed;
+  const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const p = [r() * 6, r() * 6, r() * 6];
+  const h = x => Math.round(SURF + Math.sin(x * 0.08 + p[0]) * 3 + Math.sin(x * 0.21 + p[1]) * 1.5 + Math.sin(x * 0.5 + p[2]) * 0.5);
+  grid = [];
+  for (let x = 0; x < COLS; x++) {
+    grid[x] = [];
+    const top = h(x);
+    for (let y = 0; y < ROWS; y++) {
+      let t = T.AIR;
+      if (y === top) t = T.GRASS;
+      else if (y > top && y < top + 3) t = T.DIRT;
+      else if (y >= top + 3) t = T.STONE;
+      grid[x][y] = t;
+    }
+  }
+  // caves and gems underground
+  for (let x = 0; x < COLS; x++) {
+    for (let y = SURF + 6; y < ROWS - 1; y++) {
+      const t = grid[x][y];
+      if (t === T.STONE || t === T.DIRT) {
+        const n = Math.sin(x * 0.3 + y * 0.17) * Math.cos(y * 0.23 - x * 0.11) + r() * 0.3;
+        if (n > 0.75) grid[x][y] = T.AIR;
+        else if (t === T.STONE && r() < 0.04) grid[x][y] = T.GEM;
+      }
+    }
+  }
+}
+
+class Main extends Phaser.Scene {
+  create() {
+    gen(Math.floor(Math.random() * 1000000) + 1);
+
+    // Default name from the preset generator (no free typing)
+    const titles = ['Lord', 'Mistress', 'Sir', 'Dame'];
+    const names = ['Kestrel', 'Elowen', 'Brannoc', 'Aldric'];
+    const pick = a => a[Math.floor(Math.random() * a.length)];
+    this.playerName = pick(titles) + ' ' + pick(names) + ' ' + (Math.floor(Math.random() * 999) + 1);
+
+    // Spawn on the surface
+    let sx = COLS >> 1, sy = 0;
+    while (sy < ROWS - 1 && grid[sx][sy] !== T.GRASS) sy++;
+    this.spawnX = sx * TILE + 6;
+    this.spawnY = (sy - 2) * TILE;
+    this.px = this.spawnX; this.py = this.spawnY;
+    this.vx = 0; this.vy = 0; this.onGround = false; this.squash = 0;
+    this.jumpHeld = false;
+    this.touch = { left: false, right: false, jump: false };
+
+    this.inv = { dirt: 0, stone: 0, gem: 0 };
+    this.pw = { dig: { lvl: 1, xp: 0 }, build: { lvl: 1, xp: 0 }, inv: { lvl: 1, xp: 0 } };
+    this.invTimer = 0;
+    this.msgT = 0;
+
+    this.world = this.add.graphics();
+    this.hl = this.add.graphics();
+
+    // Avatar: a container whose origin is the bottom-centre, so squash looks right
+    this.avatar = this.add.container(this.px + PW / 2, this.py + PH);
+    this.avatar.add(this.add.rectangle(0, -10, PW, PH - 8, 0x3366ff));
+    this.avatar.add(this.add.rectangle(0, -24, 16, 16, 0xffd9a0));
+
+    this.cameras.main.setBounds(0, 0, COLS * TILE, ROWS * TILE);
+    this.cameras.main.startFollow(this.avatar, true, 0.15, 0.15);
+
+    // HUD (fixed on screen)
+    this.hud = this.add.graphics().setScrollFactor(0);
+    this.hudText = this.add.text(12, 10, '', {
+      fontFamily: 'sans-serif', fontSize: '16px', color: '#ffffff', stroke: '#000000', strokeThickness: 4
+    }).setScrollFactor(0);
+    this.msgText = this.add.text(480, 390, '', {
+      fontFamily: 'sans-serif', fontSize: '22px', color: '#ffffff', stroke: '#000000', strokeThickness: 5
+    }).setOrigin(0.5).setScrollFactor(0);
+    this.say('Tap to dig and build. Arrows or A/D to move, Space to jump.', 4000);
+
+    // Keyboard
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.keys = this.input.keyboard.addKeys('A,D,W,SPACE');
+
+    // On-screen buttons for tablets
+    this.mkBtn(90, 465, 'LEFT', 'left');
+    this.mkBtn(220, 465, 'RIGHT', 'right');
+    this.mkBtn(860, 465, 'JUMP', 'jump');
+
+    // Tap or click in the play area to dig or build
+    this.input.on('pointerdown', p => {
+      if (p.y > 415) return; // button area
+      const tx = Math.floor(p.worldX / TILE), ty = Math.floor(p.worldY / TILE);
+      if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) return;
+      const cx = this.px + PW / 2, cy = this.py + PH / 2;
+      const dist = Math.hypot(tx * TILE + TILE / 2 - cx, ty * TILE + TILE / 2 - cy);
+      if (dist > TILE * 4.5) { this.say('Too far away! Get closer.'); return; }
+      const t = grid[tx][ty];
+      if (t !== T.AIR) this.dig(tx, ty, t);
+      else this.place(tx, ty);
+    });
+  }
+
+  mkBtn(x, y, label, key) {
+    const b = this.add.rectangle(x, y, 120, 80, 0xffffff, 0.25).setScrollFactor(0).setInteractive();
+    this.add.text(x, y, label, { fontFamily: 'sans-serif', fontSize: '24px', color: '#ffffff' })
+      .setOrigin(0.5).setScrollFactor(0);
+    b.on('pointerdown', () => this.touch[key] = true);
+    b.on('pointerup', () => this.touch[key] = false);
+    b.on('pointerout', () => this.touch[key] = false);
+  }
+
+  say(text, ms = 2000) {
+    this.msgText.setText(text);
+    this.msgT = ms;
+  }
+
+  need(lvl) { return Math.floor(10 * Math.pow(1.5, lvl - 1)); }
+
+  invTotal() { return this.inv.dirt + this.inv.stone + this.inv.gem; }
+  invCap() { return 8 + this.pw.inv.lvl * 4; }
+
+  gain(p, n) {
+    const s = this.pw[p];
+    s.xp += n;
+    const need = this.need(s.lvl);
+    if (s.xp >= need) {
+      s.xp -= need;
+      s.lvl++;
+      this.say(LABEL[p] + ' power up! Level ' + s.lvl, 2500);
+    }
+  }
+
+  dig(tx, ty, t) {
+    if (this.invTotal() >= this.invCap()) {
+      this.say('Bag is full! Place some blocks to make room.');
+      return;
+    }
+    grid[tx][ty] = T.AIR;
+    const key = (t === T.GRASS || t === T.DIRT) ? 'dirt' : (t === T.STONE ? 'stone' : 'gem');
+    this.inv[key]++;
+    if (key === 'gem') this.say('+1 gem!', 1200);
+    this.gain('dig', 1);
+  }
+
+  place(tx, ty) {
+    const key = this.inv.stone > 0 ? 'stone' : (this.inv.dirt > 0 ? 'dirt' : null);
+    if (!key) { this.say('No blocks! Dig some first.'); return; }
+    const bx = tx * TILE, by = ty * TILE;
+    if (bx < this.px + PW && bx + TILE > this.px && by < this.py + PH && by + TILE > this.py) {
+      this.say("Can't build on yourself!");
+      return;
+    }
+    grid[tx][ty] = key === 'stone' ? T.STONE : T.DIRT;
+    this.inv[key]--;
+    this.gain('build', 1);
+  }
+
+  solid(x, y) {
+    const c = Math.floor(x / TILE), r = Math.floor(y / TILE);
+    if (c < 0 || c >= COLS || r >= ROWS) return true;
+    if (r < 0) return false;
+    return grid[c][r] !== T.AIR;
+  }
+
+  hits(x, y) {
+    return this.solid(x + 2, y + 2) || this.solid(x + PW - 3, y + 2) ||
+           this.solid(x + 2, y + PH - 1) || this.solid(x + PW - 3, y + PH - 1);
+  }
+
+  update(time, delta) {
+    const dt = Math.min(delta, 50) / 1000;
+
+    // Input
+    const left = this.cursors.left.isDown || this.keys.A.isDown || this.touch.left;
+    const right = this.cursors.right.isDown || this.keys.D.isDown || this.touch.right;
+    const jumpDown = this.cursors.up.isDown || this.keys.W.isDown || this.keys.SPACE.isDown || this.touch.jump;
+    if (jumpDown && !this.jumpHeld && this.onGround) {
+      this.vy = -430;
+      this.onGround = false;
+      this.squash = 1;
+    }
+    this.jumpHeld = jumpDown;
+
+    // Movement with simple tile collision
+    this.vx = ((left ? -1 : 0) + (right ? 1 : 0)) * 120;
+    const nx = this.px + this.vx * dt;
+    if (!this.hits(nx, this.py)) this.px = nx;
+
+    this.vy = Math.min(this.vy + GRAV * dt, 600);
+    const ny = this.py + this.vy * dt;
+    if (!this.hits(this.px, ny)) {
+      this.py = ny;
+      this.onGround = false;
+    } else {
+      if (this.vy > 0) { this.onGround = true; this.squash = 1; }
+      this.vy = 0;
+    }
+
+    // Fell out of the world: go back to spawn
+    if (this.py > ROWS * TILE) { this.px = this.spawnX; this.py = this.spawnY; this.vy = 0; }
+
+    // Bag power: filling the bag over time builds Inventory XP
+    if (this.invTotal() >= this.invCap()) {
+      this.invTimer += dt;
+      if (this.invTimer >= 1) { this.invTimer -= 1; this.gain('inv', 1); }
+    } else {
+      this.invTimer = 0;
+    }
+
+    // Squash-and-stretch animation
+    this.squash = Math.max(0, this.squash - dt * 4);
+    const sq = this.squash * 0.2;
+    this.avatar.setPosition(this.px + PW / 2, this.py + PH);
+    this.avatar.setScale(1 + sq, 1 - sq);
+
+    // Sky above ground, dark cave below
+    const depth = Math.floor(this.py / TILE) - SURF;
+    this.cameras.main.setBackgroundColor(depth < 0 ? 0x87ceeb : (depth < 6 ? 0x6b4f3a : 0x2b2238));
+
+    this.drawWorld();
+    this.drawHighlight();
+    this.drawHud();
+
+    if (this.msgT > 0) {
+      this.msgT -= delta;
+      if (this.msgT <= 0) this.msgText.setText('');
+    }
+  }
+
+  drawWorld() {
+    const v = this.cameras.main.worldView;
+    const c0 = Math.max(0, Math.floor(v.x / TILE)), c1 = Math.min(COLS - 1, Math.floor(v.right / TILE));
+    const r0 = Math.max(0, Math.floor(v.y / TILE)), r1 = Math.min(ROWS - 1, Math.floor(v.bottom / TILE));
+    this.world.clear();
+    for (let c = c0; c <= c1; c++) {
+      for (let r = r0; r <= r1; r++) {
+        const t = grid[c][r];
+        if (t === T.AIR) continue;
+        this.world.fillStyle(COL[t], 1).fillRect(c * TILE, r * TILE, TILE, TILE);
+        this.world.lineStyle(2, 0x000000, 0.2).strokeRect(c * TILE, r * TILE, TILE, TILE);
+      }
+    }
+  }
+
+  drawHighlight() {
+    this.hl.clear();
+    const p = this.input.activePointer;
+    if (p.y > 415) return;
+    const tx = Math.floor(p.worldX / TILE), ty = Math.floor(p.worldY / TILE);
+    if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) return;
+    this.hl.lineStyle(3, 0xffffff, 0.9).strokeRect(tx * TILE, ty * TILE, TILE, TILE);
+  }
+
+  drawHud() {
+    const cap = this.invCap();
+    const total = this.invTotal();
+    this.hudText.setText(
+      this.playerName + '\n' +
+      'Digging Lv ' + this.pw.dig.lvl + '\n' +
+      'Building Lv ' + this.pw.build.lvl + '\n' +
+      'Inventory Lv ' + this.pw.inv.lvl + '\n' +
+      'Bag ' + total + '/' + cap + '   Gems ' + this.inv.gem
+    );
+
+    // Progress bars (fixed on screen)
+    this.hud.clear();
+    const keys = ['dig', 'build', 'inv'];
+    keys.forEach((k, i) => {
+      const y = 140 + i * 26;
+      const s = this.pw[k];
+      const ratio = k === 'inv' ? total / cap : s.xp / this.need(s.lvl);
+      this.hud.fillStyle(0x000000, 0.5).fillRect(12, y, 180, 14);
+      this.hud.fillStyle(BAR[k], 1).fillRect(12, y, 180 * Math.min(1, ratio), 14);
+    });
+  }
+}
+
+const game = new Phaser.Game({
+  type: Phaser.AUTO,
+  parent: document.body,
+  backgroundColor: '#87ceeb',
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 960, height: 540 },
+  scene: [Main]
+});
+</script>
+</body>
+</html>
