@@ -2,6 +2,13 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.12: drops when the bag is full
+- When the bag is full, digging no longer stops. The block is dropped on the ground as a small spinning cube
+- Walk next to a dropped item to pick it up once there is room in the bag
+- You can't build on a spot where something is on the ground until it is picked up
+- Up to 40 items can lie on the ground at once
+- Dropped items are saved on this device only; they are not shared in multiplayer worlds yet
+
 ## 0.6.11: cloud save for parents
 - Parent area: sign in with Google or Facebook, then save the game to the cloud (automatic every 30 seconds) and load it on another device
 - Kids can't reach the sign-in; it sits behind the parent corner tap
