@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6 (3D)</title>
+<title>Adventurers of Drenerics v0.6.1 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -18,7 +18,7 @@
   #recent{position:fixed;top:82px;right:10px;width:160px;display:flex;flex-direction:column;gap:6px;z-index:5}
   .title{color:#fff;text-shadow:0 2px 4px #000;font-size:14px;margin-bottom:2px}
   .row{background:rgba(0,0,0,.45);color:#fff;border-radius:10px;padding:6px 8px;display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;touch-action:none}
-  .sw{width:22px;height:22px;border-radius:5px;border:2px solid #000;flex:none}
+  .sw{width:26px;height:26px;border-radius:5px;border:2px solid #000;flex:none;background-size:cover;background-repeat:no-repeat;image-rendering:pixelated}
   #qb{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:5}
   .slot{width:70px;height:64px;background:rgba(0,0,0,.45);border:3px solid rgba(255,255,255,.35);border-radius:10px;color:#fff;font-size:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;touch-action:none;position:relative;text-align:center}
   .slot.sel{border-color:#ffd54a}
@@ -34,6 +34,21 @@
     #recent .row{font-size:12px;padding:4px 6px}
     .title{font-size:12px}
   }
+  #wiz{position:fixed;inset:0;background:rgba(10,12,25,.85);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;box-sizing:border-box}
+  #wiz.hide{display:none}
+  #wiz .box{background:#1d2440;color:#fff;border-radius:18px;padding:20px;max-width:420px;width:100%;box-sizing:border-box;text-align:center}
+  #wiz h2{margin:0 0 8px;font-size:22px}
+  #wiz p{margin:8px 0;font-size:15px;opacity:.9}
+  #wiz .opts{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:12px 0}
+  #wiz .opt{padding:14px 18px;border-radius:12px;border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;font-size:17px;cursor:pointer}
+  #wiz .opt.on{border-color:#ffd54a;background:rgba(255,213,74,.2)}
+  #wiz .name{font-size:24px;font-weight:bold;margin:14px 0;color:#ffd54a}
+  #wiz input{font-size:24px;letter-spacing:6px;text-align:center;width:160px;padding:8px;border-radius:10px;border:2px solid #fff;background:transparent;color:#fff;text-transform:uppercase}
+  #wiz .nav{display:flex;justify-content:space-between;gap:10px;margin-top:16px}
+  #wiz .nav button{flex:1;padding:14px;border:0;border-radius:12px;font-size:17px;background:#3b6fd8;color:#fff;cursor:pointer}
+  #wiz .nav button.secondary{background:transparent;border:2px solid rgba(255,255,255,.3)}
+  #wiz .nav button:disabled{opacity:.4}
+  #wizErr{color:#ffab9f;min-height:20px;margin-top:8px;font-size:14px}
 </style>
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}
@@ -47,6 +62,7 @@
 <div id="recent"></div>
 <div id="qb"></div>
 <div id="bag"></div>
+<div id="wiz" class="hide"><div class="box"><div id="wizBody"></div><div id="wizErr"></div><div class="nav"><button id="wizBack" class="secondary">Back</button><button id="wizNext">Next</button></div></div></div>
 <div id="pad">
   <div class="btn" id="bF" style="left:40px;bottom:110px">&#9650;</div>
   <div class="btn" id="bL" style="left:10px;bottom:56px">&#9664;</div>
@@ -135,7 +151,7 @@ function saveGame() {
   if (wiping) return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
-      v: 1, name: playerName, inv, qb, recent, sel, pw,
+      v: 1, name: playerName, profile, worldId, inv, qb, recent, sel, pw,
       pos: [px, py, pz], yaw: camYaw, world: bytesToB64(grid)
     }));
   } catch (e) {}
@@ -398,7 +414,7 @@ function gain(p, n) {
   const s = pw[p];
   s.xp += n;
   const nd = need(s.lvl);
-  if (s.xp >= nd) { s.xp -= nd; s.lvl++; say(LABEL[p] + ' power up! Level ' + s.lvl, 2500); }
+  if (s.xp >= nd) { s.xp -= nd; s.lvl++; logEvent('power_up', p + ' ' + s.lvl); say(LABEL[p] + ' power up! Level ' + s.lvl, 2500); }
 }
 
 // ---- Inventory and quick bar ----
@@ -434,11 +450,11 @@ let bagOpen = false;
 function renderUI() {
   const shown = recent.filter(id => inv[id] > 0);
   recentEl.innerHTML = '<div class="title">Recent (tap to add to quick bar)</div>' +
-    (shown.map(id => `<div class="row" data-item="${id}"><span class="sw" style="background:${hex(ITEMS[id].color)}"></span>${ITEMS[id].name} x${inv[id]}</div>`).join('') ||
+    (shown.map(id => `<div class="row" data-item="${id}"><span class="sw" style="background-image:url(${itemIcon(id)})"></span>${ITEMS[id].name} x${inv[id]}</div>`).join('') ||
      '<div class="row">Nothing yet</div>');
   qbEl.innerHTML = qb.map((id, i) =>
     `<div class="slot${i === sel ? ' sel' : ''}" data-slot="${i}"><span class="n">${i + 1}</span>` +
-    (id ? `<span class="sw" style="background:${hex(ITEMS[id].color)}"></span><span>${ITEMS[id].name} x${inv[id] || 0}</span>`
+    (id ? `<span class="sw" style="background-image:url(${itemIcon(id)})"></span><span>${ITEMS[id].name} x${inv[id] || 0}</span>`
         : '<span>empty</span>') +
     '</div>').join('');
   if (bagOpen) renderBag();
@@ -451,7 +467,7 @@ function renderBag() {
     `<b>Bag ${invTotal()}/${invCap()}</b><span id="bagClose" style="cursor:pointer;padding:6px">Close &#10005;</span></div>` +
     `<div style="margin-top:8px;opacity:.85;font-size:14px">Tap an item to put it in quick bar slot ${sel + 1}.</div>` +
     `<div class="grid">` +
-    (ids.map(id => `<div class="row" data-item="${id}"><span class="sw" style="background:${hex(ITEMS[id].color)}"></span>${ITEMS[id].name} x${inv[id]}</div>`).join('') ||
+    (ids.map(id => `<div class="row" data-item="${id}"><span class="sw" style="background-image:url(${itemIcon(id)})"></span>${ITEMS[id].name} x${inv[id]}</div>`).join('') ||
      '<div>Empty. Dig some blocks!</div>') +
     `</div>` +
     `<div style="margin-top:14px;opacity:.8"><span id="newGame" style="cursor:pointer;text-decoration:underline">Start a new game (erases saved progress)</span></div>`;
@@ -492,6 +508,7 @@ function digCell(x, y, z) {
   if (!t) return false;
   if (invTotal() >= invCap()) { say('Bag is full! Place some blocks to make room.'); return false; }
   grid[idx(x, y, z)] = T.AIR;
+  shareBlock(x, y, z, T.AIR);
   const id = (t === T.GRASS || t === T.DIRT) ? 'dirt' : (t === T.STONE ? 'stone' : 'gem');
   if (id === 'gem') say('+1 gem!', 1200);
   addItem(id);
@@ -517,6 +534,7 @@ function placeCell(x, y, z) {
     return;
   }
   grid[idx(x, y, z)] = item.block;
+  shareBlock(x, y, z, item.block);
   inv[id]--;
   gain('build', 1);
   dirty = true;
@@ -613,6 +631,7 @@ function killSlime(en) {
   enemies.splice(enemies.indexOf(en), 1);
   addItem('gem');
   gain('fight', 2);
+  logEvent('slime_defeated');
   say('Slime defeated! +1 gem', 1500);
 }
 
@@ -813,14 +832,16 @@ function drawHud() {
     `Building Lv ${pw.build.lvl}${bar('build', pw.build.xp / need(pw.build.lvl))}` +
     `Inventory Lv ${pw.inv.lvl}${bar('inv', total / cap)}` +
     `Fighting Lv ${pw.fight.lvl}${bar('fight', pw.fight.xp / need(pw.fight.lvl))}` +
-    `Bag ${total}/${cap} &nbsp; Gems ${inv.gem}`;
+    `Bag ${total}/${cap} &nbsp; Gems ${inv.gem}<br>` +
+    `World ${esc(worldId || 'alone')}` + (others.size ? ' &middot; With: ' + [...others.values()].map(o => esc(o.name)).join(', ') : '');
 }
 
 let last = performance.now();
 function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
-  update(dt);
+  if (!paused) update(dt);
+  updateOthers(dt);
   if (dirty) { rebuild(); dirty = false; }
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
@@ -841,6 +862,345 @@ if (saved) {
   if (Number.isFinite(saved.yaw)) camYaw = saved.yaw;
   if (worldLoaded) say('Welcome back, ' + playerName + '!', 2500);
 }
+
+// ---- Item pictures, drawn in code (no downloads needed) ----
+const iconCache = {};
+function itemIcon(id) {
+  if (iconCache[id]) return iconCache[id];
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const g = c.getContext('2d');
+  const box = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+  if (id === 'dirt') {
+    box(0, 0, 32, 32, '#8d5524');
+    for (const [x, y] of [[4, 6], [18, 4], [10, 16], [24, 18], [6, 24], [20, 27]]) box(x, y, 3, 3, '#6b3e18');
+    box(12, 10, 2, 2, '#a86b35'); box(26, 10, 2, 2, '#a86b35');
+  } else if (id === 'stone') {
+    box(0, 0, 32, 32, '#7a7a7a'); box(0, 0, 32, 3, '#9a9a9a'); box(0, 29, 32, 3, '#5a5a5a');
+    g.strokeStyle = '#4a4a4a'; g.lineWidth = 2; g.beginPath();
+    g.moveTo(6, 8); g.lineTo(14, 16); g.lineTo(10, 24); g.moveTo(20, 6); g.lineTo(26, 14); g.stroke();
+  } else if (id === 'gem') {
+    g.fillStyle = '#29d3ff'; g.beginPath(); g.moveTo(16, 3); g.lineTo(28, 12); g.lineTo(16, 29); g.lineTo(4, 12); g.closePath(); g.fill();
+    g.fillStyle = '#1a8fb8'; g.beginPath(); g.moveTo(4, 12); g.lineTo(16, 12); g.lineTo(16, 29); g.closePath(); g.fill();
+    g.fillStyle = '#bff3ff'; g.beginPath(); g.moveTo(16, 3); g.lineTo(22, 12); g.lineTo(10, 12); g.closePath(); g.fill();
+  } else if (id === 'pick') {
+    g.lineCap = 'round';
+    g.strokeStyle = '#8b5a2b'; g.lineWidth = 4; g.beginPath(); g.moveTo(8, 27); g.lineTo(22, 11); g.stroke();
+    g.strokeStyle = '#9e9e9e'; g.lineWidth = 4; g.beginPath(); g.moveTo(3, 13); g.quadraticCurveTo(16, 2, 29, 13); g.stroke();
+  } else if (id === 'sword') {
+    g.save(); g.translate(16, 16); g.rotate(Math.PI / 4);
+    box(-2, -14, 4, 19, '#dfe6ee'); box(-1, -14, 1, 19, '#ffffff');
+    box(-6, 5, 12, 3, '#d4a017');
+    box(-1.5, 8, 3, 8, '#8b5a2b');
+    box(-2, 16, 4, 3, '#d4a017');
+    g.restore();
+  } else {
+    box(0, 0, 32, 32, '#888888');
+  }
+  iconCache[id] = c.toDataURL();
+  return iconCache[id];
+}
+
+// ================= v0.6.1: start wizard, shared worlds, other players, logging =================
+const VERSION = '0.6.1';
+const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
+const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let sb = null;
+// Loaded on demand: if the network is down, the game still plays alone
+const sbReady = import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm')
+  .then(m => { sb = m.createClient(SB_URL, SB_KEY, { auth: { persistSession: false } }); })
+  .catch(() => {});
+
+let paused = true;
+let profile = (saved && saved.profile) || null;   // { sex, race }
+let worldId = (saved && saved.worldId) || null;   // 4-letter world code
+let worldDirty = false, lastStamp = null, channel = null, channelJoined = false;
+// Random id for this device (not linked to a name or account)
+const pid = (() => {
+  try {
+    let p = localStorage.getItem('kidsgame.pid');
+    if (!p) { p = Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('kidsgame.pid', p); }
+    return p;
+  } catch (e) { return 'anon'; }
+})();
+
+// ---- Logging: counts and errors only, never names or chat ----
+const evQueue = [];
+function logEvent(kind, detail = '') {
+  evQueue.push({ kind, version: VERSION, player_id: pid, world_id: worldId, detail: String(detail).slice(0, 200) });
+}
+function flushEvents() {
+  if (!sb || !evQueue.length) return;
+  const rows = evQueue.splice(0, 50);
+  sb.from('game_events').insert(rows).then(() => {}, () => {});
+}
+setInterval(flushEvents, 10000);
+addEventListener('pagehide', flushEvents);
+function logError(err, where) {
+  if (!sb) return;
+  sb.from('game_errors').insert({
+    version: VERSION, player_id: pid,
+    message: String((err && err.message) || err).slice(0, 500),
+    stack: String((err && err.stack) || '').slice(0, 2000),
+    where_seen: String(where).slice(0, 80)
+  }).then(() => {}, () => {});
+}
+addEventListener('error', e => logError(e.error || e.message, 'window'));
+addEventListener('unhandledrejection', e => logError(e.reason, 'promise'));
+
+// ---- Looks: race sets skin and hair, sex sets shirt and trousers ----
+const RACE = {
+  human: { skin: 0xf1c39a, skinDark: 0xd9a77e, hair: 0x4a2c17 },
+  elf:   { skin: 0xf6e0c8, skinDark: 0xe4c6a6, hair: 0xe8d26a },
+  dwarf: { skin: 0xd9a77e, skinDark: 0xbf8a5f, hair: 0xb0501e },
+};
+const SEXLOOK = {
+  boy:  { shirt: 0x3a7bd5, pants: 0x333b6e },
+  girl: { shirt: 0xd54a9c, pants: 0x4a3a6e },
+};
+const lookOf = p => ({ ...(RACE[p && p.race] || RACE.human), ...(SEXLOOK[p && p.sex] || SEXLOOK.boy) });
+function paint(root, look) {
+  const map = new Map([[SKIN, look.skin], [SKIN_DARK, look.skinDark], [HAIR, look.hair], [SHIRT, look.shirt], [PANTS, look.pants]]);
+  root.traverse(o => {
+    if (!o.isMesh || !o.material || !o.material.color) return;
+    const to = map.get(o.material.color.getHex());
+    if (to !== undefined) o.material.color.setHex(to);
+  });
+}
+function applyLook() { paint(avatar, lookOf(profile)); }
+
+// Snapshot of the character, used to build the other players
+pickGroup.name = 'pick'; swordGroup.name = 'sword'; heldCube.name = 'held';
+legL.name = 'legL'; legR.name = 'legR';
+const TEMPLATE = avatar.clone(true);
+
+// ---- Other players in the same world ----
+const others = new Map(); // player id -> { g, name, x, y, z, yaw, legL, legR, walk }
+function nameTag(text) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(0, 0, 256, 64);
+  g.fillStyle = '#fff'; g.font = 'bold 28px sans-serif'; g.textAlign = 'center';
+  g.fillText(String(text).slice(0, 20), 128, 42);
+  const t = new THREE.CanvasTexture(c);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false }));
+  s.scale.set(1.6, 0.4, 1);
+  s.position.y = 2.2;
+  return s;
+}
+function makeOther(id, meta) {
+  const g = TEMPLATE.clone(true);
+  g.traverse(o => { if (o.isMesh) o.material = o.material.clone(); });
+  for (const n of ['pick', 'sword', 'held']) { const x = g.getObjectByName(n); if (x) x.visible = false; }
+  paint(g, lookOf(meta));
+  g.add(nameTag(meta.name));
+  scene.add(g);
+  return { g, name: meta.name, x: meta.x, y: meta.y, z: meta.z, yaw: meta.yaw, legL: g.getObjectByName('legL'), legR: g.getObjectByName('legR'), walk: 0 };
+}
+function updateOthers(dt) {
+  for (const o of others.values()) {
+    const p = o.g.position;
+    const dx = o.x - p.x, dy = o.y - p.y, dz = o.z - p.z;
+    if (Math.hypot(dx, dy, dz) > 10) { p.set(o.x, o.y, o.z); }   // jumped far: snap
+    else { p.x += dx * 0.25; p.y += dy * 0.25; p.z += dz * 0.25; }
+    const moving = Math.hypot(dx, dz) > 0.02;
+    o.walk += dt * (moving ? 9 : 0);
+    const sw = Math.sin(o.walk) * 0.8;
+    if (o.legL) o.legL.rotation.x = sw;
+    if (o.legR) o.legR.rotation.x = -sw;
+    o.g.rotation.y = o.yaw;
+  }
+}
+function myMeta() {
+  return { name: playerName, race: profile && profile.race, sex: profile && profile.sex, x: px, y: py, z: pz, yaw: avatar.rotation.y };
+}
+function onPresence() {
+  if (!channel) return;
+  const st = channel.presenceState();
+  const seen = new Set();
+  for (const key of Object.keys(st)) {
+    if (key === pid) continue;
+    const metas = st[key];
+    const m = metas && metas[metas.length - 1];
+    if (!m) continue;
+    seen.add(key);
+    let o = others.get(key);
+    if (!o) { o = makeOther(key, m); others.set(key, o); }
+    Object.assign(o, { name: m.name, x: m.x, y: m.y, z: m.z, yaw: m.yaw });
+  }
+  for (const [key, o] of others) if (!seen.has(key)) { scene.remove(o.g); others.delete(key); }
+}
+
+// ---- Shared world: block changes are sent live and saved every few seconds ----
+function shareBlock(x, y, z, t) {
+  worldDirty = true;
+  if (channel && channelJoined) Promise.resolve(channel.send({ type: 'broadcast', event: 'block', payload: { x, y, z, t } })).catch(() => {});
+}
+function connectWorld() {
+  if (!sb || !worldId) return;
+  if (channel) { try { sb.removeChannel(channel); } catch (e) {} channel = null; channelJoined = false; }
+  for (const o of others.values()) scene.remove(o.g);
+  others.clear();
+  const ch = sb.channel('world-' + worldId, { config: { presence: { key: pid }, broadcast: { self: false } } });
+  ch.on('broadcast', { event: 'block' }, ({ payload }) => {
+    const p = payload || {};
+    if (!inBounds(p.x, p.y, p.z) || !Number.isInteger(p.t) || p.t < 0 || p.t > 4) return;
+    grid[idx(p.x, p.y, p.z)] = p.t;
+    dirty = true;
+  });
+  ch.on('presence', { event: 'sync' }, onPresence);
+  ch.subscribe(status => {
+    if (status === 'SUBSCRIBED') { channelJoined = true; Promise.resolve(ch.track(myMeta())).catch(() => {}); }
+    else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { channelJoined = false; logError(status, 'realtime'); }
+  });
+  channel = ch;
+}
+setInterval(() => {
+  if (channel && channelJoined && profile) Promise.resolve(channel.track(myMeta())).catch(() => {});
+}, 200);
+setInterval(async () => {
+  if (!sb || !worldId || !worldDirty) return;
+  worldDirty = false;
+  const stamp = new Date().toISOString();
+  const { error } = await sb.from('worlds').upsert({ id: worldId, grid: bytesToB64(grid), updated_at: stamp });
+  if (error) worldDirty = true; else lastStamp = stamp;
+}, 4000);
+setInterval(async () => {
+  if (!sb || !worldId || worldDirty) return;
+  const { data } = await sb.from('worlds').select('grid,updated_at').eq('id', worldId).maybeSingle();
+  if (data && data.grid && data.updated_at !== lastStamp) { lastStamp = data.updated_at; loadWorld(data.grid); dirty = true; }
+}, 30000);
+
+async function joinExisting(code) {
+  await sbReady;
+  if (!sb) throw new Error('offline');
+  const { data, error } = await sb.from('worlds').select('grid,updated_at').eq('id', code).maybeSingle();
+  if (error) throw error;
+  if (!data) return false;
+  if (data.grid) { loadWorld(data.grid); dirty = true; }
+  lastStamp = data.updated_at;
+  worldId = code;
+  return true;
+}
+async function createWorld() {
+  await sbReady;
+  if (!sb) throw new Error('offline');
+  const ALPH = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  for (let i = 0; i < 8; i++) {
+    let code = '';
+    for (let k = 0; k < 4; k++) code += ALPH[Math.floor(Math.random() * ALPH.length)];
+    const { error } = await sb.from('worlds').insert({ id: code, grid: bytesToB64(grid) });
+    if (!error) { worldId = code; lastStamp = null; return code; }
+  }
+  throw new Error('Could not make a world code. Try again.');
+}
+async function resumeWorld(id) {
+  try {
+    await sbReady;
+    if (!sb) return;
+    const ok = await joinExisting(id);
+    if (ok) { connectWorld(); logEvent('world_joined', 'resume'); }
+    else { worldId = null; say('That world is gone. Start a new world from the Bag.', 5000); }
+  } catch (e) { logError(e, 'resume'); }
+}
+
+// ---- Start wizard: sex, race, name, then new or joined world ----
+const wiz = { step: 0, sex: null, race: null, name: '', mode: 'new', code: '' };
+const wizEl = document.getElementById('wiz');
+const wizBody = document.getElementById('wizBody');
+const wizNext = document.getElementById('wizNext');
+const wizBack = document.getElementById('wizBack');
+const wizErr = document.getElementById('wizErr');
+function makeName() { return pick(titles) + ' ' + pick(names) + ' ' + (Math.floor(Math.random() * 999) + 1); }
+function opts(key, list, cur) {
+  return '<div class="opts">' + list.map(([v, l]) => `<button class="opt${cur === v ? ' on' : ''}" data-${key}="${v}">${l}</button>`).join('') + '</div>';
+}
+function wizRender() {
+  wizErr.textContent = '';
+  wizBack.style.visibility = wiz.step > 0 ? 'visible' : 'hidden';
+  let html = '', ok = true;
+  if (wiz.step === 0) {
+    html = '<h2>Welcome!</h2><p>Who is playing?</p>' + opts('sex', [['boy', 'Boy'], ['girl', 'Girl']], wiz.sex);
+    ok = !!wiz.sex;
+  } else if (wiz.step === 1) {
+    html = '<h2>Pick your people</h2>' + opts('race', [['human', 'Human'], ['elf', 'Elf'], ['dwarf', 'Dwarf']], wiz.race);
+    ok = !!wiz.race;
+  } else if (wiz.step === 2) {
+    html = '<h2>Your name</h2><p>Names are picked for you, so nobody needs to type one.</p><div class="name">' + esc(wiz.name) + '</div><button class="opt" data-shuffle="1">Shuffle name</button>';
+  } else {
+    html = '<h2>Your world</h2>' + opts('mode', [['new', 'Start a new world'], ['join', "Join a friend's world"]], wiz.mode) +
+      (wiz.mode === 'join' ? '<p>Type the 4-letter world code:</p><input id="wizCode" maxlength="4" autocomplete="off" value="' + esc(wiz.code) + '">' : '');
+    ok = wiz.mode === 'new' || wiz.code.length === 4;
+  }
+  wizBody.innerHTML = html;
+  wizNext.textContent = wiz.step === 3 ? 'Start playing' : 'Next';
+  wizNext.disabled = !ok;
+}
+wizBody.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.sex) wiz.sex = b.dataset.sex;
+  else if (b.dataset.race) wiz.race = b.dataset.race;
+  else if (b.dataset.mode) wiz.mode = b.dataset.mode;
+  else if (b.dataset.shuffle) wiz.name = makeName();
+  else return;
+  wizRender();
+});
+wizBody.addEventListener('input', e => {
+  if (e.target.id !== 'wizCode') return;
+  wiz.code = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+  e.target.value = wiz.code;
+  wizNext.disabled = !(wiz.mode === 'new' || wiz.code.length === 4);
+});
+wizBack.addEventListener('click', () => { if (wiz.step > 0) { wiz.step--; wizRender(); } });
+wizNext.addEventListener('click', () => { if (wiz.step < 3) { wiz.step++; wizRender(); } else finishWizard(); });
+
+function openWizard() {
+  paused = true;
+  wiz.step = 0;
+  wiz.sex = (profile && profile.sex) || null;
+  wiz.race = (profile && profile.race) || null;
+  wiz.name = playerName || makeName();
+  wiz.mode = 'new';
+  wiz.code = '';
+  wizEl.classList.remove('hide');
+  wizRender();
+}
+async function finishWizard() {
+  wizNext.disabled = true;
+  wizErr.textContent = 'Setting up your world...';
+  try {
+    await sbReady;
+    if (wiz.mode === 'new') await createWorld();
+    else {
+      const found = await joinExisting(wiz.code);
+      if (!found) throw new Error('No world has that code. Check it with your friend.');
+    }
+  } catch (err) {
+    wizErr.textContent = err.message === 'offline' ? "Can't reach the server right now. Try again in a moment." : err.message;
+    wizNext.disabled = false;
+    logError(err, 'wizard');
+    return;
+  }
+  profile = { sex: wiz.sex, race: wiz.race };
+  playerName = wiz.name;
+  applyLook();
+  connectWorld();
+  logEvent('game_started', wiz.mode);
+  wizEl.classList.add('hide');
+  paused = false;
+  saveGame();
+  say('Welcome, ' + playerName + '! World code: ' + worldId, 6000);
+}
+
+// ---- Startup ----
+applyLook();
+logEvent('session_start', VERSION);
+if (profile && worldId) { paused = false; resumeWorld(worldId); }
+else openWizard();
+
 setInterval(saveGame, 5000);
 addEventListener('pagehide', saveGame);
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
