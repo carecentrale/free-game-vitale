@@ -2,6 +2,10 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.13: settings screen
+- Settings button at the top right shows the game version and a list of what has changed
+- The list is a copy kept inside the game; update it with each release
+
 ## 0.6.12: drops when the bag is full
 - When the bag is full, digging no longer stops. The block is dropped on the ground as a small spinning cube
 - Walk next to a dropped item to pick it up once there is room in the bag
