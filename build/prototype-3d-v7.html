@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.3 (3D)</title>
+<title>Adventurers of Drenerics v0.6.4 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -562,34 +562,49 @@ const ENEMY_LIST = Object.keys(ENEMY_KINDS);
 function enemyModel(kind) {
   const k = ENEMY_KINDS[kind];
   const g = new THREE.Group();
-  const mt = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 });
+  // Softer, shiny materials make the creatures look rounder and more 3D
+  const mt = (c, rough = 0.55) => new THREE.MeshStandardMaterial({ color: c, roughness: rough, metalness: 0.05 });
   const box = (w, h, d, c, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mt(c)); b.position.set(x, y, z); return b; };
+  const ball = (r, c, x, y, z, sy = 1) => { const b = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14), mt(c)); b.position.set(x, y, z); b.scale.y = sy; return b; };
+  const tube = (r, h, c, x, y, z) => { const b = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.1, h, 14), mt(c)); b.position.set(x, y, z); return b; };
+  const eye = (x, y, z) => {
+    const e = new THREE.Group();
+    const w = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 10), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 }));
+    const p = new THREE.Mesh(new THREE.SphereGeometry(0.036, 10, 8), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.2 }));
+    p.position.z = 0.05;
+    const shine = new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    shine.position.set(0.015, 0.02, 0.08);
+    e.add(w, p, shine);
+    e.position.set(x, y, z);
+    return e;
+  };
   if (k.beast) {
-    // Low, wide beast with spikes along its back
-    g.add(box(0.9, 0.4, 0.55, k.body, 0, 0.45, 0));
-    g.add(box(0.36, 0.34, 0.36, k.head, 0, 0.5, 0.45));
-    for (const x of [-0.3, 0, 0.3]) g.add(box(0.12, 0.18, 0.12, 0x3a2a1a, x, 0.75, 0));
-    for (const [x, z] of [[-0.3, -0.18], [0.3, -0.18], [-0.3, 0.18], [0.3, 0.18]]) g.add(box(0.14, 0.22, 0.14, k.cloth, x, 0.11, z));
-    g.add(box(0.08, 0.08, 0.03, 0xffffff, -0.09, 0.52, 0.64));
-    g.add(box(0.08, 0.08, 0.03, 0xffffff, 0.09, 0.52, 0.64));
+    // Round, low beast with spikes along its back
+    g.add(ball(0.5, k.body, 0, 0.45, 0, 0.7));
+    g.add(ball(0.24, k.head, 0, 0.55, 0.45));
+    for (const x of [-0.25, 0, 0.25]) g.add(ball(0.09, 0x3a2a1a, x, 0.78, 0, 1.6));
+    for (const [x, z] of [[-0.3, -0.18], [0.3, -0.18], [-0.3, 0.18], [0.3, 0.18]]) g.add(tube(0.07, 0.24, k.cloth, x, 0.12, z));
+    g.add(eye(-0.09, 0.6, 0.66));
+    g.add(eye(0.09, 0.6, 0.66));
     g.scale.setScalar(k.scale);
     return g;
   }
-  g.add(box(0.5, 0.45, 0.4, k.body, 0, 0.5, 0));            // body
-  g.add(box(0.46, 0.42, 0.42, k.head, 0, 1.0, 0));          // head
-  if (k.hood) g.add(box(0.5, 0.2, 0.46, k.cloth, 0, 1.2, -0.02)); // hood
+  g.add(ball(0.26, k.body, 0, 0.5, 0, 1.15));                // round body
+  g.add(ball(0.24, k.head, 0, 1.02, 0));                    // round head
+  if (k.hood) g.add(ball(0.27, k.cloth, 0, 1.12, -0.05, 0.7)); // hood
   for (const sx of [-1, 1]) {
-    g.add(box(0.14, 0.12, 0.08, k.head, sx * 0.36, 1.08, 0)); // ears
-    g.add(box(0.09, 0.09, 0.03, 0xffffff, sx * 0.1, 1.02, 0.22)); // eyes
-    g.add(box(0.05, 0.05, 0.03, 0x111111, sx * 0.1, 1.02, 0.235));
-    g.add(box(0.16, 0.2, 0.16, k.body, sx * 0.34, 0.5, 0));  // arms
-    g.add(box(0.18, 0.3, 0.18, k.cloth, sx * 0.13, 0.12, 0)); // legs
+    const ear = ball(0.09, k.head, sx * 0.25, 1.08, 0, 0.6);
+    ear.rotation.z = sx * 0.6;
+    g.add(ear);
+    g.add(eye(sx * 0.1, 1.04, 0.2));                         // shiny eyes
+    g.add(tube(0.07, 0.22, k.body, sx * 0.31, 0.52, 0));      // arms
+    g.add(tube(0.08, 0.3, k.cloth, sx * 0.13, 0.15, 0));      // legs
   }
-  if (k.horns) for (const sx of [-1, 1]) g.add(box(0.06, 0.2, 0.06, 0xffe08a, sx * 0.16, 1.32, 0));
+  if (k.horns) for (const sx of [-1, 1]) { const h = tube(0.03, 0.2, 0xffe08a, sx * 0.14, 1.3, 0); h.rotation.z = sx * 0.25; g.add(h); }
   if (k.sword) g.add(box(0.05, 0.5, 0.05, 0xdfe6ee, 0.42, 0.62, 0.12));
-  if (k.spear) g.add(box(0.05, 1.5, 0.05, 0x8b5a2b, -0.42, 0.85, 0.12)).add(box(0.1, 0.2, 0.04, 0xdfe6ee, -0.42, 1.65, 0.12));
-  if (k.scythe) { g.add(box(0.05, 1.2, 0.05, 0x5a3a20, 0.42, 0.7, 0.12)); g.add(box(0.36, 0.08, 0.05, 0xb0b8c0, 0.56, 1.3, 0.12)); }
-  if (k.pack) g.add(box(0.5, 0.5, 0.2, 0x5a3a20, 0, 0.5, -0.3));  // backpack
+  if (k.spear) { g.add(tube(0.025, 1.5, 0x8b5a2b, -0.42, 0.85, 0.12)); g.add(box(0.1, 0.2, 0.04, 0xdfe6ee, -0.42, 1.65, 0.12)); }
+  if (k.scythe) { g.add(tube(0.025, 1.2, 0x5a3a20, 0.42, 0.7, 0.12)); g.add(box(0.36, 0.08, 0.05, 0xb0b8c0, 0.56, 1.3, 0.12)); }
+  if (k.pack) g.add(ball(0.2, 0x5a3a20, 0, 0.5, -0.32, 1.2));  // backpack
   g.scale.setScalar(k.scale);
   return g;
 }
@@ -940,7 +955,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.3';
+const VERSION = '0.6.4';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
