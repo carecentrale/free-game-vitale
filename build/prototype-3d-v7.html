@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.7 (3D)</title>
+<title>Adventurers of Drenerics v0.6.8 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -586,15 +586,43 @@ const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
 // ---- Enemies: friendly goblin-style creatures (they never hurt the player) ----
 const ENEMY_KINDS = {
   goblin: { name: 'Goblin',      body: 0x6cc04a, head: 0x7fd65a, cloth: 0x8b5a2b, scale: 1.0,  fight: 1.0, gems: 1, sword: true },
-  imp:    { name: 'Imp',         body: 0xd9473b, head: 0xe05a4a, cloth: 0x3a2a4a, scale: 0.85, fight: 0.7, gems: 1, horns: true },
+  imp:    { name: 'Imp',         body: 0xd9473b, head: 0xe05a4a, cloth: 0x3a2a4a, scale: 0.85, fight: 0.7, gems: 1, horns: true, file: 'models/imp.glb', height: 1.1 },
   brute:  { name: 'Brute',       body: 0x6b4a8a, head: 0x7a5aa0, cloth: 0x4a3a2a, scale: 1.35, fight: 2.2, gems: 3, pack: true },
   spear:  { name: 'Spear Imp',   body: 0xc0392b, head: 0xd9574a, cloth: 0x5a4a3a, scale: 0.95, fight: 1.2, gems: 2, spear: true, horns: true },
   hood:   { name: 'Hood Goblin', body: 0x2f6b3a, head: 0x3f8a4c, cloth: 0x2a2a2a, scale: 1.0,  fight: 1.1, gems: 2, hood: true, scythe: true },
-  spike:  { name: 'Spike Beast', body: 0x8a6a3a, head: 0x9a7a4a, cloth: 0x5a4a2a, scale: 1.1,  fight: 1.6, gems: 2, beast: true },
+  spike:  { name: 'Spike Beast', body: 0x8a6a3a, head: 0x9a7a4a, cloth: 0x5a4a2a, scale: 1.1,  fight: 1.6, gems: 2, beast: true, file: 'models/puglin.glb', height: 0.9 },
 };
 const ENEMY_LIST = Object.keys(ENEMY_KINDS);
+const modelCache = {};
+function loadModel(file) {
+  if (!modelCache[file]) {
+    modelCache[file] = import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js')
+      .then(({ GLTFLoader }) => new Promise((ok, bad) => new GLTFLoader().load(file, gltf => ok(gltf.scene), undefined, bad)))
+      .catch(() => null);
+  }
+  return modelCache[file];
+}
 function enemyModel(kind) {
   const k = ENEMY_KINDS[kind];
+  if (k.file) {
+    // Real model: shows a placeholder box until it loads, then swaps in the model
+    const holder = new THREE.Group();
+    holder.scale.setScalar(k.scale);
+    holder.add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: k.body })));
+    holder.children[0].position.y = 0.4;
+    loadModel(k.file).then(sc => {
+      if (!sc) return;
+      const box = new THREE.Box3().setFromObject(sc);
+      const size = box.getSize(new THREE.Vector3());
+      const f = k.height / size.y;
+      sc.scale.setScalar(f);
+      sc.position.set(-(box.min.x + box.max.x) / 2 * f, -box.min.y * f, -(box.min.z + box.max.z) / 2 * f);
+      sc.traverse(c => { c.userData.enemy = holder.userData.enemy; });
+      holder.clear();
+      holder.add(sc);
+    });
+    return holder;
+  }
   const g = new THREE.Group();
   // Softer, shiny materials make the creatures look rounder and more 3D
   const mt = (c, rough = 0.55) => new THREE.MeshStandardMaterial({ color: c, roughness: rough, metalness: 0.05 });
@@ -989,7 +1017,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.7';
+const VERSION = '0.6.8';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
