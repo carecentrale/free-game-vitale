@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.8 (3D)</title>
+<title>Adventurers of Drenerics v0.6.9 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -721,9 +721,14 @@ function updateSlimes(dt) {
     if (!solidBox(en.x, ny, en.z, 0.3, 0.8)) en.y = ny; else en.vy = 0;
 
     const sq = en.hitP * 0.25 + Math.sin(now * 5 + en.x) * 0.05;
-    en.group.position.set(en.x, en.y, en.z);
+    // Walk bounce and side sway while moving, slow breathing while standing
+    const moving = en.vx || en.vz;
+    const ph = now * 8 + en.x * 3;
+    const bob = moving ? Math.abs(Math.sin(ph)) * 0.09 : Math.sin(now * 2 + en.x) * 0.02;
+    en.group.position.set(en.x, en.y + bob, en.z);
     en.group.scale.set((1 + sq) * en.base, (1 - sq) * en.base, (1 + sq) * en.base);
-    if (en.vx || en.vz) en.group.rotation.y = Math.atan2(en.vx, en.vz);
+    en.group.rotation.z = moving ? Math.sin(ph) * 0.08 : 0;
+    if (moving) en.group.rotation.y = Math.atan2(en.vx, en.vz);
   }
 }
 
@@ -1017,7 +1022,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.8';
+const VERSION = '0.6.9';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

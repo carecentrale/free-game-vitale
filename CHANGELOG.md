@@ -2,6 +2,9 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.9: enemy movement
+- Enemies bounce and sway while walking and breathe gently while standing
+
 ## 0.6.8: Bestiary monsters
 - Imp and Spike Beast enemies now use real 3D models from the Quaternius Bestiary pack (optimized to about 0.8 MB and 0.4 MB)
 - Models load when first needed; a placeholder block shows until they arrive
