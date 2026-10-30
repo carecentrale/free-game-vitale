@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.5 (3D)</title>
+<title>Adventurers of Drenerics v0.6.6 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -304,13 +304,20 @@ avatar.add(soft(new THREE.SphereGeometry(0.05, 10, 8), SKIN_DARK, -0.23, 1.6, 0)
 avatar.add(soft(new THREE.SphereGeometry(0.05, 10, 8), SKIN_DARK, 0.23, 1.6, 0));
 avatar.add(soft(new THREE.SphereGeometry(0.245, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), HAIR, 0, 1.6, 0, 1, 0.95, 1));
 avatar.add(part(0.44, 0.1, 0.1, HAIR, 0, 1.72, 0.19));
+// Face: shiny eyes, eyebrows, rosy cheeks and a smile
+function tilt(m, rx, rz) { m.rotation.x = rx; m.rotation.z = rz; return m; }
 for (const sx of [-1, 1]) {
-  avatar.add(part(0.1, 0.07, 0.02, 0xffffff, sx * 0.1, 1.62, 0.22));
-  avatar.add(part(0.05, 0.05, 0.03, 0x1a1a1a, sx * 0.1, 1.62, 0.23));
-  avatar.add(part(0.1, 0.03, 0.02, HAIR, sx * 0.1, 1.7, 0.22));
+  avatar.add(soft(new THREE.SphereGeometry(0.065, 14, 10), 0xffffff, sx * 0.1, 1.62, 0.19, 1, 1.1, 0.6));  // eye white
+  avatar.add(soft(new THREE.SphereGeometry(0.036, 12, 10), 0x1a1a1a, sx * 0.1, 1.62, 0.225, 1, 1, 0.5));  // pupil
+  avatar.add(soft(new THREE.SphereGeometry(0.013, 8, 6), 0xffffff, sx * 0.112, 1.64, 0.245));            // eye shine
+  avatar.add(tilt(soft(new THREE.CapsuleGeometry(0.012, 0.09, 4, 8), HAIR, sx * 0.1, 1.71, 0.2), 0, Math.PI / 2)); // eyebrow
+  avatar.add(soft(new THREE.SphereGeometry(0.035, 10, 8), 0xf08a8a, sx * 0.15, 1.5, 0.19, 1, 0.6, 0.4));  // rosy cheek
 }
-avatar.add(part(0.06, 0.1, 0.05, SKIN_DARK, 0, 1.56, 0.23));
-avatar.add(part(0.12, 0.03, 0.02, 0x8a3b3b, 0, 1.46, 0.22));
+avatar.add(part(0.06, 0.1, 0.05, SKIN_DARK, 0, 1.56, 0.23));                                             // nose
+avatar.add(tilt(soft(new THREE.TorusGeometry(0.05, 0.012, 8, 16, Math.PI), 0x8a3b3b, 0, 1.47, 0.21), 0, Math.PI)); // smile
+// Shirt details: collar and a pocket
+avatar.add(tilt(soft(new THREE.TorusGeometry(0.13, 0.03, 8, 20), SHIRT, 0, 1.33, 0, 1, 1, 0.8), Math.PI / 2, 0));
+avatar.add(part(0.12, 0.12, 0.03, 0x2f66b8, 0.1, 1.0, 0.17));
 
 // Move the head parts into a group that turns on its own
 const headGroup = new THREE.Group();
@@ -965,7 +972,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.5';
+const VERSION = '0.6.6';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
