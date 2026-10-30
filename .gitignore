@@ -17,3 +17,6 @@ keystore.properties
 # System files
 .DS_Store
 Thumbs.db
+
+# Original zip downloads from Quaternius (keep only the extracted models in git)
+assets/**/*.zip

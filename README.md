@@ -9,6 +9,7 @@ A bright, animated mobile game for kids, designed for tablets and the web, and p
 - `docs/PLAY_STORE_CHECKLIST.md`: steps and requirements for publishing
 - `src/`: game code (Phaser)
 - `assets/art/`: sprites, backgrounds, animation frames
+- `assets/models/`: 3D models (characters, items, blocks, nature) from Quaternius; see `docs/ASSETS.md`
 - `assets/audio/`: music and sound effects
 - `build/`: exported web and Android builds (not edited by hand)
 
