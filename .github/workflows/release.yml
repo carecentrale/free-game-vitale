@@ -41,7 +41,7 @@ jobs:
       - name: Copy the game into the web folder
         run: |
           mkdir -p www
-          cp build/prototype-3d-v4.html www/index.html
+          cp build/prototype-3d-v5.html www/index.html
 
       - name: Create the Android project (first run only)
         run: |

@@ -2,6 +2,14 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.5.0: quick bar and bag
+- Quick bar of 6 slots at the bottom; select with 1-6 or tap
+- Recent panel on the right: tap an item to put it in the selected slot
+- Bag (B key or button): all items, tap one to put it in the selected slot
+- Pickaxe digs, sword fights, and blocks build, depending on the selected slot
+- Pickaxe and sword are shown in the hands only when selected
+- Slime defeats and digging add items to the bag
+
 ## 0.4.0: textured world and zoom
 - Blocks have textures: grass, dirt, stone with cracks, and sparkling gems
 - Character has a face, hair, shoes, belt, and shading
