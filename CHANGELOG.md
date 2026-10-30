@@ -2,6 +2,9 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.5.1: phone layout
+- On phones (narrow screens), the quick bar sits above the controls and fits the screen width
+
 ## 0.5.0: quick bar and bag
 - Quick bar of 6 slots at the bottom; select with 1-6 or tap
 - Recent panel on the right: tap an item to put it in the selected slot

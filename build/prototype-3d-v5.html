@@ -25,6 +25,15 @@
   .slot .n{position:absolute;top:2px;left:5px;font-size:10px;opacity:.8}
   #bag{position:fixed;left:8%;right:8%;top:8%;bottom:20%;background:rgba(20,20,35,.92);color:#fff;border-radius:16px;padding:14px;display:none;overflow:auto;z-index:20;box-sizing:border-box}
   #bag .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px}
+  /* Phones (narrow screens): quick bar sits above the controls and fits the screen width */
+  @media (max-width:700px){
+    #qb{bottom:190px;left:0;right:0;transform:none;justify-content:center;gap:4px;padding:0 8px;box-sizing:border-box}
+    .slot{width:calc((100vw - 60px) / 6);max-width:70px;height:52px;font-size:10px;border-width:2px}
+    .slot .n{font-size:9px}
+    #recent{width:130px;font-size:12px}
+    #recent .row{font-size:12px;padding:4px 6px}
+    .title{font-size:12px}
+  }
 </style>
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}
