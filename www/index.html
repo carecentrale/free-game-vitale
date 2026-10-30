@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.1 (3D)</title>
+<title>Adventurers of Drenerics v0.6.2 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -549,6 +549,33 @@ const slimeGeo = new THREE.SphereGeometry(0.4, 16, 12);
 const slimeMat = new THREE.MeshStandardMaterial({ color: 0x5fdc5f, roughness: 0.3, transparent: true, opacity: 0.9 });
 const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
 
+// ---- Enemies: friendly goblin-style creatures (they never hurt the player) ----
+const ENEMY_KINDS = {
+  goblin: { name: 'Goblin', body: 0x6cc04a, head: 0x7fd65a, cloth: 0x8b5a2b, scale: 1.0,  fight: 1.0, gems: 1, sword: true },
+  imp:    { name: 'Imp',    body: 0xd9473b, head: 0xe05a4a, cloth: 0x3a2a4a, scale: 0.85, fight: 0.7, gems: 1, sword: false },
+  brute:  { name: 'Brute',  body: 0x6b4a8a, head: 0x7a5aa0, cloth: 0x4a3a2a, scale: 1.35, fight: 2.2, gems: 3, sword: false, pack: true },
+};
+const ENEMY_LIST = Object.keys(ENEMY_KINDS);
+function enemyModel(kind) {
+  const k = ENEMY_KINDS[kind];
+  const g = new THREE.Group();
+  const mt = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 });
+  const box = (w, h, d, c, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mt(c)); b.position.set(x, y, z); return b; };
+  g.add(box(0.5, 0.45, 0.4, k.body, 0, 0.5, 0));            // body
+  g.add(box(0.46, 0.42, 0.42, k.head, 0, 1.0, 0));          // head
+  for (const sx of [-1, 1]) {
+    g.add(box(0.14, 0.12, 0.08, k.head, sx * 0.36, 1.08, 0)); // ears
+    g.add(box(0.09, 0.09, 0.03, 0xffffff, sx * 0.1, 1.02, 0.22)); // eyes
+    g.add(box(0.05, 0.05, 0.03, 0x111111, sx * 0.1, 1.02, 0.235));
+    g.add(box(0.16, 0.2, 0.16, k.body, sx * 0.34, 0.5, 0));  // arms
+    g.add(box(0.18, 0.3, 0.18, k.cloth, sx * 0.13, 0.12, 0)); // legs
+  }
+  if (kind === 'imp') for (const sx of [-1, 1]) g.add(box(0.06, 0.2, 0.06, 0xffe08a, sx * 0.16, 1.32, 0)); // horns
+  if (k.sword) g.add(box(0.05, 0.5, 0.05, 0xdfe6ee, 0.42, 0.62, 0.12));
+  if (k.pack) g.add(box(0.5, 0.5, 0.2, 0x5a3a20, 0, 0.5, -0.3));  // backpack
+  g.scale.setScalar(k.scale);
+  return g;
+}
 function spawnSlime() {
   for (let tries = 0; tries < 20; tries++) {
     const x = Math.floor(Math.random() * (W - 2)) + 1, z = Math.floor(Math.random() * (D - 2)) + 1;
@@ -556,18 +583,10 @@ function spawnSlime() {
     while (y > 0 && grid[idx(x, y, z)] === T.AIR) y--;
     if (grid[idx(x, y, z)] !== T.GRASS) continue;
     if (Math.hypot(x + 0.5 - px, z + 0.5 - pz) < 6) continue;
-    const group = new THREE.Group();
-    const body = new THREE.Mesh(slimeGeo, slimeMat);
-    body.scale.set(1, 0.8, 1);
-    body.position.y = 0.32;
-    group.add(body);
-    for (const sx of [-0.14, 0.14]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), eyeMat);
-      eye.position.set(sx, 0.4, 0.34);
-      group.add(eye);
-    }
+    const kind = ENEMY_LIST[Math.floor(Math.random() * ENEMY_LIST.length)];
+    const group = enemyModel(kind);
     scene.add(group);
-    const en = { group, x: x + 0.5, y: y + 1.01, z: z + 0.5, vx: 0, vy: 0, vz: 0, timer: 1, hitP: 0 };
+    const en = { group, kind, base: ENEMY_KINDS[kind].scale, x: x + 0.5, y: y + 1.01, z: z + 0.5, vx: 0, vy: 0, vz: 0, timer: 1, hitP: 0 };
     group.traverse(c => { c.userData.enemy = en; });
     enemies.push(en);
     return;
@@ -609,7 +628,7 @@ function updateSlimes(dt) {
 
     const sq = en.hitP * 0.25 + Math.sin(now * 5 + en.x) * 0.05;
     en.group.position.set(en.x, en.y, en.z);
-    en.group.scale.set(1 + sq, 1 - sq, 1 + sq);
+    en.group.scale.set((1 + sq) * en.base, (1 - sq) * en.base, (1 + sq) * en.base);
     if (en.vx || en.vz) en.group.rotation.y = Math.atan2(en.vx, en.vz);
   }
 }
@@ -622,17 +641,19 @@ function updateFight(dt) {
   const dist = Math.hypot(en.x - px, en.y - py, en.z - pz);
   if (dist > REACH + 1) { fight = null; en.hitP = 0; return; }
   fight.t += dt;
-  en.hitP = Math.min(1, fight.t / fightTime());
-  if (fight.t >= fightTime()) { en.hitP = 0; killSlime(en); fight = null; }
+  const hitTime = fightTime() * ENEMY_KINDS[en.kind].fight;
+  en.hitP = Math.min(1, fight.t / hitTime);
+  if (fight.t >= hitTime) { en.hitP = 0; killSlime(en); fight = null; }
 }
 
 function killSlime(en) {
   scene.remove(en.group);
   enemies.splice(enemies.indexOf(en), 1);
-  addItem('gem');
+  const k = ENEMY_KINDS[en.kind];
+  for (let i = 0; i < k.gems; i++) addItem('gem');
   gain('fight', 2);
-  logEvent('slime_defeated');
-  say('Slime defeated! +1 gem', 1500);
+  logEvent('enemy_defeated', en.kind);
+  say(k.name + ' defeated! +' + k.gems + ' gem' + (k.gems > 1 ? 's' : ''), 1500);
 }
 
 // ---- Pointer: hold to dig or fight, tap to build, drag to turn the world ----
@@ -902,7 +923,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.1';
+const VERSION = '0.6.2';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

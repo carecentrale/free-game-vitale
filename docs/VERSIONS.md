@@ -10,6 +10,7 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
+| 0.6.2 | v0.6.2 (see git log) | build/prototype-3d-v7.html | (auto-deployed from main) | Goblin, Imp and Brute enemies; item pictures; v0.6.1 wizard and shared worlds |
 | 0.6.0 | v0.6.0 (commit 974f3a0) | build/prototype-3d-v6.html | dpl_6fc7qgR5zH5qFEvxKnMkhWd9UMx9 | Save character and world on device |
 | 0.5.1 | v0.5.1 (commit 4b84698) | build/prototype-3d-v5.html | dpl_DLMCRL9hFipanKWewQKy1Mi94usF | Phone layout for quick bar |
 
