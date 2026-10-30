@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.10 (3D)</title>
+<title>Adventurers of Drenerics v0.6.11 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -1022,14 +1022,14 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.10';
+const VERSION = '0.6.11';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let sb = null;
 // Loaded on demand: if the network is down, the game still plays alone
 const sbReady = import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm')
-  .then(m => { sb = m.createClient(SB_URL, SB_KEY, { auth: { persistSession: false } }); })
+  .then(m => { sb = m.createClient(SB_URL, SB_KEY, { auth: { persistSession: true } }); })
   .catch(() => {});
 
 let paused = true;
@@ -1067,6 +1067,15 @@ setInterval(flushEvents, 10000);
     '<div style="font-size:18px;font-weight:700;margin-bottom:8px">Parent area</div>' +
     '<div style="font-size:14px;opacity:.85;margin-bottom:14px">See this game\'s stats and what has been played. You will sign in with your email.</div>' +
     '<a id="parentLink" target="_blank" rel="noopener" style="display:block;background:#3b6fd8;color:#fff;border-radius:10px;padding:12px;text-decoration:none;font-weight:600;margin-bottom:10px">Open parent stats</a>' +
+    '<div style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left">' +
+    '<div style="font-size:15px;font-weight:700;margin-bottom:6px">Save to the cloud</div>' +
+    '<div id="cloudStatus" style="font-size:13px;opacity:.85;margin-bottom:10px">Checking sign-in...</div>' +
+    '<button id="cloudGoogle" style="display:none;width:100%;background:#fff;color:#222;border:0;border-radius:10px;padding:10px;margin-bottom:8px;font-weight:600;cursor:pointer">Sign in with Google</button>' +
+    '<button id="cloudFacebook" style="display:none;width:100%;background:#1877f2;color:#fff;border:0;border-radius:10px;padding:10px;margin-bottom:8px;font-weight:600;cursor:pointer">Sign in with Facebook</button>' +
+    '<button id="cloudSave" style="display:none;width:100%;background:#3b6fd8;color:#fff;border:0;border-radius:10px;padding:10px;margin-bottom:8px;font-weight:600;cursor:pointer">Save now</button>' +
+    '<button id="cloudLoad" style="display:none;width:100%;background:#3b6fd8;color:#fff;border:0;border-radius:10px;padding:10px;margin-bottom:8px;font-weight:600;cursor:pointer">Load saved game from the cloud</button>' +
+    '<button id="cloudOut" style="display:none;width:100%;background:transparent;color:#fff;border:1px solid #556;border-radius:10px;padding:8px;cursor:pointer">Sign out</button>' +
+    '</div>' +
     '<div style="font-size:12px;opacity:.7;margin-bottom:12px">Player code: <span id="parentPid"></span></div>' +
     '<button id="parentClose" style="background:transparent;color:#fff;border:1px solid #556;border-radius:10px;padding:8px 14px;cursor:pointer">Close</button></div>';
   document.body.append(tap, panel);
@@ -1082,6 +1091,56 @@ setInterval(flushEvents, 10000);
     }
   });
   document.getElementById('parentClose').addEventListener('click', () => { panel.style.display = 'none'; });
+
+  // ---- Cloud save: parent signs in with Google or Facebook; kids never see this ----
+  const $c = id => document.getElementById(id);
+  let cloudUser = null;
+  const setStatus = t => { $c('cloudStatus').textContent = t; };
+  function showSignedIn(session) {
+    cloudUser = session ? session.user : null;
+    setStatus(cloudUser
+      ? 'Signed in as ' + (cloudUser.email || 'your account') + '. The game saves to the cloud every 30 seconds.'
+      : 'Not signed in. Sign in to keep this game safe on any device.');
+    for (const id of ['cloudSave', 'cloudLoad', 'cloudOut']) $c(id).style.display = cloudUser ? '' : 'none';
+    for (const id of ['cloudGoogle', 'cloudFacebook']) $c(id).style.display = cloudUser ? 'none' : '';
+  }
+  async function cloudSaveNow() {
+    if (!sb || !cloudUser) return;
+    saveGame();
+    const save = localStorage.getItem(SAVE_KEY);
+    if (!save) return;
+    const { error } = await sb.from('cloud_saves').upsert({ user_id: cloudUser.id, save, updated_at: new Date().toISOString() });
+    setStatus(error ? 'Could not save to the cloud: ' + error.message
+      : 'Saved to the cloud at ' + new Date().toLocaleTimeString() + '.');
+  }
+  async function cloudLoadNow() {
+    if (!sb || !cloudUser) return;
+    const { data, error } = await sb.from('cloud_saves').select('save').eq('user_id', cloudUser.id).maybeSingle();
+    if (error) { setStatus('Could not load: ' + error.message); return; }
+    if (!data) { setStatus('No saved game in the cloud yet. Use Save now first.'); return; }
+    if (!confirm('Replace the game on this device with the cloud save?')) return;
+    wiping = true;                      // stop the game saving over the cloud copy before reload
+    localStorage.setItem(SAVE_KEY, data.save);
+    location.reload();
+  }
+  async function cloudSignIn(provider) {
+    if (!sb) { setStatus('Cloud save is not available right now.'); return; }
+    const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo: location.origin + location.pathname } });
+    if (error) setStatus('Could not sign in with ' + provider + ': ' + error.message);
+  }
+  $c('cloudGoogle').addEventListener('click', () => cloudSignIn('google'));
+  $c('cloudFacebook').addEventListener('click', () => cloudSignIn('facebook'));
+  $c('cloudSave').addEventListener('click', cloudSaveNow);
+  $c('cloudLoad').addEventListener('click', cloudLoadNow);
+  $c('cloudOut').addEventListener('click', async () => { if (sb) await sb.auth.signOut(); showSignedIn(null); });
+  setInterval(() => { if (cloudUser) cloudSaveNow(); }, 30000);
+  addEventListener('pagehide', () => { if (cloudUser) cloudSaveNow(); });
+  sbReady.then(async () => {
+    if (!sb) { setStatus('Cloud save is not available right now.'); return; }
+    const { data: { session } } = await sb.auth.getSession();
+    showSignedIn(session);
+    sb.auth.onAuthStateChange((_e, sess) => showSignedIn(sess));
+  });
 })();
 addEventListener('pagehide', flushEvents);
 function logError(err, where) {

@@ -2,6 +2,11 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.11: cloud save for parents
+- Parent area: sign in with Google or Facebook, then save the game to the cloud (automatic every 30 seconds) and load it on another device
+- Kids can't reach the sign-in; it sits behind the parent corner tap
+- Supabase table cloud_saves, private to each signed-in parent
+
 ## 0.6.10: parent area and player review
 - Parent area: tap the top-left corner 5 times quickly to open a link to the parent stats page
 - Parent stats page: new Players table (games started, enemies defeated, power-ups) with a per-player activity list; opens for one player with ?pid=
