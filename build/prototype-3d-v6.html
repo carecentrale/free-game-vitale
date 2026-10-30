@@ -1,0 +1,855 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Adventurers of Drenerics v0.6 (3D)</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
+  canvas{display:block}
+  #hud{position:fixed;top:10px;left:10px;color:#fff;text-shadow:0 2px 4px #000;font-size:16px;line-height:1.4;pointer-events:none}
+  .bar{width:180px;height:14px;background:rgba(0,0,0,.5);margin:4px 0}
+  .bar>div{height:100%;width:0}
+  #msg{position:fixed;top:12px;left:50%;transform:translateX(-50%);color:#fff;font-size:20px;text-shadow:0 2px 4px #000;pointer-events:none;white-space:nowrap}
+  .btn{position:fixed;width:56px;height:50px;background:rgba(255,255,255,.3);color:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;touch-action:none}
+  #toggle,#bagBtn{position:fixed;right:10px;padding:6px 10px;background:rgba(0,0,0,.4);color:#fff;border-radius:8px;font-size:14px;cursor:pointer;z-index:10}
+  #toggle{top:10px}
+  #bagBtn{top:44px}
+  #recent{position:fixed;top:82px;right:10px;width:160px;display:flex;flex-direction:column;gap:6px;z-index:5}
+  .title{color:#fff;text-shadow:0 2px 4px #000;font-size:14px;margin-bottom:2px}
+  .row{background:rgba(0,0,0,.45);color:#fff;border-radius:10px;padding:6px 8px;display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;touch-action:none}
+  .sw{width:22px;height:22px;border-radius:5px;border:2px solid #000;flex:none}
+  #qb{position:fixed;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:5}
+  .slot{width:70px;height:64px;background:rgba(0,0,0,.45);border:3px solid rgba(255,255,255,.35);border-radius:10px;color:#fff;font-size:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;touch-action:none;position:relative;text-align:center}
+  .slot.sel{border-color:#ffd54a}
+  .slot .n{position:absolute;top:2px;left:5px;font-size:10px;opacity:.8}
+  #bag{position:fixed;left:8%;right:8%;top:8%;bottom:20%;background:rgba(20,20,35,.92);color:#fff;border-radius:16px;padding:14px;display:none;overflow:auto;z-index:20;box-sizing:border-box}
+  #bag .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px}
+  /* Phones (narrow screens): quick bar sits above the controls and fits the screen width */
+  @media (max-width:700px){
+    #qb{bottom:190px;left:0;right:0;transform:none;justify-content:center;gap:4px;padding:0 8px;box-sizing:border-box}
+    .slot{width:calc((100vw - 60px) / 6);max-width:70px;height:52px;font-size:10px;border-width:2px}
+    .slot .n{font-size:9px}
+    #recent{width:130px;font-size:12px}
+    #recent .row{font-size:12px;padding:4px 6px}
+    .title{font-size:12px}
+  }
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}
+</script>
+</head>
+<body>
+<div id="hud"></div>
+<div id="msg"></div>
+<div id="toggle">Controls</div>
+<div id="bagBtn">Bag (B)</div>
+<div id="recent"></div>
+<div id="qb"></div>
+<div id="bag"></div>
+<div id="pad">
+  <div class="btn" id="bF" style="left:40px;bottom:110px">&#9650;</div>
+  <div class="btn" id="bL" style="left:10px;bottom:56px">&#9664;</div>
+  <div class="btn" id="bR" style="left:70px;bottom:56px">&#9654;</div>
+  <div class="btn" id="bB" style="left:40px;bottom:2px">&#9660;</div>
+  <div class="btn" id="bJ" style="right:14px;bottom:14px;width:80px">JUMP</div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ---- World settings ----
+const W = 40, H = 24, D = 40, SURF = 12;
+const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4 };
+const SPEED = 5, GRAV = 25, JUMP = 8, HW = 0.3, HH = 1.6, REACH = 7;
+const LABEL = { dig: 'Digging', build: 'Building', inv: 'Inventory', fight: 'Fighting' };
+const BAR = { dig: '#ffb347', build: '#66ccff', inv: '#9cff6b', fight: '#ff6b6b' };
+
+// ---- Items ----
+const ITEMS = {
+  dirt:  { name: 'Dirt',    kind: 'block',  color: 0x8d5524, block: T.DIRT },
+  stone: { name: 'Stone',   kind: 'block',  color: 0x7a7a7a, block: T.STONE },
+  gem:   { name: 'Gem',     kind: 'gem',    color: 0x29d3ff },
+  pick:  { name: 'Pickaxe', kind: 'tool',   color: 0xb0b0b0 },
+  sword: { name: 'Sword',   kind: 'weapon', color: 0xdfe6ee },
+};
+const hex = n => '#' + n.toString(16).padStart(6, '0');
+
+// Items in the bag (picks and swords start in the bag)
+const inv = { dirt: 0, stone: 0, gem: 0, pick: 1, sword: 1 };
+let recent = ['pick', 'sword'];           // most recent first
+const qb = ['pick', 'sword', null, null, null, null]; // 6 quick bar slots
+let sel = 0;                              // selected quick bar slot
+const held = () => qb[sel];
+const invTotal = () => Object.values(inv).reduce((a, b) => a + b, 0);
+
+const grid = new Uint8Array(W * H * D);
+const idx = (x, y, z) => (y * D + z) * W + x;
+const inBounds = (x, y, z) => x >= 0 && x < W && y >= 0 && y < H && z >= 0 && z < D;
+// Out of the sides or below = solid wall. Above the world = open sky.
+function get(x, y, z) {
+  if (x < 0 || x >= W || z < 0 || z >= D || y < 0) return T.STONE;
+  if (y >= H) return T.AIR;
+  return grid[idx(x, y, z)];
+}
+
+// ---- Terrain generation ----
+function gen(seed) {
+  let s = seed;
+  const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const p = [r() * 6, r() * 6, r() * 6];
+  const hgt = (x, z) => Math.round(SURF + Math.sin(x * 0.15 + p[0]) * 2 + Math.cos(z * 0.18 + p[1]) * 2 + Math.sin((x + z) * 0.1 + p[2]) * 1.5);
+  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
+    const top = hgt(x, z);
+    for (let y = 0; y < H; y++) {
+      let t = T.AIR;
+      if (y === top) t = T.GRASS;
+      else if (y < top && y >= top - 2) t = T.DIRT;
+      else if (y < top - 2) t = T.STONE;
+      grid[idx(x, y, z)] = t;
+    }
+  }
+  // Caves and gems underground
+  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) for (let y = 1; y < H - 4; y++) {
+    const i = idx(x, y, z);
+    if (grid[i] === T.STONE) {
+      const n = Math.sin(x * 0.3 + y * 0.5) * Math.cos(z * 0.3 - y * 0.4) + Math.sin(z * 0.25 + x * 0.1) * 0.4;
+      if (n > 0.85) grid[i] = T.AIR;
+      else if (r() < 0.03) grid[i] = T.GEM;
+    }
+  }
+}
+// ---- Saving: the character and the world are kept on this device (no accounts, no personal data) ----
+const SAVE_KEY = 'kidsgame.save.v1';
+let wiping = false;
+function readSave() { try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { return null; } }
+function bytesToB64(u8) { let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); }
+function loadWorld(b64) {
+  try {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    if (bytes.length === grid.length) { grid.set(bytes); return true; }
+  } catch (e) {}
+  return false;
+}
+function saveGame() {
+  if (wiping) return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v: 1, name: playerName, inv, qb, recent, sel, pw,
+      pos: [px, py, pz], yaw: camYaw, world: bytesToB64(grid)
+    }));
+  } catch (e) {}
+}
+
+const saved = readSave();
+const worldLoaded = !!(saved && typeof saved.world === 'string' && loadWorld(saved.world));
+if (!worldLoaded) gen(Math.floor(Math.random() * 1000000) + 1);
+
+// ---- Textures: small pixel-art textures made in code ----
+const rnd = (a, b) => a + Math.random() * (b - a);
+const clamp = v => Math.max(0, Math.min(255, Math.round(v)));
+function shade(hexN, v) {
+  return `rgb(${clamp((hexN >> 16 & 255) + v * 255)},${clamp((hexN >> 8 & 255) + v * 255)},${clamp((hexN & 255) + v * 255)})`;
+}
+function makeTex(draw) {
+  const S = 16;
+  const c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+  draw(g, S);
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function noise(g, S, base, amt) {
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    g.fillStyle = shade(base, rnd(-amt, amt));
+    g.fillRect(x, y, 1, 1);
+  }
+}
+const texGrassTop = makeTex((g, S) => noise(g, S, 0x5fb83a, 0.07));
+const texDirt = makeTex((g, S) => noise(g, S, 0x8d5524, 0.09));
+const texGrassSide = makeTex((g, S) => {
+  noise(g, S, 0x8d5524, 0.09);
+  for (let y = 0; y < 4; y++) for (let x = 0; x < S; x++) {
+    g.fillStyle = shade(0x4caf50, rnd(-0.06, 0.06) + (y === 3 && Math.random() < 0.5 ? -0.1 : 0));
+    g.fillRect(x, y, 1, 1);
+  }
+});
+const texStone = makeTex((g, S) => {
+  noise(g, S, 0x7a7a7a, 0.11);
+  g.strokeStyle = shade(0x4a4a4a, 0);
+  for (let i = 0; i < 4; i++) {
+    g.beginPath();
+    g.moveTo(rnd(0, S), rnd(0, S));
+    g.lineTo(rnd(0, S), rnd(0, S));
+    g.stroke();
+  }
+});
+const texGem = makeTex((g, S) => {
+  noise(g, S, 0x7a7a7a, 0.1);
+  for (let i = 0; i < 7; i++) {
+    g.fillStyle = Math.random() < 0.5 ? shade(0x29d3ff, 0) : shade(0xbff3ff, 0);
+    g.fillRect(Math.floor(rnd(0, S - 2)), Math.floor(rnd(0, S - 2)), 2, 2);
+  }
+});
+
+const mapMat = map => new THREE.MeshLambertMaterial({ map });
+// Six faces per block: +x, -x, +y (top), -y (bottom), +z, -z
+const blockMats = {
+  [T.GRASS]: [mapMat(texGrassSide), mapMat(texGrassSide), mapMat(texGrassTop), mapMat(texDirt), mapMat(texGrassSide), mapMat(texGrassSide)],
+  [T.DIRT]: Array(6).fill(0).map(() => mapMat(texDirt)),
+  [T.STONE]: Array(6).fill(0).map(() => mapMat(texStone)),
+  [T.GEM]: Array(6).fill(0).map(() => mapMat(texGem)),
+};
+
+// ---- Three.js scene ----
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+scene.add(new THREE.HemisphereLight(0xbfe6ff, 0x5a4a3a, 0.9));
+const sun = new THREE.DirectionalLight(0xfff4e0, 0.9);
+sun.position.set(30, 50, 20);
+scene.add(sun);
+
+// One instanced mesh per block type (fast: many blocks, few draw calls)
+const dummy = new THREE.Object3D();
+const N = W * H * D;
+const meshes = {};
+for (const k of [T.GRASS, T.DIRT, T.STONE, T.GEM]) {
+  const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), blockMats[k], N);
+  m.count = 0;
+  scene.add(m);
+  meshes[k] = m;
+}
+let dirty = true;
+function rebuild() {
+  const cnt = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
+    const t = grid[idx(x, y, z)];
+    if (!t) continue;
+    dummy.position.set(x + 0.5, y + 0.5, z + 0.5);
+    dummy.updateMatrix();
+    meshes[t].setMatrixAt(cnt[t]++, dummy.matrix);
+  }
+  for (const k in meshes) {
+    meshes[k].count = cnt[k];
+    meshes[k].instanceMatrix.needsUpdate = true;
+    meshes[k].boundingSphere = null;
+  }
+}
+
+// Crack overlay that darkens the block being dug
+const crack = new THREE.Mesh(new THREE.BoxGeometry(1.03, 1.03, 1.03),
+  new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthWrite: false }));
+crack.visible = false;
+scene.add(crack);
+
+// ---- Character: head, hair, face, body, arms, legs, held items ----
+const mat = c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, metalness: 0 });
+const SKIN = 0xf1c39a, SKIN_DARK = 0xd9a77e, SHIRT = 0x3a7bd5, PANTS = 0x333b6e, SHOE = 0x3b2a1e, HAIR = 0x4a2c17, BELT = 0x5a3a20;
+function part(w, h, d, c, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c));
+  m.position.set(x, y, z);
+  return m;
+}
+// A limb pivots at its top (shoulder or hip), so it swings like a real arm or leg
+function limb(w, h, d, c, x, y, z) {
+  const g = new THREE.Group();
+  g.position.set(x, y, z);
+  g.add(part(w, h, d, c, 0, -h / 2, 0));
+  return g;
+}
+
+const avatar = new THREE.Group();
+avatar.add(part(0.5, 0.62, 0.3, SHIRT, 0, 1.02, 0));
+avatar.add(part(0.52, 0.08, 0.32, BELT, 0, 0.72, 0));
+avatar.add(part(0.1, 0.1, 0.02, 0xc9a23a, 0, 0.72, 0.17));
+avatar.add(part(0.18, 0.1, 0.18, SKIN_DARK, 0, 1.36, 0));
+avatar.add(part(0.42, 0.44, 0.42, SKIN, 0, 1.6, 0));
+avatar.add(part(0.06, 0.1, 0.06, SKIN_DARK, -0.22, 1.6, 0));
+avatar.add(part(0.06, 0.1, 0.06, SKIN_DARK, 0.22, 1.6, 0));
+avatar.add(part(0.46, 0.14, 0.46, HAIR, 0, 1.8, 0));
+avatar.add(part(0.44, 0.1, 0.1, HAIR, 0, 1.72, 0.19));
+for (const sx of [-1, 1]) {
+  avatar.add(part(0.1, 0.07, 0.02, 0xffffff, sx * 0.1, 1.62, 0.22));
+  avatar.add(part(0.05, 0.05, 0.03, 0x1a1a1a, sx * 0.1, 1.62, 0.23));
+  avatar.add(part(0.1, 0.03, 0.02, HAIR, sx * 0.1, 1.7, 0.22));
+}
+avatar.add(part(0.06, 0.1, 0.05, SKIN_DARK, 0, 1.56, 0.23));
+avatar.add(part(0.12, 0.03, 0.02, 0x8a3b3b, 0, 1.46, 0.22));
+
+// Move the head parts into a group that turns on its own
+const headGroup = new THREE.Group();
+avatar.add(headGroup);
+for (const c of [...avatar.children]) if (c.position.y >= 1.44) headGroup.add(c);
+
+const legL = limb(0.2, 0.7, 0.2, PANTS, -0.13, 0.7, 0);
+const legR = limb(0.2, 0.7, 0.2, PANTS, 0.13, 0.7, 0);
+legL.add(part(0.22, 0.12, 0.3, SHOE, 0, -0.73, 0.05));
+legR.add(part(0.22, 0.12, 0.3, SHOE, 0, -0.73, 0.05));
+const armL = limb(0.16, 0.6, 0.16, SHIRT, -0.34, 1.3, 0);
+const armR = limb(0.16, 0.6, 0.16, SHIRT, 0.34, 1.3, 0);
+armL.add(part(0.14, 0.14, 0.14, SKIN, 0, -0.66, 0));
+armR.add(part(0.14, 0.14, 0.14, SKIN, 0, -0.66, 0));
+
+// Held items: each one only shows while it is selected in the quick bar
+const pickGroup = new THREE.Group();                 // pickaxe, right hand
+pickGroup.add(part(0.06, 0.5, 0.06, 0x8b5a2b, 0, -0.4, 0.12));
+pickGroup.add(part(0.3, 0.07, 0.07, 0x9e9e9e, 0, -0.66, 0.12));
+armR.add(pickGroup);
+const swordGroup = new THREE.Group();                // sword, left hand
+swordGroup.add(part(0.05, 0.5, 0.05, 0xdfe6ee, 0, -0.4, 0.12));
+swordGroup.add(part(0.2, 0.05, 0.06, 0x8b5a2b, 0, -0.16, 0.12));
+armL.add(swordGroup);
+const heldCube = part(0.22, 0.22, 0.22, 0xffffff, 0, -0.72, 0.1); // a block or gem in the right hand
+armR.add(heldCube);
+
+avatar.add(legL, legR, armL, armR);
+scene.add(avatar);
+
+// Show the right things in the hands for the selected quick bar item
+function updateHand() {
+  const id = held();
+  const kind = id ? ITEMS[id].kind : null;
+  pickGroup.visible = id === 'pick';
+  swordGroup.visible = id === 'sword';
+  heldCube.visible = kind === 'block' || kind === 'gem';
+  if (heldCube.visible) heldCube.material.color.setHex(ITEMS[id].color);
+}
+
+function spawnPoint() {
+  const x = W >> 1, z = D >> 1;
+  let y = H - 1;
+  while (y > 0 && grid[idx(x, y, z)] === T.AIR) y--;
+  return [x + 0.5, y + 1.01, z + 0.5];
+}
+let [px, py, pz] = spawnPoint();
+let vx = 0, vy = 0, vz = 0, onGround = false, jumpHeld = false, squash = 0, walkT = 0;
+
+function hits(x, y, z) {
+  for (const dx of [-HW, HW]) for (const dz of [-HW, HW]) for (const dy of [0.01, HH - 0.01]) {
+    if (get(Math.floor(x + dx), Math.floor(y + dy), Math.floor(z + dz)) !== T.AIR) return true;
+  }
+  return false;
+}
+
+// ---- Input ----
+const keys = {};
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (/^Digit[1-6]$/.test(e.code)) selectSlot(+e.code.slice(5) - 1);
+  if (e.code === 'KeyB') toggleBag();
+  if (e.code === 'Escape') toggleBag(false);
+});
+addEventListener('keyup', e => keys[e.code] = false);
+const touch = { L: false, R: false, F: false, B: false, J: false };
+function bindBtn(id, key) {
+  const el = document.getElementById(id);
+  el.addEventListener('pointerdown', e => { e.preventDefault(); touch[key] = true; });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, () => touch[key] = false);
+}
+bindBtn('bL', 'L'); bindBtn('bR', 'R'); bindBtn('bF', 'F'); bindBtn('bB', 'B'); bindBtn('bJ', 'J');
+
+// On-screen controls: on by default on touch devices, off on PCs. Choice is remembered.
+const isTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+let padOn = isTouch;
+try { const v = localStorage.getItem('padOn'); if (v !== null) padOn = v === '1'; } catch (e) {}
+const padEl = document.getElementById('pad');
+const toggleEl = document.getElementById('toggle');
+function applyPad() {
+  padEl.style.display = padOn ? 'block' : 'none';
+  toggleEl.textContent = 'Controls: ' + (padOn ? 'On' : 'Off');
+}
+toggleEl.addEventListener('click', () => {
+  padOn = !padOn;
+  try { localStorage.setItem('padOn', padOn ? '1' : '0'); } catch (e) {}
+  applyPad();
+});
+applyPad();
+
+// ---- Powers ----
+const pw = { dig: { lvl: 1, xp: 0 }, build: { lvl: 1, xp: 0 }, inv: { lvl: 1, xp: 0 }, fight: { lvl: 1, xp: 0 } };
+const need = lvl => Math.floor(10 * Math.pow(1.5, lvl - 1));
+const invCap = () => 8 + pw.inv.lvl * 4;
+const digTime = () => 1.0 * Math.pow(0.92, pw.dig.lvl - 1);
+const fightTime = () => 1.0 * Math.pow(0.92, pw.fight.lvl - 1);
+let invTimer = 0;
+
+const titles = ['Lord', 'Mistress', 'Sir', 'Dame'];
+const names = ['Kestrel', 'Elowen', 'Brannoc', 'Aldric'];
+const pick = a => a[Math.floor(Math.random() * a.length)];
+let playerName = (saved && typeof saved.name === 'string') ? saved.name
+  : pick(titles) + ' ' + pick(names) + ' ' + (Math.floor(Math.random() * 999) + 1);
+
+const msgEl = document.getElementById('msg');
+let msgT = 0;
+function say(text, ms = 2000) { msgEl.textContent = text; msgT = ms; }
+say('Select a tool in the quick bar (1-6). Pickaxe digs, sword fights, blocks build.', 5000);
+
+function gain(p, n) {
+  const s = pw[p];
+  s.xp += n;
+  const nd = need(s.lvl);
+  if (s.xp >= nd) { s.xp -= nd; s.lvl++; say(LABEL[p] + ' power up! Level ' + s.lvl, 2500); }
+}
+
+// ---- Inventory and quick bar ----
+function addItem(id, n = 1) {
+  inv[id] = (inv[id] || 0) + n;
+  recent = [id, ...recent.filter(r => r !== id)].slice(0, 6);
+  renderUI();
+}
+
+// Put an item from the bag into the selected quick bar slot (it stays in the bag too)
+function toQuick(id) {
+  if (!ITEMS[id]) return;
+  const old = qb.indexOf(id);
+  if (old >= 0) qb[old] = null; // an item sits in one slot at a time
+  qb[sel] = id;
+  say(`${ITEMS[id].name} is in slot ${sel + 1}`, 1200);
+  updateHand();
+  renderUI();
+}
+
+function selectSlot(i) {
+  sel = i;
+  updateHand();
+  renderUI();
+}
+
+// ---- UI panels ----
+const recentEl = document.getElementById('recent');
+const qbEl = document.getElementById('qb');
+const bagEl = document.getElementById('bag');
+let bagOpen = false;
+
+function renderUI() {
+  const shown = recent.filter(id => inv[id] > 0);
+  recentEl.innerHTML = '<div class="title">Recent (tap to add to quick bar)</div>' +
+    (shown.map(id => `<div class="row" data-item="${id}"><span class="sw" style="background:${hex(ITEMS[id].color)}"></span>${ITEMS[id].name} x${inv[id]}</div>`).join('') ||
+     '<div class="row">Nothing yet</div>');
+  qbEl.innerHTML = qb.map((id, i) =>
+    `<div class="slot${i === sel ? ' sel' : ''}" data-slot="${i}"><span class="n">${i + 1}</span>` +
+    (id ? `<span class="sw" style="background:${hex(ITEMS[id].color)}"></span><span>${ITEMS[id].name} x${inv[id] || 0}</span>`
+        : '<span>empty</span>') +
+    '</div>').join('');
+  if (bagOpen) renderBag();
+}
+
+function renderBag() {
+  const ids = Object.keys(ITEMS).filter(id => inv[id] > 0);
+  bagEl.innerHTML =
+    `<div style="display:flex;justify-content:space-between;align-items:center">` +
+    `<b>Bag ${invTotal()}/${invCap()}</b><span id="bagClose" style="cursor:pointer;padding:6px">Close &#10005;</span></div>` +
+    `<div style="margin-top:8px;opacity:.85;font-size:14px">Tap an item to put it in quick bar slot ${sel + 1}.</div>` +
+    `<div class="grid">` +
+    (ids.map(id => `<div class="row" data-item="${id}"><span class="sw" style="background:${hex(ITEMS[id].color)}"></span>${ITEMS[id].name} x${inv[id]}</div>`).join('') ||
+     '<div>Empty. Dig some blocks!</div>') +
+    `</div>` +
+    `<div style="margin-top:14px;opacity:.8"><span id="newGame" style="cursor:pointer;text-decoration:underline">Start a new game (erases saved progress)</span></div>`;
+}
+
+function toggleBag(force) {
+  bagOpen = force !== undefined ? force : !bagOpen;
+  bagEl.style.display = bagOpen ? 'block' : 'none';
+  if (bagOpen) renderBag();
+}
+
+recentEl.addEventListener('click', e => {
+  const r = e.target.closest('[data-item]');
+  if (r) toQuick(r.dataset.item);
+});
+qbEl.addEventListener('click', e => {
+  const s = e.target.closest('[data-slot]');
+  if (s) selectSlot(+s.dataset.slot);
+});
+bagEl.addEventListener('click', e => {
+  if (e.target.closest('#bagClose')) return toggleBag(false);
+  if (e.target.closest('#newGame')) {
+    if (confirm('Start a new game? Saved progress on this device will be erased.')) {
+      wiping = true;
+      try { localStorage.removeItem(SAVE_KEY); } catch (err) {}
+      location.reload();
+    }
+    return;
+  }
+  const r = e.target.closest('[data-item]');
+  if (r) toQuick(r.dataset.item);
+});
+document.getElementById('bagBtn').addEventListener('click', () => toggleBag());
+
+// Finish digging the block at (x,y,z). Returns false if the bag is full.
+function digCell(x, y, z) {
+  const t = get(x, y, z);
+  if (!t) return false;
+  if (invTotal() >= invCap()) { say('Bag is full! Place some blocks to make room.'); return false; }
+  grid[idx(x, y, z)] = T.AIR;
+  const id = (t === T.GRASS || t === T.DIRT) ? 'dirt' : (t === T.STONE ? 'stone' : 'gem');
+  if (id === 'gem') say('+1 gem!', 1200);
+  addItem(id);
+  gain('dig', 1);
+  dirty = true;
+  return true;
+}
+
+let armSwing = 0; // quick arm swing when placing
+
+// Build with the selected block in the quick bar
+function placeCell(x, y, z) {
+  if (!inBounds(x, y, z)) return;
+  const id = held();
+  const item = id ? ITEMS[id] : null;
+  if (!item || item.kind !== 'block') {
+    say(id ? 'Select a block in the quick bar to build.' : 'Put a block in a quick bar slot and select it.', 2000);
+    return;
+  }
+  if (!inv[id]) { say('No ' + item.name + ' left! Dig some first.'); return; }
+  if (x < px + HW && x + 1 > px - HW && y < py + HH && y + 1 > py && z < pz + HW && z + 1 > pz - HW) {
+    say("Can't build on yourself!");
+    return;
+  }
+  grid[idx(x, y, z)] = item.block;
+  inv[id]--;
+  gain('build', 1);
+  dirty = true;
+  armSwing = 0.3;
+  renderUI();
+}
+
+// ---- Slimes: gentle creatures to fight with the sword (they never hurt the player) ----
+const enemies = [];
+let fight = null; // {e, t}: the slime being hit, and how long we have been hitting it
+const slimeGeo = new THREE.SphereGeometry(0.4, 16, 12);
+const slimeMat = new THREE.MeshStandardMaterial({ color: 0x5fdc5f, roughness: 0.3, transparent: true, opacity: 0.9 });
+const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+
+function spawnSlime() {
+  for (let tries = 0; tries < 20; tries++) {
+    const x = Math.floor(Math.random() * (W - 2)) + 1, z = Math.floor(Math.random() * (D - 2)) + 1;
+    let y = H - 1;
+    while (y > 0 && grid[idx(x, y, z)] === T.AIR) y--;
+    if (grid[idx(x, y, z)] !== T.GRASS) continue;
+    if (Math.hypot(x + 0.5 - px, z + 0.5 - pz) < 6) continue;
+    const group = new THREE.Group();
+    const body = new THREE.Mesh(slimeGeo, slimeMat);
+    body.scale.set(1, 0.8, 1);
+    body.position.y = 0.32;
+    group.add(body);
+    for (const sx of [-0.14, 0.14]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), eyeMat);
+      eye.position.set(sx, 0.4, 0.34);
+      group.add(eye);
+    }
+    scene.add(group);
+    const en = { group, x: x + 0.5, y: y + 1.01, z: z + 0.5, vx: 0, vy: 0, vz: 0, timer: 1, hitP: 0 };
+    group.traverse(c => { c.userData.enemy = en; });
+    enemies.push(en);
+    return;
+  }
+}
+for (let i = 0; i < 6; i++) spawnSlime();
+let slimeSpawnT = 6;
+function updateSpawns(dt) {
+  slimeSpawnT -= dt;
+  if (enemies.length < 6 && slimeSpawnT <= 0) { spawnSlime(); slimeSpawnT = 6; }
+}
+
+// Like hits(), but for any size of box
+function solidBox(x, y, z, hw, hh) {
+  for (const dx of [-hw, hw]) for (const dz of [-hw, hw]) for (const dy of [0.01, hh - 0.01]) {
+    if (get(Math.floor(x + dx), Math.floor(y + dy), Math.floor(z + dz)) !== T.AIR) return true;
+  }
+  return false;
+}
+
+function updateSlimes(dt) {
+  const now = performance.now() / 1000;
+  for (const en of enemies) {
+    en.timer -= dt;
+    if (en.timer <= 0) {
+      en.timer = 1.5 + Math.random() * 2.5;
+      const a = Math.random() * Math.PI * 2;
+      en.vx = Math.sin(a) * 1.0;
+      en.vz = Math.cos(a) * 1.0;
+      if (Math.random() < 0.3) { en.vx = 0; en.vz = 0; }
+    }
+    const nx = en.x + en.vx * dt;
+    if (!solidBox(nx, en.y, en.z, 0.3, 0.8)) en.x = nx; else en.timer = 0;
+    const nz = en.z + en.vz * dt;
+    if (!solidBox(en.x, en.y, nz, 0.3, 0.8)) en.z = nz; else en.timer = 0;
+    en.vy = Math.max(en.vy - GRAV * dt, -30);
+    const ny = en.y + en.vy * dt;
+    if (!solidBox(en.x, ny, en.z, 0.3, 0.8)) en.y = ny; else en.vy = 0;
+
+    const sq = en.hitP * 0.25 + Math.sin(now * 5 + en.x) * 0.05;
+    en.group.position.set(en.x, en.y, en.z);
+    en.group.scale.set(1 + sq, 1 - sq, 1 + sq);
+    if (en.vx || en.vz) en.group.rotation.y = Math.atan2(en.vx, en.vz);
+  }
+}
+
+// Hold on a slime with the sword selected to attack it
+function updateFight(dt) {
+  if (!fight) { for (const en of enemies) en.hitP = 0; return; }
+  const en = fight.e;
+  if (!enemies.includes(en)) { fight = null; return; }
+  const dist = Math.hypot(en.x - px, en.y - py, en.z - pz);
+  if (dist > REACH + 1) { fight = null; en.hitP = 0; return; }
+  fight.t += dt;
+  en.hitP = Math.min(1, fight.t / fightTime());
+  if (fight.t >= fightTime()) { en.hitP = 0; killSlime(en); fight = null; }
+}
+
+function killSlime(en) {
+  scene.remove(en.group);
+  enemies.splice(enemies.indexOf(en), 1);
+  addItem('gem');
+  gain('fight', 2);
+  say('Slime defeated! +1 gem', 1500);
+}
+
+// ---- Pointer: hold to dig or fight, tap to build, drag to turn the world ----
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let digging = null; // {x, y, z, t}
+let camYaw = 0;      // camera angle around the character
+let headTarget = 0, headYaw = 0;
+let press = null;        // {id, x, lastX, moved}
+let pendingPlace = null; // cell to build in, used only if the press was a tap
+
+// Which block or slime the press landed on, and the cell it would dig or build in
+function aim(e) {
+  ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
+  ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects([...Object.values(meshes), ...enemies.map(en => en.group)], true)[0];
+  if (!hit) return null;
+  const enemy = hit.object.userData.enemy || null;
+  const d = ray.ray.direction, p = hit.point, e2 = 0.01;
+  const dig = [Math.floor(p.x + d.x * e2), Math.floor(p.y + d.y * e2), Math.floor(p.z + d.z * e2)];
+  // Reach is measured from the character, not the camera (the camera is far behind)
+  const dist = Math.hypot(dig[0] + 0.5 - px, dig[1] + 0.5 - (py + HH / 2), dig[2] + 0.5 - pz);
+  return {
+    enemy, dist, dig,
+    place: [Math.floor(p.x - d.x * e2), Math.floor(p.y - d.y * e2), Math.floor(p.z - d.z * e2)]
+  };
+}
+
+// Zoom: mouse wheel, or pinch with two fingers
+const canvas = renderer.domElement;
+let zoom = 1;
+function setZoom(z) { zoom = Math.min(5, Math.max(0.25, z)); }
+const touches = new Map();
+let pinchDist = 0;
+canvas.addEventListener('pointerdown', e => touches.set(e.pointerId, { x: e.clientX, y: e.clientY }));
+canvas.addEventListener('pointermove', e => {
+  headTarget = (e.clientX / window.innerWidth * 2 - 1) * 0.8;
+  if (!touches.has(e.pointerId)) return;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (press && press.id === e.pointerId && touches.size === 1) {
+    if (!press.moved && Math.abs(e.clientX - press.x) > 8) { press.moved = true; digging = null; fight = null; }
+    if (press.moved) camYaw -= (e.clientX - press.lastX) * 0.01;
+    press.lastX = e.clientX;
+  }
+  if (touches.size === 2) {
+    const [a, b] = [...touches.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (pinchDist > 0) setZoom(zoom * pinchDist / d);
+    pinchDist = d;
+    digging = null;
+  }
+});
+function endTouch(e) {
+  touches.delete(e.pointerId);
+  if (touches.size < 2) pinchDist = 0;
+}
+canvas.addEventListener('pointerup', endTouch);
+canvas.addEventListener('pointercancel', endTouch);
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  setZoom(zoom * (1 + e.deltaY * 0.001));
+}, { passive: false });
+
+canvas.addEventListener('pointerdown', e => {
+  if (touches.size > 1) return; // two fingers = pinch
+  press = { id: e.pointerId, x: e.clientX, lastX: e.clientX, moved: false };
+  pendingPlace = null;
+  const a = aim(e);
+  if (!a) return;
+  if (a.enemy) {
+    if (Math.hypot(a.enemy.x - px, a.enemy.y - py, a.enemy.z - pz) > REACH + 1) { say('Too far away! Get closer.'); return; }
+    if (held() !== 'sword') { say('Select the sword in the quick bar (1-6) to fight.', 2000); return; }
+    fight = { e: a.enemy, t: 0 };
+    digging = null;
+    return;
+  }
+  if (a.dist > REACH) { say('Too far away! Get closer.'); return; }
+  const [dx, dy, dz] = a.dig;
+  if (get(dx, dy, dz) !== T.AIR) {
+    if (held() !== 'pick') { say('Select the pickaxe in the quick bar (1-6) to dig.', 2000); return; }
+    digging = { x: dx, y: dy, z: dz, t: 0 };
+    armSwing = 0;
+  } else {
+    pendingPlace = a.place; // build on release, so a drag does not build
+  }
+});
+canvas.addEventListener('pointerup', e => {
+  if (press && press.id === e.pointerId && !press.moved && pendingPlace) placeCell(...pendingPlace);
+  pendingPlace = null;
+  press = null;
+  digging = null;
+  fight = null;
+});
+
+// Keep digging progress in step with the held block; cancel if we walk away
+function updateDig(dt) {
+  if (!digging) { crack.visible = false; return; }
+  const { x, y, z } = digging;
+  const dist = Math.hypot(x + 0.5 - px, y + 0.5 - (py + HH / 2), z + 0.5 - pz);
+  if (get(x, y, z) === T.AIR || dist > REACH + 1) { digging = null; crack.visible = false; return; }
+  digging.t += dt;
+  const progress = Math.min(1, digging.t / digTime());
+  crack.visible = true;
+  crack.position.set(x + 0.5, y + 0.5, z + 0.5);
+  crack.material.opacity = progress * 0.6;
+  if (progress >= 1) {
+    const done = digCell(x, y, z);
+    digging = null;
+    crack.visible = false;
+    if (!done) press = null;
+  }
+}
+
+// ---- Game loop ----
+function update(dt) {
+  const k = c => !!keys[c];
+  const sx = ((k('KeyD') || k('ArrowRight') || touch.R) ? 1 : 0) - ((k('KeyA') || k('ArrowLeft') || touch.L) ? 1 : 0);
+  const sz = ((k('KeyS') || k('ArrowDown') || touch.B) ? 1 : 0) - ((k('KeyW') || k('ArrowUp') || touch.F) ? 1 : 0);
+  const norm = Math.hypot(sx, sz) || 1;
+  // Move relative to the camera, so "up" is always away from you on screen
+  const cosY = Math.cos(camYaw), sinY = Math.sin(camYaw);
+  const wx = sx * cosY + sz * sinY, wz = -sx * sinY + sz * cosY;
+  vx = wx * SPEED / norm;
+  vz = wz * SPEED / norm;
+
+  const nx = px + vx * dt;
+  if (!hits(nx, py, pz)) px = nx;
+  const nz = pz + vz * dt;
+  if (!hits(px, py, nz)) pz = nz;
+
+  const jd = k('Space') || touch.J;
+  if (jd && !jumpHeld && onGround) { vy = JUMP; onGround = false; squash = 1; }
+  jumpHeld = jd;
+  vy = Math.max(vy - GRAV * dt, -30);
+  const ny = py + vy * dt;
+  if (!hits(px, ny, pz)) { py = ny; onGround = false; }
+  else { if (vy < 0) { onGround = true; squash = 1; } vy = 0; }
+
+  if (py < -10) { [px, py, pz] = spawnPoint(); vy = 0; }
+
+  // Inventory power grows while the bag is full
+  if (invTotal() >= invCap()) {
+    invTimer += dt;
+    if (invTimer >= 1) { invTimer -= 1; gain('inv', 1); }
+  } else invTimer = 0;
+
+  updateDig(dt);
+  updateFight(dt);
+  updateSlimes(dt);
+  updateSpawns(dt);
+
+  const moving = sx || sz;
+  if (moving) avatar.rotation.y = Math.atan2(vx, vz);
+  headYaw += (headTarget - headYaw) * 0.15;
+  headGroup.rotation.y = headYaw;
+
+  walkT += dt * (moving && onGround ? 9 : 0);
+  const swing = Math.sin(walkT) * 0.8;
+  legL.rotation.x = swing;
+  legR.rotation.x = -swing;
+  armL.rotation.x = onGround ? -swing : -2.4;
+  if (fight) armL.rotation.x = -1.3 + Math.sin(performance.now() / 110) * 0.8;
+  if (digging) {
+    armR.rotation.x = -1.3 + Math.sin(performance.now() / 110) * 0.7;
+  } else if (armSwing > 0) {
+    armSwing -= dt;
+    armR.rotation.x = -1.2;
+  } else {
+    armR.rotation.x = onGround ? swing : -2.4;
+  }
+
+  squash = Math.max(0, squash - dt * 4);
+  const sq = squash * 0.2;
+  avatar.position.set(px, py, pz);
+  avatar.scale.set(1 + sq, 1 - sq, 1 + sq);
+
+  // Camera follows from behind, turned by camYaw, and zoomed by zoom
+  const camX = px + Math.sin(camYaw) * 9 * zoom, camZ = pz + Math.cos(camYaw) * 9 * zoom;
+  camera.position.lerp(new THREE.Vector3(camX, py + 5 * zoom, camZ), 0.12);
+  camera.lookAt(px, py + 1, pz);
+
+  const under = get(Math.floor(px), Math.floor(py + HH), Math.floor(pz)) !== T.AIR;
+  scene.background.setHex(under ? 0x2b2238 : 0x87ceeb);
+
+  if (msgT > 0) { msgT -= dt * 1000; if (msgT <= 0) msgEl.textContent = ''; }
+  drawHud();
+}
+
+const hud = document.getElementById('hud');
+function drawHud() {
+  const cap = invCap(), total = invTotal();
+  const bar = (k, ratio) => `<div class="bar"><div style="width:${Math.min(1, ratio) * 100}%;background:${BAR[k]}"></div></div>`;
+  hud.innerHTML =
+    `${playerName}<br>` +
+    `Digging Lv ${pw.dig.lvl}${bar('dig', pw.dig.xp / need(pw.dig.lvl))}` +
+    `Building Lv ${pw.build.lvl}${bar('build', pw.build.xp / need(pw.build.lvl))}` +
+    `Inventory Lv ${pw.inv.lvl}${bar('inv', total / cap)}` +
+    `Fighting Lv ${pw.fight.lvl}${bar('fight', pw.fight.xp / need(pw.fight.lvl))}` +
+    `Bag ${total}/${cap} &nbsp; Gems ${inv.gem}`;
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min((now - last) / 1000, 0.05);
+  last = now;
+  update(dt);
+  if (dirty) { rebuild(); dirty = false; }
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+// ---- Restore the saved character, then keep saving ----
+if (saved) {
+  if (saved.inv) for (const k of Object.keys(inv)) if (typeof saved.inv[k] === 'number') inv[k] = saved.inv[k];
+  if (Array.isArray(saved.qb)) for (let i = 0; i < qb.length; i++) qb[i] = ITEMS[saved.qb[i]] ? saved.qb[i] : null;
+  if (Array.isArray(saved.recent)) recent = saved.recent.filter(r => ITEMS[r]);
+  if (saved.pw) for (const k of Object.keys(pw)) if (saved.pw[k] && Number.isFinite(saved.pw[k].lvl)) pw[k] = saved.pw[k];
+  if (Number.isInteger(saved.sel) && saved.sel >= 0 && saved.sel < 6) sel = saved.sel;
+  if (Array.isArray(saved.pos) && saved.pos.length === 3 && !hits(...saved.pos)) [px, py, pz] = saved.pos;
+  if (Number.isFinite(saved.yaw)) camYaw = saved.yaw;
+  if (worldLoaded) say('Welcome back, ' + playerName + '!', 2500);
+}
+setInterval(saveGame, 5000);
+addEventListener('pagehide', saveGame);
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
+
+rebuild();
+dirty = false;
+updateHand();
+renderUI();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

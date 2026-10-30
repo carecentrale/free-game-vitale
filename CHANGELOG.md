@@ -2,6 +2,12 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.0: save and shared-world groundwork
+- Character and world save on this device automatically (every 5 seconds and when the page closes)
+- Reopening the game restores your name, bag, quick bar, power levels, position, and the world
+- Bag has "Start a new game" (asks first, then erases saved progress on this device)
+- Supabase project created for the upcoming two-player sync (not connected to the game yet)
+
 ## 0.5.1: phone layout
 - On phones (narrow screens), the quick bar sits above the controls and fits the screen width
 
