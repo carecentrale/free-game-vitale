@@ -40,6 +40,8 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: tr
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const DAY = 86400000;
+let allEvents = [];
+let selectedPid = new URLSearchParams(location.search).get('pid') || '';
 
 function show(view) {
   for (const v of ['signin', 'dash']) $(v).classList.toggle('hide', v !== view);
@@ -73,7 +75,7 @@ async function load() {
 
   const since = new Date(Date.now() - 14 * DAY).toISOString();
   const [ev, er] = await Promise.all([
-    sb.from('game_events').select('created_at,kind,player_id,version').gte('created_at', since).order('created_at', { ascending: false }).limit(10000),
+    sb.from('game_events').select('created_at,kind,player_id,version,detail').gte('created_at', since).order('created_at', { ascending: false }).limit(10000),
     sb.from('game_errors').select('id,created_at,version,message,stack,where_seen').order('created_at', { ascending: false }).limit(100),
   ]);
 
@@ -82,8 +84,11 @@ async function load() {
     return;
   }
   $('loadErr').textContent = '';
+  allEvents = ev.data;
   renderStats(ev.data, er.data);
   renderErrors(er.data);
+  renderPlayers(ev.data);
+  renderDetail();
 }
 
 function renderStats(events, errors) {
@@ -129,6 +134,41 @@ function renderStats(events, errors) {
     ? top.map(([k, n]) => `<div><span style="width:160px">${esc(k)}</span><i style="width:${(n / maxC) * 60}%"></i><span>${n}</span></div>`).join('')
     : '<div class="muted">No events yet.</div>';
 }
+
+function renderPlayers(events) {
+  const players = {};
+  for (const e of events) {               // newest first
+    if (!e.player_id) continue;
+    let p = players[e.player_id];
+    if (!p) p = players[e.player_id] = { id: e.player_id, first: e.created_at, last: e.created_at, version: e.version, starts: 0, kills: 0, powers: 0 };
+    if (e.created_at < p.first) p.first = e.created_at;
+    if (e.kind === 'game_started') p.starts++;
+    if (e.kind === 'enemy_defeated') p.kills++;
+    if (e.kind === 'power_up') p.powers++;
+  }
+  const list = Object.values(players).sort((a, b) => b.last.localeCompare(a.last));
+  $('players').innerHTML = list.length
+    ? `<table><tr><th>Player</th><th>Last seen</th><th>Games started</th><th>Enemies defeated</th><th>Power-ups</th><th>Version</th></tr>` +
+      list.map(p => `<tr data-pid="${esc(p.id)}" style="cursor:pointer;${p.id === selectedPid ? 'background:var(--line)' : ''}"><td>${esc(p.id.slice(0, 8))}</td><td>${esc(new Date(p.last).toLocaleString())}</td><td>${p.starts}</td><td>${p.kills}</td><td>${p.powers}</td><td>${esc(p.version)}</td></tr>`).join('') +
+      `</table><div class="muted" style="margin-top:6px">Tap a player to see what they did.</div>`
+    : '<div class="muted">No players in the last 14 days.</div>';
+}
+
+function renderDetail() {
+  if (!selectedPid) { $('playerDetail').innerHTML = ''; return; }
+  const rows = allEvents.filter(e => e.player_id === selectedPid).slice(0, 100);
+  $('playerDetail').innerHTML = rows.length
+    ? `<table><tr><th>When</th><th>What</th><th>Detail</th><th>Version</th></tr>` +
+      rows.map(e => `<tr><td>${esc(new Date(e.created_at).toLocaleString())}</td><td>${esc(e.kind)}</td><td>${esc(e.detail || '')}</td><td>${esc(e.version)}</td></tr>`).join('') + `</table>`
+    : '<div class="muted">No activity for this player in the last 14 days.</div>';
+}
+$('players').addEventListener('click', e => {
+  const row = e.target.closest('tr[data-pid]');
+  if (!row) return;
+  selectedPid = row.dataset.pid;
+  renderPlayers(allEvents);
+  renderDetail();
+});
 
 function renderErrors(errors) {
   $('errors').innerHTML = errors.length
@@ -177,6 +217,12 @@ load();
   <div id="loadErr" class="err"></div>
 
   <div id="stats" class="grid" style="margin-bottom:14px"></div>
+
+  <div class="card">
+    <b>Players (last 14 days)</b>
+    <div id="players" style="margin-top:8px;overflow-x:auto"></div>
+    <div id="playerDetail" style="margin-top:12px;overflow-x:auto"></div>
+  </div>
 
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
     <div class="card"><b>Players per day (last 14 days)</b><div id="daily" class="bars" style="margin-top:8px"></div></div>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.9 (3D)</title>
+<title>Adventurers of Drenerics v0.6.10 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -1022,7 +1022,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.9';
+const VERSION = '0.6.10';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1056,6 +1056,33 @@ function flushEvents() {
   sb.from('game_events').insert(rows).then(() => {}, () => {});
 }
 setInterval(flushEvents, 10000);
+// Parent area: tap the top-left corner 5 times within 3 seconds (a child won't find it by accident).
+// It shows a link to the parent stats page, which requires an email sign-in.
+(() => {
+  const tap = document.createElement('div');
+  tap.style.cssText = 'position:fixed;left:0;top:0;width:70px;height:70px;z-index:30;';
+  const panel = document.createElement('div');
+  panel.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:40;';
+  panel.innerHTML = '<div style="background:#1e2236;color:#fff;border-radius:14px;padding:20px;max-width:340px;font-family:system-ui,sans-serif;text-align:center">' +
+    '<div style="font-size:18px;font-weight:700;margin-bottom:8px">Parent area</div>' +
+    '<div style="font-size:14px;opacity:.85;margin-bottom:14px">See this game\'s stats and what has been played. You will sign in with your email.</div>' +
+    '<a id="parentLink" target="_blank" rel="noopener" style="display:block;background:#3b6fd8;color:#fff;border-radius:10px;padding:12px;text-decoration:none;font-weight:600;margin-bottom:10px">Open parent stats</a>' +
+    '<div style="font-size:12px;opacity:.7;margin-bottom:12px">Player code: <span id="parentPid"></span></div>' +
+    '<button id="parentClose" style="background:transparent;color:#fff;border:1px solid #556;border-radius:10px;padding:8px 14px;cursor:pointer">Close</button></div>';
+  document.body.append(tap, panel);
+  let taps = [];
+  tap.addEventListener('click', () => {
+    const now = Date.now();
+    taps = taps.filter(t => now - t < 3000); taps.push(now);
+    if (taps.length >= 5) {
+      taps = [];
+      document.getElementById('parentLink').href = 'admin.html?pid=' + encodeURIComponent(pid);
+      document.getElementById('parentPid').textContent = pid;
+      panel.style.display = 'flex';
+    }
+  });
+  document.getElementById('parentClose').addEventListener('click', () => { panel.style.display = 'none'; });
+})();
 addEventListener('pagehide', flushEvents);
 function logError(err, where) {
   if (!sb) return;

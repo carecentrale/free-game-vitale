@@ -2,6 +2,10 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.10: parent area and player review
+- Parent area: tap the top-left corner 5 times quickly to open a link to the parent stats page
+- Parent stats page: new Players table (games started, enemies defeated, power-ups) with a per-player activity list; opens for one player with ?pid=
+
 ## 0.6.9: enemy movement
 - Enemies bounce and sway while walking and breathe gently while standing
 
