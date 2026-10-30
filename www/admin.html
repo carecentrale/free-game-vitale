@@ -1,0 +1,197 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Adventurers of Drenerics Admin</title>
+<style>
+  :root{--bg:#f4f6fb;--card:#fff;--ink:#1d2433;--muted:#667085;--line:#e4e7ee;--accent:#3b6fd8;--bad:#c0392b}
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0;--bad:#ff6b5b}}
+  :root[data-theme="dark"]{--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0;--bad:#ff6b5b}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,sans-serif;padding:16px;box-sizing:border-box}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+  .stat b{display:block;font-size:24px}
+  .stat span{color:var(--muted);font-size:12px}
+  input{padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:16px;width:100%;box-sizing:border-box}
+  button{padding:10px 14px;border:0;border-radius:8px;background:var(--accent);color:#fff;font-size:15px;cursor:pointer}
+  button.secondary{background:transparent;color:var(--accent);border:1px solid var(--line)}
+  button.danger{background:var(--bad)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600}
+  .bars div{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:13px}
+  .bars i{display:block;height:10px;background:var(--accent);border-radius:4px}
+  .err{color:var(--bad);font-size:13px;margin-top:8px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .hide{display:none}
+  .muted{color:var(--muted);font-size:13px}
+  @media (max-width:600px){table{font-size:12px}}
+</style>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
+
+const SUPABASE_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: true } });
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const DAY = 86400000;
+
+function show(view) {
+  for (const v of ['signin', 'dash']) $(v).classList.toggle('hide', v !== view);
+}
+
+// ---- Sign in with a one-time code emailed to the admin ----
+$('sendCode').addEventListener('click', async () => {
+  const email = $('email').value.trim();
+  if (!email) return;
+  $('signinErr').textContent = '';
+  const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+  if (error) { $('signinErr').textContent = error.message; return; }
+  $('codeRow').classList.remove('hide');
+  $('signinMsg').textContent = 'A code was sent to ' + email + '. Enter it below.';
+});
+$('verifyCode').addEventListener('click', async () => {
+  const email = $('email').value.trim();
+  const token = $('code').value.trim();
+  const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
+  if (error) { $('signinErr').textContent = error.message; return; }
+  load();
+});
+$('signOut').addEventListener('click', async () => { await sb.auth.signOut(); show('signin'); });
+
+// ---- Dashboard ----
+async function load() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { show('signin'); return; }
+  show('dash');
+  $('who').textContent = 'Signed in as ' + (session.user.email || 'admin');
+
+  const since = new Date(Date.now() - 14 * DAY).toISOString();
+  const [ev, er] = await Promise.all([
+    sb.from('game_events').select('created_at,kind,player_id,version').gte('created_at', since).order('created_at', { ascending: false }).limit(10000),
+    sb.from('game_errors').select('id,created_at,version,message,stack,where_seen').order('created_at', { ascending: false }).limit(100),
+  ]);
+
+  if (ev.error || er.error) {
+    $('loadErr').textContent = 'Could not load data: ' + ((ev.error || er.error).message);
+    return;
+  }
+  $('loadErr').textContent = '';
+  renderStats(ev.data, er.data);
+  renderErrors(er.data);
+}
+
+function renderStats(events, errors) {
+  const now = Date.now();
+  const within = d => now - new Date(d.created_at).getTime() < d.ms;
+  const last24 = events.filter(e => now - new Date(e.created_at).getTime() < DAY);
+  const last7 = events.filter(e => now - new Date(e.created_at).getTime() < 7 * DAY);
+  const uniq = arr => new Set(arr.map(e => e.player_id).filter(Boolean)).size;
+  const startsWeek = last7.filter(e => e.kind === 'game_started').length;
+
+  $('stats').innerHTML = [
+    ['Players today', uniq(last24)],
+    ['Players this week', uniq(last7)],
+    ['Game starts this week', startsWeek],
+    ['Errors (latest 100)', errors.length],
+  ].map(([label, n]) => `<div class="stat card"><b>${n}</b><span>${esc(label)}</span></div>`).join('');
+
+  // Events per day, last 14 days
+  const days = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(now - i * DAY);
+    const key = d.toISOString().slice(0, 10);
+    days.push({ key, n: 0 });
+  }
+  const idx = Object.fromEntries(days.map((d, i) => [d.key, i]));
+  const perDayPlayers = days.map(() => new Set());
+  for (const e of events) {
+    const k = e.created_at.slice(0, 10);
+    if (k in idx && e.player_id) perDayPlayers[idx[k]].add(e.player_id);
+  }
+  days.forEach((d, i) => d.n = perDayPlayers[i].size);
+  const max = Math.max(1, ...days.map(d => d.n));
+  $('daily').innerHTML = days.map(d =>
+    `<div><span style="width:52px">${d.key.slice(5)}</span><i style="width:${(d.n / max) * 70}%"></i><span>${d.n}</span></div>`
+  ).join('');
+
+  // Most common events, last 7 days
+  const counts = {};
+  for (const e of last7) counts[e.kind] = (counts[e.kind] || 0) + 1;
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 12);
+  const maxC = Math.max(1, ...top.map(t => t[1]));
+  $('kinds').innerHTML = top.length
+    ? top.map(([k, n]) => `<div><span style="width:160px">${esc(k)}</span><i style="width:${(n / maxC) * 60}%"></i><span>${n}</span></div>`).join('')
+    : '<div class="muted">No events yet.</div>';
+}
+
+function renderErrors(errors) {
+  $('errors').innerHTML = errors.length
+    ? `<table><tr><th>When</th><th>Version</th><th>Where</th><th>Message</th></tr>` +
+      errors.map(e => `<tr><td>${esc(new Date(e.created_at).toLocaleString())}</td><td>${esc(e.version)}</td><td>${esc(e.where_seen)}</td><td>${esc(e.message)}${e.stack ? `<details><summary class="muted">stack</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(e.stack)}</pre></details>` : ''}</td></tr>`).join('') +
+      `</table>`
+    : '<div class="muted">No errors recorded. 🎉</div>';
+}
+
+$('refresh').addEventListener('click', load);
+$('clearErrors').addEventListener('click', async () => {
+  if (!confirm('Clear all recorded errors? This cannot be undone.')) return;
+  const { error } = await sb.from('game_errors').delete().gt('id', 0);
+  if (error) $('loadErr').textContent = error.message; else load();
+});
+
+sb.auth.onAuthStateChange((_evt, session) => { if (session) load(); else show('signin'); });
+load();
+</script>
+</head>
+<body>
+<h1>Adventurers of Drenerics: admin</h1>
+<div class="sub">Statistics and errors from the game. Only the parent's account can see this page.</div>
+
+<div id="signin" class="card hide">
+  <div class="row">
+    <input id="email" type="email" placeholder="Your email" autocomplete="email" style="max-width:320px">
+    <button id="sendCode">Send sign-in code</button>
+  </div>
+  <div id="codeRow" class="row hide" style="margin-top:10px">
+    <input id="code" inputmode="numeric" placeholder="6-digit code" style="max-width:200px">
+    <button id="verifyCode">Sign in</button>
+  </div>
+  <div id="signinMsg" class="muted" style="margin-top:8px"></div>
+  <div id="signinErr" class="err"></div>
+</div>
+
+<div id="dash" class="hide">
+  <div class="row" style="justify-content:space-between;margin-bottom:12px">
+    <span id="who" class="muted"></span>
+    <span class="row">
+      <button class="secondary" id="refresh">Refresh</button>
+      <button class="secondary" id="signOut">Sign out</button>
+    </span>
+  </div>
+  <div id="loadErr" class="err"></div>
+
+  <div id="stats" class="grid" style="margin-bottom:14px"></div>
+
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
+    <div class="card"><b>Players per day (last 14 days)</b><div id="daily" class="bars" style="margin-top:8px"></div></div>
+    <div class="card"><b>What people did (last 7 days)</b><div id="kinds" class="bars" style="margin-top:8px"></div></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <b>Recent errors</b>
+      <button class="danger" id="clearErrors">Clear errors</button>
+    </div>
+    <div id="errors"></div>
+  </div>
+</div>
+
+<noscript>This page needs JavaScript.</noscript>
+</body>
+</html>
