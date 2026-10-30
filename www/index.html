@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.11 (3D)</title>
+<title>Adventurers of Drenerics v0.6.12 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -152,7 +152,8 @@ function saveGame() {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 1, name: playerName, profile, worldId, inv, qb, recent, sel, pw,
-      pos: [px, py, pz], yaw: camYaw, world: bytesToB64(grid)
+      pos: [px, py, pz], yaw: camYaw, world: bytesToB64(grid),
+      drops: [...drops.values()].map(d => [d.x, d.y, d.z, d.id])
     }));
   } catch (e) {}
 }
@@ -536,19 +537,73 @@ bagEl.addEventListener('click', e => {
 });
 document.getElementById('bagBtn').addEventListener('click', () => toggleBag());
 
-// Finish digging the block at (x,y,z). Returns false if the bag is full.
+// Finish digging the block at (x,y,z). If the bag is full, the block is dropped on the ground to pick up later.
 function digCell(x, y, z) {
   const t = get(x, y, z);
   if (!t) return false;
-  if (invTotal() >= invCap()) { say('Bag is full! Place some blocks to make room.'); return false; }
+  const full = invTotal() >= invCap();
+  if (full && drops.size >= MAX_DROPS) { say('Too many things on the ground. Pick some up first.', 2500); return false; }
   grid[idx(x, y, z)] = T.AIR;
   shareBlock(x, y, z, T.AIR);
   const id = (t === T.GRASS || t === T.DIRT) ? 'dirt' : (t === T.STONE ? 'stone' : 'gem');
-  if (id === 'gem') say('+1 gem!', 1200);
-  addItem(id);
+  if (full) {
+    addDrop(x, y, z, id);
+    say(ITEMS[id].name + ' dropped on the ground. Make room in your bag to pick it up.', 2500);
+  } else {
+    if (id === 'gem') say('+1 gem!', 1200);
+    addItem(id);
+  }
   gain('dig', 1);
   dirty = true;
   return true;
+}
+
+// ---- Drops: items left on the ground when the bag is full. Walk over one to pick it up when there is room. ----
+// Drops are kept on this device only (they are not shared with other players yet).
+const MAX_DROPS = 40;
+const drops = new Map();                 // "x,y,z" -> { x, y, z, id, mesh, base }
+const dropGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+const dropMats = {};
+function dropMat(id) {
+  if (!dropMats[id]) dropMats[id] = new THREE.MeshStandardMaterial({ color: ITEMS[id].color, roughness: 0.6 });
+  return dropMats[id];
+}
+function addDrop(x, y, z, id) {
+  const key = x + ',' + y + ',' + z;
+  if (drops.has(key)) return;
+  const mesh = new THREE.Mesh(dropGeo, dropMat(id));
+  mesh.position.set(x + 0.5, y + 0.5, z + 0.5);
+  scene.add(mesh);
+  drops.set(key, { x, y, z, id, mesh, base: y + 0.5 });
+  dirty = true;
+}
+function removeDrop(key) {
+  const d = drops.get(key);
+  if (!d) return;
+  scene.remove(d.mesh);
+  drops.delete(key);
+}
+function restoreDrops(list) {
+  if (!Array.isArray(list)) return;
+  for (const row of list.slice(0, MAX_DROPS)) {
+    if (!Array.isArray(row) || row.length !== 4) continue;
+    const [x, y, z, id] = row;
+    if (!ITEMS[id] || !inBounds(x, y, z) || get(x, y, z) !== T.AIR) continue;
+    addDrop(x, y, z, id);
+  }
+}
+// Bob and spin the drops, and pick one up when the player stands next to it and the bag has room
+function updateDrops(time) {
+  for (const [key, d] of drops) {
+    d.mesh.position.y = d.base + Math.sin(time * 3 + d.x) * 0.08;
+    d.mesh.rotation.y = time * 1.5;
+    const near = Math.hypot(d.x + 0.5 - px, d.z + 0.5 - pz) < 1.0 && py > d.y - 1 && py < d.y + 2;
+    if (!near) continue;
+    if (invTotal() >= invCap()) { say('Bag is full. Make room to pick up the ' + ITEMS[d.id].name + '.', 1500); continue; }
+    addItem(d.id);
+    removeDrop(key);
+    say('Picked up ' + ITEMS[d.id].name + '!', 1200);
+  }
 }
 
 let armSwing = 0; // quick arm swing when placing
@@ -562,6 +617,7 @@ function placeCell(x, y, z) {
     say(id ? 'Select a block in the quick bar to build.' : 'Put a block in a quick bar slot and select it.', 2000);
     return;
   }
+  if (drops.has(x + ',' + y + ',' + z)) { say('Something is on the ground there. Walk over it to pick it up.', 2000); return; }
   if (!inv[id]) { say('No ' + item.name + ' left! Dig some first.'); return; }
   if (x < px + HW && x + 1 > px - HW && y < py + HH && y + 1 > py && z < pz + HW && z + 1 > pz - HW) {
     say("Can't build on yourself!");
@@ -904,6 +960,7 @@ function update(dt) {
   updateFight(dt);
   updateSlimes(dt);
   updateSpawns(dt);
+  updateDrops(performance.now() / 1000);
 
   const moving = sx || sz;
   if (moving) avatar.rotation.y = Math.atan2(vx, vz);
@@ -980,6 +1037,7 @@ if (saved) {
   if (Number.isInteger(saved.sel) && saved.sel >= 0 && saved.sel < 6) sel = saved.sel;
   if (Array.isArray(saved.pos) && saved.pos.length === 3 && !hits(...saved.pos)) [px, py, pz] = saved.pos;
   if (Number.isFinite(saved.yaw)) camYaw = saved.yaw;
+  restoreDrops(saved.drops);
   if (worldLoaded) say('Welcome back, ' + playerName + '!', 2500);
 }
 
@@ -1022,7 +1080,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.11';
+const VERSION = '0.6.12';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
