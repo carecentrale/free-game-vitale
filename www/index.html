@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.12 (3D)</title>
+<title>Adventurers of Drenerics v0.6.13 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -12,9 +12,11 @@
   .bar>div{height:100%;width:0}
   #msg{position:fixed;top:12px;left:50%;transform:translateX(-50%);color:#fff;font-size:20px;text-shadow:0 2px 4px #000;pointer-events:none;white-space:nowrap}
   .btn{position:fixed;width:56px;height:50px;background:rgba(255,255,255,.3);color:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;touch-action:none}
-  #toggle,#bagBtn{position:fixed;right:10px;padding:6px 10px;background:rgba(0,0,0,.4);color:#fff;border-radius:8px;font-size:14px;cursor:pointer;z-index:10}
+  #toggle,#bagBtn,#settingsBtn{position:fixed;right:10px;padding:6px 10px;background:rgba(0,0,0,.4);color:#fff;border-radius:8px;font-size:14px;cursor:pointer;z-index:10}
   #toggle{top:10px}
   #bagBtn{top:44px}
+  #settingsBtn{top:10px;right:100px}
+  #settings{position:fixed;left:8%;right:8%;top:6%;bottom:6%;background:rgba(20,20,35,.94);color:#fff;border-radius:16px;padding:14px;display:none;overflow:auto;z-index:21;box-sizing:border-box;font-size:15px}
   #recent{position:fixed;top:82px;right:10px;width:160px;display:flex;flex-direction:column;gap:6px;z-index:5}
   .title{color:#fff;text-shadow:0 2px 4px #000;font-size:14px;margin-bottom:2px}
   .row{background:rgba(0,0,0,.45);color:#fff;border-radius:10px;padding:6px 8px;display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;touch-action:none}
@@ -58,10 +60,12 @@
 <div id="hud"></div>
 <div id="msg"></div>
 <div id="toggle">Controls</div>
+<div id="settingsBtn">Settings</div>
 <div id="bagBtn">Bag (B)</div>
 <div id="recent"></div>
 <div id="qb"></div>
 <div id="bag"></div>
+<div id="settings"></div>
 <div id="wiz" class="hide"><div class="box"><div id="wizBody"></div><div id="wizErr"></div><div class="nav"><button id="wizBack" class="secondary">Back</button><button id="wizNext">Next</button></div></div></div>
 <div id="pad">
   <div class="btn" id="bF" style="left:40px;bottom:110px">&#9650;</div>
@@ -536,6 +540,77 @@ bagEl.addEventListener('click', e => {
   if (r) toQuick(r.dataset.item);
 });
 document.getElementById('bagBtn').addEventListener('click', () => toggleBag());
+
+// ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
+const GAME_HISTORY = [
+  { v: '0.6.13', title: 'Settings screen', items: [
+    'Settings button at the top right shows the game version and what has changed'] },
+  { v: '0.6.12', title: 'Drops when the bag is full', items: [
+    'When the bag is full, digging still works. The block drops on the ground as a small spinning cube',
+    'Walk next to a dropped item to pick it up once there is room in the bag',
+    "You can't build where something is on the ground until you pick it up",
+    'Up to 40 items can lie on the ground at once',
+    'Dropped items stay on this device only' ] },
+  { v: '0.6.11', title: 'Cloud save for grown-ups', items: [
+    'Grown-ups can save the game to the cloud and load it on another device',
+    'Sign-in is for grown-ups only'] },
+  { v: '0.6.10', title: 'Parent area and player review', items: [
+    'A grown-up area with a stats page for seeing play activity'] },
+  { v: '0.6.9', title: 'Enemy movement', items: [
+    'Enemies bounce and sway while walking and breathe gently while standing'] },
+  { v: '0.6.8', title: 'Bestiary monsters', items: [
+    'Imp and Spike Beast enemies now have real 3D models',
+    'Models load when first needed; a placeholder block shows until they arrive',
+    'Other enemies keep their original shapes'] },
+  { v: '0.6.0', title: 'Save and shared worlds', items: [
+    'Your character and world save on this device automatically',
+    'Reopening the game restores your name, bag, quick bar, power levels, position, and the world',
+    'The bag has "Start a new game" (asks first, then erases saved progress on this device)'] },
+  { v: '0.5.1', title: 'Phone layout', items: [
+    'On phones, the quick bar sits above the controls and fits the screen width'] },
+  { v: '0.5.0', title: 'Quick bar and bag', items: [
+    'Quick bar of 6 slots at the bottom; select with 1-6 or tap',
+    'Recent panel on the right: tap an item to put it in the selected slot',
+    'Bag (B key or button): all items, tap one to put it in the selected slot',
+    'Pickaxe digs, sword fights, and blocks build, depending on the selected slot',
+    'Slime defeats and digging add items to the bag'] },
+  { v: '0.4.0', title: 'Textured world and zoom', items: [
+    'Blocks have textures: grass, dirt, stone with cracks, and sparkling gems',
+    'Character has a face, hair, shoes, belt, and shading',
+    'Mouse wheel and two-finger pinch to zoom',
+    'Head turns toward the mouse or finger; drag sideways to turn the world',
+    'Slimes to fight: hold on one to attack it, then get Fighting XP and a gem'] },
+  { v: '0.3.0', title: 'Limbs and progressive digging', items: [
+    'Character has head, body, arms, legs, and a pickaxe',
+    'Digging is held, with a crack that grows as progress builds'] },
+  { v: '0.2.0', title: '3D prototype', items: [
+    'Walk around a block world, dig, and build',
+    'Power meters for digging, building, and inventory',
+    'On-screen controls on touch devices, with an on/off toggle'] },
+  { v: '0.1.0', title: '2D prototype', items: [
+    'First playable prototype'] },
+];
+
+const settingsEl = document.getElementById('settings');
+let settingsOpen = false;
+function renderSettings() {
+  settingsEl.innerHTML =
+    `<div style="display:flex;justify-content:space-between;align-items:center">` +
+    `<b style="font-size:20px">Settings</b><span id="settingsClose" style="cursor:pointer;padding:6px">Close &#10005;</span></div>` +
+    `<div style="margin-top:12px"><b>Game version ${esc(VERSION)}</b></div>` +
+    `<div style="margin-top:14px;opacity:.85">What has changed, newest first</div>` +
+    GAME_HISTORY.map(h =>
+      `<div style="margin-top:14px"><b>${esc(h.v)}: ${esc(h.title)}</b>` +
+      `<ul style="margin:6px 0 0 18px;padding:0">${h.items.map(i => `<li style="margin:3px 0">${esc(i)}</li>`).join('')}</ul></div>`
+    ).join('');
+}
+function toggleSettings(force) {
+  settingsOpen = force !== undefined ? force : !settingsOpen;
+  settingsEl.style.display = settingsOpen ? 'block' : 'none';
+  if (settingsOpen) { renderSettings(); settingsEl.scrollTop = 0; }
+}
+document.getElementById('settingsBtn').addEventListener('click', () => toggleSettings());
+settingsEl.addEventListener('click', e => { if (e.target.closest('#settingsClose')) toggleSettings(false); });
 
 // Finish digging the block at (x,y,z). If the bag is full, the block is dropped on the ground to pick up later.
 function digCell(x, y, z) {
@@ -1080,7 +1155,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.12';
+const VERSION = '0.6.13';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
