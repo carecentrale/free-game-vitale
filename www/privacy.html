@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Privacy Policy: Adventurers of Drenerics</title>
-<meta name="description" content="How Adventurers of Drenerics handles information. Written for families.">
+<meta name="description" content="Privacy policy for Adventurers of Drenerics, a block-building adventure game for children and families. Explains what data is collected, why, and how to request deletion.">
 <style>
   :root{--bg:#f4f6fb;--card:#fff;--ink:#1d2433;--muted:#5b6475;--line:#e4e7ee;--accent:#3b6fd8}
   @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0}}
@@ -15,12 +15,14 @@
   nav a{color:var(--accent);margin-right:14px}
   h1{font-size:28px;margin:8px 0 4px}
   h2{font-size:19px;margin:28px 0 8px}
+  h3{font-size:16px;margin:18px 0 6px}
   p,li{font-size:16px}
   .muted{color:var(--muted);font-size:14px}
   a{color:var(--accent)}
   table{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
   th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
   th{color:var(--muted);font-weight:600}
+  .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:14px 0}
 </style>
 </head>
 <body>
@@ -28,72 +30,95 @@
   <nav><a href="/">Home</a><a href="/terms.html">Terms</a><a href="/contact.html">Contact</a></nav>
 
   <h1>Privacy Policy</h1>
-  <div class="muted">Adventurers of Drenerics. Last updated: 2 November 2026</div>
+  <div class="muted">Adventurers of Drenerics. Developer: [developer name exactly as shown on Google Play]. Last updated: 2 November 2026</div>
 
-  <p>Adventurers of Drenerics is a block-building adventure game made by a small family project, for children and their families. We designed it to collect as little information as possible. This page explains what the game stores, why, and who can see it.</p>
+  <p>Adventurers of Drenerics is a block-building adventure game made by a small family project, for children and their families. It is available in a web browser now and is planned for Android and other app stores. This policy explains what information the game collects, why, who can see it, how long we keep it, and how to ask us to delete it.</p>
 
-  <h2>Short version</h2>
-  <ul>
-    <li>Children do not create accounts and do not sign in.</li>
-    <li>We do not ask for a child's name, email address, age, location, photos or contacts.</li>
-    <li>Players cannot type names or messages to each other. Names are chosen from a preset list.</li>
-    <li>The game has no advertising and no purchases.</li>
-    <li>A parent can choose to sign in to save the game to the cloud. Only the parent signs in.</li>
-  </ul>
+  <div class="box">
+    <b>Short version</b>
+    <ul>
+      <li>Children do not create accounts, do not sign in, and are not asked for their name, email, age, location, photos or contacts.</li>
+      <li>The game has no ads, no advertising networks, no third-party analytics and no in-app purchases.</li>
+      <li>Players cannot send messages to each other. Names are chosen from a preset list.</li>
+      <li>Parents can sign in to see their family's play statistics and to save the game to the cloud. Only parents sign in.</li>
+      <li>You can ask us to delete your data at any time. See <a href="#delete">How to delete your data</a>.</li>
+    </ul>
+  </div>
 
-  <h2>What the game stores</h2>
+  <h2>Information the game collects</h2>
   <table>
-    <tr><th>What</th><th>Where</th><th>Why</th><th>Who can see it</th></tr>
-    <tr><td>Game progress: character name from the preset list, levels, bag contents, gems, position, and the world</td><td>On the player's device</td><td>To save the game between visits</td><td>Only the player's device. Nothing is sent unless a parent turns on cloud save.</td></tr>
-    <tr><td>A random device code. It is not linked to a name, email or account.</td><td>On the device; sent with gameplay records</td><td>To count play and fix problems. We treat it as a personal identifier and do not use it for anything else.</td><td>The parent, on the stats page. Deleted on request (see Contact).</td></tr>
-    <tr><td>Gameplay records: a game started, an enemy defeated, a power-up used, the game version, and the time</td><td>Our database (Supabase)</td><td>To understand how the game is played and to fix problems</td><td>The parent only, through the stats page.</td></tr>
-    <tr><td>Error reports: a short message and where in the game it happened</td><td>Our database</td><td>To fix bugs</td><td>The parent only.</td></tr>
-    <tr><td>Enemy debug log: enemy type, time, position (rounded), world code and game version. No device code and no names.</td><td>Our database</td><td>To find and fix a bug in the game</td><td>The parent only. Kept for 30 days, then deleted automatically. The parent can change this period to 60, 90 or 365 days.</td></tr>
-    <tr><td>Shared world: the world's saved blocks, under a 4-letter world code</td><td>Our database</td><td>So friends can join the same world with the code</td><td>Anyone who has the world code can join it. Worlds are not listed publicly.</td></tr>
-    <tr><td>Cloud save (only if a parent signs in): the saved game and the parent's sign-in email</td><td>Our database and the sign-in provider</td><td>So a parent can load the game on another device</td><td>The signed-in parent only.</td></tr>
+    <tr><th>Type of information</th><th>What it is</th><th>Why we collect it</th><th>Where it is stored</th><th>Who can see it</th></tr>
+    <tr><td>Game progress</td><td>Character name from the preset list, levels, bag contents, gems, position, and the world the player is in</td><td>To save the game between visits</td><td>On the player's device. Sent to our database only if a parent turns on cloud save.</td><td>The player's device. The parent, if cloud save is on.</td></tr>
+    <tr><td>Device code</td><td>A random code made on the device. It is not linked to a name, email or account.</td><td>To count play and fix problems. We treat this code as personal information and use it for nothing else.</td><td>On the device, and in our database with gameplay records and error reports</td><td>The parent who has linked the device (once linking is available), and our team.</td></tr>
+    <tr><td>Gameplay records</td><td>A game started, an enemy defeated, a power-up used, the game version, and the time</td><td>To understand how the game is played and to fix problems</td><td>Our database (Supabase)</td><td>The parent, on the stats page. Our team.</td></tr>
+    <tr><td>Error reports</td><td>A short error message and where in the game it happened</td><td>To find and fix bugs</td><td>Our database</td><td>The parent, on the stats page. Our team.</td></tr>
+    <tr><td>Enemy debug log</td><td>Enemy type, time, position (rounded), world code and game version. No device code and no names.</td><td>To find and fix a bug in the game</td><td>Our database</td><td>Our team and the parent. Kept 30 days.</td></tr>
+    <tr><td>Shared world</td><td>The world's saved blocks, under a 4-letter world code</td><td>So friends can join the same world with the code</td><td>Our database</td><td>Anyone who has the world code can join. Worlds are not listed publicly.</td></tr>
+    <tr><td>Parent sign-in and cloud save</td><td>A parent's sign-in email (or Google or Facebook account identifier) and the parent's cloud save</td><td>So a parent can sign in, see stats and load the game on another device</td><td>Our database and the sign-in provider the parent chose</td><td>The signed-in parent. Our team, to run the service.</td></tr>
   </table>
+
+  <h2>Why we collect it</h2>
+  <p>We collect only what the game needs to run, to save progress, to understand and fix problems, and to let a parent see their family's play. We do not use information about children for advertising, for profiles, or for any purpose outside the game.</p>
 
   <h2>What we do not do</h2>
   <ul>
-    <li>We do not show ads, and we do not use advertising networks.</li>
-    <li>We do not use third-party analytics or tracking tools.</li>
-    <li>We do not sell or share information about children.</li>
-    <li>We do not sell anything in the game. There are no purchases.</li>
-    <li>We do not let players contact each other.</li>
+    <li>We do not show ads, and we do not use advertising networks or ad identifiers.</li>
+    <li>We do not use third-party analytics, tracking or advertising software.</li>
+    <li>We do not sell information, and we do not share children's information with anyone for marketing.</li>
+    <li>We do not offer in-app purchases or subscriptions. If that changes, this policy and the store listing will be updated first, and a parent gate will be added before any purchase.</li>
+    <li>We do not let players send messages to each other.</li>
+    <li>We do not ask children to share photos, contacts, location or microphone or camera access.</li>
   </ul>
 
-  <h2>Services we use</h2>
+  <h2>Service providers</h2>
   <ul>
-    <li><b>Hosting:</b> Vercel, which serves the game files.</li>
-    <li><b>Database:</b> Supabase, which stores the records described above.</li>
-    <li><b>Libraries:</b> Three.js and the Supabase library, loaded from the jsDelivr content network. Those services receive the normal request details that any website receives.</li>
-    <li><b>Sign-in (parents only):</b> the email code, Google or Facebook sign-in that the parent chooses.</li>
+    <li><b>Vercel</b>: hosts the game and the website.</li>
+    <li><b>Supabase</b>: stores the records described above.</li>
+    <li><b>jsDelivr</b>: delivers the Three.js and Supabase code libraries the game loads. It receives the normal request details that any website receives.</li>
+    <li><b>Google and Facebook</b>: only if a parent chooses to sign in with them. They are governed by their own privacy policies.</li>
   </ul>
+  <p>These providers may store information in countries other than the one where you live. We only use them to run the game.</p>
 
   <h2>How long we keep information</h2>
   <ul>
-    <li>Enemy debug log: 30 days, then automatically deleted. A parent can change this period.</li>
+    <li>Enemy debug log: 30 days, then deleted automatically. A parent can change this period.</li>
     <li>Gameplay records and error reports: 12 months, then deleted.</li>
     <li>Shared worlds: until the family asks us to delete them, or until they have not been used for 12 months.</li>
-    <li>Cloud saves: until the parent deletes them or asks us to delete the account.</li>
+    <li>Parent sign-in and cloud save: until the parent deletes them, or asks us to delete the account.</li>
+    <li>Device data: stays on the device until the game's data is cleared in the browser or app settings.</li>
   </ul>
 
-  <h2>A parent's choices</h2>
+  <h2>Security</h2>
+  <p>Information is sent between the game and our providers over encrypted connections (HTTPS). Stored gameplay records can be read only by the family's parent account and by our team. Shared worlds can be opened by anyone with the world code. We are still tightening database access before public release.</p>
+
+  <h2>Parents' rights</h2>
   <ul>
-    <li>A parent can sign in to the stats page and see what has been recorded.</li>
-    <li>A parent can ask us to delete any record, including a device's records, by emailing the contact address on the <a href="/contact.html">Contact page</a>.</li>
-    <li>A parent can sign out, or stop cloud save, at any time.</li>
-    <li>To remove a device's saved game, clear the game's data in the browser settings on that device.</li>
+    <li>See what has been recorded for your family's devices, on the stats page.</li>
+    <li>Ask us to delete any record, or the whole family's data, as described below.</li>
+    <li>Stop further collection at any time: sign out, turn off cloud save, or stop using the game.</li>
+    <li>Ask a question or make a complaint, using the <a href="/contact.html">Contact page</a>.</li>
   </ul>
+
+  <h2 id="delete">How to delete your data</h2>
+  <div class="box">
+    <p style="margin-top:0"><b>To request deletion:</b> email <a href="mailto:yammay@gmail.com?subject=Delete%20my%20data%20-%20Adventurers%20of%20Drenerics">yammay@gmail.com</a> with the subject "Delete my data". Say which data you want deleted. Include the device code or world code if you have them, and, for a parent account, the email address you sign in with.</p>
+    <ul>
+      <li>We will confirm receipt within 7 days.</li>
+      <li>We will delete the data within 30 days, and tell you when it is done.</li>
+      <li>Deleting a device's records also deletes any parent links to that device.</li>
+      <li>Deleting a parent account removes its cloud saves and its links. The stored device records stay with the device unless you also ask us to delete them.</li>
+    </ul>
+    <p class="muted" style="margin-bottom:0">To delete the game's saved data on a device without contacting us, clear the game's data in the browser or app settings on that device. In-app deletion will be added in a later update, and this page will be updated when it is.</p>
+  </div>
 
   <h2>Children's privacy</h2>
-  <p>The game is made for children, and we do not knowingly collect personal information from children. We do not ask children for their name, email, age, location or photos. If you believe a child has given us personal information, contact us and we will delete it.</p>
+  <p>The game is made for children, and we do not knowingly collect personal information from children. We do not ask children for their name, email, age, location, photos or contacts. We are designed to meet the US Children's Online Privacy Protection Act (COPPA) and the Google Play Families policy. This policy will be reviewed against both before public release. If you believe a child has given us personal information, contact us and we will delete it.</p>
 
   <h2>Changes to this policy</h2>
-  <p>If the game starts to collect different information, or changes how ads or purchases work, we will update this page first and change the date at the top.</p>
+  <p>If the game starts to collect different information, changes how the game is paid for, or starts to show ads, we will update this page first and change the date at the top. We will also update the information on the store listing.</p>
 
   <h2>Contact</h2>
-  <p>Questions about privacy: <a href="/contact.html">see the Contact page</a>.</p>
+  <p>Questions about privacy or deletion: <a href="/contact.html">see the Contact page</a>.</p>
 </main>
 </body>
 </html>
