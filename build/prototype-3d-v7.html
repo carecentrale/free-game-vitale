@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.24 (3D)</title>
+<title>Adventurers of Drenerics v0.6.25 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -612,6 +612,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.25', title: 'Stuck defeated creatures disappear after 5 minutes', items: [
+    'A defeated creature that is hovering or still falling now sinks and disappears 5 minutes after it was defeated, the same as one lying on the ground'] },
   { v: '0.6.24', title: 'Enemy log records dug-out bodies', items: [
     'When the ground under a defeated creature is dug out, the event is recorded in the enemy log (no names, no player codes)'] },
   { v: '0.6.23', title: 'Defeated creatures no longer hover', items: [
@@ -1008,6 +1010,17 @@ function updateCorpses(dt) {
   for (let i = corpses.length - 1; i >= 0; i--) {
     const c = corpses[i];
     c.t += dt;
+    // After CORPSE_TIME every body sinks and disappears, even if it is still falling or hovering
+    if (c.t >= CORPSE_TIME) {
+      if (c.sinkY === undefined) c.sinkY = c.group.position.y;
+      const s = Math.min(1, (c.t - CORPSE_TIME) / CORPSE_SINK);
+      c.group.position.y = c.sinkY - s * 1.6;
+      if (s >= 1) {
+        scene.remove(c.group);
+        corpses.splice(i, 1);
+      }
+      continue;
+    }
     if (!c.landed) {
       c.vy = Math.max(c.vy - GRAV * dt, -30);
       const ny = c.group.position.y + c.vy * dt;
@@ -1039,12 +1052,6 @@ function updateCorpses(dt) {
         c.landed = false; c.vy = 0;
       }
       continue;
-    }
-    const s = Math.min(1, (c.t - CORPSE_TIME) / CORPSE_SINK);
-    c.group.position.y = c.restY - s * 1.6;
-    if (s >= 1) {
-      scene.remove(c.group);
-      corpses.splice(i, 1);
     }
   }
 }
@@ -1374,7 +1381,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.24';
+const VERSION = '0.6.25';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
