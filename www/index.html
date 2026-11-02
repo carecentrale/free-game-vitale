@@ -546,7 +546,8 @@ const GAME_HISTORY = [
   { v: '0.6.14', title: 'Enemy fixes and corpses', items: [
     'Enemies stay on the ground while they walk and no longer lift off the blocks',
     'Enemies turn back at the edge of a ledge instead of walking off it',
-    'Defeated enemies lie on the ground for 5 minutes, then sink into the ground'] },
+    'Defeated enemies lie on the ground for 5 minutes, then sink into the ground',
+    'Right-click to build with a block from the quick bar, without selecting it first'] },
   { v: '0.6.13', title: 'Settings screen', items: [
     'Settings button at the top right shows the game version and what has changed'] },
   { v: '0.6.12', title: 'Drops when the bag is full', items: [
@@ -688,14 +689,15 @@ function updateDrops(time) {
 let armSwing = 0; // quick arm swing when placing
 
 // Build with the selected block in the quick bar
-function placeCell(x, y, z) {
+function placeCell(x, y, z, forceId) {
   if (!inBounds(x, y, z)) return;
-  const id = held();
+  const id = forceId || held();
   const item = id ? ITEMS[id] : null;
   if (!item || item.kind !== 'block') {
     say(id ? 'Select a block in the quick bar to build.' : 'Put a block in a quick bar slot and select it.', 2000);
     return;
   }
+  if (get(x, y, z) !== T.AIR) return; // never build over an existing block
   if (drops.has(x + ',' + y + ',' + z)) { say('Something is on the ground there. Walk over it to pick it up.', 2000); return; }
   if (!inv[id]) { say('No ' + item.name + ' left! Dig some first.'); return; }
   if (x < px + HW && x + 1 > px - HW && y < py + HH && y + 1 > py && z < pz + HW && z + 1 > pz - HW) {
@@ -990,7 +992,25 @@ canvas.addEventListener('wheel', e => {
   setZoom(zoom * (1 + e.deltaY * 0.001));
 }, { passive: false });
 
+// Right-click: build with a block from the quick bar, even when another slot is selected.
+// Uses the selected slot if it holds a block, otherwise the first block slot with stock.
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+function blockFromQuickBar() {
+  const isBlock = id => id && ITEMS[id] && ITEMS[id].kind === 'block' && inv[id] > 0;
+  if (isBlock(held())) return held();
+  return qb.find(isBlock) || null;
+}
+
 canvas.addEventListener('pointerdown', e => {
+  if (e.button === 2) {
+    const a = aim(e);
+    if (!a || a.enemy) return;
+    if (a.dist > REACH) { say('Too far away! Get closer.'); return; }
+    const id = blockFromQuickBar();
+    if (!id) { say('Put a block in a quick bar slot first.', 2000); return; }
+    placeCell(...a.place, id);
+    return;
+  }
   if (touches.size > 1) return; // two fingers = pinch
   press = { id: e.pointerId, x: e.clientX, lastX: e.clientX, moved: false };
   pendingPlace = null;
