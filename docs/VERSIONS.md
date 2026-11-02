@@ -10,7 +10,7 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
-| 0.6.43 | (commit to be added after commit, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Swimming in water; magic unlocked at Fighting level 2 with a skill choice; Fireball |
+| 0.6.43 | (commit 55a7c4d, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Swimming in water; magic unlocked at Fighting level 2 with a skill choice; Fireball |
 | 0.6.42 | (commit to be added after commit, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Water (lakes, sand); playable land 4000 x 4000 blocks; chunks drawn and loaded in steps |
 | 0.6.41 | (commit e611187, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Saved games list shows saves from 0.6.34 on again |
 | 0.6.40 | (commit 83ccf6b, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Taller mountains (96 blocks tall), deeper valleys and canyons |
