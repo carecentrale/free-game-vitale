@@ -89,7 +89,41 @@ async function load() {
   renderErrors(er.data);
   renderPlayers(ev.data);
   renderDetail();
+  loadDebugLog();
 }
+
+// ---- Enemy debug log. Loaded separately, so a problem here cannot break the rest of the dashboard ----
+async function loadDebugLog() {
+  $('debugErr').textContent = '';
+  const [purge, keep, rows] = await Promise.all([
+    sb.rpc('purge_debug_log'),   // deletes entries older than the chosen number of days
+    sb.from('debug_settings').select('retention_days').eq('id', 1).maybeSingle(),
+    sb.from('debug_log').select('created_at,kind,version,world_id,x,y,z,detail').order('created_at', { ascending: false }).limit(200),
+  ]);
+  if (purge.error) $('debugErr').textContent = 'Could not delete old entries: ' + purge.error.message;
+  if (keep.error || rows.error) {
+    $('debugErr').textContent = 'Enemy log not available: ' + ((keep.error || rows.error).message);
+    $('debugLog').innerHTML = '';
+    return;
+  }
+  if (keep.data) $('keepDays').value = String(keep.data.retention_days);
+  $('debugLog').innerHTML = rows.data.length
+    ? `<table><tr><th>When</th><th>Kind</th><th>Instance (world)</th><th>Position (x, y, z)</th><th>Detail</th><th>Version</th></tr>` +
+      rows.data.map(r => `<tr><td>${esc(new Date(r.created_at).toLocaleString())}</td><td>${esc(r.kind)}</td><td>${esc(r.world_id || '-')}</td><td>${esc(r.x)}, ${esc(r.y)}, ${esc(r.z)}</td><td>${esc(r.detail)}</td><td>${esc(r.version)}</td></tr>`).join('') +
+      `</table>`
+    : '<div class="muted">No entries.</div>';
+}
+$('saveKeep').addEventListener('click', async () => {
+  const { error } = await sb.from('debug_settings').upsert({ id: 1, retention_days: Number($('keepDays').value) });
+  if (error) $('debugErr').textContent = error.message; else loadDebugLog();
+});
+$('purgeLog').addEventListener('click', async () => {
+  const { data, error } = await sb.rpc('purge_debug_log');
+  if (error) { $('debugErr').textContent = error.message; return; }
+  $('debugErr').textContent = '';
+  $('debugErr').textContent = 'Deleted ' + data + ' old entries.';
+  loadDebugLog();
+});
 
 function renderStats(events, errors) {
   const now = Date.now();
@@ -235,6 +269,25 @@ load();
       <button class="danger" id="clearErrors">Clear errors</button>
     </div>
     <div id="errors"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <b>Enemy log (debug)</b>
+      <span class="row">
+        <select id="keepDays" style="padding:8px;border-radius:8px;background:var(--bg);color:var(--ink);border:1px solid var(--line)">
+          <option value="30">Keep 30 days</option>
+          <option value="60">Keep 60 days</option>
+          <option value="90">Keep 90 days</option>
+          <option value="365">Keep 1 year</option>
+        </select>
+        <button class="secondary" id="saveKeep">Save</button>
+        <button class="danger" id="purgeLog">Delete old entries now</button>
+      </span>
+    </div>
+    <div class="muted" style="margin-bottom:8px">Enemies that left the map. Each entry shows the world (instance) it happened in. Players are not identified. Older entries are deleted automatically each time this page opens.</div>
+    <div id="debugErr" class="err"></div>
+    <div id="debugLog" style="overflow-x:auto;margin-top:8px"></div>
   </div>
 </div>
 

@@ -2,6 +2,12 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.18: teleport lands on top; enemy debug log
+- Teleporting (and the fall reset) puts you on the highest land near the middle of the map, not at the bottom of a hole you dug
+- Enemy debug log: enemies that leave the map are recorded with the world code, enemy type, time, and position rounded to 0.1. Players are not identified. The parent can see the log on the device (parent area) and on the admin page
+- Shared log: NOT YET ACTIVE. It needs the database migration docs/migrations/0002_debug_log.sql, which the parent must approve before it is applied. Until then, the game keeps trying to send rows and nothing is stored
+- Data change: this is new data collection and must be described in the privacy policy before public release
+
 ## 0.6.17: fixes for enemies off the map
 - Enemies that fall off the island, leave the world, or stay in the air for more than 3 seconds are removed; new ones appear on the grass
 - A defeated enemy that was in the air falls and lands on the block below it, instead of hanging there

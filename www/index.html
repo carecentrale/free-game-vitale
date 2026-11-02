@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.17 (3D)</title>
+<title>Adventurers of Drenerics v0.6.18 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -389,6 +389,20 @@ function spawnPoint() {
   while (y > 0 && grid[idx(x, y, z)] === T.AIR) y--;
   return [x + 0.5, y + 1.01, z + 0.5];
 }
+// The top of the land: the highest block with open sky above it, nearest the middle of the map.
+// Unlike spawnPoint(), a dug-out hole in the middle can't put you at the bottom of the map.
+function topSpawnPoint() {
+  let bestY = -1, bestD = Infinity, bx = W >> 1, bz = D >> 1;
+  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
+    let y = H - 1;
+    while (y > 0 && grid[idx(x, y, z)] === T.AIR) y--;
+    if (grid[idx(x, y, z)] === T.AIR) continue;
+    const d = Math.hypot(x - (W >> 1), z - (D >> 1));
+    if (y > bestY || (y === bestY && d < bestD)) { bestY = y; bestD = d; bx = x; bz = z; }
+  }
+  // Two blocks above the top, so the character drops onto the land
+  return [bx + 0.5, bestY + 3.01, bz + 0.5];
+}
 let [px, py, pz] = spawnPoint();
 let vx = 0, vy = 0, vz = 0, onGround = false, jumpHeld = false, squash = 0, walkT = 0;
 
@@ -572,8 +586,7 @@ function updateTeleport(dt) {
     if (teleCast <= 0) {
       teleCast = -1;
       // Start point, three blocks up so the character drops in safely
-      [px, py, pz] = spawnPoint();
-      py += 3;
+      [px, py, pz] = topSpawnPoint();
       vx = 0; vy = 0; vz = 0;
       teleReadyAt = Date.now() + TELE_RECHARGE;
       try { localStorage.setItem('teleReadyAt', String(teleReadyAt)); } catch (e) {}
@@ -594,6 +607,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.18', title: 'Teleport lands on top of the land', items: [
+    'Teleporting now puts you on top of the land, not at the bottom of a hole you dug',
+    'Enemies that leave the map are recorded for the grown-up admin log'] },
   { v: '0.6.17', title: 'Fixes for enemies off the map', items: [
     'Enemies that fall off the island or get stuck in the air are removed; new ones appear on the grass',
     'A defeated enemy that was in the air falls and lands on the block below it',
@@ -927,8 +943,14 @@ function updateSlimes(dt) {
   for (let i = enemies.length - 1; i >= 0; i--) {
     const en = enemies[i];
     en.airT = groundBelow(en.x, en.z, en.y) ? 0 : (en.airT || 0) + dt;
-    const out = en.y < 1 || en.x < 0 || en.x > W || en.z < 0 || en.z > D;
-    if (out || en.airT > 3) { scene.remove(en.group); enemies.splice(i, 1); }
+    const why = en.y < 1 ? 'below the island'
+      : (en.x < 0 || en.x > W || en.z < 0 || en.z > D) ? 'outside the world'
+      : en.airT > 3 ? 'stuck in the air' : '';
+    if (why) {
+      debugLog('enemy_off_map', why, en, en.x, en.y, en.z);
+      scene.remove(en.group);
+      enemies.splice(i, 1);
+    }
   }
   for (const en of enemies) {
     en.timer -= dt;
@@ -973,7 +995,10 @@ function updateCorpses(dt) {
       c.vy = Math.max(c.vy - GRAV * dt, -30);
       const ny = c.group.position.y + c.vy * dt;
       const cy = Math.floor(ny - 0.01); // the block the body is about to enter
-      if (cy < 0) { scene.remove(c.group); corpses.splice(i, 1); continue; } // fell into the void
+      if (cy < 0) {
+        debugLog('corpse_void', 'fell into the void', { kind: c.kind }, c.x, ny, c.z);
+        scene.remove(c.group); corpses.splice(i, 1); continue;
+      }
       if (get(Math.floor(c.x), cy, Math.floor(c.z)) !== T.AIR) {
         c.landed = true;
         c.restY = cy + 1 + c.lift;
@@ -1017,7 +1042,7 @@ function killSlime(en) {
   en.group.position.set(en.x, en.y + 0.25 * en.base, en.z);
   // A body killed in mid-air falls until it lands on a block
   const onBlock = get(Math.floor(en.x), Math.floor(en.y - 0.1), Math.floor(en.z)) !== T.AIR;
-  corpses.push({ group: en.group, t: 0, x: en.x, z: en.z, vy: 0, lift: 0.25 * en.base, landed: onBlock, restY: en.group.position.y });
+  corpses.push({ group: en.group, kind: en.kind, t: 0, x: en.x, z: en.z, vy: 0, lift: 0.25 * en.base, landed: onBlock, restY: en.group.position.y });
   const k = ENEMY_KINDS[en.kind];
   for (let i = 0; i < k.gems; i++) addItem('gem');
   gain('fight', 2);
@@ -1180,7 +1205,7 @@ function update(dt) {
   if (!hits(px, ny, pz)) { py = ny; onGround = false; }
   else { if (vy < 0) { onGround = true; squash = 1; } vy = 0; }
 
-  if (py < -10) { [px, py, pz] = spawnPoint(); vy = 0; }
+  if (py < -10) { [px, py, pz] = topSpawnPoint(); vy = 0; }
 
   // Inventory power grows while the bag is full
   if (invTotal() >= invCap()) {
@@ -1313,7 +1338,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.17';
+const VERSION = '0.6.18';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1335,6 +1360,36 @@ const pid = (() => {
     return p;
   } catch (e) { return 'anon'; }
 })();
+
+// ---- Enemy debug log: enemies that leave the map. Kept on this device (parent area) and sent to the admin log.
+// It stores the world code (shared by everyone in the same world), never the player code or a name.
+const localLog = [];
+const dbgQueue = [];
+function debugLog(kind, reason, en, x, y, z) {
+  const r = v => Math.round(v * 10) / 10;
+  const entry = { at: Date.now(), kind, reason, enemy: en ? en.kind : '', x: r(x), y: r(y), z: r(z), world: worldId || '', version: VERSION };
+  localLog.unshift(entry);
+  if (localLog.length > 50) localLog.length = 50;
+  console.warn('[enemy log]', entry);
+  if (dbgQueue.length < 200) {
+    dbgQueue.push({ kind, version: VERSION, world_id: entry.world, x: entry.x, y: entry.y, z: entry.z, detail: (reason + ' ' + entry.enemy).slice(0, 200) });
+  }
+}
+function flushDebugLog() {
+  if (!sb || !dbgQueue.length) return;
+  const rows = dbgQueue.splice(0, 50);
+  sb.from('debug_log').insert(rows).then(() => {}, () => {});
+}
+setInterval(flushDebugLog, 10000);
+// Shows the newest entries in the parent area (no names, no player code)
+function renderDevLog() {
+  const el = document.getElementById('devLog');
+  if (!el) return;
+  el.innerHTML = localLog.length
+    ? '<div style="font-size:13px;font-weight:700;margin:6px 0 4px">Enemy log on this device (newest first)</div>' +
+      localLog.slice(0, 10).map(e => `<div style="font-size:12px;opacity:.9;margin:2px 0">${new Date(e.at).toLocaleTimeString()} ${esc(e.enemy)}: ${esc(e.reason)} at ${e.x}, ${e.y}, ${e.z}</div>`).join('')
+    : '<div style="font-size:12px;opacity:.7;margin:6px 0">No enemies have left the map on this device.</div>';
+}
 
 // ---- Logging: counts and errors only, never names or chat ----
 const evQueue = [];
@@ -1368,6 +1423,7 @@ setInterval(flushEvents, 10000);
     '<button id="cloudOut" style="display:none;width:100%;background:transparent;color:#fff;border:1px solid #556;border-radius:10px;padding:8px;cursor:pointer">Sign out</button>' +
     '</div>' +
     '<div style="font-size:12px;opacity:.7;margin-bottom:12px">Player code: <span id="parentPid"></span></div>' +
+    '<div id="devLog" style="max-height:30vh;overflow:auto;margin-bottom:10px"></div>' +
     '<button id="parentClose" style="background:transparent;color:#fff;border:1px solid #556;border-radius:10px;padding:8px 14px;cursor:pointer">Close</button></div>';
   document.body.append(tap, panel);
   let taps = [];
@@ -1378,6 +1434,7 @@ setInterval(flushEvents, 10000);
       taps = [];
       document.getElementById('parentLink').href = 'admin.html?pid=' + encodeURIComponent(pid);
       document.getElementById('parentPid').textContent = pid;
+      renderDevLog();
       panel.style.display = 'flex';
     }
   });
