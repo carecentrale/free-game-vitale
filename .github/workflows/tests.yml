@@ -1,10 +1,13 @@
-# Runs the tests on every push and pull request, for every branch and every version.
+# Runs the tests on every push and pull request, every 6 hours, and by hand from the Actions tab.
 # A failing test shows as a red cross on the commit.
 name: Tests
 
 on:
   push:
   pull_request:
+  schedule:
+    - cron: '17 */6 * * *'   # every 6 hours, re-runs the tests on main without a new push
+  workflow_dispatch:
 
 jobs:
   test:
