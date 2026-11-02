@@ -10,7 +10,7 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
-| 0.6.27 | (commit to follow, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Choose a saved game at start (up to 10 on this device) |
+| 0.6.27 | (commit 1d38ca3, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Choose a saved game at start (up to 10 on this device) |
 | 0.6.26 | (commit 653a91d, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Dropped items disappear after 5 minutes |
 | 0.6.25 | (commit 86f1d93, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Defeated creatures that are hovering or falling also disappear after 5 minutes |
 | 0.6.24 | (commit aad8297, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Enemy log records when ground under a defeated creature is dug out |
