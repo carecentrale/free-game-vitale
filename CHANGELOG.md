@@ -2,6 +2,11 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.33: a new random island for every new game
+- Every new game gets its own island. Hills, caves and gems are different each time
+- The land slopes down toward the rim, so the island edge looks like land instead of a straight wall
+- The world generator is checked by tests (scripts/tests/terrain.test.mjs). Not checked in a browser
+
 ## 0.6.32: saved games list layout fix
 - The saved games cards at start are laid out at full width again. Their class names no longer clash with the quick bar's
 - Checked: game script syntax (node --check). Not checked in a browser

@@ -10,6 +10,7 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
+| 0.6.33 | (commit to follow, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | A new random island for every new game (hills, caves, gems); land slopes toward the rim |
 | 0.6.32 | (commit cdb47b8, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Fixed saved games list layout at start |
 | 0.6.31 | (commit 06208eb, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Clearer saved games list at start |
 | 0.6.30 | (commit 507a269, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Safety limit of 100 saved games on the device |

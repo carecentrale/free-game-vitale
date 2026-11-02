@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.32 (3D)</title>
+<title>Adventurers of Drenerics v0.6.33 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -131,12 +131,41 @@ function get(x, y, z) {
   return grid[idx(x, y, z)];
 }
 
-// ---- Terrain generation ----
+// ---- Terrain generation: a different island for every new game ----
+// Seeded smooth noise: the same seed always gives the same world, and a new seed gives a new one.
+function hash3(x, y, z, seed) {
+  let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(z, 2246822519) ^ Math.imul(seed | 0, 3266489917);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967295;
+}
+// Smooth value noise in 0..1
+function noise3(x, y, z, seed) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+  const fx = x - xi, fy = y - yi, fz = z - zi;
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy), w = fz * fz * (3 - 2 * fz);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const c = (dx, dy, dz) => hash3(xi + dx, yi + dy, zi + dz, seed);
+  return lerp(
+    lerp(lerp(c(0, 0, 0), c(1, 0, 0), u), lerp(c(0, 1, 0), c(1, 1, 0), u), v),
+    lerp(lerp(c(0, 0, 1), c(1, 0, 1), u), lerp(c(0, 1, 1), c(1, 1, 1), u), v), w);
+}
+// Layered hills (four octaves of noise), 0..1
+function hillNoise(x, z, seed) {
+  let sum = 0, amp = 1, norm = 0, f = 1;
+  for (let o = 0; o < 4; o++) { sum += amp * noise3(x * f, 0.5, z * f, seed + o * 17); norm += amp; amp *= 0.5; f *= 2; }
+  return sum / norm;
+}
 function gen(seed) {
   let s = seed;
   const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
-  const p = [r() * 6, r() * 6, r() * 6];
-  const hgt = (x, z) => Math.round(SURF + Math.sin(x * 0.15 + p[0]) * 2 + Math.cos(z * 0.18 + p[1]) * 2 + Math.sin((x + z) * 0.1 + p[2]) * 1.5);
+  // Hills rise and fall across the island, and the land slopes down toward the rim so it reads as an island
+  const hgt = (x, z) => {
+    const dx = (x + 0.5) / W * 2 - 1, dz = (z + 0.5) / D * 2 - 1;
+    const rim = Math.max(0, Math.sqrt(dx * dx + dz * dz) - 0.6) / 0.4; // 0 in the middle, about 1 at the rim
+    const hills = hillNoise(x * 0.07, z * 0.07, seed) - 0.5;          // -0.5 .. 0.5
+    return Math.max(3, Math.round(SURF + hills * 12 - rim * rim * 9));
+  };
   for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
     const top = hgt(x, z);
     for (let y = 0; y < H; y++) {
@@ -151,8 +180,8 @@ function gen(seed) {
   for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) for (let y = 1; y < H - 4; y++) {
     const i = idx(x, y, z);
     if (grid[i] === T.STONE) {
-      const n = Math.sin(x * 0.3 + y * 0.5) * Math.cos(z * 0.3 - y * 0.4) + Math.sin(z * 0.25 + x * 0.1) * 0.4;
-      if (n > 0.85) grid[i] = T.AIR;
+      // Caves are random pockets of smooth noise, so they differ from game to game
+      if (noise3(x * 0.16, y * 0.2, z * 0.16, seed + 99) > 0.62) grid[i] = T.AIR;
       else if (r() < 0.03) grid[i] = T.GEM;
     }
   }
@@ -656,6 +685,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.33', title: 'A new random island for every new game', items: [
+    'Every new game gets its own island: hills, caves and gems are different each time',
+    'The land slopes down toward the rim, so the island edge looks like land instead of a straight wall'] },
   { v: '0.6.32', title: 'Saved games list layout fix', items: [
     'Fixed the saved games list at start, which was squeezed into a narrow column'] },
   { v: '0.6.31', title: 'Clearer saved games list', items: [
@@ -1448,7 +1480,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.32';
+const VERSION = '0.6.33';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
