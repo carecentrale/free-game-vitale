@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.33 (3D)</title>
+<title>Adventurers of Drenerics v0.6.34 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -97,94 +97,123 @@
 import * as THREE from 'three';
 
 // ---- World settings ----
-const W = 40, H = 24, D = 40, SURF = 12;
+// ---- World: 400,000 x 400,000 blocks, generated on demand from a seed ----
+// Nothing is stored except the blocks players change. The rest is rebuilt from the seed when needed.
+const WORLD = 400000, CENTER = 200000;   // width of the world; the start point is in the middle
+const H = 24, SURF = 12, CS = 16;        // height in blocks, average ground level, chunk size in blocks
 const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4 };
-const SPEED = 5, GRAV = 25, JUMP = 8, HW = 0.3, HH = 1.6, REACH = 7;
-const LABEL = { dig: 'Digging', build: 'Building', inv: 'Inventory', fight: 'Fighting' };
-const BAR = { dig: '#ffb347', build: '#66ccff', inv: '#9cff6b', fight: '#ff6b6b' };
+const CHUNK_LEN = CS * H * CS;
+const ckey = (cx, cz) => cx * 1000003 + cz;
+const cellIndex = (lx, y, lz) => (y * CS + lz) * CS + lx;
+const inBounds = (x, y, z) => x >= 0 && x < WORLD && y >= 0 && y < H && z >= 0 && z < WORLD;
 
-// ---- Items ----
-const ITEMS = {
-  dirt:  { name: 'Dirt',    kind: 'block',  color: 0x8d5524, block: T.DIRT },
-  stone: { name: 'Stone',   kind: 'block',  color: 0x7a7a7a, block: T.STONE },
-  gem:   { name: 'Gem',     kind: 'gem',    color: 0x29d3ff },
-  pick:  { name: 'Pickaxe', kind: 'tool',   color: 0xb0b0b0 },
-  sword: { name: 'Sword',   kind: 'weapon', color: 0xdfe6ee },
-};
-const hex = n => '#' + n.toString(16).padStart(6, '0');
+let seed = 1;                    // the seed: the same seed always makes the same world
+const chunks = new Map();        // ckey -> { cx, cz, data }; made the first time they are needed
+const edited = new Set();        // ckeys of chunks players have changed (these are saved and shared)
 
-// Items in the bag (picks and swords start in the bag)
-const inv = { dirt: 0, stone: 0, gem: 0, pick: 1, sword: 1 };
-let recent = ['pick', 'sword'];           // most recent first
-const qb = ['pick', 'sword', null, null, null, null]; // 6 quick bar slots
-let sel = 0;                              // selected quick bar slot
-const held = () => qb[sel];
-const invTotal = () => Object.values(inv).reduce((a, b) => a + b, 0);
-
-const grid = new Uint8Array(W * H * D);
-const idx = (x, y, z) => (y * D + z) * W + x;
-const inBounds = (x, y, z) => x >= 0 && x < W && y >= 0 && y < H && z >= 0 && z < D;
-// Out of the sides or below = solid wall. Above the world = open sky.
-function get(x, y, z) {
-  if (x < 0 || x >= W || z < 0 || z >= D || y < 0) return T.STONE;
-  if (y >= H) return T.AIR;
-  return grid[idx(x, y, z)];
-}
-
-// ---- Terrain generation: a different island for every new game ----
-// Seeded smooth noise: the same seed always gives the same world, and a new seed gives a new one.
-function hash3(x, y, z, seed) {
-  let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(z, 2246822519) ^ Math.imul(seed | 0, 3266489917);
+// Terrain noise: everything depends only on position and seed
+function hash3(x, y, z, s) {
+  let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(z, 2246822519) ^ Math.imul(s | 0, 3266489917);
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   h ^= h >>> 16;
   return (h >>> 0) / 4294967295;
 }
-// Smooth value noise in 0..1
-function noise3(x, y, z, seed) {
+function noise3(x, y, z, s) {    // smooth value noise, 0..1
   const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
   const fx = x - xi, fy = y - yi, fz = z - zi;
   const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy), w = fz * fz * (3 - 2 * fz);
   const lerp = (a, b, t) => a + (b - a) * t;
-  const c = (dx, dy, dz) => hash3(xi + dx, yi + dy, zi + dz, seed);
+  const c = (dx, dy, dz) => hash3(xi + dx, yi + dy, zi + dz, s);
   return lerp(
     lerp(lerp(c(0, 0, 0), c(1, 0, 0), u), lerp(c(0, 1, 0), c(1, 1, 0), u), v),
     lerp(lerp(c(0, 0, 1), c(1, 0, 1), u), lerp(c(0, 1, 1), c(1, 1, 1), u), v), w);
 }
-// Layered hills (four octaves of noise), 0..1
-function hillNoise(x, z, seed) {
+function hillNoise(x, z, s) {    // four layers of noise, 0..1
   let sum = 0, amp = 1, norm = 0, f = 1;
-  for (let o = 0; o < 4; o++) { sum += amp * noise3(x * f, 0.5, z * f, seed + o * 17); norm += amp; amp *= 0.5; f *= 2; }
+  for (let o = 0; o < 4; o++) { sum += amp * noise3(x * f, 0.5, z * f, s + o * 17); norm += amp; amp *= 0.5; f *= 2; }
   return sum / norm;
 }
-function gen(seed) {
-  let s = seed;
-  const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
-  // Hills rise and fall across the island, and the land slopes down toward the rim so it reads as an island
-  const hgt = (x, z) => {
-    const dx = (x + 0.5) / W * 2 - 1, dz = (z + 0.5) / D * 2 - 1;
-    const rim = Math.max(0, Math.sqrt(dx * dx + dz * dz) - 0.6) / 0.4; // 0 in the middle, about 1 at the rim
-    const hills = hillNoise(x * 0.07, z * 0.07, seed) - 0.5;          // -0.5 .. 0.5
-    return Math.max(3, Math.round(SURF + hills * 12 - rim * rim * 9));
-  };
-  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
-    const top = hgt(x, z);
-    for (let y = 0; y < H; y++) {
-      let t = T.AIR;
-      if (y === top) t = T.GRASS;
-      else if (y < top && y >= top - 2) t = T.DIRT;
-      else if (y < top - 2) t = T.STONE;
-      grid[idx(x, y, z)] = t;
+const groundY = (x, z) => Math.max(3, Math.round(SURF + (hillNoise(x * 0.05, z * 0.05, seed) - 0.5) * 12));
+
+// Builds one chunk: grass on top, dirt, stone, then caves and gems
+function makeChunk(cx, cz) {
+  const data = new Uint8Array(CHUNK_LEN);
+  for (let lx = 0; lx < CS; lx++) for (let lz = 0; lz < CS; lz++) {
+    const x = cx * CS + lx, z = cz * CS + lz;
+    const top = groundY(x, z);
+    for (let y = 0; y <= top; y++) {
+      let t = y === top ? T.GRASS : (y >= top - 2 ? T.DIRT : T.STONE);
+      if (t === T.STONE && y >= 1 && y < H - 4) {
+        if (noise3(x * 0.16, y * 0.2, z * 0.16, seed + 99) > 0.62) t = T.AIR;   // caves
+        else if (hash3(x, y, z, seed + 7) < 0.03) t = T.GEM;                   // gems
+      }
+      data[cellIndex(lx, y, lz)] = t;
     }
   }
-  // Caves and gems underground
-  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) for (let y = 1; y < H - 4; y++) {
-    const i = idx(x, y, z);
-    if (grid[i] === T.STONE) {
-      // Caves are random pockets of smooth noise, so they differ from game to game
-      if (noise3(x * 0.16, y * 0.2, z * 0.16, seed + 99) > 0.62) grid[i] = T.AIR;
-      else if (r() < 0.03) grid[i] = T.GEM;
-    }
+  return data;
+}
+function chunkAt(cx, cz) {
+  const k = ckey(cx, cz);
+  let c = chunks.get(k);
+  if (!c) { c = { cx, cz, data: makeChunk(cx, cz) }; chunks.set(k, c); }
+  return c;
+}
+// The block at (x, y, z). Past the world's edge is solid stone, so the world has a boundary.
+function get(x, y, z) {
+  if (x < 0 || x >= WORLD || z < 0 || z >= WORLD || y < 0) return T.STONE;
+  if (y >= H) return T.AIR;
+  const cx = Math.floor(x / CS), cz = Math.floor(z / CS);
+  return chunkAt(cx, cz).data[cellIndex(x - cx * CS, y, z - cz * CS)];
+}
+function writeBlock(x, y, z, t) {
+  if (!inBounds(x, y, z)) return;
+  const cx = Math.floor(x / CS), cz = Math.floor(z / CS);
+  chunkAt(cx, cz).data[cellIndex(x - cx * CS, y, z - cz * CS)] = t;
+  edited.add(ckey(cx, cz));
+}
+// A player changes a block: it is remembered (saved and shared) and the view is redrawn
+function setBlock(x, y, z, t) {
+  if (!inBounds(x, y, z)) return;
+  writeBlock(x, y, z, t);
+  dirty = true;
+}
+function initWorld(s) { seed = s; chunks.clear(); edited.clear(); }
+
+// Save and share format: the seed plus every chunk that players have changed
+function encodeWorld() {
+  const edits = [];
+  for (const k of edited) { const c = chunks.get(k); edits.push([c.cx, c.cz, bytesToB64(c.data)]); }
+  return { v: 2, seed, edits };
+}
+function applyWorld(w) {
+  initWorld(w.seed);
+  for (const [cx, cz, b64] of w.edits) {
+    const data = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+    if (data.length !== CHUNK_LEN) continue;
+    const k = ckey(cx, cz);
+    chunks.set(k, { cx, cz, data });
+    edited.add(k);
   }
+}
+// Worlds from versions before 0.6.34 were 40 x 40 blocks. They are copied into the middle of the new world.
+const OLD_SIZE = 40;
+function applyOld(b64, s) {
+  const bytes = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+  if (bytes.length !== OLD_SIZE * H * OLD_SIZE) return false;
+  initWorld(s);
+  for (let x = 0; x < OLD_SIZE; x++) for (let z = 0; z < OLD_SIZE; z++) for (let y = 0; y < H; y++) {
+    writeBlock(CENTER + x, y, CENTER + z, bytes[(y * OLD_SIZE + z) * OLD_SIZE + x]);
+  }
+  return true;
+}
+// A shared world's text: JSON in the current format; raw bytes from the old 40 x 40 format
+function seedFromText(t) { let h = 7; for (const ch of t) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0; return (Math.abs(h) % 999999) + 1; }
+function loadShared(text, code) {
+  try {
+    if (text.charAt(0) === '{') applyWorld(JSON.parse(text));
+    else if (!applyOld(text, seedFromText(code))) return false;
+    return true;
+  } catch (e) { return false; }
 }
 // ---- Saving: the character and the world are kept on this device (no accounts, no personal data) ----
 const SAVE_KEY = 'kidsgame.save.v1';   // the old single save; moved into a slot on first start
@@ -217,19 +246,12 @@ try {
   if (old) { if (!localStorage.getItem(slotKey(0))) localStorage.setItem(slotKey(0), old); localStorage.removeItem(SAVE_KEY); }
 } catch (e) {}
 function bytesToB64(u8) { let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); }
-function loadWorld(b64) {
-  try {
-    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    if (bytes.length === grid.length) { grid.set(bytes); return true; }
-  } catch (e) {}
-  return false;
-}
 function saveGame() {
   if (wiping || activeSlot === null) return;
   try {
     localStorage.setItem(slotKey(activeSlot), JSON.stringify({
       v: 1, at: Date.now(), name: playerName, profile, worldId, inv, qb, recent, sel, pw,
-      pos: [px, py, pz], yaw: camYaw, world: bytesToB64(grid),
+      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(),
       drops: [...drops.values()].map(d => [d.x, d.y, d.z, d.id, d.at])
     }));
   } catch (e) {}
@@ -238,8 +260,17 @@ function saveGame() {
 // Open the game the menu picked (a reload in the same tab reopens it)
 { const c = getChoice(); if (c !== null && c !== 'new' && listSlots().some(s => s.n === +c)) activeSlot = +c; }
 const saved = activeSlot !== null ? readSlot(activeSlot) : null;
-const worldLoaded = !!(saved && typeof saved.world === 'string' && loadWorld(saved.world));
-if (!worldLoaded) gen(Math.floor(Math.random() * 1000000) + 1);
+let worldLoaded = false;
+if (saved && saved.world && saved.world.v === 2) { applyWorld(saved.world); worldLoaded = true; }
+else if (saved && typeof saved.world === 'string') {
+  // Old save: its 40 x 40 island moves to the middle of the new world, and so do the player and the drops
+  worldLoaded = applyOld(saved.world, Math.floor(Math.random() * 999999) + 1);
+  if (worldLoaded) {
+    if (Array.isArray(saved.pos)) { saved.pos[0] += CENTER; saved.pos[2] += CENTER; }
+    saved.drops = (saved.drops || []).map(r => Array.isArray(r) && r.length >= 4 ? [r[0] + CENTER, r[1], r[2] + CENTER, r[3], ...(r.length === 5 ? [r[4]] : [])] : r);
+  }
+}
+if (!worldLoaded) initWorld(Math.floor(Math.random() * 999999) + 1);
 
 // ---- Textures: small pixel-art textures made in code ----
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -315,30 +346,44 @@ const sun = new THREE.DirectionalLight(0xfff4e0, 0.9);
 sun.position.set(30, 50, 20);
 scene.add(sun);
 
-// One instanced mesh per block type (fast: many blocks, few draw calls)
+// Only the blocks near the player are drawn, and only those that can be seen (not blocks buried in the ground)
+const VIEW = 2;                                   // chunks drawn in each direction around the player
+const CAP = (2 * VIEW + 1) ** 2 * CS * CS * H;    // most blocks that can be drawn at once
 const dummy = new THREE.Object3D();
-const N = W * H * D;
+const m4 = new THREE.Matrix4();
 const meshes = {};
 for (const k of [T.GRASS, T.DIRT, T.STONE, T.GEM]) {
-  const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), blockMats[k], N);
+  const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), blockMats[k], CAP);
   m.count = 0;
   scene.add(m);
   meshes[k] = m;
 }
 let dirty = true;
+let drawnChunk = '';                              // the chunk the player was in when the blocks were last drawn
 function rebuild() {
+  const pcx = Math.floor(px / CS), pcz = Math.floor(pz / CS);
+  drawnChunk = pcx + ',' + pcz;
   const cnt = { 1: 0, 2: 0, 3: 0, 4: 0 };
-  for (let y = 0; y < H; y++) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
-    const t = grid[idx(x, y, z)];
-    if (!t) continue;
-    dummy.position.set(x + 0.5, y + 0.5, z + 0.5);
-    dummy.updateMatrix();
-    meshes[t].setMatrixAt(cnt[t]++, dummy.matrix);
+  for (let cz = pcz - VIEW; cz <= pcz + VIEW; cz++) for (let cx = pcx - VIEW; cx <= pcx + VIEW; cx++) {
+    if (cx < 0 || cz < 0 || cx * CS >= WORLD || cz * CS >= WORLD) continue;
+    for (let y = 0; y < H; y++) for (let lz = 0; lz < CS; lz++) for (let lx = 0; lx < CS; lx++) {
+      const x = cx * CS + lx, z = cz * CS + lz;
+      const t = get(x, y, z);
+      if (!t) continue;
+      // Hidden: all six neighbours are solid, so no face shows
+      if (get(x + 1, y, z) && get(x - 1, y, z) && get(x, y + 1, z) && get(x, y - 1, z) && get(x, y, z + 1) && get(x, y, z - 1)) continue;
+      m4.makeTranslation(x + 0.5, y + 0.5, z + 0.5);
+      meshes[t].setMatrixAt(cnt[t]++, m4);
+    }
   }
   for (const k in meshes) {
     meshes[k].count = cnt[k];
     meshes[k].instanceMatrix.needsUpdate = true;
     meshes[k].boundingSphere = null;
+  }
+  // Keep memory small: drop generated chunks far from the player (changed chunks are kept)
+  if (chunks.size > 1500) for (const [k, c] of chunks) {
+    if (!edited.has(k) && (Math.abs(c.cx - pcx) > VIEW + 3 || Math.abs(c.cz - pcz) > VIEW + 3)) chunks.delete(k);
   }
 }
 
@@ -455,26 +500,21 @@ function updateHand() {
   if (heldCube.visible) heldCube.material.color.setHex(ITEMS[id].color);
 }
 
-function spawnPoint() {
-  const x = W >> 1, z = D >> 1;
-  let y = H - 1;
-  while (y > 0 && grid[idx(x, y, z)] === T.AIR) y--;
-  return [x + 0.5, y + 1.01, z + 0.5];
-}
-// The top of the land: the highest block with open sky above it, nearest the middle of the map.
-// Unlike spawnPoint(), a dug-out hole in the middle can't put you at the bottom of the map.
+// The top of the land near the middle of the world. Searches a small area only, so it stays fast in a huge world.
 function topSpawnPoint() {
-  let bestY = -1, bestD = Infinity, bx = W >> 1, bz = D >> 1;
-  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
+  let best = null;
+  for (let dx = -12; dx <= 12; dx++) for (let dz = -12; dz <= 12; dz++) {
+    const x = CENTER + dx, z = CENTER + dz;
     let y = H - 1;
-    while (y > 0 && grid[idx(x, y, z)] === T.AIR) y--;
-    if (grid[idx(x, y, z)] === T.AIR) continue;
-    const d = Math.hypot(x - (W >> 1), z - (D >> 1));
-    if (y > bestY || (y === bestY && d < bestD)) { bestY = y; bestD = d; bx = x; bz = z; }
+    while (y > 0 && get(x, y, z) === T.AIR) y--;
+    if (get(x, y, z) === T.AIR) continue;
+    const d = Math.hypot(dx, dz);
+    if (!best || y > best.y || (y === best.y && d < best.d)) best = { x, y, z, d };
   }
-  // Two blocks above the top, so the character drops onto the land
-  return [bx + 0.5, bestY + 3.01, bz + 0.5];
+  if (!best) return [CENTER + 0.5, SURF + 3.01, CENTER + 0.5];
+  return [best.x + 0.5, best.y + 3.01, best.z + 0.5];   // two blocks above the top, so the character drops onto the land
 }
+const spawnPoint = topSpawnPoint;
 let [px, py, pz] = spawnPoint();
 let vx = 0, vy = 0, vz = 0, onGround = false, jumpHeld = false, squash = 0, walkT = 0;
 
@@ -685,6 +725,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.34', title: 'A 400,000 x 400,000 block world', items: [
+    'The world is now 400,000 blocks wide. Land is made on demand from the seed, so walking anywhere works',
+    'Only the blocks you change are saved and shared. Old 40 x 40 saves and shared worlds move into the middle of the new world',
+    'Only the blocks near you are drawn, and blocks buried in the ground are skipped'] },
   { v: '0.6.33', title: 'A new random island for every new game', items: [
     'Every new game gets its own island: hills, caves and gems are different each time',
     'The land slopes down toward the rim, so the island edge looks like land instead of a straight wall'] },
@@ -824,7 +868,7 @@ function digCell(x, y, z) {
   if (!t) return false;
   const full = invTotal() >= invCap();
   if (full && drops.size >= MAX_DROPS) { say('Too many things on the ground. Pick some up first.', 2500); return false; }
-  grid[idx(x, y, z)] = T.AIR;
+  setBlock(x, y, z, T.AIR);
   shareBlock(x, y, z, T.AIR);
   const id = (t === T.GRASS || t === T.DIRT) ? 'dirt' : (t === T.STONE ? 'stone' : 'gem');
   if (full) {
@@ -909,7 +953,7 @@ function placeCell(x, y, z, forceId) {
     say("Can't build on yourself!");
     return;
   }
-  grid[idx(x, y, z)] = item.block;
+  setBlock(x, y, z, item.block);
   shareBlock(x, y, z, item.block);
   inv[id]--;
   gain('build', 1);
@@ -1014,10 +1058,11 @@ function enemyModel(kind) {
 }
 function spawnSlime() {
   for (let tries = 0; tries < 20; tries++) {
-    const x = Math.floor(Math.random() * (W - 2)) + 1, z = Math.floor(Math.random() * (D - 2)) + 1;
+    // Near the player, so enemies appear where the player can see them
+    const x = Math.floor(px) + Math.floor(Math.random() * 40) - 20, z = Math.floor(pz) + Math.floor(Math.random() * 40) - 20;
     let y = H - 1;
-    while (y > 0 && grid[idx(x, y, z)] === T.AIR) y--;
-    if (grid[idx(x, y, z)] !== T.GRASS) continue;
+    while (y > 0 && get(x, y, z) === T.AIR) y--;
+    if (get(x, y, z) !== T.GRASS) continue;
     if (Math.hypot(x + 0.5 - px, z + 0.5 - pz) < 6) continue;
     const kind = ENEMY_LIST[Math.floor(Math.random() * ENEMY_LIST.length)];
     const group = enemyModel(kind);
@@ -1061,8 +1106,9 @@ function updateSlimes(dt) {
   for (let i = enemies.length - 1; i >= 0; i--) {
     const en = enemies[i];
     en.airT = groundBelow(en.x, en.z, en.y) ? 0 : (en.airT || 0) + dt;
+    if (Math.hypot(en.x - px, en.z - pz) > 90) { scene.remove(en.group); enemies.splice(i, 1); continue; } // far away: leave quietly
     const why = en.y < 1 ? 'below the island'
-      : (en.x < 0 || en.x > W || en.z < 0 || en.z > D) ? 'outside the world'
+      : (en.x < 0 || en.x > WORLD || en.z < 0 || en.z > WORLD) ? 'outside the world'
       : en.airT > 3 ? 'stuck in the air' : '';
     if (why) {
       debugLog('enemy_off_map', why, en, en.x, en.y, en.z);
@@ -1129,7 +1175,7 @@ function updateCorpses(dt) {
         scene.remove(c.group); corpses.splice(i, 1); continue;
       }
       // Only land on blocks inside the island. Outside it, keep falling until the body leaves the map.
-      const inside = c.x >= 0 && c.x < W && c.z >= 0 && c.z < D;
+      const inside = c.x >= 0 && c.x < WORLD && c.z >= 0 && c.z < WORLD;
       if (inside && get(Math.floor(c.x), cy, Math.floor(c.z)) !== T.AIR) {
         c.landed = true;
         c.restY = cy + 1 + c.lift;
@@ -1143,7 +1189,7 @@ function updateCorpses(dt) {
       // Still lying here: check the ground is still under it (a player may have dug it out).
       // If not, the body falls again.
       const below = Math.floor(c.restY - c.lift - 0.01);
-      const supported = c.x >= 0 && c.x < W && c.z >= 0 && c.z < D &&
+      const supported = c.x >= 0 && c.x < WORLD && c.z >= 0 && c.z < WORLD &&
         get(Math.floor(c.x), below, Math.floor(c.z)) !== T.AIR;
       if (!supported) {
         // Record it in the enemy log: a body that was resting has lost the block under it
@@ -1419,7 +1465,8 @@ function frame(now) {
   last = now;
   if (!paused) update(dt);
   updateOthers(dt);
-  if (dirty) { rebuild(); dirty = false; }
+  const here = Math.floor(px / CS) + ',' + Math.floor(pz / CS);
+  if (dirty || here !== drawnChunk) { rebuild(); dirty = false; }
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
@@ -1480,7 +1527,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.33';
+const VERSION = '0.6.34';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1770,8 +1817,7 @@ function connectWorld() {
   ch.on('broadcast', { event: 'block' }, ({ payload }) => {
     const p = payload || {};
     if (!inBounds(p.x, p.y, p.z) || !Number.isInteger(p.t) || p.t < 0 || p.t > 4) return;
-    grid[idx(p.x, p.y, p.z)] = p.t;
-    dirty = true;
+    setBlock(p.x, p.y, p.z, p.t);
   });
   ch.on('presence', { event: 'sync' }, onPresence);
   ch.subscribe(status => {
@@ -1787,13 +1833,13 @@ setInterval(async () => {
   if (!sb || !worldId || !worldDirty) return;
   worldDirty = false;
   const stamp = new Date().toISOString();
-  const { error } = await sb.from('worlds').upsert({ id: worldId, grid: bytesToB64(grid), updated_at: stamp });
+  const { error } = await sb.from('worlds').upsert({ id: worldId, grid: JSON.stringify(encodeWorld()), updated_at: stamp });
   if (error) worldDirty = true; else lastStamp = stamp;
 }, 4000);
 setInterval(async () => {
   if (!sb || !worldId || worldDirty) return;
   const { data } = await sb.from('worlds').select('grid,updated_at').eq('id', worldId).maybeSingle();
-  if (data && data.grid && data.updated_at !== lastStamp) { lastStamp = data.updated_at; loadWorld(data.grid); dirty = true; }
+  if (data && data.grid && data.updated_at !== lastStamp) { lastStamp = data.updated_at; loadShared(data.grid, worldId); dirty = true; }
 }, 30000);
 
 async function joinExisting(code) {
@@ -1802,7 +1848,7 @@ async function joinExisting(code) {
   const { data, error } = await sb.from('worlds').select('grid,updated_at').eq('id', code).maybeSingle();
   if (error) throw error;
   if (!data) return false;
-  if (data.grid) { loadWorld(data.grid); dirty = true; }
+  if (data.grid) { loadShared(data.grid, code); dirty = true; }
   lastStamp = data.updated_at;
   worldId = code;
   return true;
@@ -1814,7 +1860,7 @@ async function createWorld() {
   for (let i = 0; i < 8; i++) {
     let code = '';
     for (let k = 0; k < 4; k++) code += ALPH[Math.floor(Math.random() * ALPH.length)];
-    const { error } = await sb.from('worlds').insert({ id: code, grid: bytesToB64(grid) });
+    const { error } = await sb.from('worlds').insert({ id: code, grid: JSON.stringify(encodeWorld()) });
     if (!error) { worldId = code; lastStamp = null; return code; }
   }
   throw new Error('Could not make a world code. Try again.');

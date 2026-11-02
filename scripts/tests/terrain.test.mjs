@@ -1,5 +1,5 @@
-// Tests for the terrain generator in build/prototype-3d-v7.html.
-// The generator code is copied out of the game file at test time, so the tests run the real code.
+// Tests for the world in build/prototype-3d-v7.html: terrain from a seed, edits, saves and old-world import.
+// The world code is copied out of the game file at test time, so the tests run the real code.
 // Run from the repository root:  node --test scripts/tests/*.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,80 +11,118 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const game = fs.readFileSync(path.join(root, 'build', 'prototype-3d-v7.html'), 'utf8');
 
-function pick(start, end) {
-  const a = game.indexOf(start);
-  if (a < 0) throw new Error('marker not found: ' + start);
-  const b = game.indexOf(end, a);
-  if (b < 0) throw new Error('end marker not found: ' + end);
-  return game.slice(a, b);
-}
-const code = [
-  pick('const W = 40', '\nconst T ='),
-  pick('const T =', '\n'),
-  pick('const grid =', '\n'),
-  pick('const idx =', '\n'),
-  pick('// ---- Terrain generation', '// ---- Saving:'),
-].join('\n');
-const ctx = vm.createContext({ Math, Uint8Array });
-vm.runInContext(code + '\n;globalThis.gen_ = { gen, grid, W, H, D, T, idx };', ctx);
-const { gen, grid, W, H, D, T, idx } = ctx.gen_;
+const start = game.indexOf('// ---- World: 400,000');
+const end = game.indexOf('// ---- Saving: the character', start);
+if (start < 0 || end < 0) throw new Error('world code markers not found in the game file');
 
-// The height of each column (index of its top solid block), as a plain array
-function surface(seed) {
-  gen(seed);
-  const tops = [];
-  for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) {
-    let top = -1;
-    for (let y = H - 1; y >= 0; y--) if (grid[idx(x, y, z)] !== T.AIR) { top = y; break; }
-    tops.push(top);
-  }
-  return tops;
-}
+// `let dirty` and the base64 helper live elsewhere in the game; provide the same behaviour here
+const prefix = 'let dirty = false;\n';
+const api = `
+;({ WORLD, CENTER, H, T, chunks, edited, initWorld, get, setBlock, groundY, encodeWorld, applyWorld, applyOld, loadShared, getSeed: () => seed, isDirty: () => dirty, clearDirty: () => { dirty = false; } })`;
+const ctx = vm.createContext({
+  Math, Uint8Array, Map, Set, JSON, Number, String,
+  atob: s => Buffer.from(s, 'base64').toString('binary'),
+  bytesToB64: u8 => Buffer.from(u8).toString('base64'),
+});
+const W = vm.runInContext(prefix + game.slice(start, end) + api, ctx);
 
-test('two different seeds give two different islands', () => {
-  const a = surface(1), b = surface(2);
-  assert.notDeepEqual(a, b);
+const at = (x, z) => { for (let y = W.H - 1; y >= 0; y--) if (W.get(x, y, z) !== W.T.AIR) return y; return -1; };
+
+test('the world is 400,000 blocks wide, with the start in the middle', () => {
+  assert.equal(W.WORLD, 400000);
+  assert.equal(W.CENTER, 200000);
 });
 
-test('the same seed always gives the same island', () => {
-  const a = surface(4242), b = surface(4242);
+test('the same seed always makes the same ground', () => {
+  W.initWorld(4242);
+  const a = [], b = [];
+  for (let i = 0; i < 40; i++) a.push(at(W.CENTER + i * 3, W.CENTER + i * 2));
+  W.initWorld(4242);
+  for (let i = 0; i < 40; i++) b.push(at(W.CENTER + i * 3, W.CENTER + i * 2));
   assert.deepEqual(a, b);
 });
 
-test('every column has ground, and the ground stays inside the grid', () => {
-  for (const seed of [1, 777, 123456, 999999]) {
-    for (const top of surface(seed)) {
-      assert.ok(top >= 3, `column too low (seed ${seed}): ${top}`);
-      assert.ok(top <= H - 6, `column too high for the caves (seed ${seed}): ${top}`);
-    }
+test('a different seed makes different ground', () => {
+  W.initWorld(1);
+  const a = [];
+  for (let i = 0; i < 60; i++) a.push(at(W.CENTER + i, W.CENTER + i));
+  W.initWorld(99991);
+  const b = [];
+  for (let i = 0; i < 60; i++) b.push(at(W.CENTER + i, W.CENTER + i));
+  assert.notDeepEqual(a, b);
+});
+
+test('the ground stays within the expected height range', () => {
+  W.initWorld(777);
+  for (let i = 0; i < 300; i++) {
+    const g = W.groundY(W.CENTER + i * 7, W.CENTER - i * 5);
+    assert.ok(g >= 3 && g <= W.H - 6, `ground out of range: ${g}`);
   }
 });
 
-test('the middle of the island is land, so the player can spawn there', () => {
-  for (const seed of [1, 2, 777, 123456, 999999]) {
-    gen(seed);
-    let top = -1;
-    for (let y = H - 1; y >= 0; y--) if (grid[idx(W >> 1, y, D >> 1)] !== T.AIR) { top = y; break; }
-    assert.ok(top >= 8, `middle too low (seed ${seed}): ${top}`);
+test('the middle of the world is land, so the player can spawn there', () => {
+  for (const s of [1, 2, 777]) {
+    W.initWorld(s);
+    assert.ok(at(W.CENTER, W.CENTER) >= 8, `no land in the middle (seed ${s})`);
   }
 });
 
-test('the land slopes down toward the rim, so it reads as an island', () => {
-  for (const seed of [1, 777, 123456]) {
-    const tops = surface(seed);
-    const at = (x, z) => tops[x * D + z];
-    const middle = at(W >> 1, D >> 1);
-    const rim = at(0, D >> 1);
-    assert.ok(middle > rim, `rim is not lower than the middle (seed ${seed}): middle ${middle}, rim ${rim}`);
-  }
+test('past the world edge is solid stone, and above the top is open air', () => {
+  W.initWorld(1);
+  assert.equal(W.get(-1, 5, 10), W.T.STONE);
+  assert.equal(W.get(W.WORLD, 5, 10), W.T.STONE);
+  assert.equal(W.get(10, W.H, 10), W.T.AIR);
 });
 
-test('the island has gems and caves, but is not solid stone or empty', () => {
-  for (const seed of [1, 777]) {
-    gen(seed);
-    let gems = 0, air = 0;
-    for (let i = 0; i < grid.length; i++) { if (grid[i] === T.GEM) gems++; if (grid[i] === T.AIR) air++; }
-    assert.ok(gems > 0, 'no gems');
-    assert.ok(air > grid.length / 2, 'the world should be mostly open air above the ground');
-  }
+test('far from the start only a few chunks are made, so the world stays cheap', () => {
+  W.initWorld(3);
+  for (let i = 0; i < 50; i++) W.get(W.CENTER + i * 997, 5, W.CENTER - i * 811);
+  assert.ok(W.chunks.size <= 50, `too many chunks: ${W.chunks.size}`);
+});
+
+test('a changed block is saved and comes back the same after loading', () => {
+  W.initWorld(55);
+  const x = W.CENTER + 3, z = W.CENTER + 4;
+  W.setBlock(x, 9, z, W.T.GEM);
+  assert.equal(W.isDirty(), true);
+  W.clearDirty();
+  const saved = JSON.parse(JSON.stringify(W.encodeWorld()));
+  assert.equal(saved.v, 2);
+  assert.equal(saved.seed, 55);
+  W.initWorld(999);
+  assert.equal(W.get(x, 9, z) === W.T.GEM, false, 'a new seed should not have the change');
+  W.applyWorld(saved);
+  assert.equal(W.getSeed(), 55);
+  assert.equal(W.get(x, 9, z), W.T.GEM);
+});
+
+test('only changed chunks are saved, not the whole world', () => {
+  W.initWorld(8);
+  W.setBlock(W.CENTER + 1, 4, W.CENTER + 1, W.T.DIRT);
+  W.get(W.CENTER + 200, 4, W.CENTER + 200);   // generated but not changed
+  assert.equal(W.encodeWorld().edits.length, 1);
+});
+
+test('an old 40 x 40 save is copied into the middle of the new world', () => {
+  const H = W.H, n = 40;
+  const bytes = new Uint8Array(n * H * n);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = (i % 3 === 0) ? W.T.DIRT : W.T.AIR;
+  const b64 = Buffer.from(bytes).toString('base64');
+  assert.equal(W.applyOld(b64, 12), true);
+  const x = 5, y = 7, z = 9;
+  assert.equal(W.get(W.CENTER + x, y, W.CENTER + z), bytes[(y * n + z) * n + x]);
+});
+
+test('a wrong-size old save is refused', () => {
+  assert.equal(W.applyOld(Buffer.from([1, 2, 3]).toString('base64'), 12), false);
+});
+
+test('a shared world in the new format loads; text that is neither format is refused', () => {
+  W.initWorld(21);
+  W.setBlock(W.CENTER, 6, W.CENTER, W.T.STONE);
+  const text = JSON.stringify(W.encodeWorld());
+  W.initWorld(1);
+  assert.equal(W.loadShared(text, 'ABCD'), true);
+  assert.equal(W.getSeed(), 21);
+  assert.equal(W.loadShared('not a world', 'ABCD'), false);
 });

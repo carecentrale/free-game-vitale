@@ -2,6 +2,13 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.34: a 400,000 x 400,000 block world
+- The world is 400,000 blocks wide. Land is made on demand from the seed, so you can walk anywhere in it
+- Only the blocks players change are saved and shared. Old 40 x 40 saves and shared worlds are copied into the middle of the new world
+- Only the blocks near the player are drawn, and blocks buried in the ground are skipped
+- Enemies appear near the player and leave quietly when they are far away
+- Checked: script syntax (node --check) and world tests (scripts/tests/terrain.test.mjs). Not checked in a browser or on a tablet (frame rate)
+
 ## 0.6.33: a new random island for every new game
 - Every new game gets its own island. Hills, caves and gems are different each time
 - The land slopes down toward the rim, so the island edge looks like land instead of a straight wall
