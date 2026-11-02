@@ -2,6 +2,16 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.45: durability, gear and enemy parts
+- Pickaxes and weapons have durability. A pickaxe wears by one for each block it digs; a weapon wears by one for each hit. At zero the item breaks and is removed from the bag and the quick bar
+- Each piece of gear is its own item with its own durability shown in the bag (for example "Sword 58/60")
+- Enemies drop parts that stack in the bag: Goblin Ear, Goblin Skin, Imp Horn, Imp Tail, Brute Tooth, Brute Hide, Spear Imp Horn, Spear Shaft, Hood Cloth, Bone Charm, Spike Quill, Beast Hide. Parts are for selling, crafting or throwing away later
+- Enemies sometimes drop gear: wooden, iron and gold swords, a pickaxe, leather armour and an iron helmet. Stronger enemies drop better gear
+- Weapons do damage equal to the Fighting level plus the weapon's extra damage
+- Armour is kept in the bag with durability. It does nothing yet because enemies do not hurt the player
+- Saves from before this version keep the pickaxe and sword as starting gear
+- Checked: script syntax and automated tests. Not played yet
+
 ## 0.6.44: enemy names, health and weaknesses
 - Each enemy has its own name, power level, health and toughness. Defaults for now: Goblin (power 1, weak to fire), Imp (power 2, weak to holy light), Brute (power 4, tough, weak to fire), Spear Imp (power 3, weak to holy light), Hood Goblin (power 3, weak to fire), Spike Beast (power 3, very tough, no weakness)
 - The sword hits for your Fighting level. Each hit takes health off; an enemy is defeated at zero health. Toughness takes damage off each hit
