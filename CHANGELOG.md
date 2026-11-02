@@ -2,6 +2,11 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.41: saved games list fixed
+- Saved games made since version 0.6.34 were hidden from the start menu by mistake. They are listed again. Nothing was deleted
+- New test: saves with the newer world format are listed
+- Checked: script syntax and all tests. Not checked in a browser with your saved games yet
+
 ## 0.6.40: taller mountains and deeper valleys
 - The world is 96 blocks tall (was 64). Mountains rise higher, and valleys and canyons dip lower
 - Canyons do not start within about 60 blocks of the start point, so the start stays easy to find

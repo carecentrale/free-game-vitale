@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.40 (3D)</title>
+<title>Adventurers of Drenerics v0.6.41 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -286,7 +286,9 @@ function listSlots() {
       if (!key || !key.startsWith('kidsgame.slot.')) continue;
       const n = Number(key.slice('kidsgame.slot.'.length));
       const d = readSlot(n);
-      if (Number.isInteger(n) && d && typeof d.world === 'string') out.push({ n, d });
+      // Saves from 0.6.34 on keep the world as an object; older saves keep it as text. Both are listed.
+      const okWorld = d && (typeof d.world === 'string' || (d.world && typeof d.world === 'object' && d.world.v === 2));
+      if (Number.isInteger(n) && okWorld) out.push({ n, d });
     }
   } catch (e) {}
   return out.sort((a, b) => a.n - b.n);
@@ -858,6 +860,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.41', title: 'Saved games list fixed', items: [
+    'Saved games made since version 0.6.34 are listed again at start (they were hidden by mistake)'] },
   { v: '0.6.40', title: 'Taller mountains and deeper valleys', items: [
     'The world is 96 blocks tall: higher mountains and deeper valleys and canyons',
     'Worlds saved in the 0.6.39 height keep their changes'] },
@@ -1682,7 +1686,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.40';
+const VERSION = '0.6.41';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

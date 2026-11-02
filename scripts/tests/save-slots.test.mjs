@@ -128,3 +128,11 @@ function api_legacyKey() {
   if (!m) throw new Error('SAVE_KEY not found');
   return m[1];
 }
+
+test('saves made since 0.6.34 (world as an object) are listed', () => {
+  const newFormat = JSON.stringify({ v: 1, name: 'New', world: { v: 2, seed: 7, edits: [] } });
+  const { api } = load({ 'kidsgame.slot.2': newFormat });
+  const list = Array.from(api.listSlots(), s => s.n);
+  assert.deepEqual(list, [2]);
+});
+
