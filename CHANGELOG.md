@@ -2,6 +2,10 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.30: safety limit of 100 saved games on the device
+- Up to 100 saved games on this device. This is a safety limit, not a plan limit. The start menu and the bag say when it is reached
+- Checked: game script syntax (node --check). Not checked in a browser
+
 ## 0.6.29: one free cloud save; unlimited saves on the device
 - Saved games on this device are unlimited (the 10-game limit from 0.6.27 is removed)
 - The cloud save holds one game per parent account. Automatic saves never replace a different game; Save now asks before replacing it

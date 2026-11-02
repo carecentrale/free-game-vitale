@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.29 (3D)</title>
+<title>Adventurers of Drenerics v0.6.30 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -155,6 +155,7 @@ function gen(seed) {
 }
 // ---- Saving: the character and the world are kept on this device (no accounts, no personal data) ----
 const SAVE_KEY = 'kidsgame.save.v1';   // the old single save; moved into a slot on first start
+const SLOT_MAX = 100;                    // fail-safe limit on saved games on this device
 let wiping = false;
 let activeSlot = null;                   // the saved game being played (0-9), or null until one is chosen
 function slotKey(n) { return 'kidsgame.slot.' + n; }
@@ -173,7 +174,7 @@ function listSlots() {
   } catch (e) {}
   return out.sort((a, b) => a.n - b.n);
 }
-function freeSlot() { let n = 0; while (readSlot(n)) n++; return n; }
+function freeSlot() { let n = 0; while (n < SLOT_MAX && readSlot(n)) n++; return n < SLOT_MAX ? n : null; }
 // Which game the menu picked for this browser tab: a slot number, 'new', or nothing
 function getChoice() { try { return sessionStorage.getItem('kidsgame.choice'); } catch (e) { return null; } }
 function setChoice(v) { try { if (v === null) sessionStorage.removeItem('kidsgame.choice'); else sessionStorage.setItem('kidsgame.choice', String(v)); } catch (e) {} }
@@ -584,6 +585,7 @@ qbEl.addEventListener('click', e => {
 bagEl.addEventListener('click', e => {
   if (e.target.closest('#bagClose')) return toggleBag(false);
   if (e.target.closest('#newGame')) {
+    if (listSlots().length >= SLOT_MAX) { say('You have 100 saved games. Delete one the next time you open the game, then start a new one.', 5000); return; }
     if (confirm('Start a new game? Your current game stays in your saved games.')) {
       saveGame();
       setChoice('new');
@@ -650,8 +652,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.30', title: 'Safety limit of 100 saved games on the device', items: [
+    'Up to 100 saved games on this device. A safety limit; the start menu says when it is reached'] },
   { v: '0.6.29', title: 'One free cloud save; unlimited saves on the device', items: [
-    'Saved games on this device are unlimited (the 10-game limit is removed)',
+    'Saved games on this device are unlimited',
     'The cloud save holds one game per parent account. Automatic saves never replace a different game',
     'Pressing Save now asks before it replaces the game in the cloud'] },
   { v: '0.6.28', title: 'Parents can delete the cloud save', items: [
@@ -1436,7 +1440,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.29';
+const VERSION = '0.6.30';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1578,7 +1582,7 @@ setInterval(flushEvents, 10000);
     if (!confirm('Replace the game on this device with the cloud save?')) return;
     wiping = true;                      // stop the game saving over the cloud copy before reload
     const target = activeSlot !== null ? activeSlot : freeSlot();
-    if (target === null) { wiping = false; setStatus('You already have 10 saved games. Delete one first.'); return; }
+    if (target === null) { wiping = false; setStatus('You already have 100 saved games. Delete one first.'); return; }
     localStorage.setItem(slotKey(target), data.save);
     setChoice(target);
     location.reload();
@@ -1849,7 +1853,7 @@ function openWizard() {
 }
 async function finishWizard() {
   const slot = activeSlot !== null ? activeSlot : freeSlot();
-  if (slot === null) { wizErr.textContent = 'You already have 10 saved games. Delete one the next time you open the game, then start a new one.'; return; }
+  if (slot === null) { wizErr.textContent = 'You already have 100 saved games. Delete one the next time you open the game, then start a new one.'; return; }
   wizNext.disabled = true;
   wizErr.textContent = 'Setting up your world...';
   try {
@@ -1887,7 +1891,8 @@ function renderSlotMenu() {
     list.map(({ n, d }) =>
       `<div class="slot"><div><b>${esc(d.name || 'Adventurer')}</b><small>World ${esc(d.worldId || '?')} · ${d.at ? 'Last played ' + esc(new Date(d.at).toLocaleString()) : 'Saved on this device'}</small></div>` +
       `<div style="display:flex;gap:6px"><button class="play" data-play="${n}">Play</button><button data-del="${n}">Delete</button></div></div>`).join('') +
-    `<div style="text-align:center;margin-top:12px"><button data-new="1">Start a new game</button></div>`;
+    `<div style="text-align:center;margin-top:12px"><button data-new="1" ${list.length >= SLOT_MAX ? 'disabled' : ''}>Start a new game</button></div>` +
+    (list.length >= SLOT_MAX ? '<p>You have 100 saved games. Delete one to start another.</p>' : '');
 }
 function showSlotMenu() {
   paused = true;
@@ -1905,7 +1910,7 @@ document.getElementById('slotsBody').addEventListener('click', e => {
     else { hideSlotMenu(); openWizard(); }
     return;
   }
-  if (e.target.closest('[data-new]')) {
+  if (e.target.closest('[data-new]') && listSlots().length < SLOT_MAX) {
     setChoice('new');
     hideSlotMenu();
     openWizard();
