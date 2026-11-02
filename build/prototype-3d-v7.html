@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.39 (3D)</title>
+<title>Adventurers of Drenerics v0.6.40 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -116,8 +116,7 @@ import * as THREE from 'three';
 // ---- World: 400,000 x 400,000 blocks, generated on demand from a seed ----
 // Nothing is stored except the blocks players change. The rest is rebuilt from the seed when needed.
 const WORLD = 400000, CENTER = 200000;   // width of the world; the start point is in the middle
-const H = 64, SURF = 12, CS = 16;        // height in blocks, average ground level, chunk size in blocks
-const OLD_H = 24;                        // chunks saved before 0.6.38 have this height
+const H = 96, SURF = 12, CS = 16;        // height in blocks, average ground level, chunk size in blocks
 const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4 };
 
 // ---- Movement, items and the bag (restored in 0.6.37: these were lost in 0.6.34) ----
@@ -179,7 +178,10 @@ const groundY = (x, z) => {
   const range = noise3(x * 0.011, 0.5, z * 0.011, seed + 500);             // 0..1: where the mountain ranges are
   const mask = Math.max(0, Math.min(1, (range - 0.5) / 0.25));             // 0 on flat land, 1 in the heart of a range
   const ridge = 1 - Math.abs(2 * noise3(x * 0.04, 0.5, z * 0.04, seed + 600) - 1); // 0..1: sharp ridge lines
-  const h = SURF + hills * 12 + mask * (10 + ridge * 26);
+  const valley = noise3(x * 0.02, 0.5, z * 0.02, seed + 700);             // 0..1: low valleys and canyons where small
+  const nearStart = Math.min(1, Math.hypot(x - CENTER, z - CENTER) / 60);  // no canyons right at the start point
+  const canyon = Math.max(0, Math.min(1, (0.45 - valley) / 0.15)) * nearStart; // 0..1 inside a valley or canyon
+  const h = SURF + hills * 12 + mask * (14 + ridge * 60) - canyon * 18;
   return Math.max(3, Math.min(H - 8, Math.round(h)));
 };
 
@@ -237,8 +239,8 @@ function applyWorld(w) {
   initWorld(w.seed);
   for (const [cx, cz, b64] of w.edits) {
     let data = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
-    if (data.length === OLD_H * CS * CS) {
-      // Saved before the taller world: keep the saved layers, and make the rest of the chunk as usual
+    if (data.length !== CHUNK_LEN && data.length < CHUNK_LEN && data.length % (CS * CS) === 0) {
+      // Saved in a shorter world: keep the saved layers, and make the rest of the chunk as usual
       const fresh = makeChunk(cx, cz);
       fresh.set(data);
       data = fresh;
@@ -856,6 +858,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.40', title: 'Taller mountains and deeper valleys', items: [
+    'The world is 96 blocks tall: higher mountains and deeper valleys and canyons',
+    'Worlds saved in the 0.6.39 height keep their changes'] },
   { v: '0.6.39', title: 'Sky, sun, clouds and mountains', items: [
     'A sky with a gradient, a sun and drifting clouds',
     'Hills and mountain ranges with sharp ridges; the world is taller',
@@ -1677,7 +1682,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.39';
+const VERSION = '0.6.40';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

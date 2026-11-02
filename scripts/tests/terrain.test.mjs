@@ -126,3 +126,15 @@ test('a shared world in the new format loads; text that is neither format is ref
   assert.equal(W.getSeed(), 21);
   assert.equal(W.loadShared('not a world', 'ABCD'), false);
 });
+
+test('a change saved in a shorter world (before the world got taller) is kept', () => {
+  const CS = 16, shortH = 64;
+  const data = new Uint8Array(CS * shortH * CS);
+  const lx = 1, y = 5, lz = 2;
+  data[(y * CS + lz) * CS + lx] = W.T.DIRT;
+  const save = { v: 2, seed: 31, edits: [[10, 12, Buffer.from(data).toString('base64')]] };
+  W.applyWorld(save);
+  assert.equal(W.get(10 * CS + lx, y, 12 * CS + lz), W.T.DIRT);
+  assert.equal(W.get(10 * CS + lx, W.H - 1, 12 * CS + lz) === W.T.DIRT, false);
+});
+

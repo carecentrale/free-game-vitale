@@ -2,6 +2,13 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.40: taller mountains and deeper valleys
+- The world is 96 blocks tall (was 64). Mountains rise higher, and valleys and canyons dip lower
+- Canyons do not start within about 60 blocks of the start point, so the start stays easy to find
+- Saved worlds from earlier heights keep their changes
+- Checked: script syntax and all tests (terrain, browser, release checks). Not checked by eye or on a tablet
+- Not built yet: a wider view (400 x 400) needs gradual loading in the background, which is the next step
+
 ## 0.6.39: sky, sun, clouds and mountains
 - A sky with a gradient from deep blue to pale at the horizon, a sun glow, and soft clouds that drift and follow the player
 - Terrain has rolling hills everywhere and mountain ranges with sharp ridges. The world is 64 blocks tall (was 24)
