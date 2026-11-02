@@ -15,8 +15,8 @@ const start = game.indexOf('// ---- World: 400,000');
 const end = game.indexOf('// ---- Saving: the character', start);
 if (start < 0 || end < 0) throw new Error('world code markers not found in the game file');
 
-// `let dirty` and the base64 helper live elsewhere in the game; provide the same behaviour here
-const prefix = 'let dirty = false;\n';
+// `dirty` now lives inside the world code (0.6.42), so nothing needs to be added in front of it
+const prefix = '';
 const api = `
 ;({ WORLD, CENTER, H, T, chunks, edited, initWorld, get, setBlock, groundY, encodeWorld, applyWorld, applyOld, loadShared, getSeed: () => seed, isDirty: () => dirty, clearDirty: () => { dirty = false; } })`;
 const ctx = vm.createContext({
@@ -71,7 +71,7 @@ test('past the world edge is solid stone, and above the top is open air', () => 
   W.initWorld(1);
   assert.equal(W.get(-1, 5, 10), W.T.STONE);
   assert.equal(W.get(W.WORLD, 5, 10), W.T.STONE);
-  assert.equal(W.get(10, W.H, 10), W.T.AIR);
+  assert.equal(W.get(W.CENTER, W.H, W.CENTER), W.T.AIR);
 });
 
 test('far from the start only a few chunks are made, so the world stays cheap', () => {
@@ -132,9 +132,10 @@ test('a change saved in a shorter world (before the world got taller) is kept', 
   const data = new Uint8Array(CS * shortH * CS);
   const lx = 1, y = 5, lz = 2;
   data[(y * CS + lz) * CS + lx] = W.T.DIRT;
-  const save = { v: 2, seed: 31, edits: [[10, 12, Buffer.from(data).toString('base64')]] };
+  const cx = W.CENTER / CS + 10, cz = W.CENTER / CS + 12;   // inside the playable area, near the start
+  const save = { v: 2, seed: 31, edits: [[cx, cz, Buffer.from(data).toString('base64')]] };
   W.applyWorld(save);
-  assert.equal(W.get(10 * CS + lx, y, 12 * CS + lz), W.T.DIRT);
-  assert.equal(W.get(10 * CS + lx, W.H - 1, 12 * CS + lz) === W.T.DIRT, false);
+  assert.equal(W.get(cx * CS + lx, y, cz * CS + lz), W.T.DIRT);
+  assert.equal(W.get(cx * CS + lx, W.H - 1, cz * CS + lz) === W.T.DIRT, false);
 });
 

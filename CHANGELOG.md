@@ -2,6 +2,14 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.42: lakes, sand and a 4000 x 4000 land
+- Water fills low places: lakes and the sea, with sand on the shore. You can wade in water (it does not stop you), and dig or build under it. Water cannot be dug
+- The playable land is 4000 x 4000 blocks around the start point. Past its edge is solid stone
+- Land is drawn in chunks around the player (about 272 blocks across) and loads a few chunks per frame, so the game does not freeze while you walk. Chunks far behind are removed
+- Saved worlds keep their changes. Unchanged land is made again from the seed, so its shape is the same as before
+- Test change: terrain tests now use places inside the 4000 x 4000 area
+- Checked: script syntax, all tests (terrain and release checks). Chunk making measured in plain JavaScript (about 0.6 ms per chunk). Not checked in a browser by eye, on a tablet, or with saved games
+
 ## 0.6.41: saved games list fixed
 - Saved games made since version 0.6.34 were hidden from the start menu by mistake. They are listed again. Nothing was deleted
 - New test: saves with the newer world format are listed

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.41 (3D)</title>
+<title>Adventurers of Drenerics v0.6.42 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -113,11 +113,17 @@ addEventListener('unhandledrejection', e => showErr('Error: ' + ((e.reason && e.
 import * as THREE from 'three';
 
 // ---- World settings ----
-// ---- World: 400,000 x 400,000 blocks, generated on demand from a seed ----
+// ---- World: 400,000 x 400,000 blocks, generated on demand from a seed. Only the 4000 x 4000 area around the start can be played. ----
 // Nothing is stored except the blocks players change. The rest is rebuilt from the seed when needed.
-const WORLD = 400000, CENTER = 200000;   // width of the world; the start point is in the middle
+const WORLD = 400000, CENTER = 200000;   // width of the generated world; the start point is in the middle
+const PLAY = 2000;                         // the playable land is 4000 x 4000 blocks: 2000 each way from the start point
+const PMIN = CENTER - PLAY, PMAX = CENTER + PLAY;
+const inPlay = (x, z) => x >= PMIN && x < PMAX && z >= PMIN && z < PMAX;
+const WATER_Y = 9;                        // low places fill with water (lakes and sea) up to this height
 const H = 96, SURF = 12, CS = 16;        // height in blocks, average ground level, chunk size in blocks
-const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4 };
+const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4, WATER: 5, SAND: 6 };
+// Blocks that stop the player and enemies. Water does not: you can wade and sink into it.
+const solid = t => t !== T.AIR && t !== T.WATER;
 
 // ---- Movement, items and the bag (restored in 0.6.37: these were lost in 0.6.34) ----
 const SPEED = 5, GRAV = 25, JUMP = 8, HW = 0.3, HH = 1.6, REACH = 7;
@@ -144,11 +150,14 @@ const invTotal = () => Object.values(inv).reduce((a, b) => a + b, 0);
 const CHUNK_LEN = CS * H * CS;
 const ckey = (cx, cz) => cx * 1000003 + cz;
 const cellIndex = (lx, y, lz) => (y * CS + lz) * CS + lx;
-const inBounds = (x, y, z) => x >= 0 && x < WORLD && y >= 0 && y < H && z >= 0 && z < WORLD;
+const inBounds = (x, y, z) => inPlay(x, z) && y >= 0 && y < H;
 
 let seed = 1;                    // the seed: the same seed always makes the same world
 const chunks = new Map();        // ckey -> { cx, cz, data }; made the first time they are needed
 const edited = new Set();        // ckeys of chunks players have changed (these are saved and shared)
+const touched = new Map();       // ckey -> {cx, cz}: chunks changed since they were last drawn
+let dirty = true;               // something changed (kept for the tests)
+let viewReset = true;           // draw everything again (new world, or a shared world was loaded)
 
 // Terrain noise: everything depends only on position and seed
 function hash3(x, y, z, s) {
@@ -157,15 +166,18 @@ function hash3(x, y, z, s) {
   h ^= h >>> 16;
   return (h >>> 0) / 4294967295;
 }
-function noise3(x, y, z, s) {    // smooth value noise, 0..1
+function noise3(x, y, z, s) {    // smooth value noise, 0..1 (written out without helper functions: it runs millions of times)
   const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
   const fx = x - xi, fy = y - yi, fz = z - zi;
   const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy), w = fz * fz * (3 - 2 * fz);
-  const lerp = (a, b, t) => a + (b - a) * t;
-  const c = (dx, dy, dz) => hash3(xi + dx, yi + dy, zi + dz, s);
-  return lerp(
-    lerp(lerp(c(0, 0, 0), c(1, 0, 0), u), lerp(c(0, 1, 0), c(1, 1, 0), u), v),
-    lerp(lerp(c(0, 0, 1), c(1, 0, 1), u), lerp(c(0, 1, 1), c(1, 1, 1), u), v), w);
+  const c000 = hash3(xi, yi, zi, s), c100 = hash3(xi + 1, yi, zi, s);
+  const c010 = hash3(xi, yi + 1, zi, s), c110 = hash3(xi + 1, yi + 1, zi, s);
+  const c001 = hash3(xi, yi, zi + 1, s), c101 = hash3(xi + 1, yi, zi + 1, s);
+  const c011 = hash3(xi, yi + 1, zi + 1, s), c111 = hash3(xi + 1, yi + 1, zi + 1, s);
+  const a = c000 + (c100 - c000) * u, b = c010 + (c110 - c010) * u;
+  const c = c001 + (c101 - c001) * u, d = c011 + (c111 - c011) * u;
+  const e = a + (b - a) * v, f = c + (d - c) * v;
+  return e + (f - e) * w;
 }
 function hillNoise(x, z, s) {    // four layers of noise, 0..1
   let sum = 0, amp = 1, norm = 0, f = 1;
@@ -192,13 +204,14 @@ function makeChunk(cx, cz) {
     const x = cx * CS + lx, z = cz * CS + lz;
     const top = groundY(x, z);
     for (let y = 0; y <= top; y++) {
-      let t = y === top ? T.GRASS : (y >= top - 2 ? T.DIRT : T.STONE);
+      let t = y === top ? (top < WATER_Y ? T.SAND : T.GRASS) : (y >= top - 2 ? T.DIRT : T.STONE);
       if (t === T.STONE && y >= 1 && y < H - 4) {
         if (noise3(x * 0.16, y * 0.2, z * 0.16, seed + 99) > 0.62) t = T.AIR;   // caves
         else if (hash3(x, y, z, seed + 7) < 0.03) t = T.GEM;                   // gems
       }
       data[cellIndex(lx, y, lz)] = t;
     }
+    for (let y = top + 1; y < WATER_Y; y++) data[cellIndex(lx, y, lz)] = T.WATER;   // water above low ground
   }
   return data;
 }
@@ -208,9 +221,9 @@ function chunkAt(cx, cz) {
   if (!c) { c = { cx, cz, data: makeChunk(cx, cz) }; chunks.set(k, c); }
   return c;
 }
-// The block at (x, y, z). Past the world's edge is solid stone, so the world has a boundary.
+// The block at (x, y, z). Past the playable edge is solid stone, so the land has a boundary.
 function get(x, y, z) {
-  if (x < 0 || x >= WORLD || z < 0 || z >= WORLD || y < 0) return T.STONE;
+  if (!inPlay(x, z) || y < 0) return T.STONE;
   if (y >= H) return T.AIR;
   const cx = Math.floor(x / CS), cz = Math.floor(z / CS);
   return chunkAt(cx, cz).data[cellIndex(x - cx * CS, y, z - cz * CS)];
@@ -218,8 +231,15 @@ function get(x, y, z) {
 function writeBlock(x, y, z, t) {
   if (!inBounds(x, y, z)) return;
   const cx = Math.floor(x / CS), cz = Math.floor(z / CS);
-  chunkAt(cx, cz).data[cellIndex(x - cx * CS, y, z - cz * CS)] = t;
+  const lx = x - cx * CS, lz = z - cz * CS;
+  chunkAt(cx, cz).data[cellIndex(lx, y, lz)] = t;
   edited.add(ckey(cx, cz));
+  // The chunks next to this one may show a face that has changed, so they are drawn again too
+  touched.set(ckey(cx, cz), { cx, cz });
+  if (lx === 0) touched.set(ckey(cx - 1, cz), { cx: cx - 1, cz });
+  if (lx === CS - 1) touched.set(ckey(cx + 1, cz), { cx: cx + 1, cz });
+  if (lz === 0) touched.set(ckey(cx, cz - 1), { cx, cz: cz - 1 });
+  if (lz === CS - 1) touched.set(ckey(cx, cz + 1), { cx, cz: cz + 1 });
 }
 // A player changes a block: it is remembered (saved and shared) and the view is redrawn
 function setBlock(x, y, z, t) {
@@ -227,7 +247,7 @@ function setBlock(x, y, z, t) {
   writeBlock(x, y, z, t);
   dirty = true;
 }
-function initWorld(s) { seed = s; chunks.clear(); edited.clear(); }
+function initWorld(s) { seed = s; chunks.clear(); edited.clear(); touched.clear(); viewReset = true; }
 
 // Save and share format: the seed plus every chunk that players have changed
 function encodeWorld() {
@@ -381,13 +401,17 @@ const texGem = makeTex((g, S) => {
   }
 });
 
+const texSand = makeTex((g, S) => noise(g, S, 0xd9c27a, 0.07));
 const mapMat = map => new THREE.MeshLambertMaterial({ map });
+const waterMat = new THREE.MeshLambertMaterial({ color: 0x2f7fd0, transparent: true, opacity: 0.6 });
 // Six faces per block: +x, -x, +y (top), -y (bottom), +z, -z
 const blockMats = {
   [T.GRASS]: [mapMat(texGrassSide), mapMat(texGrassSide), mapMat(texGrassTop), mapMat(texDirt), mapMat(texGrassSide), mapMat(texGrassSide)],
   [T.DIRT]: Array(6).fill(0).map(() => mapMat(texDirt)),
   [T.STONE]: Array(6).fill(0).map(() => mapMat(texStone)),
   [T.GEM]: Array(6).fill(0).map(() => mapMat(texGem)),
+  [T.SAND]: Array(6).fill(0).map(() => mapMat(texSand)),
+  [T.WATER]: Array(6).fill(waterMat),
 };
 
 // ---- Three.js scene ----
@@ -468,20 +492,22 @@ function updateSky(dt) {
   }
 }
 
-// Only the blocks near the player are drawn, and only those that can be seen (not blocks buried in the ground)
-const VIEW = 2;                                   // chunks drawn in each direction around the player
-const CAP = (2 * VIEW + 1) ** 2 * CS * CS * 24;   // most blocks that can be drawn at once (about 24 visible blocks per column)
-const dummy = new THREE.Object3D();
+// Only the blocks near the player are drawn, and only those that can be seen (not blocks buried in the ground).
+// The land is drawn one chunk at a time, each chunk with its own meshes. New chunks are made a few per frame
+// (BUILD_MS), nearest first, so the game does not stop to draw. Chunks far behind the player are removed.
+const VIEW = 8;                                   // chunks drawn in each direction around the player (17 x 17 chunks, 272 blocks across)
+const BUILD_MS = 8;                               // time per frame spent making new chunk meshes
+const blockGeo = new THREE.BoxGeometry(1, 1, 1);
 const m4 = new THREE.Matrix4();
-const meshes = {};
-for (const k of [T.GRASS, T.DIRT, T.STONE, T.GEM]) {
-  const m = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), blockMats[k], CAP);
-  m.count = 0;
-  scene.add(m);
-  meshes[k] = m;
-}
-let dirty = true;
-let drawnChunk = '';                              // the chunk the player was in when the blocks were last drawn
+const drawTypes = [T.GRASS, T.DIRT, T.STONE, T.GEM, T.SAND, T.WATER];
+const worldGroup = new THREE.Group();
+scene.add(worldGroup);
+const chunkMeshes = new Map();   // ckey -> { cx, cz, list: [InstancedMesh], count }
+const waiting = [];              // chunks not drawn yet, nearest first
+let drawnChunk = '';             // the chunk the player was in when the view was last set
+let lastDrawn = 0;               // blocks drawn now
+let lastRebuildMs = 0;           // time spent drawing in the last frame, for the browser test
+const chunkInPlay = (cx, cz) => inPlay(cx * CS, cz * CS);
 // Short status for the parent area: shows whether blocks are being drawn and where the player is
 function worldStatus() {
   const g = Number.isFinite(px) ? Math.round(groundY(Math.floor(px), Math.floor(pz))) : '?';
@@ -489,37 +515,112 @@ function worldStatus() {
   return 'World: seed ' + seed + ' · ' + chunks.size + ' chunks in memory · ' + edited.size + ' changed · ' +
     lastDrawn + ' blocks drawn · player at ' + at + ' · ground here ' + g;
 }
-let lastDrawn = 0;   // blocks drawn by the last rebuild
-let lastRebuildMs = 0;   // how long the last redraw took, for the browser test
-function rebuild() {
+// The solid meshes (water is left out, so a click reaches the ground under it)
+function solidMeshes() {
+  const out = [];
+  for (const c of chunkMeshes.values()) for (const im of c.list) if (!im.userData.water) out.push(im);
+  return out;
+}
+// Is a block's face hidden? Solid blocks are hidden when all six neighbours are solid.
+// Water is hidden only inside a lake (no neighbour is air), so lake surfaces and shores show.
+function faceHidden(x, y, z, t) {
+  if (t === T.WATER) {
+    return get(x + 1, y, z) !== T.AIR && get(x - 1, y, z) !== T.AIR && get(x, y + 1, z) !== T.AIR &&
+      get(x, y - 1, z) !== T.AIR && get(x, y, z + 1) !== T.AIR && get(x, y, z - 1) !== T.AIR;
+  }
+  return solid(get(x + 1, y, z)) && solid(get(x - 1, y, z)) && solid(get(x, y + 1, z)) &&
+    solid(get(x, y - 1, z)) && solid(get(x, y, z + 1)) && solid(get(x, y, z - 1));
+}
+// The same test as faceHidden(), for a block inside a chunk: i is its place in the chunk's data
+function innerFaceHidden(d, i, t) {
+  const a = d[i + 1], b = d[i - 1], c = d[i + CS], e = d[i - CS], f = d[i + CS * CS], g = d[i - CS * CS];
+  if (t === T.WATER) return a !== T.AIR && b !== T.AIR && c !== T.AIR && e !== T.AIR && f !== T.AIR && g !== T.AIR;
+  return solid(a) && solid(b) && solid(c) && solid(e) && solid(f) && solid(g);
+}
+// Makes the meshes for one chunk: one instanced mesh per block type, with only the faces that can be seen
+function buildChunkMeshes(cx, cz) {
+  const lists = {};
+  for (const t of drawTypes) lists[t] = [];
+  const data = chunkAt(cx, cz).data;
+  const SY = CS * CS;
+  for (let y = 0; y < H; y++) for (let lz = 0; lz < CS; lz++) for (let lx = 0; lx < CS; lx++) {
+    const i = cellIndex(lx, y, lz);
+    const t = data[i];
+    if (!t) continue;
+    const x = cx * CS + lx, z = cz * CS + lz;
+    // Inside the chunk the six neighbours are read straight from the data; the edges use the general lookup
+    const inside = lx > 0 && lx < CS - 1 && lz > 0 && lz < CS - 1 && y > 0 && y < H - 1;
+    const hidden = inside ? innerFaceHidden(data, i, t) : faceHidden(x, y, z, t);
+    if (hidden) continue;
+    lists[t].push(x, y, z);
+  }
+  const list = [];
+  let count = 0;
+  for (const t of drawTypes) {
+    const L = lists[t], n = L.length / 3;
+    if (!n) continue;
+    const im = new THREE.InstancedMesh(blockGeo, blockMats[t], n);
+    for (let i = 0; i < n; i++) {
+      m4.makeTranslation(L[3 * i] + 0.5, L[3 * i + 1] + 0.5, L[3 * i + 2] + 0.5);
+      im.setMatrixAt(i, m4);
+    }
+    im.instanceMatrix.needsUpdate = true;
+    im.userData.water = t === T.WATER;
+    if (t === T.WATER) im.renderOrder = 1;   // water is drawn after the solid blocks
+    worldGroup.add(im);
+    list.push(im);
+    count += n;
+  }
+  return { cx, cz, list, count };
+}
+function dropChunk(k) {
+  const c = chunkMeshes.get(k);
+  if (!c) return;
+  for (const im of c.list) { worldGroup.remove(im); im.dispose(); }
+  lastDrawn -= c.count;
+  chunkMeshes.delete(k);
+}
+// Keeps the drawn chunks in step with the player. Called every frame; it draws only what fits in the time budget.
+function updateView(budgetMs = BUILD_MS) {
   const t0 = performance.now();
   const pcx = Math.floor(px / CS), pcz = Math.floor(pz / CS);
-  drawnChunk = pcx + ',' + pcz;
-  const cnt = { 1: 0, 2: 0, 3: 0, 4: 0 };
-  for (let cz = pcz - VIEW; cz <= pcz + VIEW; cz++) for (let cx = pcx - VIEW; cx <= pcx + VIEW; cx++) {
-    if (cx < 0 || cz < 0 || cx * CS >= WORLD || cz * CS >= WORLD) continue;
-    for (let y = 0; y < H; y++) for (let lz = 0; lz < CS; lz++) for (let lx = 0; lx < CS; lx++) {
-      const x = cx * CS + lx, z = cz * CS + lz;
-      const t = get(x, y, z);
-      if (!t) continue;
-      // Hidden: all six neighbours are solid, so no face shows
-      if (get(x + 1, y, z) && get(x - 1, y, z) && get(x, y + 1, z) && get(x, y - 1, z) && get(x, y, z + 1) && get(x, y, z - 1)) continue;
-      if (cnt[t] >= CAP) continue;   // the buffer is full: the rest is not drawn
-      m4.makeTranslation(x + 0.5, y + 0.5, z + 0.5);
-      meshes[t].setMatrixAt(cnt[t]++, m4);
+  if (viewReset) {
+    for (const k of [...chunkMeshes.keys()]) dropChunk(k);
+    viewReset = false;
+    drawnChunk = '';
+  }
+  if (pcx + ',' + pcz !== drawnChunk) {
+    drawnChunk = pcx + ',' + pcz;
+    for (const k of [...chunkMeshes.keys()]) {
+      const c = chunkMeshes.get(k);
+      if (Math.abs(c.cx - pcx) > VIEW || Math.abs(c.cz - pcz) > VIEW) dropChunk(k);
+    }
+    waiting.length = 0;
+    for (let cz = pcz - VIEW; cz <= pcz + VIEW; cz++) for (let cx = pcx - VIEW; cx <= pcx + VIEW; cx++) {
+      if (!chunkInPlay(cx, cz) || chunkMeshes.has(ckey(cx, cz))) continue;
+      waiting.push({ cx, cz, d: (cx - pcx) ** 2 + (cz - pcz) ** 2 });
+    }
+    waiting.sort((a, b) => a.d - b.d);
+    // Keep memory small: forget generated chunks far from the player (changed chunks are kept)
+    if (chunks.size > 2000) for (const [k, c] of chunks) {
+      if (!edited.has(k) && (Math.abs(c.cx - pcx) > VIEW + 3 || Math.abs(c.cz - pcz) > VIEW + 3)) chunks.delete(k);
     }
   }
-  for (const k in meshes) {
-    meshes[k].count = cnt[k];
-    meshes[k].instanceMatrix.needsUpdate = true;
-    meshes[k].boundingSphere = null;
+  // Chunks a player changed are drawn again first
+  for (const [k, c] of touched) {
+    if (chunkMeshes.has(k)) dropChunk(k);
+    if (Math.abs(c.cx - pcx) <= VIEW && Math.abs(c.cz - pcz) <= VIEW && chunkInPlay(c.cx, c.cz)) waiting.unshift({ cx: c.cx, cz: c.cz, d: -1 });
   }
-  lastDrawn = cnt[1] + cnt[2] + cnt[3] + cnt[4];
+  touched.clear();
+  while (waiting.length && performance.now() - t0 < budgetMs) {
+    const w = waiting.shift();
+    const k = ckey(w.cx, w.cz);
+    if (chunkMeshes.has(k) || Math.abs(w.cx - pcx) > VIEW || Math.abs(w.cz - pcz) > VIEW) continue;
+    const c = buildChunkMeshes(w.cx, w.cz);
+    chunkMeshes.set(k, c);
+    lastDrawn += c.count;
+  }
   lastRebuildMs = performance.now() - t0;
-  // Keep memory small: drop generated chunks far from the player (changed chunks are kept)
-  if (chunks.size > 1500) for (const [k, c] of chunks) {
-    if (!edited.has(k) && (Math.abs(c.cx - pcx) > VIEW + 3 || Math.abs(c.cz - pcz) > VIEW + 3)) chunks.delete(k);
-  }
 }
 
 // Crack overlay that darkens the block being dug
@@ -641,8 +742,8 @@ function topSpawnPoint() {
   for (let dx = -12; dx <= 12; dx++) for (let dz = -12; dz <= 12; dz++) {
     const x = CENTER + dx, z = CENTER + dz;
     let y = H - 1;
-    while (y > 0 && get(x, y, z) === T.AIR) y--;
-    if (get(x, y, z) === T.AIR) continue;
+    while (y > 0 && !solid(get(x, y, z))) y--;
+    if (!solid(get(x, y, z))) continue;
     const d = Math.hypot(dx, dz);
     if (!best || y > best.y || (y === best.y && d < best.d)) best = { x, y, z, d };
   }
@@ -655,7 +756,7 @@ let vx = 0, vy = 0, vz = 0, onGround = false, jumpHeld = false, squash = 0, walk
 
 function hits(x, y, z) {
   for (const dx of [-HW, HW]) for (const dz of [-HW, HW]) for (const dy of [0.01, HH - 0.01]) {
-    if (get(Math.floor(x + dx), Math.floor(y + dy), Math.floor(z + dz)) !== T.AIR) return true;
+    if (solid(get(Math.floor(x + dx), Math.floor(y + dy), Math.floor(z + dz)))) return true;
   }
   return false;
 }
@@ -860,6 +961,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.42', title: 'Lakes, sand and a 4000 x 4000 land', items: [
+    'Water fills low places: lakes and the sea, with sand on the shore. You can wade in water, and dig or build under it',
+    'The playable land is 4000 x 4000 blocks around the start point',
+    'Land is drawn in chunks around the player and loads a few chunks at a time, so the game does not freeze while you walk'] },
   { v: '0.6.41', title: 'Saved games list fixed', items: [
     'Saved games made since version 0.6.34 are listed again at start (they were hidden by mistake)'] },
   { v: '0.6.40', title: 'Taller mountains and deeper valleys', items: [
@@ -1018,12 +1123,12 @@ addEventListener('pointerdown', e => {
 // Finish digging the block at (x,y,z). If the bag is full, the block is dropped on the ground to pick up later.
 function digCell(x, y, z) {
   const t = get(x, y, z);
-  if (!t) return false;
+  if (!solid(t)) return false;
   const full = invTotal() >= invCap();
   if (full && drops.size >= MAX_DROPS) { say('Too many things on the ground. Pick some up first.', 2500); return false; }
   setBlock(x, y, z, T.AIR);
   shareBlock(x, y, z, T.AIR);
-  const id = (t === T.GRASS || t === T.DIRT) ? 'dirt' : (t === T.STONE ? 'stone' : 'gem');
+  const id = (t === T.GRASS || t === T.DIRT || t === T.SAND) ? 'dirt' : (t === T.STONE ? 'stone' : 'gem');
   if (full) {
     addDrop(x, y, z, id);
     say(ITEMS[id].name + ' dropped on the ground. Make room in your bag to pick it up.', 2500);
@@ -1068,7 +1173,7 @@ function restoreDrops(list) {
     // Saves from before 0.6.26 have no drop time; those drops get a fresh 5 minutes
     if (!Array.isArray(row) || (row.length !== 4 && row.length !== 5)) continue;
     const [x, y, z, id, at] = row;
-    if (!ITEMS[id] || !inBounds(x, y, z) || get(x, y, z) !== T.AIR) continue;
+    if (!ITEMS[id] || !inBounds(x, y, z) || solid(get(x, y, z))) continue;
     if (row.length === 5 && Date.now() - at >= DROP_TIME) continue; // already expired while the game was closed
     addDrop(x, y, z, id, row.length === 5 ? at : Date.now());
   }
@@ -1099,7 +1204,7 @@ function placeCell(x, y, z, forceId) {
     say(id ? 'Select a block in the quick bar to build.' : 'Put a block in a quick bar slot and select it.', 2000);
     return;
   }
-  if (get(x, y, z) !== T.AIR) return; // never build over an existing block
+  if (solid(get(x, y, z))) return; // never build over an existing block (water can be built into)
   if (drops.has(x + ',' + y + ',' + z)) { say('Something is on the ground there. Walk over it to pick it up.', 2000); return; }
   if (!inv[id]) { say('No ' + item.name + ' left! Dig some first.'); return; }
   if (x < px + HW && x + 1 > px - HW && y < py + HH && y + 1 > py && z < pz + HW && z + 1 > pz - HW) {
@@ -1236,7 +1341,7 @@ function updateSpawns(dt) {
 // Like hits(), but for any size of box
 function solidBox(x, y, z, hw, hh) {
   for (const dx of [-hw, hw]) for (const dz of [-hw, hw]) for (const dy of [0.01, hh - 0.01]) {
-    if (get(Math.floor(x + dx), Math.floor(y + dy), Math.floor(z + dz)) !== T.AIR) return true;
+    if (solid(get(Math.floor(x + dx), Math.floor(y + dy), Math.floor(z + dz)))) return true;
   }
   return false;
 }
@@ -1246,7 +1351,7 @@ function solidBox(x, y, z, hw, hh) {
 function groundBelow(x, z, y) {
   const cx = Math.floor(x), cz = Math.floor(z);
   for (let by = Math.floor(y - 0.1); by >= Math.floor(y - 1.2); by--) {
-    if (get(cx, by, cz) !== T.AIR) return true;
+    if (solid(get(cx, by, cz))) return true;
   }
   return false;
 }
@@ -1260,7 +1365,7 @@ function updateSlimes(dt) {
     en.airT = groundBelow(en.x, en.z, en.y) ? 0 : (en.airT || 0) + dt;
     if (Math.hypot(en.x - px, en.z - pz) > 90) { scene.remove(en.group); enemies.splice(i, 1); continue; } // far away: leave quietly
     const why = en.y < 1 ? 'below the island'
-      : (en.x < 0 || en.x > WORLD || en.z < 0 || en.z > WORLD) ? 'outside the world'
+      : !inPlay(en.x, en.z) ? 'outside the world'
       : en.airT > 3 ? 'stuck in the air' : '';
     if (why) {
       debugLog('enemy_off_map', why, en, en.x, en.y, en.z);
@@ -1327,8 +1432,8 @@ function updateCorpses(dt) {
         scene.remove(c.group); corpses.splice(i, 1); continue;
       }
       // Only land on blocks inside the island. Outside it, keep falling until the body leaves the map.
-      const inside = c.x >= 0 && c.x < WORLD && c.z >= 0 && c.z < WORLD;
-      if (inside && get(Math.floor(c.x), cy, Math.floor(c.z)) !== T.AIR) {
+      const inside = inPlay(c.x, c.z);
+      if (inside && solid(get(Math.floor(c.x), cy, Math.floor(c.z)))) {
         c.landed = true;
         c.restY = cy + 1 + c.lift;
         c.group.position.y = c.restY;
@@ -1341,8 +1446,7 @@ function updateCorpses(dt) {
       // Still lying here: check the ground is still under it (a player may have dug it out).
       // If not, the body falls again.
       const below = Math.floor(c.restY - c.lift - 0.01);
-      const supported = c.x >= 0 && c.x < WORLD && c.z >= 0 && c.z < WORLD &&
-        get(Math.floor(c.x), below, Math.floor(c.z)) !== T.AIR;
+      const supported = inPlay(c.x, c.z) && solid(get(Math.floor(c.x), below, Math.floor(c.z)));
       if (!supported) {
         // Record it in the enemy log: a body that was resting has lost the block under it
         debugLog('corpse_unsupported', 'ground under a resting body was dug out', { kind: c.kind }, c.x, c.restY, c.z);
@@ -1377,7 +1481,7 @@ function killSlime(en) {
   // A body killed in mid-air falls until it lands on a block
   const lift = 0.25 * en.base;
   const cy = Math.floor(en.y - 0.1); // the block the body would lie on
-  const onBlock = get(Math.floor(en.x), cy, Math.floor(en.z)) !== T.AIR;
+  const onBlock = solid(get(Math.floor(en.x), cy, Math.floor(en.z)));
   // A body on a block is set exactly on top of that block. An enemy's height is a fraction
   // (it stops mid-air-gravity), so using it directly left the body hovering.
   const startY = onBlock ? cy + 1 + lift : en.y + lift;
@@ -1404,7 +1508,7 @@ function aim(e) {
   ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
   ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
   ray.setFromCamera(ndc, camera);
-  const hit = ray.intersectObjects([...Object.values(meshes), ...enemies.map(en => en.group)], true)[0];
+  const hit = ray.intersectObjects([...solidMeshes(), ...enemies.map(en => en.group)], true)[0];
   if (!hit) return null;
   const enemy = hit.object.userData.enemy || null;
   const d = ray.ray.direction, p = hit.point, e2 = 0.01;
@@ -1485,7 +1589,7 @@ canvas.addEventListener('pointerdown', e => {
   }
   if (a.dist > REACH) { say('Too far away! Get closer.'); return; }
   const [dx, dy, dz] = a.dig;
-  if (get(dx, dy, dz) !== T.AIR) {
+  if (solid(get(dx, dy, dz))) {
     if (held() !== 'pick') { say('Select the pickaxe in the quick bar (1-6) to dig.', 2000); return; }
     digging = { x: dx, y: dy, z: dz, t: 0 };
     armSwing = 0;
@@ -1506,7 +1610,7 @@ function updateDig(dt) {
   if (!digging) { crack.visible = false; return; }
   const { x, y, z } = digging;
   const dist = Math.hypot(x + 0.5 - px, y + 0.5 - (py + HH / 2), z + 0.5 - pz);
-  if (get(x, y, z) === T.AIR || dist > REACH + 1) { digging = null; crack.visible = false; return; }
+  if (!solid(get(x, y, z)) || dist > REACH + 1) { digging = null; crack.visible = false; return; }
   digging.t += dt;
   const progress = Math.min(1, digging.t / digTime());
   crack.visible = true;
@@ -1590,8 +1694,9 @@ function update(dt) {
   camera.position.lerp(new THREE.Vector3(camX, py + 5 * zoom, camZ), 0.12);
   camera.lookAt(px, py + 1, pz);
 
-  const under = get(Math.floor(px), Math.floor(py + HH), Math.floor(pz)) !== T.AIR;
-  scene.background.setHex(under ? 0x2b2238 : 0x87ceeb);
+  const head = get(Math.floor(px), Math.floor(py + HH), Math.floor(pz));
+  const under = solid(head);
+  scene.background.setHex(under ? 0x2b2238 : head === T.WATER ? 0x3d7fb0 : 0x87ceeb);
   skyGroup.visible = !under;
 
   if (msgT > 0) { msgT -= dt * 1000; if (msgT <= 0) msgEl.textContent = ''; }
@@ -1618,11 +1723,8 @@ function frame(now) {
   last = now;
   if (!paused) update(dt);
   updateOthers(dt);
-  const here = Math.floor(px / CS) + ',' + Math.floor(pz / CS);
-  if (dirty || here !== drawnChunk) {
-    try { rebuild(); } catch (e) { logError(e, 'rebuild'); }
-    dirty = false;
-  }
+  try { updateView(); } catch (e) { logError(e, 'rebuild'); }
+  dirty = false;
   updateSky(dt);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
@@ -1686,7 +1788,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.41';
+const VERSION = '0.6.42';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2175,7 +2277,7 @@ setInterval(saveGame, 5000);
 addEventListener('pagehide', saveGame);
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
 
-rebuild();
+updateView(300);
 dirty = false;
 updateHand();
 renderUI();
