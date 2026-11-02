@@ -2,6 +2,14 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.43: swimming and the first magic skill
+- Water: you swim. In water you move slower and sink slowly. Hold jump to swim up. You can still build into water and dig under it
+- At Fighting level 2 you unlock magic. A panel asks you to choose a skill; the first is Fireball, which goes in the quick bar
+- Fireball: tap the screen (or press F) to shoot. It defeats the monsters it hits. Magic levels up as you cast; at magic level 2 the ball is bigger and the burst is wider
+- Skills you choose are saved with your game
+- Checked: script syntax, all tests, and two new browser tests in headless Chromium: the skill panel appears at Fighting level 2 and F shoots a fireball; in a lake you sink slowly and holding jump swims up
+- Not checked by eye or on a tablet yet: how swimming feels, the panel, and fireball aim by tap
+
 ## 0.6.42: lakes, sand and a 4000 x 4000 land
 - Water fills low places: lakes and the sea, with sand on the shore. You can wade in water (it does not stop you), and dig or build under it. Water cannot be dug
 - The playable land is 4000 x 4000 blocks around the start point. Past its edge is solid stone

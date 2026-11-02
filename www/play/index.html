@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.42 (3D)</title>
+<title>Adventurers of Drenerics v0.6.43 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -127,8 +127,9 @@ const solid = t => t !== T.AIR && t !== T.WATER;
 
 // ---- Movement, items and the bag (restored in 0.6.37: these were lost in 0.6.34) ----
 const SPEED = 5, GRAV = 25, JUMP = 8, HW = 0.3, HH = 1.6, REACH = 7;
-const LABEL = { dig: 'Digging', build: 'Building', inv: 'Inventory', fight: 'Fighting' };
-const BAR = { dig: '#ffb347', build: '#66ccff', inv: '#9cff6b', fight: '#ff6b6b' };
+const SWIM_UP = 4, SINK = 1.5;   // swimming: rise speed when jump is held, and the slowest sink speed
+const LABEL = { dig: 'Digging', build: 'Building', inv: 'Inventory', fight: 'Fighting', magic: 'Magic' };
+const BAR = { dig: '#ffb347', build: '#66ccff', inv: '#9cff6b', fight: '#ff6b6b', magic: '#ff8c42' };
 
 // ---- Items ----
 const ITEMS = {
@@ -137,6 +138,7 @@ const ITEMS = {
   gem:   { name: 'Gem',     kind: 'gem',    color: 0x29d3ff },
   pick:  { name: 'Pickaxe', kind: 'tool',   color: 0xb0b0b0 },
   sword: { name: 'Sword',   kind: 'weapon', color: 0xdfe6ee },
+  fireball: { name: 'Fireball', kind: 'spell', color: 0xff7a1a },   // learned as a skill, not stored in the bag
 };
 const hex = n => '#' + n.toString(16).padStart(6, '0');
 
@@ -327,7 +329,7 @@ function saveGame() {
   if (wiping || activeSlot === null) return;
   try {
     localStorage.setItem(slotKey(activeSlot), JSON.stringify({
-      v: 1, at: Date.now(), name: playerName, profile, worldId, inv, qb, recent, sel, pw,
+      v: 1, at: Date.now(), name: playerName, profile, worldId, inv, qb, recent, sel, pw, skills,
       pos: [px, py, pz], yaw: camYaw, world: encodeWorld(),
       drops: [...drops.values()].map(d => [d.x, d.y, d.z, d.id, d.at])
     }));
@@ -732,7 +734,7 @@ function updateHand() {
   const kind = id ? ITEMS[id].kind : null;
   pickGroup.visible = id === 'pick';
   swordGroup.visible = id === 'sword';
-  heldCube.visible = kind === 'block' || kind === 'gem';
+  heldCube.visible = kind === 'block' || kind === 'gem' || kind === 'spell';
   if (heldCube.visible) heldCube.material.color.setHex(ITEMS[id].color);
 }
 
@@ -767,6 +769,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (/^Digit[1-6]$/.test(e.code)) selectSlot(+e.code.slice(5) - 1);
   if (e.code === 'KeyB') toggleBag();
+  if (e.code === 'KeyF') castFireball(viewDir(innerWidth / 2, innerHeight / 2));
   if (e.code === 'Escape') { if (settingsOpen) toggleSettings(false); else toggleBag(false); }
 });
 addEventListener('keyup', e => keys[e.code] = false);
@@ -796,7 +799,7 @@ toggleEl.addEventListener('click', () => {
 applyPad();
 
 // ---- Powers ----
-const pw = { dig: { lvl: 1, xp: 0 }, build: { lvl: 1, xp: 0 }, inv: { lvl: 1, xp: 0 }, fight: { lvl: 1, xp: 0 } };
+const pw = { dig: { lvl: 1, xp: 0 }, build: { lvl: 1, xp: 0 }, inv: { lvl: 1, xp: 0 }, fight: { lvl: 1, xp: 0 }, magic: { lvl: 1, xp: 0 } };
 const need = lvl => Math.floor(10 * Math.pow(1.5, lvl - 1));
 const invCap = () => 8 + pw.inv.lvl * 4;
 const digTime = () => 1.0 * Math.pow(0.92, pw.dig.lvl - 1);
@@ -858,7 +861,7 @@ function renderUI() {
      '<div class="row">Nothing yet</div>');
   qbEl.innerHTML = qb.map((id, i) =>
     `<div class="slot${i === sel ? ' sel' : ''}" data-slot="${i}"><span class="n">${i + 1}</span>` +
-    (id ? `<span class="sw" style="background-image:url(${itemIcon(id)})"></span><span>${ITEMS[id].name} x${inv[id] || 0}</span>`
+    (id ? `<span class="sw" style="background-image:url(${itemIcon(id)})"></span><span>${ITEMS[id].name}${ITEMS[id].kind === 'spell' ? '' : ' x' + (inv[id] || 0)}</span>`
         : '<span>empty</span>') +
     '</div>').join('');
   if (bagOpen) renderBag();
@@ -961,6 +964,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.43', title: 'Swimming and the first magic skill', items: [
+    'Water: you swim. In water you move slower and sink slowly. Hold jump to swim up',
+    'At Fighting level 2 you unlock magic and choose a skill. The first skill is Fireball',
+    'Fireball: tap the screen (or press F) to shoot. It defeats the monsters it hits. Level 2 magic makes a bigger ball and a wider burst'] },
   { v: '0.6.42', title: 'Lakes, sand and a 4000 x 4000 land', items: [
     'Water fills low places: lakes and the sea, with sand on the shore. You can wade in water, and dig or build under it',
     'The playable land is 4000 x 4000 blocks around the start point',
@@ -1494,6 +1501,112 @@ function killSlime(en) {
   say(k.name + ' defeated! +' + k.gems + ' gem' + (k.gems > 1 ? 's' : ''), 1500);
 }
 
+// ---- Skills and magic: at Fighting level 2 the player chooses a skill. Fireball is the first one. ----
+const MAGIC_LEVEL = 2;                      // Fighting level that unlocks magic and the skill choice
+const SKILLS = {
+  fireball: { name: 'Fireball', desc: 'Shoot a ball of fire. It defeats any monster it hits.' },
+};
+let skills = [];                            // skills the player has chosen
+let skillPanel = null;                      // the open skill choice panel, if any
+const FIRE = [
+  { speed: 16, life: 1.6, size: 0.22, boom: 0.9 },   // magic level 1: a small ball, a small burst
+  { speed: 20, life: 2.2, size: 0.34, boom: 2.4 },   // magic level 2: a bigger ball and a wider burst
+];
+const fireballs = [];                       // { mesh, x, y, z, vx, vy, vz, t, tier }
+const blasts = [];                          // { mesh, mat, t, max }: the flash where a fireball burst
+let spellCool = 0;                          // seconds until the next cast
+const fireGeo = new THREE.SphereGeometry(1, 12, 10);
+const fireMat = new THREE.MeshBasicMaterial({ color: 0xff7a1a });
+
+// The direction a tap or click points at, as a ray from the camera
+function viewDir(clientX, clientY) {
+  ndc.x = (clientX / window.innerWidth) * 2 - 1;
+  ndc.y = -(clientY / window.innerHeight) * 2 + 1;
+  ray.setFromCamera(ndc, camera);
+  return ray.ray.direction.clone();
+}
+
+function showSkillChoice() {
+  paused = true;
+  const el = document.createElement('div');
+  el.id = 'skillPanel';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(10,12,25,.85);display:flex;align-items:center;justify-content:center;z-index:55;padding:16px;box-sizing:border-box';
+  el.innerHTML = '<div style="background:#1d2440;color:#fff;border-radius:18px;padding:20px;max-width:420px;width:100%;text-align:center;box-sizing:border-box">' +
+    '<h2 style="margin:0 0 8px;font-size:22px">Magic unlocked!</h2>' +
+    '<p style="margin:8px 0;font-size:15px;opacity:.9">Choose your first skill. It goes in the quick bar.</p>' +
+    Object.entries(SKILLS).map(([id, sk]) =>
+      `<button data-skill="${id}" style="display:block;width:100%;margin:10px 0;padding:14px;border-radius:12px;border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;font-size:17px;cursor:pointer"><b>${sk.name}</b><br><span style="font-size:14px;opacity:.85">${sk.desc}</span></button>`).join('') +
+    '</div>';
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-skill]');
+    if (b) chooseSkill(b.dataset.skill);
+  });
+  document.body.appendChild(el);
+  skillPanel = el;
+}
+function chooseSkill(id) {
+  if (!SKILLS[id] || skills.includes(id)) return;
+  skills.push(id);
+  const empty = qb.indexOf(null);
+  qb[empty >= 0 ? empty : sel] = id;
+  if (skillPanel) { skillPanel.remove(); skillPanel = null; }
+  paused = false;
+  say(SKILLS[id].name + ' learned! Select it in the quick bar. Tap to shoot, or press F.', 4000);
+  updateHand();
+  renderUI();
+  saveGame();
+}
+
+// Shoots a fireball from the character's chest, in direction dir (a unit vector). Level 2 magic is stronger.
+function castFireball(dir) {
+  if (!skills.includes('fireball') || spellCool > 0) return;
+  const tier = pw.magic.lvl >= 2 ? 1 : 0;
+  const s = FIRE[tier];
+  const d = dir.clone().normalize();
+  const mesh = new THREE.Mesh(fireGeo, fireMat);
+  mesh.scale.setScalar(s.size);
+  const f = { mesh, x: px, y: py + HH * 0.7, z: pz, vx: d.x * s.speed, vy: d.y * s.speed, vz: d.z * s.speed, t: 0, tier };
+  mesh.position.set(f.x, f.y, f.z);
+  scene.add(mesh);
+  fireballs.push(f);
+  spellCool = 0.4;
+  armSwing = 0.3;
+  gain('magic', 1);
+}
+
+// Moves the fireballs. A fireball bursts when it hits a monster or a block, or when its time runs out.
+// Monsters inside the burst are defeated. Blocks are never changed.
+function updateFireballs(dt) {
+  spellCool = Math.max(0, spellCool - dt);
+  for (let i = fireballs.length - 1; i >= 0; i--) {
+    const f = fireballs[i], s = FIRE[f.tier];
+    f.t += dt;
+    f.x += f.vx * dt; f.y += f.vy * dt; f.z += f.vz * dt;
+    f.mesh.position.set(f.x, f.y, f.z);
+    let boom = f.t >= s.life || solid(get(Math.floor(f.x), Math.floor(f.y), Math.floor(f.z)));
+    if (!boom) boom = enemies.some(en => Math.hypot(en.x - f.x, en.y + 0.5 - f.y, en.z - f.z) < 0.8);
+    if (!boom) continue;
+    for (const en of [...enemies]) {
+      if (Math.hypot(en.x - f.x, en.y + 0.5 - f.y, en.z - f.z) < s.boom) killSlime(en);
+    }
+    scene.remove(f.mesh);
+    fireballs.splice(i, 1);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffc04a, transparent: true, opacity: 0.8 });
+    const flash = new THREE.Mesh(fireGeo, mat);
+    flash.position.set(f.x, f.y, f.z);
+    scene.add(flash);
+    blasts.push({ mesh: flash, mat, t: 0, max: s.boom });
+  }
+  for (let i = blasts.length - 1; i >= 0; i--) {
+    const b = blasts[i];
+    b.t += dt;
+    const k = Math.min(1, b.t / 0.3);
+    b.mesh.scale.setScalar(0.2 + k * b.max);
+    b.mat.opacity = 0.8 * (1 - k);
+    if (k >= 1) { scene.remove(b.mesh); b.mat.dispose(); blasts.splice(i, 1); }
+  }
+}
+
 // ---- Pointer: hold to dig or fight, tap to build, drag to turn the world ----
 const ray = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
@@ -1502,6 +1615,7 @@ let camYaw = 0;      // camera angle around the character
 let headTarget = 0, headYaw = 0;
 let press = null;        // {id, x, lastX, moved}
 let pendingPlace = null; // cell to build in, used only if the press was a tap
+let pendingCast = null;  // direction to shoot, used only if the press was a tap
 
 // Which block or slime the press landed on, and the cell it would dig or build in
 function aim(e) {
@@ -1578,6 +1692,7 @@ canvas.addEventListener('pointerdown', e => {
   if (touches.size > 1) return; // two fingers = pinch
   press = { id: e.pointerId, x: e.clientX, lastX: e.clientX, moved: false };
   pendingPlace = null;
+  if (held() && ITEMS[held()].kind === 'spell') { pendingCast = viewDir(e.clientX, e.clientY); return; }
   const a = aim(e);
   if (!a) return;
   if (a.enemy) {
@@ -1599,7 +1714,9 @@ canvas.addEventListener('pointerdown', e => {
 });
 canvas.addEventListener('pointerup', e => {
   if (press && press.id === e.pointerId && !press.moved && pendingPlace) placeCell(...pendingPlace);
+  if (press && press.id === e.pointerId && !press.moved && pendingCast) castFireball(pendingCast);
   pendingPlace = null;
+  pendingCast = null;
   press = null;
   digging = null;
   fight = null;
@@ -1633,8 +1750,11 @@ function update(dt) {
   // Move relative to the camera, so "up" is always away from you on screen
   const cosY = Math.cos(camYaw), sinY = Math.sin(camYaw);
   const wx = sx * cosY + sz * sinY, wz = -sx * sinY + sz * cosY;
-  vx = wx * SPEED / norm;
-  vz = wz * SPEED / norm;
+  // Water is not solid, so the body moves through it. In water you swim: slower, and you sink or rise
+  const inWater = get(Math.floor(px), Math.floor(py + HH / 2), Math.floor(pz)) === T.WATER;
+  const speed = SPEED * (inWater ? 0.6 : 1) / norm;
+  vx = wx * speed;
+  vz = wz * speed;
 
   const nx = px + vx * dt;
   if (!hits(nx, py, pz)) px = nx;
@@ -1644,7 +1764,8 @@ function update(dt) {
   const jd = k('Space') || touch.J;
   if (jd && !jumpHeld && onGround) { vy = JUMP; onGround = false; squash = 1; }
   jumpHeld = jd;
-  vy = Math.max(vy - GRAV * dt, -30);
+  if (inWater) vy = jd ? SWIM_UP : Math.max(vy - GRAV * 0.15 * dt, -SINK);   // hold jump to swim up; otherwise sink slowly
+  else vy = Math.max(vy - GRAV * dt, -30);
   const ny = py + vy * dt;
   if (!hits(px, ny, pz)) { py = ny; onGround = false; }
   else { if (vy < 0) { onGround = true; squash = 1; } vy = 0; }
@@ -1658,7 +1779,9 @@ function update(dt) {
   } else invTimer = 0;
 
   updateDig(dt);
+  if (!skillPanel && !skills.length && pw.fight.lvl >= MAGIC_LEVEL) showSkillChoice();
   updateFight(dt);
+  updateFireballs(dt);
   updateSlimes(dt);
   updateTeleport(dt);
   updateSpawns(dt);
@@ -1713,6 +1836,7 @@ function drawHud() {
     `Building Lv ${pw.build.lvl}${bar('build', pw.build.xp / need(pw.build.lvl))}` +
     `Inventory Lv ${pw.inv.lvl}${bar('inv', total / cap)}` +
     `Fighting Lv ${pw.fight.lvl}${bar('fight', pw.fight.xp / need(pw.fight.lvl))}` +
+    (skills.length ? `Magic Lv ${pw.magic.lvl}${bar('magic', pw.magic.xp / need(pw.magic.lvl))}` : '') +
     `Bag ${total}/${cap} &nbsp; Gems ${inv.gem}<br>` +
     `World ${esc(worldId || 'alone')}` + (others.size ? ' &middot; With: ' + [...others.values()].map(o => esc(o.name)).join(', ') : '');
 }
@@ -1740,6 +1864,7 @@ if (saved) {
   if (Array.isArray(saved.qb)) for (let i = 0; i < qb.length; i++) qb[i] = ITEMS[saved.qb[i]] ? saved.qb[i] : null;
   if (Array.isArray(saved.recent)) recent = saved.recent.filter(r => ITEMS[r]);
   if (saved.pw) for (const k of Object.keys(pw)) if (saved.pw[k] && Number.isFinite(saved.pw[k].lvl)) pw[k] = saved.pw[k];
+  if (Array.isArray(saved.skills)) skills = saved.skills.filter(id => SKILLS[id]);
   if (Number.isInteger(saved.sel) && saved.sel >= 0 && saved.sel < 6) sel = saved.sel;
   if (Array.isArray(saved.pos) && saved.pos.length === 3 && !hits(...saved.pos)) [px, py, pz] = saved.pos;
   if (Number.isFinite(saved.yaw)) camYaw = saved.yaw;
@@ -1757,7 +1882,11 @@ function itemIcon(id) {
   c.width = c.height = 32;
   const g = c.getContext('2d');
   const box = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
-  if (id === 'dirt') {
+  if (id === 'fireball') {
+    box(0, 0, 32, 32, '#1d2440');
+    g.fillStyle = '#ff7a1a'; g.beginPath(); g.arc(16, 16, 11, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#ffe08a'; g.beginPath(); g.arc(14, 13, 4, 0, Math.PI * 2); g.fill();
+  } else if (id === 'dirt') {
     box(0, 0, 32, 32, '#8d5524');
     for (const [x, y] of [[4, 6], [18, 4], [10, 16], [24, 18], [6, 24], [20, 27]]) box(x, y, 3, 3, '#6b3e18');
     box(12, 10, 2, 2, '#a86b35'); box(26, 10, 2, 2, '#a86b35');
@@ -1788,7 +1917,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.42';
+const VERSION = '0.6.43';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2284,6 +2413,7 @@ renderUI();
 requestAnimationFrame(frame);
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 window.gameProbe = () => ({ enemies: enemies.length, px, py, pz, drawn: lastDrawn, rebuildMs: lastRebuildMs, version: VERSION,
+  skills: skills.slice(), fireballs: fireballs.length, blasts: blasts.length, skillPanel: !!skillPanel, magicLvl: pw.magic.lvl,
   list: enemies.map(e => ({ kind: e.kind, x: e.x, y: e.y, z: e.z, airT: e.airT || 0 })) });
 </script>
 </body>

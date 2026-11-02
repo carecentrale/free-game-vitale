@@ -51,6 +51,25 @@ function savedGame() {
   });
 }
 
+// The saved game above, with Fighting level 2 and a world id so the game starts without the wizard
+function fightLevel2Game() {
+  const g = JSON.parse(savedGame());
+  g.pw.fight = { lvl: 2, xp: 0 };
+  g.worldId = 'TESTWORLD';
+  g.profile = { sex: 'boy', race: 'human', name: 'Test Hero' };
+  return JSON.stringify(g);
+}
+
+// A character inside a lake (columns 199960, 200040 in seed 4242: sand at height 3, water from 4 to 8)
+function swimGame() {
+  const g = JSON.parse(savedGame());
+  g.pos = [199960 + 0.5, 6, 200040 + 0.5];
+  g.world = { v: 2, seed: 4242, edits: [] };
+  g.worldId = 'TESTWORLD';
+  g.profile = { sex: 'boy', race: 'human', name: 'Test Hero' };
+  return JSON.stringify(g);
+}
+
 // Sets up the page: local three.js, a stub for Supabase, no other internet, and the saved game
 async function setupPage(page, base, opts = {}) {
   // Registered first: Playwright checks the most recent rule first, so the rules below win
@@ -139,3 +158,34 @@ test('with saved games and none chosen, the start menu lists them (it does not s
     saves: [savedGame(), JSON.stringify({ ...JSON.parse(savedGame()), name: 'Second Hero', world: { v: 2, seed: 99, edits: [] } })],
     choice: null,
   }));
+
+// A saved game at Fighting level 2 (magic unlocks): the skill choice appears, and F fires a fireball
+test('at Fighting level 2 the skill choice appears, and F shoots a fireball', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
+    await page.click('#skillPanel [data-skill="fireball"]');
+    const chosen = await page.evaluate(() => window.gameProbe());
+    assert.deepEqual(chosen.skills, ['fireball']);
+    assert.equal(chosen.skillPanel, false);
+    await page.keyboard.press('KeyF');
+    const shot = await page.evaluate(() => window.gameProbe());
+    assert.ok(shot.fireballs + shot.blasts >= 1, 'no fireball was shot: ' + JSON.stringify(shot));
+    await page.waitForTimeout(1500);
+    assert.deepEqual(errors, [], 'errors while playing: ' + errors.join(' | '));
+  }, { saves: [fightLevel2Game()] }));
+
+// Swimming: in water the character sinks slowly, and holding jump makes it rise
+test('in water the character sinks slowly, and holding jump swims up', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => { const p = window.gameProbe(); return Math.abs(p.px - (199960 + 0.5)) < 0.01; }, null, { timeout: 60000 });
+    const y0 = await page.evaluate(() => window.gameProbe().py);
+    await page.waitForTimeout(300);
+    const y1 = await page.evaluate(() => window.gameProbe().py);
+    assert.ok(y1 < y0 && y0 - y1 < 0.8, `sinking should be slow: ${y0} -> ${y1}`);
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(600);
+    await page.keyboard.up('Space');
+    const y2 = await page.evaluate(() => window.gameProbe().py);
+    assert.ok(y2 > y1 + 0.8, `holding jump should swim up: ${y1} -> ${y2}`);
+    assert.deepEqual(errors, [], 'errors while swimming: ' + errors.join(' | '));
+  }, { saves: [swimGame()] }));
