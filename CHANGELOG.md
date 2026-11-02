@@ -2,6 +2,13 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.28: parents can delete the cloud save
+- In the parent area, a signed-in parent can delete their cloud save. The game on this device is not changed
+- The admin page has the same delete for the signed-in account (it cannot delete other accounts' saves)
+- After a delete, automatic cloud saves stay off until Save now is pressed
+- Database: migration 0006 (docs/migrations/0006_cloud_save_delete.sql), applied to the live database
+- Checked: script syntax (node --check). Not checked in a browser
+
 ## 0.6.27: choose a saved game at start
 - When you open the game, your saved games on this device are listed. Pick one to carry on, delete one, or start a new game
 - Up to 10 saved games on this device. The old single save becomes the first one

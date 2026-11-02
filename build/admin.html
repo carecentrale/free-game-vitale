@@ -65,6 +65,17 @@ $('verifyCode').addEventListener('click', async () => {
   load();
 });
 $('signOut').addEventListener('click', async () => { await sb.auth.signOut(); show('signin'); });
+// Deletes only this signed-in account's cloud save (the database allows nothing else)
+$('deleteCloud').addEventListener('click', async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { show('signin'); return; }
+  if (!confirm('Delete the cloud save for ' + (session.user.email || 'this account') + '? The game on each device is not changed.')) return;
+  const { error } = await sb.from('cloud_saves').delete().eq('user_id', session.user.id);
+  if (error) { $('loadErr').textContent = 'Could not delete the cloud save: ' + error.message; return; }
+  // Same key the game uses, so the game stops re-creating the cloud save until Save now is pressed
+  try { localStorage.setItem('cloudPaused', '1'); } catch (e) {}
+  $('cloudNote').textContent = 'Cloud save deleted. Automatic cloud saves are off until a game presses Save now.';
+});
 
 // ---- Dashboard ----
 async function load() {
@@ -269,6 +280,14 @@ load();
       <button class="danger" id="clearErrors">Clear errors</button>
     </div>
     <div id="errors"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <b>Cloud save (this account)</b>
+      <button class="danger" id="deleteCloud">Delete cloud save</button>
+    </div>
+    <div class="muted" id="cloudNote">Deletes the game saved to the cloud for the account you are signed in with. The game on each device is not changed. Automatic cloud saves stay off until a game presses Save now.</div>
   </div>
 
   <div class="card">
