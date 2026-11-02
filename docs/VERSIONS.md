@@ -10,7 +10,8 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
-| 0.6.16 | (commit 0655738, not tagged) | build/prototype-3d-v7.html | dpl_GW57NZuNzHeF9ncK6j3h5mpBuoyL (building when recorded; check it reaches READY) | Esc, tap-outside and larger Close button for Settings |
+| 0.6.17 | (commit a84247d, not tagged) | build/prototype-3d-v7.html | dpl_J18UC2NG4gW1UDsVEP5CAh7wkfaF (BUILDING when recorded; check it reaches READY) | Remove enemies that fall off the map; corpses in mid-air land; teleport countdown |
+| 0.6.16 | (commits 0655738 and 3603094, not tagged) | build/prototype-3d-v7.html | dpl_GW57NZuNzHeF9ncK6j3h5mpBuoyL (READY) | Esc, tap-outside and larger Close button for Settings |
 | 0.6.15 | (commits de668f7 and e221bbe, not tagged) | build/prototype-3d-v7.html | dpl_J9DsBiRUgXKUU9b4V3rJ2Uj8zWhH (READY) | Purple teleport button to the start: free, 5 minute cast, 1 hour recharge |
 | 0.6.14 | (commits d3d28ff, f163e2a and 0fa694c, not tagged) | build/prototype-3d-v7.html | dpl_HnZTwavyV2XVXXkvgu6BB2GCyjm9 (from commit 0fa694c) | Enemies stay on the ground and stop at ledges; defeated enemies lie for 5 minutes, then sink; right-click builds from the quick bar |
 | 0.6.13 | (commit d9c1a61, not tagged) | build/prototype-3d-v7.html | dpl_5K64mxYD2AzwDVLKsBWRACrTbUGy (from Vercel; commit 78b4374 not seen on main) | Settings screen with game version and changes |
