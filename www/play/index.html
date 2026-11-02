@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.38 (3D)</title>
+<title>Adventurers of Drenerics v0.6.39 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -116,7 +116,8 @@ import * as THREE from 'three';
 // ---- World: 400,000 x 400,000 blocks, generated on demand from a seed ----
 // Nothing is stored except the blocks players change. The rest is rebuilt from the seed when needed.
 const WORLD = 400000, CENTER = 200000;   // width of the world; the start point is in the middle
-const H = 24, SURF = 12, CS = 16;        // height in blocks, average ground level, chunk size in blocks
+const H = 64, SURF = 12, CS = 16;        // height in blocks, average ground level, chunk size in blocks
+const OLD_H = 24;                        // chunks saved before 0.6.38 have this height
 const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4 };
 
 // ---- Movement, items and the bag (restored in 0.6.37: these were lost in 0.6.34) ----
@@ -172,7 +173,15 @@ function hillNoise(x, z, s) {    // four layers of noise, 0..1
   for (let o = 0; o < 4; o++) { sum += amp * noise3(x * f, 0.5, z * f, s + o * 17); norm += amp; amp *= 0.5; f *= 2; }
   return sum / norm;
 }
-const groundY = (x, z) => Math.max(3, Math.round(SURF + (hillNoise(x * 0.05, z * 0.05, seed) - 0.5) * 12));
+// Land height: rolling hills everywhere, and mountain ranges in some areas with jagged peaks
+const groundY = (x, z) => {
+  const hills = hillNoise(x * 0.05, z * 0.05, seed) - 0.5;                 // -0.5..0.5
+  const range = noise3(x * 0.011, 0.5, z * 0.011, seed + 500);             // 0..1: where the mountain ranges are
+  const mask = Math.max(0, Math.min(1, (range - 0.5) / 0.25));             // 0 on flat land, 1 in the heart of a range
+  const ridge = 1 - Math.abs(2 * noise3(x * 0.04, 0.5, z * 0.04, seed + 600) - 1); // 0..1: sharp ridge lines
+  const h = SURF + hills * 12 + mask * (10 + ridge * 26);
+  return Math.max(3, Math.min(H - 8, Math.round(h)));
+};
 
 // Builds one chunk: grass on top, dirt, stone, then caves and gems
 function makeChunk(cx, cz) {
@@ -227,8 +236,13 @@ function encodeWorld() {
 function applyWorld(w) {
   initWorld(w.seed);
   for (const [cx, cz, b64] of w.edits) {
-    const data = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
-    if (data.length !== CHUNK_LEN) continue;
+    let data = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+    if (data.length === OLD_H * CS * CS) {
+      // Saved before the taller world: keep the saved layers, and make the rest of the chunk as usual
+      const fresh = makeChunk(cx, cz);
+      fresh.set(data);
+      data = fresh;
+    } else if (data.length !== CHUNK_LEN) continue;
     const k = ckey(cx, cz);
     chunks.set(k, { cx, cz, data });
     edited.add(k);
@@ -386,9 +400,73 @@ const sun = new THREE.DirectionalLight(0xfff4e0, 0.9);
 sun.position.set(30, 50, 20);
 scene.add(sun);
 
+// ---- Sky: a gradient dome, a sun and soft drifting clouds, all made in code ----
+const skyGroup = new THREE.Group();
+scene.add(skyGroup);
+const sky = new THREE.Mesh(new THREE.SphereGeometry(180, 24, 16), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, fog: false,
+  uniforms: { top: { value: new THREE.Color(0x3d86d6) }, horizon: { value: new THREE.Color(0xcfeaff) } },
+  vertexShader: 'varying float h; void main() { h = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform vec3 top; uniform vec3 horizon; varying float h; void main() { gl_FragColor = vec4(mix(horizon, top, pow(clamp(h, 0.0, 1.0), 0.6)), 1.0); }',
+}));
+sky.renderOrder = -1;
+skyGroup.add(sky);
+// A soft round picture with a bright middle, drawn on a small canvas
+function softTexture(stops, draw) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  if (stops) {
+    const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    for (const [o, col] of stops) gr.addColorStop(o, col);
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 128, 128);
+  }
+  if (draw) draw(g);
+  return new THREE.CanvasTexture(c);
+}
+const sunDir = sun.position.clone().normalize();
+const sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: softTexture([[0, 'rgba(255,252,235,1)'], [0.22, 'rgba(255,244,200,0.95)'], [0.45, 'rgba(255,226,150,0.35)'], [1, 'rgba(255,226,150,0)']]),
+  depthWrite: false, fog: false,
+}));
+sunSprite.scale.setScalar(44);
+skyGroup.add(sunSprite);
+// Each cloud is a cluster of soft puffs on one picture
+const cloudTex = softTexture(null, g => {
+  for (let i = 0; i < 9; i++) {
+    const x = 30 + Math.random() * 68, y = 48 + Math.random() * 28 - (i % 3) * 5, r = 16 + Math.random() * 16;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, 'rgba(255,255,255,0.95)');
+    gr.addColorStop(0.7, 'rgba(255,255,255,0.8)');
+    gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+});
+const CLOUD_RANGE = 110;   // clouds float in a ring around the player, and wrap round as the player moves
+const clouds = [];
+for (let i = 0; i < 20; i++) {
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, depthWrite: false, fog: false, transparent: true, opacity: 0.92 }));
+  const c = { sprite, ox: (Math.random() * 2 - 1) * CLOUD_RANGE, oz: (Math.random() * 2 - 1) * CLOUD_RANGE, y: 45 + Math.random() * 20, s: 40 + Math.random() * 30 };
+  sprite.scale.set(c.s, c.s * 0.42, 1);
+  skyGroup.add(sprite);
+  clouds.push(c);
+}
+// Keeps the sky with the camera, moves the clouds a little each frame, and keeps the sun in its place
+function updateSky(dt) {
+  sky.position.copy(camera.position);
+  sunSprite.position.copy(camera.position).addScaledVector(sunDir, 160);
+  for (const c of clouds) {
+    c.ox += dt * 1.2;
+    if (c.ox > CLOUD_RANGE) c.ox -= 2 * CLOUD_RANGE;
+    c.sprite.position.set(px + c.ox, c.y, pz + c.oz);
+  }
+}
+
 // Only the blocks near the player are drawn, and only those that can be seen (not blocks buried in the ground)
 const VIEW = 2;                                   // chunks drawn in each direction around the player
-const CAP = (2 * VIEW + 1) ** 2 * CS * CS * H;    // most blocks that can be drawn at once
+const CAP = (2 * VIEW + 1) ** 2 * CS * CS * 24;   // most blocks that can be drawn at once (about 24 visible blocks per column)
 const dummy = new THREE.Object3D();
 const m4 = new THREE.Matrix4();
 const meshes = {};
@@ -408,7 +486,9 @@ function worldStatus() {
     lastDrawn + ' blocks drawn · player at ' + at + ' · ground here ' + g;
 }
 let lastDrawn = 0;   // blocks drawn by the last rebuild
+let lastRebuildMs = 0;   // how long the last redraw took, for the browser test
 function rebuild() {
+  const t0 = performance.now();
   const pcx = Math.floor(px / CS), pcz = Math.floor(pz / CS);
   drawnChunk = pcx + ',' + pcz;
   const cnt = { 1: 0, 2: 0, 3: 0, 4: 0 };
@@ -420,6 +500,7 @@ function rebuild() {
       if (!t) continue;
       // Hidden: all six neighbours are solid, so no face shows
       if (get(x + 1, y, z) && get(x - 1, y, z) && get(x, y + 1, z) && get(x, y - 1, z) && get(x, y, z + 1) && get(x, y, z - 1)) continue;
+      if (cnt[t] >= CAP) continue;   // the buffer is full: the rest is not drawn
       m4.makeTranslation(x + 0.5, y + 0.5, z + 0.5);
       meshes[t].setMatrixAt(cnt[t]++, m4);
     }
@@ -430,6 +511,7 @@ function rebuild() {
     meshes[k].boundingSphere = null;
   }
   lastDrawn = cnt[1] + cnt[2] + cnt[3] + cnt[4];
+  lastRebuildMs = performance.now() - t0;
   // Keep memory small: drop generated chunks far from the player (changed chunks are kept)
   if (chunks.size > 1500) for (const [k, c] of chunks) {
     if (!edited.has(k) && (Math.abs(c.cx - pcx) > VIEW + 3 || Math.abs(c.cz - pcz) > VIEW + 3)) chunks.delete(k);
@@ -774,6 +856,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.39', title: 'Sky, sun, clouds and mountains', items: [
+    'A sky with a gradient, a sun and drifting clouds',
+    'Hills and mountain ranges with sharp ridges; the world is taller',
+    'Saved worlds keep their changes'] },
   { v: '0.6.38', title: 'Enemies start near a loaded game', items: [
     'When a saved game is opened, the first enemies now appear where the player is, not at a random spot'] },
   { v: '0.6.37', title: 'Fix: game would not start after a saved game was chosen', items: [
@@ -1497,6 +1583,7 @@ function update(dt) {
 
   const under = get(Math.floor(px), Math.floor(py + HH), Math.floor(pz)) !== T.AIR;
   scene.background.setHex(under ? 0x2b2238 : 0x87ceeb);
+  skyGroup.visible = !under;
 
   if (msgT > 0) { msgT -= dt * 1000; if (msgT <= 0) msgEl.textContent = ''; }
   drawHud();
@@ -1527,6 +1614,7 @@ function frame(now) {
     try { rebuild(); } catch (e) { logError(e, 'rebuild'); }
     dirty = false;
   }
+  updateSky(dt);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
@@ -1589,7 +1677,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.38';
+const VERSION = '0.6.39';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2084,7 +2172,7 @@ updateHand();
 renderUI();
 requestAnimationFrame(frame);
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
-window.gameProbe = () => ({ enemies: enemies.length, px, py, pz, drawn: lastDrawn, version: VERSION,
+window.gameProbe = () => ({ enemies: enemies.length, px, py, pz, drawn: lastDrawn, rebuildMs: lastRebuildMs, version: VERSION,
   list: enemies.map(e => ({ kind: e.kind, x: e.x, y: e.y, z: e.z, airT: e.airT || 0 })) });
 </script>
 </body>

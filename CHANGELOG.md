@@ -2,6 +2,13 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.39: sky, sun, clouds and mountains
+- A sky with a gradient from deep blue to pale at the horizon, a sun glow, and soft clouds that drift and follow the player
+- Terrain has rolling hills everywhere and mountain ranges with sharp ridges. The world is 64 blocks tall (was 24)
+- Saved worlds from before this version keep their changes; the rest of each saved chunk is made as usual
+- The area drawn around the player is unchanged (80 blocks across). A wider view needs a faster drawing method, not yet built
+- Checked: script syntax, all tests including the browser tests, and the terrain tests. Redraw time measured in headless Chromium (about 60 ms). Not checked by eye or on a tablet
+
 ## 0.6.38: enemies start where the player is
 - When a saved game is opened, the first enemies appear near the player. Before, they were placed before the saved spot was loaded, and could be removed at once
 - Browser tests added (scripts/tests/browser.test.mjs): the game starts from a saved game with blocks and enemies and no errors; enemies stay on the ground while the player walks around
