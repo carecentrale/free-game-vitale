@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.37 (3D)</title>
+<title>Adventurers of Drenerics v0.6.38 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -774,6 +774,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.38', title: 'Enemies start near a loaded game', items: [
+    'When a saved game is opened, the first enemies now appear where the player is, not at a random spot'] },
   { v: '0.6.37', title: 'Fix: game would not start after a saved game was chosen', items: [
     'Fixed a bug from version 0.6.34 that stopped the game from showing the world: some game settings and the bag were missing', ],
   },
@@ -1130,7 +1132,6 @@ function spawnSlime() {
     return;
   }
 }
-for (let i = 0; i < 6; i++) spawnSlime();
 let slimeSpawnT = 6;
 function updateSpawns(dt) {
   slimeSpawnT -= dt;
@@ -1546,6 +1547,8 @@ if (saved) {
   restoreDrops(saved.drops);
   if (worldLoaded) say('Welcome back, ' + playerName + '!', 2500);
 }
+// Start with some enemies near the player. This runs after the saved position is restored, so they appear where the player is.
+for (let i = 0; i < 6; i++) spawnSlime();
 
 // ---- Item pictures, drawn in code (no downloads needed) ----
 const iconCache = {};
@@ -1586,7 +1589,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.37';
+const VERSION = '0.6.38';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2080,6 +2083,9 @@ dirty = false;
 updateHand();
 renderUI();
 requestAnimationFrame(frame);
+// Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
+window.gameProbe = () => ({ enemies: enemies.length, px, py, pz, drawn: lastDrawn, version: VERSION,
+  list: enemies.map(e => ({ kind: e.kind, x: e.x, y: e.y, z: e.z, airT: e.airT || 0 })) });
 </script>
 </body>
 </html>

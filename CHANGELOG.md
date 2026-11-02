@@ -2,6 +2,12 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.38: enemies start where the player is
+- When a saved game is opened, the first enemies appear near the player. Before, they were placed before the saved spot was loaded, and could be removed at once
+- Browser tests added (scripts/tests/browser.test.mjs): the game starts from a saved game with blocks and enemies and no errors; enemies stay on the ground while the player walks around
+- Checked: script syntax, all tests including the browser tests (run in headless Chromium with local copies of the libraries). Not checked on a tablet or phone
+- Note: the browser tests did not reproduce the enemy floating in the sky seen on 2 November; that bug is still open
+
 ## 0.6.37: fix blank screen after loading a saved game
 - Version 0.6.34 accidentally deleted the game's movement settings, item list and bag. Loading a game then stopped partway, leaving a blank sky
 - Restored those settings, unchanged from 0.6.33

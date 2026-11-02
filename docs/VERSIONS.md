@@ -10,6 +10,7 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
+| 0.6.38 | (commit to follow, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Enemies start near the loaded player; browser tests added |
 | 0.6.37 | (commit b734936, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Fix blank screen: restored settings and bag lost in 0.6.34 |
 | 0.6.36 | (commit aa0e9c8, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Game errors shown on screen |
 | 0.6.35 | (commit 272fc73, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | World status in the parent area; drawing errors logged |
