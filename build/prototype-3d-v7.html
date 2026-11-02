@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.25 (3D)</title>
+<title>Adventurers of Drenerics v0.6.26 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -160,7 +160,7 @@ function saveGame() {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 1, name: playerName, profile, worldId, inv, qb, recent, sel, pw,
       pos: [px, py, pz], yaw: camYaw, world: bytesToB64(grid),
-      drops: [...drops.values()].map(d => [d.x, d.y, d.z, d.id])
+      drops: [...drops.values()].map(d => [d.x, d.y, d.z, d.id, d.at])
     }));
   } catch (e) {}
 }
@@ -612,6 +612,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.26', title: 'Dropped items disappear after 5 minutes', items: [
+    'Items dropped on the ground (when the bag is full) disappear 5 minutes after they were dropped'] },
   { v: '0.6.25', title: 'Stuck defeated creatures disappear after 5 minutes', items: [
     'A defeated creature that is hovering or still falling now sinks and disappears 5 minutes after it was defeated, the same as one lying on the ground'] },
   { v: '0.6.24', title: 'Enemy log records dug-out bodies', items: [
@@ -747,6 +749,7 @@ function digCell(x, y, z) {
 // ---- Drops: items left on the ground when the bag is full. Walk over one to pick it up when there is room. ----
 // Drops are kept on this device only (they are not shared with other players yet).
 const MAX_DROPS = 40;
+const DROP_TIME = 5 * 60 * 1000; // a dropped item disappears 5 minutes after it was dropped
 const drops = new Map();                 // "x,y,z" -> { x, y, z, id, mesh, base }
 const dropGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
 const dropMats = {};
@@ -754,13 +757,13 @@ function dropMat(id) {
   if (!dropMats[id]) dropMats[id] = new THREE.MeshStandardMaterial({ color: ITEMS[id].color, roughness: 0.6 });
   return dropMats[id];
 }
-function addDrop(x, y, z, id) {
+function addDrop(x, y, z, id, at = Date.now()) {
   const key = x + ',' + y + ',' + z;
   if (drops.has(key)) return;
   const mesh = new THREE.Mesh(dropGeo, dropMat(id));
   mesh.position.set(x + 0.5, y + 0.5, z + 0.5);
   scene.add(mesh);
-  drops.set(key, { x, y, z, id, mesh, base: y + 0.5 });
+  drops.set(key, { x, y, z, id, mesh, base: y + 0.5, at });
   dirty = true;
 }
 function removeDrop(key) {
@@ -772,15 +775,18 @@ function removeDrop(key) {
 function restoreDrops(list) {
   if (!Array.isArray(list)) return;
   for (const row of list.slice(0, MAX_DROPS)) {
-    if (!Array.isArray(row) || row.length !== 4) continue;
-    const [x, y, z, id] = row;
+    // Saves from before 0.6.26 have no drop time; those drops get a fresh 5 minutes
+    if (!Array.isArray(row) || (row.length !== 4 && row.length !== 5)) continue;
+    const [x, y, z, id, at] = row;
     if (!ITEMS[id] || !inBounds(x, y, z) || get(x, y, z) !== T.AIR) continue;
-    addDrop(x, y, z, id);
+    if (row.length === 5 && Date.now() - at >= DROP_TIME) continue; // already expired while the game was closed
+    addDrop(x, y, z, id, row.length === 5 ? at : Date.now());
   }
 }
 // Bob and spin the drops, and pick one up when the player stands next to it and the bag has room
 function updateDrops(time) {
   for (const [key, d] of drops) {
+    if (Date.now() - d.at >= DROP_TIME) { removeDrop(key); dirty = true; continue; } // gone after 5 minutes
     d.mesh.position.y = d.base + Math.sin(time * 3 + d.x) * 0.08;
     d.mesh.rotation.y = time * 1.5;
     const near = Math.hypot(d.x + 0.5 - px, d.z + 0.5 - pz) < 1.0 && py > d.y - 1 && py < d.y + 2;
@@ -1381,7 +1387,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.25';
+const VERSION = '0.6.26';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

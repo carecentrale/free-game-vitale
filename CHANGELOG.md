@@ -2,6 +2,11 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.26: dropped items disappear after 5 minutes
+- Items dropped on the ground (when the bag is full) disappear 5 minutes after they were dropped
+- The drop time is saved with the drop, so reloading the game does not restart the 5 minutes
+- Checked: game script syntax (node --check). Not checked in a browser
+
 ## 0.6.25: stuck defeated creatures disappear after 5 minutes
 - A defeated creature that is hovering or still falling now sinks and disappears 5 minutes after it was defeated, like one lying on the ground
 - Checked: game script syntax (node --check). Not checked in a browser
