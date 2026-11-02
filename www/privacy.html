@@ -6,17 +6,17 @@
 <title>Privacy Policy: Adventurers of Drenerics</title>
 <meta name="description" content="How Adventurers of Drenerics handles information. Written for families.">
 <style>
-  :root{--bg:#f4f6fb;--card:#fff;--ink:#1d2433;--muted:#5b6475;--line:#e4e7ee;--accent:#3b6fd8;--warn:#8a5a00;--warnbg:#fff6e0}
-  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0;--warn:#f6d38a;--warnbg:#3a2f12}}
-  :root[data-theme="dark"]{--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0;--warn:#f6d38a;--warnbg:#3a2f12}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.55}
+  :root{--bg:#f4f6fb;--card:#fff;--ink:#1d2433;--muted:#5b6475;--line:#e4e7ee;--accent:#3b6fd8}
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0}}
+  :root[data-theme="dark"]{--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.6}
   main{max-width:760px;margin:0 auto;padding:24px 16px 48px;box-sizing:border-box}
+  nav{font-size:14px;margin-bottom:12px}
+  nav a{color:var(--accent);margin-right:14px}
   h1{font-size:28px;margin:8px 0 4px}
   h2{font-size:19px;margin:28px 0 8px}
   p,li{font-size:16px}
   .muted{color:var(--muted);font-size:14px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:16px 0}
-  .draft{background:var(--warnbg);color:var(--warn);border-radius:12px;padding:12px 14px;font-size:14px;margin:12px 0}
   a{color:var(--accent)}
   table{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
   th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
@@ -25,19 +25,19 @@
 </head>
 <body>
 <main>
-  <div class="draft"><b>DRAFT for the parent's review.</b> Do not publish until the parent has checked every line and a professional has reviewed it. Items in [square brackets] need a decision.</div>
+  <nav><a href="/">Home</a><a href="/terms.html">Terms</a><a href="/contact.html">Contact</a></nav>
 
   <h1>Privacy Policy</h1>
-  <div class="muted">Adventurers of Drenerics. Last updated: [date to publish]</div>
+  <div class="muted">Adventurers of Drenerics. Last updated: 2 November 2026</div>
 
-  <p>Adventurers of Drenerics is a block-building adventure game for children and families. We designed it to collect as little information as possible. This page explains what the game stores, why, and who can see it.</p>
+  <p>Adventurers of Drenerics is a block-building adventure game made by a small family project, for children and their families. We designed it to collect as little information as possible. This page explains what the game stores, why, and who can see it.</p>
 
   <h2>Short version</h2>
   <ul>
     <li>Children do not create accounts and do not sign in.</li>
     <li>We do not ask for a child's name, email address, age, location, photos or contacts.</li>
     <li>Players cannot type names or messages to each other. Names are chosen from a preset list.</li>
-    <li>The game has no advertising and no purchases. [Update this line if that changes.]</li>
+    <li>The game has no advertising and no purchases.</li>
     <li>A parent can choose to sign in to save the game to the cloud. Only the parent signs in.</li>
   </ul>
 
@@ -45,10 +45,10 @@
   <table>
     <tr><th>What</th><th>Where</th><th>Why</th><th>Who can see it</th></tr>
     <tr><td>Game progress: character name from the preset list, levels, bag contents, gems, position, and the world</td><td>On the player's device</td><td>To save the game between visits</td><td>Only the player's device. Nothing is sent unless a parent turns on cloud save.</td></tr>
-    <tr><td>A random device code</td><td>On the device; also sent with gameplay records</td><td>To count play without knowing who the player is. It is not linked to a name, email or account.</td><td>The parent, in the stats page for that code. [Decide whether this code counts as a personal identifier for children's privacy purposes.]</td></tr>
+    <tr><td>A random device code. It is not linked to a name, email or account.</td><td>On the device; sent with gameplay records</td><td>To count play and fix problems. We treat it as a personal identifier and do not use it for anything else.</td><td>The parent, on the stats page. Deleted on request (see Contact).</td></tr>
     <tr><td>Gameplay records: a game started, an enemy defeated, a power-up used, the game version, and the time</td><td>Our database (Supabase)</td><td>To understand how the game is played and to fix problems</td><td>The parent only, through the stats page.</td></tr>
     <tr><td>Error reports: a short message and where in the game it happened</td><td>Our database</td><td>To fix bugs</td><td>The parent only.</td></tr>
-    <tr><td>Enemy debug log: enemy type, time, position (rounded), world code and game version. No device code and no names.</td><td>Our database</td><td>To find and fix a bug in the game</td><td>The parent only. Kept for [30] days, then deleted automatically. The parent can change this period.</td></tr>
+    <tr><td>Enemy debug log: enemy type, time, position (rounded), world code and game version. No device code and no names.</td><td>Our database</td><td>To find and fix a bug in the game</td><td>The parent only. Kept for 30 days, then deleted automatically. The parent can change this period to 60, 90 or 365 days.</td></tr>
     <tr><td>Shared world: the world's saved blocks, under a 4-letter world code</td><td>Our database</td><td>So friends can join the same world with the code</td><td>Anyone who has the world code can join it. Worlds are not listed publicly.</td></tr>
     <tr><td>Cloud save (only if a parent signs in): the saved game and the parent's sign-in email</td><td>Our database and the sign-in provider</td><td>So a parent can load the game on another device</td><td>The signed-in parent only.</td></tr>
   </table>
@@ -58,7 +58,7 @@
     <li>We do not show ads, and we do not use advertising networks.</li>
     <li>We do not use third-party analytics or tracking tools.</li>
     <li>We do not sell or share information about children.</li>
-    <li>We do not let children buy anything. [Update if purchases are added.]</li>
+    <li>We do not sell anything in the game. There are no purchases.</li>
     <li>We do not let players contact each other.</li>
   </ul>
 
@@ -66,22 +66,22 @@
   <ul>
     <li><b>Hosting:</b> Vercel, which serves the game files.</li>
     <li><b>Database:</b> Supabase, which stores the records described above.</li>
-    <li><b>Libraries:</b> Three.js and the Supabase library, loaded from the jsDelivr content network. Those services receive the normal web request details that any website receives.</li>
-    <li><b>Sign-in (parents only):</b> the email code, Google or Facebook sign-in provider the parent chooses.</li>
+    <li><b>Libraries:</b> Three.js and the Supabase library, loaded from the jsDelivr content network. Those services receive the normal request details that any website receives.</li>
+    <li><b>Sign-in (parents only):</b> the email code, Google or Facebook sign-in that the parent chooses.</li>
   </ul>
 
   <h2>How long we keep information</h2>
   <ul>
-    <li>Enemy debug log: [30] days, then automatically deleted.</li>
-    <li>Gameplay records and error reports: [decide retention period, e.g. 12 months].</li>
-    <li>Shared worlds: until the world is deleted. [Decide how a world is deleted.]</li>
-    <li>Cloud saves: until the parent deletes them or closes the account. [Decide.]</li>
+    <li>Enemy debug log: 30 days, then automatically deleted. A parent can change this period.</li>
+    <li>Gameplay records and error reports: 12 months, then deleted.</li>
+    <li>Shared worlds: until the family asks us to delete them, or until they have not been used for 12 months.</li>
+    <li>Cloud saves: until the parent deletes them or asks us to delete the account.</li>
   </ul>
 
   <h2>A parent's choices</h2>
   <ul>
-    <li>A parent can open the stats page and see what has been recorded.</li>
-    <li>A parent can delete recorded data. [Describe the exact steps once the feature exists.]</li>
+    <li>A parent can sign in to the stats page and see what has been recorded.</li>
+    <li>A parent can ask us to delete any record, including a device's records, by emailing the contact address on the <a href="/contact.html">Contact page</a>.</li>
     <li>A parent can sign out, or stop cloud save, at any time.</li>
     <li>To remove a device's saved game, clear the game's data in the browser settings on that device.</li>
   </ul>
@@ -93,9 +93,7 @@
   <p>If the game starts to collect different information, or changes how ads or purchases work, we will update this page first and change the date at the top.</p>
 
   <h2>Contact</h2>
-  <p>Questions for parents: [parent contact email, to be chosen by the parent].</p>
-
-  <div class="draft">Not legal advice. Before publishing, have this reviewed for the countries where the game is offered, and make sure the answers in the Google Play Data safety form match this page.</div>
+  <p>Questions about privacy: <a href="/contact.html">see the Contact page</a>.</p>
 </main>
 </body>
 </html>
