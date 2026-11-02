@@ -2,6 +2,12 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.20: home page
+- The game moved to its own address, /play/. The main address now shows a home page with a Play button
+- Home page: www/index.html. Game: www/play/index.html
+- Game links to files use absolute paths (/models/, /admin.html) so they work from /play/
+- Release note: .github/workflows/release.yml still copies an old build to www/index.html. That would replace the home page. Fix before any store release
+
 ## 0.6.19: teleport works in the background
 - The teleport cast now uses the clock, so it finishes on time even when the game tab is not in focus
 - Limit: browsers slow background timers. After a long time in the background, the teleport can be up to about a minute late

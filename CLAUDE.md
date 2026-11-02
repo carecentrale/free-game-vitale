@@ -14,7 +14,8 @@ A 3D block-world game for kids and families (dig, build, gems, power levels, ene
 
 ## Repository layout
 - `build/prototype-3d-v7.html`: current game source (single file, module script with Three.js and Supabase).
-- `www/index.html`: deployed copy of the game. Keep it identical to the current build file.
+- `www/play/index.html`: deployed copy of the game (at /play/). Keep it identical to the current build file.
+- `www/index.html`: home page at the main address. Not the game. Edit it separately.
 - `build/admin.html` and `www/admin.html`: parent stats page (email code sign-in).
 - `build/prototype-3d-v5.html`, `v6.html`: older versions, kept for rollback.
 - `build/models/`, `www/models/`: optimized GLB models (Quaternius Bestiary: imp.glb, puglin.glb).
@@ -31,7 +32,7 @@ A 3D block-world game for kids and families (dig, build, gems, power levels, ene
 ## How to change the game
 1. Edit `build/prototype-3d-v7.html`. Check syntax: extract the module script and run `node --check`.
 2. Bump `VERSION` in the script and the `<title>` tag.
-3. Copy the build file to `www/index.html`.
+3. Copy the build file to `www/play/index.html`.
 4. Add a `CHANGELOG.md` entry and a `docs/VERSIONS.md` row (version, commit hash, deployment).
 5. Commit with a clear message and push to `main`.
 6. Never claim a feature works in a browser unless the parent has tested it. The sandbox cannot load the CDN, so only syntax checks run there. Say what was checked and what was not.
