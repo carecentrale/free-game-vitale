@@ -2,6 +2,14 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.44: enemy names, health and weaknesses
+- Each enemy has its own name, power level, health and toughness. Defaults for now: Goblin (power 1, weak to fire), Imp (power 2, weak to holy light), Brute (power 4, tough, weak to fire), Spear Imp (power 3, weak to holy light), Hood Goblin (power 3, weak to fire), Spike Beast (power 3, very tough, no weakness)
+- The sword hits for your Fighting level. Each hit takes health off; an enemy is defeated at zero health. Toughness takes damage off each hit
+- Fireball burst hurts every enemy inside it. Enemies weak to fire take double damage
+- Code: the old "slime" names are now enemy names (spawnEnemy, defeatEnemy, updateEnemies)
+- Not yet: the admin editing of names and power levels (defaults are in the code). Holy light is not a spell yet, so holy weaknesses are not used
+- Checked: script syntax and automated tests. Not played yet
+
 ## 0.6.43: swimming and the first magic skill
 - Water: you swim. In water you move slower and sink slowly. Hold jump to swim up. You can still build into water and dig under it
 - At Fighting level 2 you unlock magic. A panel asks you to choose a skill; the first is Fireball, which goes in the quick bar

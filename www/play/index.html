@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.43 (3D)</title>
+<title>Adventurers of Drenerics v0.6.44 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -964,6 +964,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.44', title: 'Enemy names, health and weaknesses', items: [
+    'Each enemy has its own name, power level, health and toughness. Some are weak to fire (goblins, brutes, hood goblins) or to holy light (imps, spear imps)',
+    'The sword hits for your Fighting level; each hit takes health off, and an enemy is defeated at zero health',
+    'Fireball hurts every enemy inside its burst. Enemies weak to fire take double damage'] },
   { v: '0.6.43', title: 'Swimming and the first magic skill', items: [
     'Water: you swim. In water you move slower and sink slowly. Hold jump to swim up',
     'At Fighting level 2 you unlock magic and choose a skill. The first skill is Fireball',
@@ -1227,22 +1231,29 @@ function placeCell(x, y, z, forceId) {
   renderUI();
 }
 
-// ---- Slimes: gentle creatures to fight with the sword (they never hurt the player) ----
+// ---- Fights: hold on an enemy with the sword to hit it. Enemies never hurt the player. ----
 const enemies = [];
-let fight = null; // {e, t}: the slime being hit, and how long we have been hitting it
-const slimeGeo = new THREE.SphereGeometry(0.4, 16, 12);
-const slimeMat = new THREE.MeshStandardMaterial({ color: 0x5fdc5f, roughness: 0.3, transparent: true, opacity: 0.9 });
+let fight = null; // {e, t}: the enemy being hit, and how long we have been hitting it
 const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
 
 // ---- Enemies: friendly goblin-style creatures (they never hurt the player) ----
+// Each enemy has its own name and power level. health = how many hits of damage it takes;
+// toughness = damage taken off each hit; weak = the kinds of damage that hurt it double.
+// These are defaults. The admin can edit them later.
 const ENEMY_KINDS = {
-  goblin: { name: 'Goblin',      body: 0x6cc04a, head: 0x7fd65a, cloth: 0x8b5a2b, scale: 1.0,  fight: 1.0, gems: 1, sword: true },
-  imp:    { name: 'Imp',         body: 0xd9473b, head: 0xe05a4a, cloth: 0x3a2a4a, scale: 0.85, fight: 0.7, gems: 1, horns: true, file: '/models/imp.glb', height: 1.1 },
-  brute:  { name: 'Brute',       body: 0x6b4a8a, head: 0x7a5aa0, cloth: 0x4a3a2a, scale: 1.35, fight: 2.2, gems: 3, pack: true },
-  spear:  { name: 'Spear Imp',   body: 0xc0392b, head: 0xd9574a, cloth: 0x5a4a3a, scale: 0.95, fight: 1.2, gems: 2, spear: true, horns: true },
-  hood:   { name: 'Hood Goblin', body: 0x2f6b3a, head: 0x3f8a4c, cloth: 0x2a2a2a, scale: 1.0,  fight: 1.1, gems: 2, hood: true, scythe: true },
-  spike:  { name: 'Spike Beast', body: 0x8a6a3a, head: 0x9a7a4a, cloth: 0x5a4a2a, scale: 1.1,  fight: 1.6, gems: 2, beast: true, file: '/models/puglin.glb', height: 0.9 },
+  goblin: { name: 'Goblin',      power: 1, health: 3,  toughness: 0, weak: ['fire'], body: 0x6cc04a, head: 0x7fd65a, cloth: 0x8b5a2b, scale: 1.0,  fight: 1.0, gems: 1, sword: true },
+  imp:    { name: 'Imp',         power: 2, health: 4,  toughness: 0, weak: ['holy'], body: 0xd9473b, head: 0xe05a4a, cloth: 0x3a2a4a, scale: 0.85, fight: 0.7, gems: 1, horns: true, file: '/models/imp.glb', height: 1.1 },
+  brute:  { name: 'Brute',       power: 4, health: 9,  toughness: 2, weak: ['fire'], body: 0x6b4a8a, head: 0x7a5aa0, cloth: 0x4a3a2a, scale: 1.35, fight: 2.2, gems: 3, pack: true },
+  spear:  { name: 'Spear Imp',   power: 3, health: 6,  toughness: 1, weak: ['holy'], body: 0xc0392b, head: 0xd9574a, cloth: 0x5a4a3a, scale: 0.95, fight: 1.2, gems: 2, spear: true, horns: true },
+  hood:   { name: 'Hood Goblin', power: 3, health: 6,  toughness: 1, weak: ['fire'], body: 0x2f6b3a, head: 0x3f8a4c, cloth: 0x2a2a2a, scale: 1.0,  fight: 1.1, gems: 2, hood: true, scythe: true },
+  spike:  { name: 'Spike Beast', power: 3, health: 8,  toughness: 3, weak: [],       body: 0x8a6a3a, head: 0x9a7a4a, cloth: 0x5a4a2a, scale: 1.1,  fight: 1.6, gems: 2, beast: true, file: '/models/puglin.glb', height: 0.9 },
 };
+// Damage to an enemy: the base damage less its toughness (at least 1), doubled if the enemy is weak to that kind of damage
+function damageTo(en, base, type) {
+  const k = ENEMY_KINDS[en.kind];
+  const hit = Math.max(1, base - k.toughness);
+  return k.weak.includes(type) ? hit * 2 : hit;
+}
 const ENEMY_LIST = Object.keys(ENEMY_KINDS);
 const modelCache = {};
 function loadModel(file) {
@@ -1321,7 +1332,7 @@ function enemyModel(kind) {
   g.scale.setScalar(k.scale);
   return g;
 }
-function spawnSlime() {
+function spawnEnemy() {
   for (let tries = 0; tries < 20; tries++) {
     // Near the player, so enemies appear where the player can see them
     const x = Math.floor(px) + Math.floor(Math.random() * 40) - 20, z = Math.floor(pz) + Math.floor(Math.random() * 40) - 20;
@@ -1332,17 +1343,17 @@ function spawnSlime() {
     const kind = ENEMY_LIST[Math.floor(Math.random() * ENEMY_LIST.length)];
     const group = enemyModel(kind);
     scene.add(group);
-    const en = { group, kind, base: ENEMY_KINDS[kind].scale, x: x + 0.5, y: y + 1.01, z: z + 0.5, vx: 0, vy: 0, vz: 0, timer: 1, hitP: 0 };
+    const en = { group, kind, hp: ENEMY_KINDS[kind].health, base: ENEMY_KINDS[kind].scale, x: x + 0.5, y: y + 1.01, z: z + 0.5, vx: 0, vy: 0, vz: 0, timer: 1, hitP: 0 };
     group.traverse(c => { c.userData.enemy = en; });
     group.userData.enemy = en; // so a model that loads later can be tagged too
     enemies.push(en);
     return;
   }
 }
-let slimeSpawnT = 6;
+let enemySpawnT = 6;
 function updateSpawns(dt) {
-  slimeSpawnT -= dt;
-  if (enemies.length < 6 && slimeSpawnT <= 0) { spawnSlime(); slimeSpawnT = 6; }
+  enemySpawnT -= dt;
+  if (enemies.length < 6 && enemySpawnT <= 0) { spawnEnemy(); enemySpawnT = 6; }
 }
 
 // Like hits(), but for any size of box
@@ -1363,10 +1374,10 @@ function groundBelow(x, z, y) {
   return false;
 }
 
-function updateSlimes(dt) {
+function updateEnemies(dt) {
   const now = performance.now() / 1000;
   // Remove enemies that fell off the island, left the world, or hang in the air.
-  // spawnSlime() puts new ones on the grass.
+  // spawnEnemy() puts new ones on the grass.
   for (let i = enemies.length - 1; i >= 0; i--) {
     const en = enemies[i];
     en.airT = groundBelow(en.x, en.z, en.y) ? 0 : (en.airT || 0) + dt;
@@ -1464,7 +1475,7 @@ function updateCorpses(dt) {
   }
 }
 
-// Hold on a slime with the sword selected to attack it
+// Hold on an enemy with the sword selected to hit it. Each hit takes off health; the enemy is defeated at 0.
 function updateFight(dt) {
   if (!fight) { for (const en of enemies) en.hitP = 0; return; }
   const en = fight.e;
@@ -1474,10 +1485,22 @@ function updateFight(dt) {
   fight.t += dt;
   const hitTime = fightTime() * ENEMY_KINDS[en.kind].fight;
   en.hitP = Math.min(1, fight.t / hitTime);
-  if (fight.t >= hitTime) { en.hitP = 0; killSlime(en); fight = null; }
+  if (fight.t >= hitTime) {
+    en.hitP = 0;
+    fight.t = 0;   // keep hitting while the press is held
+    hurtEnemy(en, damageTo(en, pw.fight.lvl, 'sword'));
+    if (!enemies.includes(en)) fight = null;
+  }
+}
+// Takes health off an enemy and says so. Defeats it when its health is gone.
+function hurtEnemy(en, amount) {
+  en.hp -= amount;
+  const k = ENEMY_KINDS[en.kind];
+  if (en.hp <= 0) { defeatEnemy(en); return; }
+  say(k.name + ': ' + en.hp + ' health left' + (k.weak.length ? ' (weak to ' + k.weak.join(', ') + ')' : ''), 2000);
 }
 
-function killSlime(en) {
+function defeatEnemy(en) {
   enemies.splice(enemies.indexOf(en), 1);
   // Leave the body lying on its side. It is no longer an enemy, so it can't be hit.
   en.group.traverse(c => { c.userData.enemy = null; });
@@ -1504,13 +1527,13 @@ function killSlime(en) {
 // ---- Skills and magic: at Fighting level 2 the player chooses a skill. Fireball is the first one. ----
 const MAGIC_LEVEL = 2;                      // Fighting level that unlocks magic and the skill choice
 const SKILLS = {
-  fireball: { name: 'Fireball', desc: 'Shoot a ball of fire. It defeats any monster it hits.' },
+  fireball: { name: 'Fireball', desc: 'Shoot a ball of fire. It hurts the enemies it hits, more if they are weak to fire.' },
 };
 let skills = [];                            // skills the player has chosen
 let skillPanel = null;                      // the open skill choice panel, if any
 const FIRE = [
-  { speed: 16, life: 1.6, size: 0.22, boom: 0.9 },   // magic level 1: a small ball, a small burst
-  { speed: 20, life: 2.2, size: 0.34, boom: 2.4 },   // magic level 2: a bigger ball and a wider burst
+  { speed: 16, life: 1.6, size: 0.22, boom: 0.9, dmg: 4 },   // magic level 1: a small ball, a small burst
+  { speed: 20, life: 2.2, size: 0.34, boom: 2.4, dmg: 6 },   // magic level 2: a bigger ball and a wider burst
 ];
 const fireballs = [];                       // { mesh, x, y, z, vx, vy, vz, t, tier }
 const blasts = [];                          // { mesh, mat, t, max }: the flash where a fireball burst
@@ -1574,8 +1597,8 @@ function castFireball(dir) {
   gain('magic', 1);
 }
 
-// Moves the fireballs. A fireball bursts when it hits a monster or a block, or when its time runs out.
-// Monsters inside the burst are defeated. Blocks are never changed.
+// Moves the fireballs. A fireball bursts when it hits an enemy or a block, or when its time runs out.
+// Enemies inside the burst take fire damage. Blocks are never changed.
 function updateFireballs(dt) {
   spellCool = Math.max(0, spellCool - dt);
   for (let i = fireballs.length - 1; i >= 0; i--) {
@@ -1587,7 +1610,7 @@ function updateFireballs(dt) {
     if (!boom) boom = enemies.some(en => Math.hypot(en.x - f.x, en.y + 0.5 - f.y, en.z - f.z) < 0.8);
     if (!boom) continue;
     for (const en of [...enemies]) {
-      if (Math.hypot(en.x - f.x, en.y + 0.5 - f.y, en.z - f.z) < s.boom) killSlime(en);
+      if (Math.hypot(en.x - f.x, en.y + 0.5 - f.y, en.z - f.z) < s.boom) hurtEnemy(en, damageTo(en, s.dmg, 'fire'));
     }
     scene.remove(f.mesh);
     fireballs.splice(i, 1);
@@ -1617,7 +1640,7 @@ let press = null;        // {id, x, lastX, moved}
 let pendingPlace = null; // cell to build in, used only if the press was a tap
 let pendingCast = null;  // direction to shoot, used only if the press was a tap
 
-// Which block or slime the press landed on, and the cell it would dig or build in
+// Which block or enemy the press landed on, and the cell it would dig or build in
 function aim(e) {
   ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
   ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -1782,7 +1805,7 @@ function update(dt) {
   if (!skillPanel && !skills.length && pw.fight.lvl >= MAGIC_LEVEL) showSkillChoice();
   updateFight(dt);
   updateFireballs(dt);
-  updateSlimes(dt);
+  updateEnemies(dt);
   updateTeleport(dt);
   updateSpawns(dt);
   updateDrops(performance.now() / 1000);
@@ -1872,7 +1895,7 @@ if (saved) {
   if (worldLoaded) say('Welcome back, ' + playerName + '!', 2500);
 }
 // Start with some enemies near the player. This runs after the saved position is restored, so they appear where the player is.
-for (let i = 0; i < 6; i++) spawnSlime();
+for (let i = 0; i < 6; i++) spawnEnemy();
 
 // ---- Item pictures, drawn in code (no downloads needed) ----
 const iconCache = {};
@@ -1917,7 +1940,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.43';
+const VERSION = '0.6.44';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
