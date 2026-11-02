@@ -31,7 +31,8 @@ A parent can see the stats for the child's device (not all players), by linking 
 5. The admin (yammay@gmail.com) can see every link, disconnect any link, and block any account from linking or signing in to the stats page. Blocked accounts are kept in a `blocked_accounts` table with a reason and date.
 
 ## Open question
-- Chat logs: the parent asked that linked parents can see any chat logs. The game has no chat between players, and the project rules say chat must not be added without a separate privacy review. Recommended: leave chat out. The parent needs to decide before any chat-related work.
+- Chat (decided 2 Nov 2026): chat is NOT allowed for children. It is possible only between parents who have verified their identity. Not built. Before any work: a separate design, identity-verification method, moderation and reporting plan, a privacy review, and a check against Google Play's policies for family apps (which restrict chat in child-directed apps).
+- Chat logs for linked parents: not decided. Recommended: do not show chat logs to parents. Decide with the chat design above.
 
 ## Decisions needed (earlier list, kept for reference)
 1. One parent or two? (Proposed: up to two parent accounts per child device.)
