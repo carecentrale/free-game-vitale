@@ -10,7 +10,7 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
-| 0.6.30 | (commit to follow, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Safety limit of 100 saved games on the device |
+| 0.6.30 | (commit 507a269, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Safety limit of 100 saved games on the device |
 | 0.6.29 | (commit fab8828, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | One free cloud save per parent; device saves unlimited; cloud save never replaces a different game silently |
 | 0.6.28 | (commit 79a6a4d, not tagged) | build/prototype-3d-v7.html; build/admin.html; www/play/index.html; www/admin.html; docs/migrations/0006 (applied) | (check Vercel) | Parents can delete their cloud save (game and admin page) |
 | 0.6.27 | (commit 1d38ca3, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Choose a saved game at start (up to 10 on this device) |
