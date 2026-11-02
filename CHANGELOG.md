@@ -2,6 +2,13 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.14: enemy fixes and corpses
+- Enemies stay on the ground while walking. The bounce now stretches the body instead of lifting it off the blocks
+- Enemies turn back at the edge of a ledge instead of walking off into the air
+- Enemies with a 3D model that finished loading after they spawned can now be hit
+- A defeated enemy lies on the ground for 5 minutes, then sinks into the ground and disappears
+- Corpses are not saved, not shared in multiplayer worlds and not counted anywhere; no new data is collected
+
 ## 0.6.13: settings screen
 - Settings button at the top right shows the game version and a list of what has changed
 - The list is a copy kept inside the game; update it with each release
