@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.18 (3D)</title>
+<title>Adventurers of Drenerics v0.6.19 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -563,6 +563,7 @@ const TELE_CAST = 5 * 60;                 // seconds to cast
 const TELE_RECHARGE = 60 * 60 * 1000;     // ms until it can be used again
 const teleBtn = document.getElementById('teleBtn');
 let teleCast = -1;                        // seconds left in the cast, -1 when not casting
+let teleEndAt = 0;                        // clock time (ms) when the cast finishes; keeps time while the tab is in the background
 let teleReadyAt = 0;                      // time (ms) when the next teleport is ready
 try { teleReadyAt = Number(localStorage.getItem('teleReadyAt')) || 0; } catch (e) {}
 function fmtWait(ms) {
@@ -573,16 +574,20 @@ teleBtn.addEventListener('click', () => {
   if (teleCast >= 0) { say('Casting the teleport...', 1500); return; }
   const left = teleReadyAt - Date.now();
   if (left > 0) { say('Teleport ready in ' + fmtWait(left), 2000); return; }
+  teleEndAt = Date.now() + TELE_CAST * 1000;
   teleCast = TELE_CAST;
   say('Casting the teleport... ' + Math.ceil(TELE_CAST / 60) + ' minutes', 2500);
 });
+// Keeps the cast finishing even when the game tab is in the background (the game loop is paused then)
+setInterval(() => { if (teleCast >= 0) updateTeleport(0); }, 1000);
 function fmtCountdown(sec) {
   const t = Math.max(0, Math.ceil(sec));
   return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
 }
 function updateTeleport(dt) {
   if (teleCast >= 0) {
-    teleCast -= dt;
+    // Use the clock, not the frame time: the game loop pauses when the tab is in the background
+    teleCast = Math.max(0, (teleEndAt - Date.now()) / 1000);
     if (teleCast <= 0) {
       teleCast = -1;
       // Start point, three blocks up so the character drops in safely
@@ -607,6 +612,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.19', title: 'Teleport works in the background', items: [
+    'The teleport cast finishes on time even when you switch to another tab'] },
   { v: '0.6.18', title: 'Teleport lands on top of the land', items: [
     'Teleporting now puts you on top of the land, not at the bottom of a hole you dug',
     'Enemies that leave the map are recorded for the grown-up admin log'] },
@@ -1338,7 +1345,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.18';
+const VERSION = '0.6.19';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

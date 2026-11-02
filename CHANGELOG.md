@@ -2,6 +2,10 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.19: teleport works in the background
+- The teleport cast now uses the clock, so it finishes on time even when the game tab is not in focus
+- Limit: browsers slow background timers. After a long time in the background, the teleport can be up to about a minute late
+
 ## 0.6.18: teleport lands on top; enemy debug log
 - Teleporting (and the fall reset) puts you on the highest land near the middle of the map, not at the bottom of a hole you dug
 - Enemy debug log: enemies that leave the map are recorded with the world code, enemy type, time, and position rounded to 0.1. Players are not identified. The parent can see the log on the device (parent area) and on the admin page
