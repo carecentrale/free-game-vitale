@@ -2,6 +2,11 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.17: fixes for enemies off the map
+- Enemies that fall off the island, leave the world, or stay in the air for more than 3 seconds are removed; new ones appear on the grass
+- A defeated enemy that was in the air falls and lands on the block below it, instead of hanging there
+- The teleport button counts down (m:ss) while it is casting
+
 ## 0.6.16: easier to close Settings
 - Esc closes the Settings screen
 - Tapping or clicking outside the Settings panel closes it; that tap does not also dig or build in the game

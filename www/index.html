@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.16 (3D)</title>
+<title>Adventurers of Drenerics v0.6.17 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -562,6 +562,10 @@ teleBtn.addEventListener('click', () => {
   teleCast = TELE_CAST;
   say('Casting the teleport... ' + Math.ceil(TELE_CAST / 60) + ' minutes', 2500);
 });
+function fmtCountdown(sec) {
+  const t = Math.max(0, Math.ceil(sec));
+  return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+}
 function updateTeleport(dt) {
   if (teleCast >= 0) {
     teleCast -= dt;
@@ -579,10 +583,21 @@ function updateTeleport(dt) {
   const wait = teleCast < 0 && teleReadyAt - Date.now() > 0;
   teleBtn.classList.toggle('wait', teleCast >= 0 || wait);
   teleBtn.title = teleCast >= 0 ? 'Casting...' : wait ? 'Ready in ' + fmtWait(teleReadyAt - Date.now()) : 'Teleport to the start';
+  // While casting, the button counts down (m:ss) so it is clear the teleport is in progress
+  const label = teleCast >= 0 ? fmtCountdown(teleCast) : '&#10022;';
+  if (teleBtn.dataset.label !== label) {
+    teleBtn.dataset.label = label;
+    teleBtn.innerHTML = label;
+    teleBtn.style.fontSize = teleCast >= 0 ? '11px' : '18px';
+  }
 }
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.17', title: 'Fixes for enemies off the map', items: [
+    'Enemies that fall off the island or get stuck in the air are removed; new ones appear on the grass',
+    'A defeated enemy that was in the air falls and lands on the block below it',
+    'The teleport button counts down while it is casting'] },
   { v: '0.6.16', title: 'Easier to close Settings', items: [
     'Press Esc to close Settings',
     'Tap outside the Settings panel to close it',
@@ -907,6 +922,14 @@ function groundBelow(x, z, y) {
 
 function updateSlimes(dt) {
   const now = performance.now() / 1000;
+  // Remove enemies that fell off the island, left the world, or hang in the air.
+  // spawnSlime() puts new ones on the grass.
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const en = enemies[i];
+    en.airT = groundBelow(en.x, en.z, en.y) ? 0 : (en.airT || 0) + dt;
+    const out = en.y < 1 || en.x < 0 || en.x > W || en.z < 0 || en.z > D;
+    if (out || en.airT > 3) { scene.remove(en.group); enemies.splice(i, 1); }
+  }
   for (const en of enemies) {
     en.timer -= dt;
     if (en.timer <= 0) {
@@ -946,9 +969,23 @@ function updateCorpses(dt) {
   for (let i = corpses.length - 1; i >= 0; i--) {
     const c = corpses[i];
     c.t += dt;
+    if (!c.landed) {
+      c.vy = Math.max(c.vy - GRAV * dt, -30);
+      const ny = c.group.position.y + c.vy * dt;
+      const cy = Math.floor(ny - 0.01); // the block the body is about to enter
+      if (cy < 0) { scene.remove(c.group); corpses.splice(i, 1); continue; } // fell into the void
+      if (get(Math.floor(c.x), cy, Math.floor(c.z)) !== T.AIR) {
+        c.landed = true;
+        c.restY = cy + 1 + c.lift;
+        c.group.position.y = c.restY;
+      } else {
+        c.group.position.y = ny;
+      }
+      continue;
+    }
     if (c.t < CORPSE_TIME) continue;
     const s = Math.min(1, (c.t - CORPSE_TIME) / CORPSE_SINK);
-    c.group.position.y = c.baseY - s * 1.6;
+    c.group.position.y = c.restY - s * 1.6;
     if (s >= 1) {
       scene.remove(c.group);
       corpses.splice(i, 1);
@@ -978,7 +1015,9 @@ function killSlime(en) {
   en.group.scale.setScalar(en.base);
   en.group.rotation.set(0, turn, -Math.PI / 2);
   en.group.position.set(en.x, en.y + 0.25 * en.base, en.z);
-  corpses.push({ group: en.group, t: 0, baseY: en.group.position.y });
+  // A body killed in mid-air falls until it lands on a block
+  const onBlock = get(Math.floor(en.x), Math.floor(en.y - 0.1), Math.floor(en.z)) !== T.AIR;
+  corpses.push({ group: en.group, t: 0, x: en.x, z: en.z, vy: 0, lift: 0.25 * en.base, landed: onBlock, restY: en.group.position.y });
   const k = ENEMY_KINDS[en.kind];
   for (let i = 0; i < k.gems; i++) addItem('gem');
   gain('fight', 2);
@@ -1274,7 +1313,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.16';
+const VERSION = '0.6.17';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
