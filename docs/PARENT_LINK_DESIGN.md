@@ -1,6 +1,6 @@
 # Parent link: letting a parent see their child's stats
 
-Status: DRAFT for the parent's decision. Nothing here is built yet.
+Status: DECISIONS RECORDED (parent's answers, 2 Nov 2026). Not built yet. Chat question still open.
 
 ## Goal
 A parent can see the stats for the child's device (not all players), by linking with a short code.
@@ -23,7 +23,17 @@ A parent can see the stats for the child's device (not all players), by linking 
 - Are the links kept after the child's data is deleted? Proposed: deleting a device's data also deletes its links.
 - Retention: links last until the parent unlinks, or 12 months of no sign-in, whichever is first. Proposed.
 
-## Decisions needed
+## Decisions made (2 Nov 2026)
+1. Up to two parent accounts per child device.
+2. Share link is one-use and expires after 24 hours. It can be shared by text, email or social apps.
+3. The parent sees, for that device: time played, number of sessions (times the game was opened), and the dates. Nothing about other players.
+4. The "link to a parent" prompt appears after character creation and is shown to everyone. The prompt only offers linking. Linking requires a parent to sign in and create the link.
+5. The admin (yammay@gmail.com) can see every link, disconnect any link, and block any account from linking or signing in to the stats page. Blocked accounts are kept in a `blocked_accounts` table with a reason and date.
+
+## Open question
+- Chat logs: the parent asked that linked parents can see any chat logs. The game has no chat between players, and the project rules say chat must not be added without a separate privacy review. Recommended: leave chat out. The parent needs to decide before any chat-related work.
+
+## Decisions needed (earlier list, kept for reference)
 1. One parent or two? (Proposed: up to two parent accounts per child device.)
 2. Is the code entered by the parent or the child? (Proposed: the parent types it.)
 3. What the parent sees: the stats page for that device only, or also the enemy log for its world? (Proposed: stats only.)
