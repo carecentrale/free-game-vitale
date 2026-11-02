@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.35 (3D)</title>
+<title>Adventurers of Drenerics v0.6.36 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -94,6 +94,22 @@
 </div>
 
 <script type="module">
+// Shows any error on the page itself, so it can be read without a developer console
+function showErr(msg) {
+  try {
+    let b = document.getElementById('errBanner');
+    if (!b) {
+      b = document.createElement('div');
+      b.id = 'errBanner';
+      b.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:99;background:#7a1f1f;color:#fff;font:13px system-ui,sans-serif;padding:8px;border-radius:8px;max-height:30vh;overflow:auto;white-space:pre-wrap';
+      document.body.appendChild(b);
+    }
+    b.textContent += msg + '\n';
+  } catch (e) {}
+}
+addEventListener('error', e => showErr('Error: ' + e.message + ' (line ' + e.lineno + ')'));
+addEventListener('unhandledrejection', e => showErr('Error: ' + ((e.reason && e.reason.message) || e.reason)));
+
 import * as THREE from 'three';
 
 // ---- World settings ----
@@ -735,6 +751,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.36', title: 'Errors shown on screen', items: [
+    'If something goes wrong, the error message appears at the bottom of the screen instead of failing silently'] },
   { v: '0.6.35', title: 'World status for support', items: [
     'The parent area shows the world status (seed, blocks drawn, player position, ground height), and drawing errors are logged'] },
   { v: '0.6.34', title: 'A 400,000 x 400,000 block world', items: [
@@ -1542,7 +1560,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.35';
+const VERSION = '0.6.36';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

@@ -2,6 +2,10 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.36: errors shown on screen
+- If the game hits an error, the message appears in a red box at the bottom of the screen, so it can be reported without a developer console
+- Checked: script syntax (node --check) and tests. Not checked in a browser
+
 ## 0.6.35: world status for support
 - The parent area (tap the top-left corner 5 times) shows the world status: seed, blocks drawn, player position and ground height
 - A drawing error is saved to the error log, and the world-loaded event is logged once per start
