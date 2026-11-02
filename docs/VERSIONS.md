@@ -10,7 +10,7 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
-| 0.6.36 | (commit to follow, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Game errors shown on screen |
+| 0.6.36 | (commit aa0e9c8, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Game errors shown on screen |
 | 0.6.35 | (commit 272fc73, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | World status in the parent area; drawing errors logged |
 | 0.6.34 | (commit e7e8c1f, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | 400,000 x 400,000 block world made on demand; only changed blocks saved; old saves moved to the middle |
 | 0.6.33 | (commit e67818a, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | A new random island for every new game (hills, caves, gems); land slopes toward the rim |
