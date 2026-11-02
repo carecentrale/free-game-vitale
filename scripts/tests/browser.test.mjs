@@ -52,7 +52,7 @@ function savedGame() {
 }
 
 // Sets up the page: local three.js, a stub for Supabase, no other internet, and the saved game
-async function setupPage(page, base) {
+async function setupPage(page, base, opts = {}) {
   // Registered first: Playwright checks the most recent rule first, so the rules below win
   await page.route(/^https?:\/\/(?!127\.0\.0\.1)/, route => route.abort());
   await page.route(/cdn\.jsdelivr\.net\/npm\/three@0\.160\.0\//, route => {
@@ -62,13 +62,15 @@ async function setupPage(page, base) {
     route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(local) });
   });
   await page.route(/cdn\.jsdelivr\.net\/npm\/@supabase/, route => route.fulfill({ status: 200, contentType: 'text/javascript', body: SUPABASE_STUB }));
-  await page.addInitScript(saveJson => {
+  const saves = opts.saves || [savedGame()];
+  const choice = opts.choice === undefined ? '0' : opts.choice;
+  await page.addInitScript(({ saves, choice }) => {
     if (!sessionStorage.getItem('seeded')) {
-      localStorage.setItem('kidsgame.slot.0', saveJson);
-      sessionStorage.setItem('kidsgame.choice', '0');
+      saves.forEach((j, i) => localStorage.setItem('kidsgame.slot.' + i, j));
+      if (choice !== null) sessionStorage.setItem('kidsgame.choice', choice);
       sessionStorage.setItem('seeded', '1');
     }
-  }, savedGame());
+  }, { saves, choice });
   await page.goto(base + '/play/', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof window.gameProbe === 'function', null, { timeout: 60000 });
 }
@@ -76,7 +78,7 @@ async function setupPage(page, base) {
 const skip = !chromium ? 'playwright is not installed: run npm install'
   : (!CHROME_PATH && !process.env.CI && !fs.existsSync('/opt/pw-browsers') ? 'Chromium not configured: set CHROME_PATH' : false);
 
-async function withGame(fn) {
+async function withGame(fn, opts) {
   const server = await serveWww();
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch(CHROME_PATH ? { executablePath: CHROME_PATH } : {});
@@ -85,7 +87,7 @@ async function withGame(fn) {
     const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
     page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
-    await setupPage(page, base);
+    await setupPage(page, base, opts);
     await fn(page, errors);
   } finally {
     await browser.close();
@@ -125,4 +127,15 @@ test('enemies stay on the ground while the player roams', { skip, timeout: 18000
     }
     assert.deepEqual(errors, [], 'errors in the browser:\n' + errors.join('\n'));
     assert.deepEqual(bad.slice(0, 5), [], 'enemies hung in the air while the player roamed (first 5):\n' + JSON.stringify(bad.slice(0, 5)));
+  }));
+
+test('with saved games and none chosen, the start menu lists them (it does not show the new-player wizard)', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => document.querySelectorAll('#slots .savecard').length > 0, null, { timeout: 20000 });
+    const names = await page.$$eval('#slots .savecard .sv-name', els => els.map(e => e.textContent.trim()));
+    assert.equal(names.length, 2, 'the menu should list both saved games, got: ' + JSON.stringify(names));
+    assert.deepEqual(errors, [], 'errors in the browser:\n' + errors.join('\n'));
+  }, {
+    saves: [savedGame(), JSON.stringify({ ...JSON.parse(savedGame()), name: 'Second Hero', world: { v: 2, seed: 99, edits: [] } })],
+    choice: null,
   }));
