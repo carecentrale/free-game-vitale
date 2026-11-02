@@ -2,6 +2,10 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.32: saved games list layout fix
+- The saved games cards at start are laid out at full width again. Their class names no longer clash with the quick bar's
+- Checked: game script syntax (node --check). Not checked in a browser
+
 ## 0.6.31: clearer saved games list
 - The start menu shows each saved game as a card: name, world code and last played time, with Play and Delete underneath
 - Checked: game script syntax (node --check). Not checked in a browser

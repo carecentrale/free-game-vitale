@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.31 (3D)</title>
+<title>Adventurers of Drenerics v0.6.32 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -57,12 +57,12 @@
   #slots .box{background:#1d2440;color:#fff;border-radius:18px;padding:20px;max-width:440px;width:100%;max-height:90vh;overflow:auto;box-sizing:border-box}
   #slots h2{margin:0 0 8px;font-size:22px;text-align:center}
   #slots p{margin:8px 0;font-size:15px;opacity:.9;text-align:center}
-  #slots .slot{margin:10px 0;padding:12px;border-radius:12px;background:rgba(255,255,255,.06);text-align:left}
-  #slots .slot .name{font-size:18px;font-weight:700}
-  #slots .slot .meta{font-size:13px;opacity:.75;margin:3px 0 10px}
-  #slots .slot .acts{display:flex;gap:8px}
-  #slots .slot .acts button{flex:1}
-  #slots .slot .acts button.del{flex:0 0 auto;color:#ffb4b4;border-color:#855}
+  #slots .savecard{display:block;width:100%;box-sizing:border-box;margin:10px 0;padding:12px;border-radius:12px;background:rgba(255,255,255,.06);text-align:left}
+  #slots .savecard .sv-name{display:block;font-size:18px;font-weight:700}
+  #slots .savecard .sv-meta{display:block;font-size:13px;opacity:.75;margin:3px 0 10px}
+  #slots .savecard .sv-acts{display:flex;gap:8px}
+  #slots .savecard .sv-acts button{flex:1}
+  #slots .savecard .sv-acts button.sv-del{flex:0 0 auto;color:#ffb4b4;border-color:#855}
   #slots button{padding:12px 14px;border-radius:12px;border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;font-size:16px;cursor:pointer}
   #slots button.play{background:#3b6fd8;border-color:#3b6fd8}
   #slots button:disabled{opacity:.4;cursor:default}
@@ -656,6 +656,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.32', title: 'Saved games list layout fix', items: [
+    'Fixed the saved games list at start, which was squeezed into a narrow column'] },
   { v: '0.6.31', title: 'Clearer saved games list', items: [
     'The start menu shows each saved game as a card: name, world code and last played time, with Play and Delete under it'] },
   { v: '0.6.30', title: 'Safety limit of 100 saved games on the device', items: [
@@ -1446,7 +1448,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.31';
+const VERSION = '0.6.32';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1895,9 +1897,9 @@ function renderSlotMenu() {
   document.getElementById('slotsBody').innerHTML = '<h2>Your games</h2>' +
     (list.length ? '<p>Pick a saved game to carry on.</p>' : '<p>No saved games on this device yet.</p>') +
     list.map(({ n, d }) =>
-      `<div class="slot"><div class="name">${esc(d.name || 'Adventurer')}</div>` +
-      `<div class="meta">World ${esc(d.worldId || '?')} · ${d.at ? 'last played ' + esc(new Date(d.at).toLocaleString()) : 'saved on this device'}</div>` +
-      `<div class="acts"><button class="play" data-play="${n}">Play</button><button class="del" data-del="${n}">Delete</button></div></div>`).join('') +
+      `<div class="savecard"><span class="sv-name">${esc(d.name || 'Adventurer')}</span>` +
+      `<span class="sv-meta">World ${esc(d.worldId || '?')} · ${d.at ? 'last played ' + esc(new Date(d.at).toLocaleString()) : 'saved on this device'}</span>` +
+      `<div class="sv-acts"><button data-play="${n}">Play</button><button class="sv-del" data-del="${n}">Delete</button></div></div>`).join('') +
     `<div style="text-align:center;margin-top:12px"><button data-new="1" ${list.length >= SLOT_MAX ? 'disabled' : ''}>Start a new game</button></div>` +
     (list.length >= SLOT_MAX ? '<p>You have 100 saved games. Delete one to start another.</p>' : '');
 }
