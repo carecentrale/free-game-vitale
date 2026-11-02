@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.15 (3D)</title>
+<title>Adventurers of Drenerics v0.6.16 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -405,7 +405,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (/^Digit[1-6]$/.test(e.code)) selectSlot(+e.code.slice(5) - 1);
   if (e.code === 'KeyB') toggleBag();
-  if (e.code === 'Escape') toggleBag(false);
+  if (e.code === 'Escape') { if (settingsOpen) toggleSettings(false); else toggleBag(false); }
 });
 addEventListener('keyup', e => keys[e.code] = false);
 const touch = { L: false, R: false, F: false, B: false, J: false };
@@ -583,6 +583,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.16', title: 'Easier to close Settings', items: [
+    'Press Esc to close Settings',
+    'Tap outside the Settings panel to close it',
+    'The Close button is larger'] },
   { v: '0.6.15', title: 'Teleport to the start', items: [
     'Purple teleport button at the top right takes you back to the start, safely above the ground',
     'Teleporting is free. Cast it for 5 minutes, then wait 1 hour before using it again'] },
@@ -644,7 +648,7 @@ let settingsOpen = false;
 function renderSettings() {
   settingsEl.innerHTML =
     `<div style="display:flex;justify-content:space-between;align-items:center">` +
-    `<b style="font-size:20px">Settings</b><span id="settingsClose" style="cursor:pointer;padding:6px">Close &#10005;</span></div>` +
+    `<b style="font-size:20px">Settings</b><button id="settingsClose" style="cursor:pointer;min-height:48px;min-width:110px;padding:10px 18px;background:#3b6fd8;color:#fff;border:0;border-radius:12px;font-size:18px;font-weight:600">Close &#10005;</button></div>` +
     `<div style="margin-top:12px"><b>Game version ${esc(VERSION)}</b></div>` +
     `<div style="margin-top:14px;opacity:.85">What has changed, newest first</div>` +
     GAME_HISTORY.map(h =>
@@ -659,6 +663,15 @@ function toggleSettings(force) {
 }
 document.getElementById('settingsBtn').addEventListener('click', () => toggleSettings());
 settingsEl.addEventListener('click', e => { if (e.target.closest('#settingsClose')) toggleSettings(false); });
+// Tap or click outside the panel to close it. The tap is used up here, so it does not also
+// dig, build or fight in the game behind it. The Settings button still works as before.
+addEventListener('pointerdown', e => {
+  if (!settingsOpen || settingsEl.contains(e.target)) return;
+  if (e.target.closest && e.target.closest('#settingsBtn')) return;
+  e.stopPropagation();
+  e.preventDefault();
+  toggleSettings(false);
+}, true);
 
 // Finish digging the block at (x,y,z). If the bag is full, the block is dropped on the ground to pick up later.
 function digCell(x, y, z) {
@@ -1261,7 +1274,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.15';
+const VERSION = '0.6.16';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

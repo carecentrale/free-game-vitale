@@ -2,6 +2,11 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.16: easier to close Settings
+- Esc closes the Settings screen
+- Tapping or clicking outside the Settings panel closes it; that tap does not also dig or build in the game
+- The Close button is larger and easier to tap
+
 ## 0.6.15: teleport to the start
 - Purple teleport button at the top right takes you back to the start point, three blocks above the ground so you land safely
 - Teleporting is free. Casting takes 5 minutes; after it teleports you, it recharges for 1 hour
