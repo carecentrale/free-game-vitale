@@ -2,6 +2,10 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.46: climbing out of water, and automated tests for the rules
+- Fixed: from the water you could not get out onto a shore. Now, holding jump while pressed against a shore next to water lifts the character over the edge
+- Automated tests now cover enemy kinds and weaknesses, damage, gear wear and breaking, gear drops, stacking parts, old saves with the starting gear, climbing out of water, and the shore terrain
+
 ## 0.6.45: durability, gear and enemy parts
 - Pickaxes and weapons have durability. A pickaxe wears by one for each block it digs; a weapon wears by one for each hit. At zero the item breaks and is removed from the bag and the quick bar
 - Each piece of gear is its own item with its own durability shown in the bag (for example "Sword 58/60")

@@ -70,6 +70,16 @@ function swimGame() {
   return JSON.stringify(g);
 }
 
+// A character in the water next to a shore (columns 200053..200059 in seed 4242: water, then land rising to 11)
+function shoreGame() {
+  const g = JSON.parse(savedGame());
+  g.pos = [200055 + 0.5, 8, 199970 + 0.5];
+  g.world = { v: 2, seed: 4242, edits: [] };
+  g.worldId = 'TESTWORLD';
+  g.profile = { sex: 'boy', race: 'human', name: 'Test Hero' };
+  return JSON.stringify(g);
+}
+
 // Sets up the page: local three.js, a stub for Supabase, no other internet, and the saved game
 async function setupPage(page, base, opts = {}) {
   // Registered first: Playwright checks the most recent rule first, so the rules below win
@@ -189,3 +199,173 @@ test('in water the character sinks slowly, and holding jump swims up', { skip, t
     assert.ok(y2 > y1 + 0.8, `holding jump should swim up: ${y1} -> ${y2}`);
     assert.deepEqual(errors, [], 'errors while swimming: ' + errors.join(' | '));
   }, { saves: [swimGame()] }));
+
+// Climbing out: from the water, holding right and jump takes the character up onto the shore
+test('from the water, holding right and jump climbs out onto the shore', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => Math.abs(window.gameProbe().px - (200055 + 0.5)) < 0.01, null, { timeout: 60000 });
+    // Hold right and jump until the character is past the shore, or 60 s have passed.
+    // (A fixed wait is not enough: the game moves as fast as the browser draws frames.)
+    await page.keyboard.down('KeyD');
+    await page.keyboard.down('Space');
+    await page.waitForFunction(() => window.gameProbe().px > 200058, null, { timeout: 60000, polling: 100 }).catch(() => {});
+    await page.keyboard.up('KeyD');
+    await page.keyboard.up('Space');
+    const p = await page.evaluate(() => window.gameProbe());
+    assert.ok(p.px > 200058, `the character did not get out of the water: x ${p.px}, y ${p.py}`);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [shoreGame()] }));
+
+// ---- Game rules: enemies, damage, gear, durability, drops, parts and old saves ----
+// These call the game's own rules through window.gameTest (a read-only hook, see the game file).
+
+test('every enemy kind has a name, power, health, toughness, weaknesses and parts that exist', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    const kinds = await page.evaluate(() => Object.entries(window.gameTest.ENEMY_KINDS).map(([id, k]) => ({
+      id, name: k.name, power: k.power, health: k.health, toughness: k.toughness, weak: k.weak,
+      partsOk: k.parts.every(p => !!window.gameTest.ITEMS[p]),
+    })));
+    assert.equal(kinds.length, 6, 'expected six enemy kinds');
+    for (const k of kinds) {
+      assert.ok(typeof k.name === 'string' && k.name.length > 0, `${k.id} needs a name`);
+      assert.ok(Number.isInteger(k.power) && k.power >= 1, `${k.id} needs a whole power level`);
+      assert.ok(k.health > 0, `${k.id} needs health`);
+      assert.ok(k.toughness >= 0, `${k.id} toughness cannot be negative`);
+      assert.ok(Array.isArray(k.weak), `${k.id} needs a weaknesses list`);
+      assert.ok(k.partsOk, `${k.id} drops a part that is not in ITEMS`);
+    }
+    assert.deepEqual(kinds.find(k => k.id === 'goblin').weak, ['fire'], 'goblins are weak to fire');
+    assert.deepEqual(kinds.find(k => k.id === 'imp').weak, ['holy'], 'imps are weak to holy light');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [savedGame()] }));
+
+test('fire does double damage to a goblin, and toughness takes off damage', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    const r = await page.evaluate(() => {
+      const d = window.gameTest.damageTo;
+      return {
+        fireGoblin: d({ kind: 'goblin' }, 4, 'fire'),
+        swordGoblin: d({ kind: 'goblin' }, 4, 'sword'),
+        fireImp: d({ kind: 'imp' }, 4, 'fire'),
+        bruteTough: d({ kind: 'brute' }, 5, 'sword'),
+        bruteWeak: d({ kind: 'brute' }, 1, 'sword'),
+      };
+    });
+    assert.equal(r.fireGoblin, 8, 'fire against a goblin: double');
+    assert.equal(r.swordGoblin, 4, 'a sword against a goblin: normal');
+    assert.equal(r.fireImp, 4, 'an imp is not weak to fire');
+    assert.equal(r.bruteTough, 3, 'a brute has toughness 2');
+    assert.equal(r.bruteWeak, 1, 'damage never drops below 1');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [savedGame()] }));
+
+test('a hit takes health off an enemy, and the enemy is still there while health is left', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    const hp = await page.evaluate(() => {
+      const en = { kind: 'goblin', hp: 10 };
+      window.gameTest.hurtEnemy(en, 3);
+      return en.hp;
+    });
+    assert.equal(hp, 7);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [savedGame()] }));
+
+test('a weapon hits harder with more damage and the Fighting level', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    const r = await page.evaluate(() => {
+      const g = window.gameTest;
+      const plain = g.weaponDamage(g.gear.find(x => x.t === 'sword').uid);
+      const gold = g.addGear('gold_sword');
+      return { plain, gold: g.weaponDamage(gold.uid), fight: g.pw.fight.lvl };
+    });
+    assert.equal(r.plain, r.fight + 0, 'a plain sword adds nothing to the Fighting level');
+    assert.equal(r.gold, r.fight + 5, 'a gold sword adds 5 to the Fighting level');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [savedGame()] }));
+
+test('gear wears with each use, and a piece that reaches zero breaks and leaves the bag and quick bar', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    const r = await page.evaluate(() => {
+      const g = window.gameTest;
+      const sword = g.gear.find(x => x.t === 'sword');
+      const uid = sword.uid;
+      g.wear(uid, 1);
+      const afterOne = g.gearOf(uid).dur;
+      const label = g.labelOf(uid);
+      g.gearOf(uid).dur = 1;
+      g.wear(uid, 1);
+      return { afterOne, label, broke: g.gearOf(uid) === null, inQuickBar: g.qb.includes(uid), inRecent: g.recent.includes(uid) };
+    });
+    assert.equal(r.afterOne, 59, 'a sword starts at 60 uses');
+    assert.match(r.label, /Sword 59\/60/, 'the bag shows the durability');
+    assert.ok(r.broke, 'the sword breaks at zero');
+    assert.equal(r.inQuickBar, false, 'a broken sword leaves the quick bar');
+    assert.equal(r.inRecent, false, 'a broken sword leaves the recent list');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [savedGame()] }));
+
+test('a new piece of gear starts with full durability and goes to the front of the recent list', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    const r = await page.evaluate(() => {
+      const g = window.gameTest;
+      const item = g.addGear('iron_sword');
+      return { dur: item.dur, max: g.GEAR.iron_sword.dur, found: !!g.gearOf(item.uid), first: g.recent[0] === item.uid, label: g.labelOf(item.uid) };
+    });
+    assert.equal(r.dur, r.max);
+    assert.ok(r.found, 'the new gear is in the bag');
+    assert.ok(r.first, 'the new gear is the most recent');
+    assert.equal(r.label, 'Iron Sword 90/90');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [savedGame()] }));
+
+test('stronger monsters drop better gear, and weak ones never drop the best gear', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    const r = await page.evaluate(() => {
+      const g = window.gameTest;
+      const weak = new Set(), strong = new Set();
+      for (let i = 0; i < 400; i++) { weak.add(g.gearFor(1)); strong.add(g.gearFor(4)); }
+      const power = Object.fromEntries(Object.keys(g.GEAR).map(t => [t, g.GEAR[t].power || 1]));
+      return { weak: [...weak], strong: [...strong], power };
+    });
+    for (const t of r.weak) assert.ok(r.power[t] <= 1, `a power 1 monster dropped ${t}`);
+    assert.ok(r.strong.includes('gold_sword'), 'a power 4 monster can drop a gold sword');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [savedGame()] }));
+
+test('creature parts stack in the bag and show how many there are', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    const r = await page.evaluate(() => {
+      const g = window.gameTest;
+      g.addItem('goblin_ear', 1);
+      g.addItem('goblin_ear', 2);
+      return { count: g.inv.goblin_ear, label: g.labelOf('goblin_ear') };
+    });
+    assert.equal(r.count, 3);
+    assert.equal(r.label, 'Goblin Ear x3');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [savedGame()] }));
+
+test('an old save with the pickaxe and sword ids still loads them as gear', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    const r = await page.evaluate(() => {
+      const g = window.gameTest;
+      return { q0: g.qb[0], q1: g.qb[1], pick: g.defOf(g.qb[0]) && g.tplOf(g.qb[0]), sword: g.tplOf(g.qb[1]) };
+    });
+    assert.equal(r.q0, 'g1', 'the old pickaxe slot becomes gear g1');
+    assert.equal(r.q1, 'g2', 'the old sword slot becomes gear g2');
+    assert.equal(r.pick, 'pick');
+    assert.equal(r.sword, 'sword');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [savedGame()] }));
+
+test('next to water the jump climbs, but on dry land away from water it does not', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    const r = await page.evaluate(() => ({
+      nearLake: window.gameTest.waterNear(200055.5, 8, 199970.5),
+      dryLand: window.gameTest.waterNear(200000.5, 30, 200000.5),
+    }));
+    assert.equal(r.nearLake, true, 'the shore is next to water');
+    assert.equal(r.dryLand, false, 'dry land has no water to climb from');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [shoreGame()] }));
+

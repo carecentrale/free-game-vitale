@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.45 (3D)</title>
+<title>Adventurers of Drenerics v0.6.46 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -825,6 +825,15 @@ const spawnPoint = topSpawnPoint;
 let [px, py, pz] = spawnPoint();
 let vx = 0, vy = 0, vz = 0, onGround = false, jumpHeld = false, squash = 0, walkT = 0;
 
+// Water within two blocks sideways and up to three blocks below the feet: the character is at the water's edge
+function waterNear(x, y, z) {
+  const fx = Math.floor(x), fy = Math.floor(y), fz = Math.floor(z);
+  for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = -3; dy <= 1; dy++) {
+    if (get(fx + dx, fy + dy, fz + dz) === T.WATER) return true;
+  }
+  return false;
+}
+
 function hits(x, y, z) {
   for (const dx of [-HW, HW]) for (const dz of [-HW, HW]) for (const dy of [0.01, HH - 0.01]) {
     if (solid(get(Math.floor(x + dx), Math.floor(y + dy), Math.floor(z + dz)))) return true;
@@ -1033,6 +1042,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.46', title: 'Climbing out of water', items: [
+    'Fixed: from the water you could not get out onto a shore. Now, holding jump against the shore lifts you over the edge'] },
   { v: '0.6.45', title: 'Durability, gear and enemy parts', items: [
     'Pickaxes and weapons have durability. A pickaxe wears by one each block it digs; a weapon wears by one each hit. At zero it breaks',
     'Enemies drop parts (ears, horns, hides...) and sometimes gear: weapons and armour, with better gear from stronger enemies',
@@ -1863,15 +1874,20 @@ function update(dt) {
   vx = wx * speed;
   vz = wz * speed;
 
+  // A wall or a shore stops the character walking. Recorded so that jump can climb it from the water.
+  let blocked = false;
   const nx = px + vx * dt;
-  if (!hits(nx, py, pz)) px = nx;
+  if (!hits(nx, py, pz)) px = nx; else blocked = true;
   const nz = pz + vz * dt;
-  if (!hits(px, py, nz)) pz = nz;
+  if (!hits(px, py, nz)) pz = nz; else blocked = true;
 
   const jd = k('Space') || touch.J;
   if (jd && !jumpHeld && onGround) { vy = JUMP; onGround = false; squash = 1; }
   jumpHeld = jd;
-  if (inWater) vy = jd ? SWIM_UP : Math.max(vy - GRAV * 0.15 * dt, -SINK);   // hold jump to swim up; otherwise sink slowly
+  // Climbing out: pressed against a shore next to water, holding jump lifts the character over the edge
+  const climbing = jd && blocked && waterNear(px, py, pz);
+  if (climbing) vy = SWIM_UP;
+  else if (inWater) vy = jd ? SWIM_UP : Math.max(vy - GRAV * 0.15 * dt, -SINK);   // hold jump to swim up; otherwise sink slowly
   else vy = Math.max(vy - GRAV * dt, -30);
   const ny = py + vy * dt;
   if (!hits(px, ny, pz)) { py = ny; onGround = false; }
@@ -2030,7 +2046,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.45';
+const VERSION = '0.6.46';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2525,6 +2541,13 @@ updateHand();
 renderUI();
 requestAnimationFrame(frame);
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
+// Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
+window.gameTest = {
+  ENEMY_KINDS, GEAR, ITEMS, GEAR_LOOT, inv, pw,
+  damageTo, hurtEnemy, wear, addGear, waterNear, addItem, gearFor, gearOf, defOf, tplOf, labelOf, weaponDamage, invTotal, updateHand,
+  get gear() { return gear; }, get qb() { return qb; }, get recent() { return recent; },
+  get skills() { return skills; },
+};
 window.gameProbe = () => ({ enemies: enemies.length, px, py, pz, drawn: lastDrawn, rebuildMs: lastRebuildMs, version: VERSION,
   skills: skills.slice(), fireballs: fireballs.length, blasts: blasts.length, skillPanel: !!skillPanel, magicLvl: pw.magic.lvl,
   list: enemies.map(e => ({ kind: e.kind, x: e.x, y: e.y, z: e.z, airT: e.airT || 0 })) });

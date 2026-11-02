@@ -10,6 +10,7 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
+| 0.6.46 | (commit to be added) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Climbing out of water; automated tests for enemies, damage, gear, durability, drops, parts and old saves |
 | 0.6.45 | (commit 32e1275, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Durability on pickaxes and weapons; gear drops (weapons, armour); enemy parts that stack in the bag |
 | 0.6.44 | (commit e8ba338, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Enemy names, power levels, health, toughness and weaknesses (defaults); sword and fireball damage |
 | 0.6.43 | (commit 55a7c4d, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Swimming in water; magic unlocked at Fighting level 2 with a skill choice; Fireball |

@@ -36,7 +36,8 @@ A 3D block-world game for kids and families (dig, build, gems, power levels, ene
 3. Copy the build file to `www/play/index.html`.
 4. Add a `CHANGELOG.md` entry and a `docs/VERSIONS.md` row (version, commit hash, deployment).
 5. Commit with a clear message and push to `main`.
-6. Never claim a feature works in a browser unless the parent has tested it. The sandbox cannot load the CDN, so only syntax checks run there. Say what was checked and what was not.
+6. Every new feature or rule change gets an automated test in `scripts/tests/` in the same release (browser rules go in `browser.test.mjs` and use `window.gameTest`; world rules go in `terrain.test.mjs`). Add the test before the feature is committed, and run it.
+7. Never claim a feature works in a browser unless the parent has tested it. The sandbox cannot load the CDN, so only syntax checks run there. Say what was checked and what was not.
 
 ## Versioning and rollback
 - Every release has a version number and a commit. Rollback = restore an older build file or check out an older commit, and record it as a new version.

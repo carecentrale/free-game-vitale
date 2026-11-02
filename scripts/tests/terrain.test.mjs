@@ -139,3 +139,8 @@ test('a change saved in a shorter world (before the world got taller) is kept', 
   assert.equal(W.get(cx * CS + lx, W.H - 1, cz * CS + lz) === W.T.DIRT, false);
 });
 
+test('water fills the low ground, and sand lines the water\'s edge', () => {
+  W.initWorld(4242);
+  assert.equal(W.get(200052, 8, 199970), W.T.WATER, 'low ground next to the shore is water');
+  assert.equal(W.get(200057, 8, 199970), W.T.SAND, 'the shore block at the water\'s edge is sand');
+});
