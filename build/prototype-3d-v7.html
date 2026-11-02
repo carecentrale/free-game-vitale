@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.34 (3D)</title>
+<title>Adventurers of Drenerics v0.6.35 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -271,6 +271,7 @@ else if (saved && typeof saved.world === 'string') {
   }
 }
 if (!worldLoaded) initWorld(Math.floor(Math.random() * 999999) + 1);
+let worldSource = !worldLoaded ? 'new' : (saved.world.v === 2 ? 'save' : 'old save');
 
 // ---- Textures: small pixel-art textures made in code ----
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -360,6 +361,14 @@ for (const k of [T.GRASS, T.DIRT, T.STONE, T.GEM]) {
 }
 let dirty = true;
 let drawnChunk = '';                              // the chunk the player was in when the blocks were last drawn
+// Short status for the parent area: shows whether blocks are being drawn and where the player is
+function worldStatus() {
+  const g = Number.isFinite(px) ? Math.round(groundY(Math.floor(px), Math.floor(pz))) : '?';
+  const at = Number.isFinite(px) ? Math.round(px) + ',' + Math.round(py) + ',' + Math.round(pz) : '?';
+  return 'World: seed ' + seed + ' · ' + chunks.size + ' chunks in memory · ' + edited.size + ' changed · ' +
+    lastDrawn + ' blocks drawn · player at ' + at + ' · ground here ' + g;
+}
+let lastDrawn = 0;   // blocks drawn by the last rebuild
 function rebuild() {
   const pcx = Math.floor(px / CS), pcz = Math.floor(pz / CS);
   drawnChunk = pcx + ',' + pcz;
@@ -381,6 +390,7 @@ function rebuild() {
     meshes[k].instanceMatrix.needsUpdate = true;
     meshes[k].boundingSphere = null;
   }
+  lastDrawn = cnt[1] + cnt[2] + cnt[3] + cnt[4];
   // Keep memory small: drop generated chunks far from the player (changed chunks are kept)
   if (chunks.size > 1500) for (const [k, c] of chunks) {
     if (!edited.has(k) && (Math.abs(c.cx - pcx) > VIEW + 3 || Math.abs(c.cz - pcz) > VIEW + 3)) chunks.delete(k);
@@ -725,6 +735,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.35', title: 'World status for support', items: [
+    'The parent area shows the world status (seed, blocks drawn, player position, ground height), and drawing errors are logged'] },
   { v: '0.6.34', title: 'A 400,000 x 400,000 block world', items: [
     'The world is now 400,000 blocks wide. Land is made on demand from the seed, so walking anywhere works',
     'Only the blocks you change are saved and shared. Old 40 x 40 saves and shared worlds move into the middle of the new world',
@@ -1466,7 +1478,10 @@ function frame(now) {
   if (!paused) update(dt);
   updateOthers(dt);
   const here = Math.floor(px / CS) + ',' + Math.floor(pz / CS);
-  if (dirty || here !== drawnChunk) { rebuild(); dirty = false; }
+  if (dirty || here !== drawnChunk) {
+    try { rebuild(); } catch (e) { logError(e, 'rebuild'); }
+    dirty = false;
+  }
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
@@ -1527,7 +1542,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.34';
+const VERSION = '0.6.35';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1574,10 +1589,10 @@ setInterval(flushDebugLog, 10000);
 function renderDevLog() {
   const el = document.getElementById('devLog');
   if (!el) return;
-  el.innerHTML = localLog.length
+  el.innerHTML = '<div style="font-size:12px;opacity:.85;margin:6px 0">' + esc(worldStatus()) + '</div>' + (localLog.length
     ? '<div style="font-size:13px;font-weight:700;margin:6px 0 4px">Enemy log on this device (newest first)</div>' +
       localLog.slice(0, 10).map(e => `<div style="font-size:12px;opacity:.9;margin:2px 0">${new Date(e.at).toLocaleTimeString()} ${esc(e.enemy)}: ${esc(e.reason)} at ${e.x}, ${e.y}, ${e.z}</div>`).join('')
-    : '<div style="font-size:12px;opacity:.7;margin:6px 0">No enemies have left the map on this device.</div>';
+    : '<div style="font-size:12px;opacity:.7;margin:6px 0">No enemies have left the map on this device.</div>');
 }
 
 // ---- Logging: counts and errors only, never names or chat ----
@@ -2007,6 +2022,7 @@ document.getElementById('slotsBody').addEventListener('click', e => {
 // ---- Startup ----
 applyLook();
 logEvent('session_start', VERSION);
+logEvent('world_loaded', worldSource + ' seed ' + seed);
 if (activeSlot === null && getChoice() !== 'new' && listSlots().length) showSlotMenu();
 else if (profile && worldId) { paused = false; resumeWorld(worldId); }
 else openWizard();

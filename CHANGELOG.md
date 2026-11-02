@@ -2,6 +2,11 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.35: world status for support
+- The parent area (tap the top-left corner 5 times) shows the world status: seed, blocks drawn, player position and ground height
+- A drawing error is saved to the error log, and the world-loaded event is logged once per start
+- Checked: script syntax (node --check). Not checked in a browser
+
 ## 0.6.34: a 400,000 x 400,000 block world
 - The world is 400,000 blocks wide. Land is made on demand from the seed, so you can walk anywhere in it
 - Only the blocks players change are saved and shared. Old 40 x 40 saves and shared worlds are copied into the middle of the new world
