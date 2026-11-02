@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.28 (3D)</title>
+<title>Adventurers of Drenerics v0.6.29 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -155,17 +155,25 @@ function gen(seed) {
 }
 // ---- Saving: the character and the world are kept on this device (no accounts, no personal data) ----
 const SAVE_KEY = 'kidsgame.save.v1';   // the old single save; moved into a slot on first start
-const SLOT_MAX = 10;                     // up to 10 saved games on this device
 let wiping = false;
 let activeSlot = null;                   // the saved game being played (0-9), or null until one is chosen
 function slotKey(n) { return 'kidsgame.slot.' + n; }
 function readSlot(n) { try { return JSON.parse(localStorage.getItem(slotKey(n))); } catch (e) { return null; } }
+// Saved games on this device are unlimited: every key kidsgame.slot.N is one saved game
 function listSlots() {
   const out = [];
-  for (let n = 0; n < SLOT_MAX; n++) { const d = readSlot(n); if (d && typeof d.world === 'string') out.push({ n, d }); }
-  return out;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith('kidsgame.slot.')) continue;
+      const n = Number(key.slice('kidsgame.slot.'.length));
+      const d = readSlot(n);
+      if (Number.isInteger(n) && d && typeof d.world === 'string') out.push({ n, d });
+    }
+  } catch (e) {}
+  return out.sort((a, b) => a.n - b.n);
 }
-function freeSlot() { for (let n = 0; n < SLOT_MAX; n++) if (!readSlot(n)) return n; return null; }
+function freeSlot() { let n = 0; while (readSlot(n)) n++; return n; }
 // Which game the menu picked for this browser tab: a slot number, 'new', or nothing
 function getChoice() { try { return sessionStorage.getItem('kidsgame.choice'); } catch (e) { return null; } }
 function setChoice(v) { try { if (v === null) sessionStorage.removeItem('kidsgame.choice'); else sessionStorage.setItem('kidsgame.choice', String(v)); } catch (e) {} }
@@ -576,7 +584,6 @@ qbEl.addEventListener('click', e => {
 bagEl.addEventListener('click', e => {
   if (e.target.closest('#bagClose')) return toggleBag(false);
   if (e.target.closest('#newGame')) {
-    if (listSlots().length >= SLOT_MAX) { say('You have 10 saved games. Delete one the next time you open the game, then start a new one.', 5000); return; }
     if (confirm('Start a new game? Your current game stays in your saved games.')) {
       saveGame();
       setChoice('new');
@@ -643,6 +650,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.29', title: 'One free cloud save; unlimited saves on the device', items: [
+    'Saved games on this device are unlimited (the 10-game limit is removed)',
+    'The cloud save holds one game per parent account. Automatic saves never replace a different game',
+    'Pressing Save now asks before it replaces the game in the cloud'] },
   { v: '0.6.28', title: 'Parents can delete the cloud save', items: [
     'In the parent area, a signed-in parent can delete their cloud save. The game on this device is not changed',
     'After a delete, automatic cloud saves stay off until the parent presses Save now'] },
@@ -1425,7 +1436,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.28';
+const VERSION = '0.6.29';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1535,17 +1546,26 @@ setInterval(flushEvents, 10000);
   function showSignedIn(session) {
     cloudUser = session ? session.user : null;
     setStatus(cloudUser
-      ? 'Signed in as ' + (cloudUser.email || 'your account') + '. The game saves to the cloud every 30 seconds.'
+      ? 'Signed in as ' + (cloudUser.email || 'your account') + '. Your free cloud save holds one game. It saves to the cloud every 30 seconds.'
       : 'Not signed in. Sign in to keep this game safe on any device.');
     for (const id of ['cloudSave', 'cloudLoad', 'cloudDelete', 'cloudOut']) $c(id).style.display = cloudUser ? '' : 'none';
     for (const id of ['cloudGoogle', 'cloudFacebook']) $c(id).style.display = cloudUser ? 'none' : '';
   }
-  async function cloudSaveNow() {
+  // The free cloud save holds one game. Automatic saves never replace a different game; a manual "Save now" asks first.
+  const worldOf = s => { try { return JSON.parse(s).worldId || null; } catch (e) { return null; } };
+  async function cloudSaveNow(manual) {
     if (!sb || !cloudUser) return;
     saveGame();
     if (activeSlot === null) { setStatus('Pick a saved game first.'); return; }
     const save = localStorage.getItem(slotKey(activeSlot));
     if (!save) return;
+    const { data: cur } = await sb.from('cloud_saves').select('save').eq('user_id', cloudUser.id).maybeSingle();
+    const cloudWorld = cur && cur.save ? worldOf(cur.save) : null;
+    const thisWorld = worldOf(save);
+    if (cloudWorld && thisWorld && cloudWorld !== thisWorld) {
+      if (!manual) { setStatus('Your free cloud save holds the game for world ' + cloudWorld + '. Press Save now to replace it with this game.'); return; }
+      if (!confirm('Replace the cloud save (world ' + cloudWorld + ') with this game (world ' + thisWorld + ')? The cloud save can only hold one game.')) return;
+    }
     const { error } = await sb.from('cloud_saves').upsert({ user_id: cloudUser.id, save, updated_at: new Date().toISOString() });
     setStatus(error ? 'Could not save to the cloud: ' + error.message
       : 'Saved to the cloud at ' + new Date().toLocaleTimeString() + '.');
@@ -1582,7 +1602,7 @@ setInterval(flushEvents, 10000);
   }
   $c('cloudGoogle').addEventListener('click', () => cloudSignIn('google'));
   $c('cloudFacebook').addEventListener('click', () => cloudSignIn('facebook'));
-  $c('cloudSave').addEventListener('click', () => { setCloudPaused(false); cloudSaveNow(); });
+  $c('cloudSave').addEventListener('click', () => { setCloudPaused(false); cloudSaveNow(true); });
   $c('cloudDelete').addEventListener('click', cloudDeleteNow);
   $c('cloudLoad').addEventListener('click', cloudLoadNow);
   $c('cloudOut').addEventListener('click', async () => { if (sb) await sb.auth.signOut(); showSignedIn(null); });
@@ -1858,18 +1878,16 @@ async function finishWizard() {
   say('Welcome, ' + playerName + '! World code: ' + worldId, 6000);
 }
 
-// ---- Saved games menu: pick one of up to 10 saved games, delete one, or start a new game ----
+// ---- Saved games menu: pick one of your saved games, delete one, or start a new game ----
 function hideSlotMenu() { document.getElementById('slots').classList.add('hide'); }
 function renderSlotMenu() {
   const list = listSlots();
-  const full = list.length >= SLOT_MAX;
   document.getElementById('slotsBody').innerHTML = '<h2>Your games</h2>' +
     (list.length ? '<p>Pick a saved game to carry on.</p>' : '<p>No saved games on this device yet.</p>') +
     list.map(({ n, d }) =>
       `<div class="slot"><div><b>${esc(d.name || 'Adventurer')}</b><small>World ${esc(d.worldId || '?')} · ${d.at ? 'Last played ' + esc(new Date(d.at).toLocaleString()) : 'Saved on this device'}</small></div>` +
       `<div style="display:flex;gap:6px"><button class="play" data-play="${n}">Play</button><button data-del="${n}">Delete</button></div></div>`).join('') +
-    `<div style="text-align:center;margin-top:12px"><button data-new="1" ${full ? 'disabled' : ''}>Start a new game</button></div>` +
-    (full ? '<p>You have 10 saved games. Delete one to start another.</p>' : '');
+    `<div style="text-align:center;margin-top:12px"><button data-new="1">Start a new game</button></div>`;
 }
 function showSlotMenu() {
   paused = true;
@@ -1887,7 +1905,7 @@ document.getElementById('slotsBody').addEventListener('click', e => {
     else { hideSlotMenu(); openWizard(); }
     return;
   }
-  if (e.target.closest('[data-new]') && listSlots().length < SLOT_MAX) {
+  if (e.target.closest('[data-new]')) {
     setChoice('new');
     hideSlotMenu();
     openWizard();

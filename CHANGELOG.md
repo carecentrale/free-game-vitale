@@ -2,6 +2,12 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.29: one free cloud save; unlimited saves on the device
+- Saved games on this device are unlimited (the 10-game limit from 0.6.27 is removed)
+- The cloud save holds one game per parent account. Automatic saves never replace a different game; Save now asks before replacing it
+- The signed-in status says the free cloud save holds one game
+- Checked: game script syntax (node --check). Not checked in a browser
+
 ## 0.6.28: parents can delete the cloud save
 - In the parent area, a signed-in parent can delete their cloud save. The game on this device is not changed
 - The admin page has the same delete for the signed-in account (it cannot delete other accounts' saves)
