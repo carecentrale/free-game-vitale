@@ -10,7 +10,7 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
-| 0.6.40 | (commit to follow, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Taller mountains (96 blocks tall), deeper valleys and canyons |
+| 0.6.40 | (commit 83ccf6b, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Taller mountains (96 blocks tall), deeper valleys and canyons |
 | 0.6.39 | (commit a9c3ddc, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Sky, sun, clouds; hills and mountains; world 64 blocks tall |
 | 0.6.38 | (commit 5faf915, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Enemies start near the loaded player; browser tests added |
 | 0.6.37 | (commit b734936, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Fix blank screen: restored settings and bag lost in 0.6.34 |
