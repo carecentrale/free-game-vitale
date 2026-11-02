@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.14 (3D)</title>
+<title>Adventurers of Drenerics v0.6.15 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -16,6 +16,8 @@
   #toggle{top:10px}
   #bagBtn{top:44px}
   #settingsBtn{top:10px;right:100px}
+  #teleBtn{position:fixed;top:10px;right:186px;width:36px;height:36px;border-radius:50%;background:#8e44ad;border:2px solid #d7b3ee;box-shadow:0 0 8px rgba(142,68,173,.8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;z-index:10;user-select:none}
+  #teleBtn.wait{opacity:.45}
   #settings{position:fixed;left:8%;right:8%;top:6%;bottom:6%;background:rgba(20,20,35,.94);color:#fff;border-radius:16px;padding:14px;display:none;overflow:auto;z-index:21;box-sizing:border-box;font-size:15px}
   #recent{position:fixed;top:82px;right:10px;width:160px;display:flex;flex-direction:column;gap:6px;z-index:5}
   .title{color:#fff;text-shadow:0 2px 4px #000;font-size:14px;margin-bottom:2px}
@@ -61,6 +63,7 @@
 <div id="msg"></div>
 <div id="toggle">Controls</div>
 <div id="settingsBtn">Settings</div>
+<div id="teleBtn" title="Teleport to the start">&#10022;</div>
 <div id="bagBtn">Bag (B)</div>
 <div id="recent"></div>
 <div id="qb"></div>
@@ -541,8 +544,48 @@ bagEl.addEventListener('click', e => {
 });
 document.getElementById('bagBtn').addEventListener('click', () => toggleBag());
 
+// ---- Teleport to the start: free. Cast for 5 minutes, then wait 1 hour before the next one ----
+const TELE_CAST = 5 * 60;                 // seconds to cast
+const TELE_RECHARGE = 60 * 60 * 1000;     // ms until it can be used again
+const teleBtn = document.getElementById('teleBtn');
+let teleCast = -1;                        // seconds left in the cast, -1 when not casting
+let teleReadyAt = 0;                      // time (ms) when the next teleport is ready
+try { teleReadyAt = Number(localStorage.getItem('teleReadyAt')) || 0; } catch (e) {}
+function fmtWait(ms) {
+  const m = Math.ceil(ms / 60000);
+  return m >= 60 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm' : m + ' min';
+}
+teleBtn.addEventListener('click', () => {
+  if (teleCast >= 0) { say('Casting the teleport...', 1500); return; }
+  const left = teleReadyAt - Date.now();
+  if (left > 0) { say('Teleport ready in ' + fmtWait(left), 2000); return; }
+  teleCast = TELE_CAST;
+  say('Casting the teleport... ' + Math.ceil(TELE_CAST / 60) + ' minutes', 2500);
+});
+function updateTeleport(dt) {
+  if (teleCast >= 0) {
+    teleCast -= dt;
+    if (teleCast <= 0) {
+      teleCast = -1;
+      // Start point, three blocks up so the character drops in safely
+      [px, py, pz] = spawnPoint();
+      py += 3;
+      vx = 0; vy = 0; vz = 0;
+      teleReadyAt = Date.now() + TELE_RECHARGE;
+      try { localStorage.setItem('teleReadyAt', String(teleReadyAt)); } catch (e) {}
+      say('Teleported to the start', 2000);
+    }
+  }
+  const wait = teleCast < 0 && teleReadyAt - Date.now() > 0;
+  teleBtn.classList.toggle('wait', teleCast >= 0 || wait);
+  teleBtn.title = teleCast >= 0 ? 'Casting...' : wait ? 'Ready in ' + fmtWait(teleReadyAt - Date.now()) : 'Teleport to the start';
+}
+
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.15', title: 'Teleport to the start', items: [
+    'Purple teleport button at the top right takes you back to the start, safely above the ground',
+    'Teleporting is free. Cast it for 5 minutes, then wait 1 hour before using it again'] },
   { v: '0.6.14', title: 'Enemy fixes and corpses', items: [
     'Enemies stay on the ground while they walk and no longer lift off the blocks',
     'Enemies turn back at the edge of a ledge instead of walking off it',
@@ -1096,6 +1139,7 @@ function update(dt) {
   updateDig(dt);
   updateFight(dt);
   updateSlimes(dt);
+  updateTeleport(dt);
   updateSpawns(dt);
   updateDrops(performance.now() / 1000);
 
@@ -1217,7 +1261,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.14';
+const VERSION = '0.6.15';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

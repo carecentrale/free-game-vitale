@@ -2,6 +2,12 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.15: teleport to the start
+- Purple teleport button at the top right takes you back to the start point, three blocks above the ground so you land safely
+- Teleporting is free. Casting takes 5 minutes; after it teleports you, it recharges for 1 hour
+- The recharge time is kept on this device only (a timestamp in local storage); nothing is sent anywhere
+- Not yet tested in a browser (see notes in the release record)
+
 ## 0.6.14: enemy fixes and corpses
 - Enemies stay on the ground while walking. The bounce now stretches the body instead of lifting it off the blocks
 - Enemies turn back at the edge of a ledge instead of walking off into the air
