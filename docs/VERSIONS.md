@@ -10,6 +10,7 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
+| 0.6.21 | (commit to follow, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Defeated creatures past the island edge fall off the map |
 | 0.6.20 | (commit 5ae6f67, not tagged) | build/prototype-3d-v7.html; www/play/index.html; www/index.html (home page) | dpl_8FN2baprdpr1VvpWciJfnDVgdey7 (INITIALIZING when recorded; check it reaches READY) | Home page at the main address; game moved to /play/ |
 | 0.6.19 | (commit 14999bc, not tagged) | build/prototype-3d-v7.html; www/index.html | dpl_59qPiE9UVZ2f7wkPDo5UrdVosicm (QUEUED when recorded; check it reaches READY) | Teleport cast finishes in the background; parent link design draft (docs/PARENT_LINK_DESIGN.md, not built) |
 | 0.6.18 | (commit 2f7d667, not tagged) | build/prototype-3d-v7.html; build/admin.html; docs/migrations/0002_debug_log.sql (NOT applied) | dpl_36Lg9eArA4bTjTc5ALf6T4inAycZ (QUEUED when recorded; check it reaches READY) | Teleport lands on top of the land; enemy debug log (device and admin); shared log active after migrations 0002 and 0003 |

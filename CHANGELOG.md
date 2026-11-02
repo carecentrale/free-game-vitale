@@ -2,6 +2,9 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.21: fallen creatures drop off the map
+- A defeated creature that lands past the edge of the island falls off the map instead of hanging in the air
+
 ## 0.6.20: home page
 - The game moved to its own address, /play/. The main address now shows a home page with a Play button
 - Home page: www/index.html. Game: www/play/index.html

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.20 (3D)</title>
+<title>Adventurers of Drenerics v0.6.21 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -612,6 +612,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.21', title: 'Fallen creatures drop off the map', items: [
+    'A defeated creature that lands past the edge of the island now falls off the map instead of hanging in the air'] },
   { v: '0.6.20', title: 'Home page', items: [
     'The game now lives at its own address (/play/), with a home page at the main address'] },
   { v: '0.6.19', title: 'Teleport works in the background', items: [
@@ -1008,7 +1010,9 @@ function updateCorpses(dt) {
         debugLog('corpse_void', 'fell into the void', { kind: c.kind }, c.x, ny, c.z);
         scene.remove(c.group); corpses.splice(i, 1); continue;
       }
-      if (get(Math.floor(c.x), cy, Math.floor(c.z)) !== T.AIR) {
+      // Only land on blocks inside the island. Outside it, keep falling until the body leaves the map.
+      const inside = c.x >= 0 && c.x < W && c.z >= 0 && c.z < D;
+      if (inside && get(Math.floor(c.x), cy, Math.floor(c.z)) !== T.AIR) {
         c.landed = true;
         c.restY = cy + 1 + c.lift;
         c.group.position.y = c.restY;
@@ -1347,7 +1351,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.20';
+const VERSION = '0.6.21';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
