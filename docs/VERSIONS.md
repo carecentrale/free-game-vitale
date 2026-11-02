@@ -10,8 +10,8 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
-| 0.6.14 | (commits d3d28ff and f163e2a, not tagged) | build/prototype-3d-v7.html | (auto-deployed from main; deployment ID not yet recorded) | Enemies stay on the ground and stop at ledges; defeated enemies lie for 5 minutes, then sink |
-| 0.6.13 | (commit 78b4374, not tagged) | build/prototype-3d-v7.html | (not deployed; waiting for parent approval to push to main) | Settings screen with game version and changes |
+| 0.6.14 | (commits d3d28ff, f163e2a and 0fa694c, not tagged) | build/prototype-3d-v7.html | dpl_HnZTwavyV2XVXXkvgu6BB2GCyjm9 (latest production; from commit 0fa694c) | Enemies stay on the ground and stop at ledges; defeated enemies lie for 5 minutes, then sink; right-click builds from the quick bar |
+| 0.6.13 | (commit d9c1a61, not tagged) | build/prototype-3d-v7.html | dpl_5K64mxYD2AzwDVLKsBWRACrTbUGy (from Vercel; commit 78b4374 not seen on main) | Settings screen with game version and changes |
 | 0.6.12 | (commit 89e12c2, not tagged) | build/prototype-3d-v7.html | (not deployed; waiting for parent approval to push to main) | Drop dug blocks on the ground when the bag is full |
 | 0.6.2 | v0.6.2 (see git log) | build/prototype-3d-v7.html | (auto-deployed from main) | Goblin, Imp and Brute enemies; item pictures; v0.6.1 wizard and shared worlds |
 | 0.6.0 | v0.6.0 (commit 974f3a0) | build/prototype-3d-v6.html | dpl_6fc7qgR5zH5qFEvxKnMkhWd9UMx9 | Save character and world on device |
