@@ -10,7 +10,7 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
-| 0.6.18 | (commit 2f7d667, not tagged) | build/prototype-3d-v7.html; build/admin.html; docs/migrations/0002_debug_log.sql (NOT applied) | dpl_36Lg9eArA4bTjTc5ALf6T4inAycZ (QUEUED when recorded; check it reaches READY) | Teleport lands on top of the land; enemy debug log (device and admin); shared log waits for migration approval |
+| 0.6.18 | (commit 2f7d667, not tagged) | build/prototype-3d-v7.html; build/admin.html; docs/migrations/0002_debug_log.sql (NOT applied) | dpl_36Lg9eArA4bTjTc5ALf6T4inAycZ (QUEUED when recorded; check it reaches READY) | Teleport lands on top of the land; enemy debug log (device and admin); shared log active after migrations 0002 and 0003 |
 | 0.6.17 | (commits a84247d and 232d772, not tagged) | build/prototype-3d-v7.html | dpl_J18UC2NG4gW1UDsVEP5CAh7wkfaF (BUILDING when recorded; check it reaches READY) | Remove enemies that fall off the map; corpses in mid-air land; teleport countdown |
 | 0.6.16 | (commits 0655738 and 3603094, not tagged) | build/prototype-3d-v7.html | dpl_GW57NZuNzHeF9ncK6j3h5mpBuoyL (READY) | Esc, tap-outside and larger Close button for Settings |
 | 0.6.15 | (commits de668f7 and e221bbe, not tagged) | build/prototype-3d-v7.html | dpl_J9DsBiRUgXKUU9b4V3rJ2Uj8zWhH (READY) | Purple teleport button to the start: free, 5 minute cast, 1 hour recharge |
