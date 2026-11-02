@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.23 (3D)</title>
+<title>Adventurers of Drenerics v0.6.24 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -612,6 +612,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.24', title: 'Enemy log records dug-out bodies', items: [
+    'When the ground under a defeated creature is dug out, the event is recorded in the enemy log (no names, no player codes)'] },
   { v: '0.6.23', title: 'Defeated creatures no longer hover', items: [
     'A defeated creature that lies on a block is placed exactly on top of it, so it no longer hangs in the air'] },
   { v: '0.6.22', title: 'Fallen creatures fall when ground is dug away', items: [
@@ -1031,7 +1033,11 @@ function updateCorpses(dt) {
       const below = Math.floor(c.restY - c.lift - 0.01);
       const supported = c.x >= 0 && c.x < W && c.z >= 0 && c.z < D &&
         get(Math.floor(c.x), below, Math.floor(c.z)) !== T.AIR;
-      if (!supported) { c.landed = false; c.vy = 0; }
+      if (!supported) {
+        // Record it in the enemy log: a body that was resting has lost the block under it
+        debugLog('corpse_unsupported', 'ground under a resting body was dug out', { kind: c.kind }, c.x, c.restY, c.z);
+        c.landed = false; c.vy = 0;
+      }
       continue;
     }
     const s = Math.min(1, (c.t - CORPSE_TIME) / CORPSE_SINK);
@@ -1368,7 +1374,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.23';
+const VERSION = '0.6.24';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

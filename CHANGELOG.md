@@ -2,6 +2,10 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.24: enemy log records dug-out bodies
+- When the ground under a defeated creature is dug out, the event is written to the enemy log (creature type, time, position, world, version; no names or player codes)
+- Checked: game script syntax (node --check). Not checked in a browser
+
 ## 0.6.23: defeated creatures no longer hover
 - A defeated creature that lies on a block is placed exactly on top of it. Before, it could rest a fraction above the block (the enemy's height is not whole numbers), which looked like floating
 - Checked: game script syntax (node --check). Not checked: in a browser, the game was not run here

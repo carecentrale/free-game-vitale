@@ -10,6 +10,7 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
+| 0.6.24 | (commit to follow, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Enemy log records when ground under a defeated creature is dug out |
 | 0.6.23 | (commit 31b1aa8, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Defeated creatures are placed exactly on the block under them, so they no longer hover |
 | 0.6.22 | (commit 10482ab, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Defeated creatures fall again if the ground under them is dug away |
 | 0.6.21 | (commit 38cbdc4, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Defeated creatures past the island edge fall off the map |
