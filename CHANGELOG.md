@@ -2,6 +2,10 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.23: defeated creatures no longer hover
+- A defeated creature that lies on a block is placed exactly on top of it. Before, it could rest a fraction above the block (the enemy's height is not whole numbers), which looked like floating
+- Checked: game script syntax (node --check). Not checked: in a browser, the game was not run here
+
 ## 0.6.22: fallen creatures fall when ground is dug away
 - A defeated creature left with nothing under it (for example after the ground is dug out from under it) falls to the ground
 

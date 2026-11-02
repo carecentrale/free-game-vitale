@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.22 (3D)</title>
+<title>Adventurers of Drenerics v0.6.23 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -612,6 +612,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.23', title: 'Defeated creatures no longer hover', items: [
+    'A defeated creature that lies on a block is placed exactly on top of it, so it no longer hangs in the air'] },
   { v: '0.6.22', title: 'Fallen creatures fall when ground is dug away', items: [
     'A defeated creature that is left with nothing under it (for example after the ground is dug out) now falls to the ground'] },
   { v: '0.6.21', title: 'Fallen creatures drop off the map', items: [
@@ -1062,10 +1064,15 @@ function killSlime(en) {
   const turn = en.group.rotation.y;
   en.group.scale.setScalar(en.base);
   en.group.rotation.set(0, turn, -Math.PI / 2);
-  en.group.position.set(en.x, en.y + 0.25 * en.base, en.z);
   // A body killed in mid-air falls until it lands on a block
-  const onBlock = get(Math.floor(en.x), Math.floor(en.y - 0.1), Math.floor(en.z)) !== T.AIR;
-  corpses.push({ group: en.group, kind: en.kind, t: 0, x: en.x, z: en.z, vy: 0, lift: 0.25 * en.base, landed: onBlock, restY: en.group.position.y });
+  const lift = 0.25 * en.base;
+  const cy = Math.floor(en.y - 0.1); // the block the body would lie on
+  const onBlock = get(Math.floor(en.x), cy, Math.floor(en.z)) !== T.AIR;
+  // A body on a block is set exactly on top of that block. An enemy's height is a fraction
+  // (it stops mid-air-gravity), so using it directly left the body hovering.
+  const startY = onBlock ? cy + 1 + lift : en.y + lift;
+  en.group.position.set(en.x, startY, en.z);
+  corpses.push({ group: en.group, kind: en.kind, t: 0, x: en.x, z: en.z, vy: 0, lift, landed: onBlock, restY: startY });
   const k = ENEMY_KINDS[en.kind];
   for (let i = 0; i < k.gems; i++) addItem('gem');
   gain('fight', 2);
@@ -1361,7 +1368,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.22';
+const VERSION = '0.6.23';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
