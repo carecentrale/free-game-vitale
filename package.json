@@ -5,6 +5,7 @@
   "description": "Kids block-world game: web prototype wrapped with Capacitor for Android",
   "license": "UNLICENSED",
   "scripts": {
+    "test": "node --test scripts/tests/*.test.mjs",
     "android:sync": "npx cap sync android"
   },
   "dependencies": {
@@ -12,6 +13,7 @@
     "@capacitor/core": "^6.1.0"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.1.0"
+    "@capacitor/cli": "^6.1.0",
+    "eslint": "^10.14.0"
   }
 }

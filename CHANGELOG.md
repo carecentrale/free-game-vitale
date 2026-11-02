@@ -2,6 +2,13 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.37: fix blank screen after loading a saved game
+- Version 0.6.34 accidentally deleted the game's movement settings, item list and bag. Loading a game then stopped partway, leaving a blank sky
+- Restored those settings, unchanged from 0.6.33
+- New test (scripts/tests/no-undefined.test.mjs) fails if the game uses any name that is never declared
+- Tests now run with one command (npm test) on every push, through GitHub Actions, and before a push if the optional hook is switched on
+- Checked: script syntax, all tests, and the undefined-name check. Not checked in a browser yet
+
 ## 0.6.36: errors shown on screen
 - If the game hits an error, the message appears in a red box at the bottom of the screen, so it can be reported without a developer console
 - Checked: script syntax (node --check) and tests. Not checked in a browser

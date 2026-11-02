@@ -31,6 +31,7 @@ A 3D block-world game for kids and families (dig, build, gems, power levels, ene
 
 ## How to change the game
 1. Edit `build/prototype-3d-v7.html`. Check syntax: extract the module script and run `node --check`.
+   Then run `npm test`. Every version must pass all tests before it is pushed. CI runs them on every push too (.github/workflows/tests.yml).
 2. Bump `VERSION` in the script and the `<title>` tag.
 3. Copy the build file to `www/play/index.html`.
 4. Add a `CHANGELOG.md` entry and a `docs/VERSIONS.md` row (version, commit hash, deployment).

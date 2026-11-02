@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs the tests before every push. Switch it on once in a clone:
+#   git config core.hooksPath .githooks
+npm test --silent || { echo "Tests failed. Push cancelled."; exit 1; }

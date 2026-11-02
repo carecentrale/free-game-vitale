@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.36 (3D)</title>
+<title>Adventurers of Drenerics v0.6.37 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -118,6 +118,29 @@ import * as THREE from 'three';
 const WORLD = 400000, CENTER = 200000;   // width of the world; the start point is in the middle
 const H = 24, SURF = 12, CS = 16;        // height in blocks, average ground level, chunk size in blocks
 const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4 };
+
+// ---- Movement, items and the bag (restored in 0.6.37: these were lost in 0.6.34) ----
+const SPEED = 5, GRAV = 25, JUMP = 8, HW = 0.3, HH = 1.6, REACH = 7;
+const LABEL = { dig: 'Digging', build: 'Building', inv: 'Inventory', fight: 'Fighting' };
+const BAR = { dig: '#ffb347', build: '#66ccff', inv: '#9cff6b', fight: '#ff6b6b' };
+
+// ---- Items ----
+const ITEMS = {
+  dirt:  { name: 'Dirt',    kind: 'block',  color: 0x8d5524, block: T.DIRT },
+  stone: { name: 'Stone',   kind: 'block',  color: 0x7a7a7a, block: T.STONE },
+  gem:   { name: 'Gem',     kind: 'gem',    color: 0x29d3ff },
+  pick:  { name: 'Pickaxe', kind: 'tool',   color: 0xb0b0b0 },
+  sword: { name: 'Sword',   kind: 'weapon', color: 0xdfe6ee },
+};
+const hex = n => '#' + n.toString(16).padStart(6, '0');
+
+// Items in the bag (picks and swords start in the bag)
+const inv = { dirt: 0, stone: 0, gem: 0, pick: 1, sword: 1 };
+let recent = ['pick', 'sword'];           // most recent first
+const qb = ['pick', 'sword', null, null, null, null]; // 6 quick bar slots
+let sel = 0;                              // selected quick bar slot
+const held = () => qb[sel];
+const invTotal = () => Object.values(inv).reduce((a, b) => a + b, 0);
 const CHUNK_LEN = CS * H * CS;
 const ckey = (cx, cz) => cx * 1000003 + cz;
 const cellIndex = (lx, y, lz) => (y * CS + lz) * CS + lx;
@@ -751,6 +774,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.37', title: 'Fix: game would not start after a saved game was chosen', items: [
+    'Fixed a bug from version 0.6.34 that stopped the game from showing the world: some game settings and the bag were missing', ],
+  },
   { v: '0.6.36', title: 'Errors shown on screen', items: [
     'If something goes wrong, the error message appears at the bottom of the screen instead of failing silently'] },
   { v: '0.6.35', title: 'World status for support', items: [
@@ -1560,7 +1586,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.36';
+const VERSION = '0.6.37';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
