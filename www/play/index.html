@@ -2548,7 +2548,7 @@ window.gameTest = {
   get gear() { return gear; }, get qb() { return qb; }, get recent() { return recent; },
   get skills() { return skills; },
 };
-window.gameProbe = () => ({ enemies: enemies.length, px, py, pz, drawn: lastDrawn, rebuildMs: lastRebuildMs, version: VERSION,
+window.gameProbe = () => ({ enemies: enemies.length, px, py, pz, vy, onGround, camYaw, drawn: lastDrawn, rebuildMs: lastRebuildMs, version: VERSION,
   skills: skills.slice(), fireballs: fireballs.length, blasts: blasts.length, skillPanel: !!skillPanel, magicLvl: pw.magic.lvl,
   list: enemies.map(e => ({ kind: e.kind, x: e.x, y: e.y, z: e.z, airT: e.airT || 0 })) });
 </script>
