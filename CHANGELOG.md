@@ -2,6 +2,12 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.47: fireball controls
+- Right-click on a computer casts a fireball when the fireball is the selected quick bar item. Otherwise right-click still places a block
+- Tablets and phones get a FIRE button to the right of the quick bar. It shows with on-screen controls on, once you have learned the fireball
+- The version now shows next to the world name on screen
+- Tests added for right-click casting and the Fire button
+
 ## 0.6.46: climbing out of water, and automated tests for the rules
 - Fixed: from the water you could not get out onto a shore. Now, holding jump while pressed against a shore next to water lifts the character over the edge
 - For 4 seconds after leaving the water, holding jump against a step still lifts the character up it

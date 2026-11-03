@@ -369,3 +369,34 @@ test('next to water the jump climbs, but on dry land away from water it does not
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [shoreGame()] }));
 
+
+// Fireball controls: right-click on PC, and the Fire button on tablets and phones
+test('with the fireball selected, right-click casts a fireball', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
+    await page.click('#skillPanel [data-skill="fireball"]');
+    await page.keyboard.press('Digit3');   // the fireball went into the first empty quick bar slot (slot 3)
+    const before = await page.evaluate(() => { const p = window.gameProbe(); return p.fireballs + p.blasts; });
+    await page.mouse.click(400, 300, { button: 'right' });
+    await page.waitForTimeout(300);
+    const after = await page.evaluate(() => { const p = window.gameProbe(); return p.fireballs + p.blasts; });
+    assert.ok(after > before, `right-click did not cast a fireball: ${before} -> ${after}`);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [fightLevel2Game()] }));
+
+test('the Fire button is hidden until on-screen controls are on, then tapping it casts a fireball', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
+    await page.click('#skillPanel [data-skill="fireball"]');
+    const hidden = await page.evaluate(() => getComputedStyle(document.getElementById('bFire')).display);
+    assert.equal(hidden, 'none', 'the Fire button should be hidden while on-screen controls are off');
+    await page.click('#toggle');
+    const shown = await page.evaluate(() => getComputedStyle(document.getElementById('bFire')).display);
+    assert.notEqual(shown, 'none', 'the Fire button should show once on-screen controls are on');
+    const before = await page.evaluate(() => { const p = window.gameProbe(); return p.fireballs + p.blasts; });
+    await page.evaluate(() => document.getElementById('bFire').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true })));
+    await page.waitForTimeout(300);
+    const after = await page.evaluate(() => { const p = window.gameProbe(); return p.fireballs + p.blasts; });
+    assert.ok(after > before, `the Fire button did not cast: ${before} -> ${after}`);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [fightLevel2Game()] }));

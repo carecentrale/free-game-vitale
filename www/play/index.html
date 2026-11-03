@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.46 (3D)</title>
+<title>Adventurers of Drenerics v0.6.47 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -31,7 +31,7 @@
   #bag .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px}
   /* Phones (narrow screens): quick bar sits above the controls and fits the screen width */
   @media (max-width:700px){
-    #qb{bottom:190px;left:0;right:0;transform:none;justify-content:center;gap:4px;padding:0 8px;box-sizing:border-box}
+    #qb{bottom:190px;left:0;right:88px;transform:none;justify-content:center;gap:4px;padding:0 8px;box-sizing:border-box}
     .slot{width:calc((100vw - 60px) / 6);max-width:70px;height:52px;font-size:10px;border-width:2px}
     .slot .n{font-size:9px}
     #recent{width:130px;font-size:12px}
@@ -91,6 +91,7 @@
   <div class="btn" id="bR" style="left:70px;bottom:56px">&#9654;</div>
   <div class="btn" id="bB" style="left:40px;bottom:2px">&#9660;</div>
   <div class="btn" id="bJ" style="right:14px;bottom:14px;width:80px">JUMP</div>
+  <div class="btn" id="bFire" style="display:none;right:12px;bottom:190px;width:66px;height:52px;background:rgba(255,120,30,.5)">FIRE</div>
 </div>
 
 <script type="module">
@@ -858,6 +859,8 @@ function bindBtn(id, key) {
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, () => touch[key] = false);
 }
 bindBtn('bL', 'L'); bindBtn('bR', 'R'); bindBtn('bF', 'F'); bindBtn('bB', 'B'); bindBtn('bJ', 'J');
+// Fire button: one tap casts a fireball where the camera is looking (the same as the F key)
+document.getElementById('bFire').addEventListener('pointerdown', e => { e.preventDefault(); castFireball(viewDir(innerWidth / 2, innerHeight / 2)); });
 
 // On-screen controls: on by default on touch devices, off on PCs. Choice is remembered.
 const isTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
@@ -1042,6 +1045,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.47', title: 'Fireball controls', items: [
+    'Right-click on a computer casts a fireball when the fireball is the selected quick bar item. Otherwise right-click still places a block',
+    'Tablets and phones get a FIRE button to the right of the quick bar (shown with on-screen controls on, once you have learned the fireball)'] },
   { v: '0.6.46', title: 'Climbing out of water', items: [
     'Fixed: from the water you could not get out onto a shore. Now, holding jump against the shore lifts you over the edge'] },
   { v: '0.6.45', title: 'Durability, gear and enemy parts', items: [
@@ -1797,6 +1803,7 @@ function blockFromQuickBar() {
 }
 
 canvas.addEventListener('pointerdown', e => {
+  if (e.button === 2 && defOf(held()) && defOf(held()).kind === 'spell') { castFireball(viewDir(e.clientX, e.clientY)); return; }
   if (e.button === 2) {
     const a = aim(e);
     if (!a || a.enemy) return;
@@ -1955,6 +1962,7 @@ function update(dt) {
 
 const hud = document.getElementById('hud');
 function drawHud() {
+  document.getElementById('bFire').style.display = padOn && skills.includes('fireball') ? 'flex' : 'none';
   const cap = invCap(), total = invTotal();
   const bar = (k, ratio) => `<div class="bar"><div style="width:${Math.min(1, ratio) * 100}%;background:${BAR[k]}"></div></div>`;
   hud.innerHTML =
@@ -2050,7 +2058,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.46';
+const VERSION = '0.6.47';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2551,6 +2559,7 @@ window.gameTest = {
   damageTo, hurtEnemy, wear, addGear, waterNear, addItem, gearFor, gearOf, defOf, tplOf, labelOf, weaponDamage, invTotal, updateHand,
   get gear() { return gear; }, get qb() { return qb; }, get recent() { return recent; },
   get skills() { return skills; },
+  castFireball, viewDir, get fireballs() { return fireballs; },
 };
 window.gameProbe = () => ({ enemies: enemies.length, px, py, pz, vy, onGround, camYaw, drawn: lastDrawn, rebuildMs: lastRebuildMs, version: VERSION,
   skills: skills.slice(), fireballs: fireballs.length, blasts: blasts.length, skillPanel: !!skillPanel, magicLvl: pw.magic.lvl,
