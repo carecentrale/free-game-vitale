@@ -1860,6 +1860,9 @@ function updateDig(dt) {
 }
 
 // ---- Game loop ----
+// Seconds since the character was last in water. For a few seconds after leaving the water, it can still climb up a step.
+let wetT = 0;
+
 function update(dt) {
   const k = c => !!keys[c];
   const sx = ((k('KeyD') || k('ArrowRight') || touch.R) ? 1 : 0) - ((k('KeyA') || k('ArrowLeft') || touch.L) ? 1 : 0);
@@ -1870,6 +1873,7 @@ function update(dt) {
   const wx = sx * cosY + sz * sinY, wz = -sx * sinY + sz * cosY;
   // Water is not solid, so the body moves through it. In water you swim: slower, and you sink or rise
   const inWater = get(Math.floor(px), Math.floor(py + HH / 2), Math.floor(pz)) === T.WATER;
+  wetT = inWater ? 4 : Math.max(0, wetT - dt);
   const speed = SPEED * (inWater ? 0.6 : 1) / norm;
   vx = wx * speed;
   vz = wz * speed;
@@ -1885,7 +1889,7 @@ function update(dt) {
   if (jd && !jumpHeld && onGround) { vy = JUMP; onGround = false; squash = 1; }
   jumpHeld = jd;
   // Climbing out: pressed against a shore next to water, holding jump lifts the character over the edge
-  const climbing = jd && blocked && waterNear(px, py, pz);
+  const climbing = jd && blocked && (wetT > 0 || waterNear(px, py, pz));
   if (climbing) vy = SWIM_UP;
   else if (inWater) vy = jd ? SWIM_UP : Math.max(vy - GRAV * 0.15 * dt, -SINK);   // hold jump to swim up; otherwise sink slowly
   else vy = Math.max(vy - GRAV * dt, -30);
