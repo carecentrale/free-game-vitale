@@ -1965,7 +1965,7 @@ function drawHud() {
     `Fighting Lv ${pw.fight.lvl}${bar('fight', pw.fight.xp / need(pw.fight.lvl))}` +
     (skills.length ? `Magic Lv ${pw.magic.lvl}${bar('magic', pw.magic.xp / need(pw.magic.lvl))}` : '') +
     `Bag ${total}/${cap} &nbsp; Gems ${inv.gem}<br>` +
-    `World ${esc(worldId || 'alone')}` + (others.size ? ' &middot; With: ' + [...others.values()].map(o => esc(o.name)).join(', ') : '');
+    `World ${esc(worldId || 'alone')} &middot; v${VERSION}` + (others.size ? ' &middot; With: ' + [...others.values()].map(o => esc(o.name)).join(', ') : '');
 }
 
 let last = performance.now();
