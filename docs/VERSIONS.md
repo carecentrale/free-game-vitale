@@ -10,6 +10,7 @@ Every version that goes online has three records. Keep all three in step.
 
 | Version | Git tag | Build file | Vercel deployment ID | What changed |
 |---|---|---|---|---|
+| 0.6.48 | (commit to be added) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Fireball flies to the clicked point and follows the enemy it hits |
 | 0.6.47 | (commit 888049c, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Fireball: right-click on PC, FIRE button for tablets and phones |
 | 0.6.46 | (commit to be added) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Climbing out of water; automated tests for enemies, damage, gear, durability, drops, parts and old saves |
 | 0.6.45 | (commit 32e1275, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Durability on pickaxes and weapons; gear drops (weapons, armour); enemy parts that stack in the bag |

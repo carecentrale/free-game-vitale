@@ -2,6 +2,13 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.48: fireball aims at what you click
+- A fireball flies from the character toward the point you click or tap, instead of going off in the camera direction and bursting near you
+- If you click an enemy, the fireball follows it and lasts long enough to reach it
+- A fireball that hits makes a fire burst of sparks where it lands
+- Clicking any part of an enemy's body counts as hitting it
+- Test added: a fireball aimed at a screen point is fired and flies toward it
+
 ## 0.6.47: fireball controls
 - Right-click on a computer casts a fireball when the fireball is the selected quick bar item. Otherwise right-click still places a block
 - Tablets and phones get a FIRE button to the right of the quick bar. It shows with on-screen controls on, once you have learned the fireball

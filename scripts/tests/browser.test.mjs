@@ -400,3 +400,60 @@ test('the Fire button is hidden until on-screen controls are on, then tapping it
     assert.ok(after > before, `the Fire button did not cast: ${before} -> ${after}`);
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [fightLevel2Game()] }));
+
+// A shot at a screen point is fired from the character toward that point, and it lasts long enough to reach a target
+test('a fireball aimed at a screen point is fired and flies toward it', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
+    await page.click('#skillPanel [data-skill="fireball"]');
+    await page.waitForFunction(() => window.gameTest.skills.includes('fireball'), null, { timeout: 60000 });
+    await page.waitForTimeout(500);
+    const r = await page.evaluate(() => {
+      const g = window.gameTest;
+      const before = g.fireballs.length;
+      g.fireAt(innerWidth / 2, innerHeight / 2);
+      const f = g.fireballs[g.fireballs.length - 1];
+      return { added: g.fireballs.length - before, speed: f ? Math.hypot(f.vx, f.vy, f.vz) : 0, life: f ? f.life : 0 };
+    });
+    assert.equal(r.added, 1, 'fireAt should fire one fireball');
+    assert.ok(Math.abs(r.speed - 16) < 0.01 || r.speed > 15, 'the fireball should fly at its speed: ' + r.speed);
+    assert.ok(r.life >= 1.6, 'the fireball should last at least its normal time');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [fightLevel2Game()] }));
+
+// Clicking an enemy sends the fireball to it: it follows the enemy and hurts it, and does not burst on the character
+test('a shot at any part of an enemy is linked to that enemy, so it flies to it', { skip, timeout: 150000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
+    await page.click('#skillPanel [data-skill="fireball"]');
+    await page.waitForFunction(() => window.gameTest.skills.includes('fireball'), null, { timeout: 60000 });
+    // Turn the camera (set directly) until an enemy is in front of it and on the screen
+    let target = null;
+    for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2, Math.PI / 4, -Math.PI / 4]) {
+      if (target) break;
+      target = await page.evaluate(y => {
+        window.gameTest.setYaw(y);
+        const g = window.gameTest, pr = window.gameProbe();
+        const c = g.enemies.map((en, i) => ({ i, d: Math.hypot(en.x - pr.px, en.y - pr.py, en.z - pr.pz), s: g.screenOf(en) }))
+          .filter(o => o.s[2] && o.s[0] > 40 && o.s[0] < innerWidth - 40 && o.s[1] > 40 && o.s[1] < innerHeight - 160 && o.d < 40)
+          .sort((a, b) => a.d - b.d)[0];
+        return c ? { i: c.i, x: c.s[0], y: c.s[1] + 12 } : null;
+      }, yaw);
+      await page.waitForTimeout(800);   // the camera moves smoothly: let it settle, then look again
+      if (!target) target = await page.evaluate(() => { const g = window.gameTest, pr = window.gameProbe(); const c = g.enemies.map((en, i) => ({ i, d: Math.hypot(en.x - pr.px, en.y - pr.py, en.z - pr.pz), s: g.screenOf(en) })).filter(o => o.s[2] && o.s[0] > 40 && o.s[0] < innerWidth - 40 && o.s[1] > 40 && o.s[1] < innerHeight - 160 && o.d < 40).sort((a, b) => a.d - b.d)[0]; return c ? { i: c.i, x: c.s[0], y: c.s[1] + 12 } : null; });
+    }
+    assert.ok(target, 'no enemy could be brought into view');
+    // Fire at a point on the enemy's body, the same way a right-click or tap does
+    const r = await page.evaluate(([x, y]) => {
+      const g = window.gameTest;
+      const hit = g.enemyAt(x, y);
+      const before = g.fireballs.length;
+      g.fireAt(x, y);
+      const f = g.fireballs[g.fireballs.length - 1];
+      return { hit: !!hit, added: g.fireballs.length - before, linked: !!(f && f.homing) };
+    }, [target.x, target.y]);
+    assert.ok(r.hit, 'the click on the enemy body should find the enemy');
+    assert.equal(r.added, 1, 'one fireball should be fired');
+    assert.ok(r.linked, 'the fireball should be linked to the enemy it was fired at');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [fightLevel2Game()] }));

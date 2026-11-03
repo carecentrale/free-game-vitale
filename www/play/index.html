@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.47 (3D)</title>
+<title>Adventurers of Drenerics v0.6.48 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -848,7 +848,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (/^Digit[1-6]$/.test(e.code)) selectSlot(+e.code.slice(5) - 1);
   if (e.code === 'KeyB') toggleBag();
-  if (e.code === 'KeyF') castFireball(viewDir(innerWidth / 2, innerHeight / 2));
+  if (e.code === 'KeyF') fireAt(innerWidth / 2, innerHeight / 2);
   if (e.code === 'Escape') { if (settingsOpen) toggleSettings(false); else toggleBag(false); }
 });
 addEventListener('keyup', e => keys[e.code] = false);
@@ -860,7 +860,7 @@ function bindBtn(id, key) {
 }
 bindBtn('bL', 'L'); bindBtn('bR', 'R'); bindBtn('bF', 'F'); bindBtn('bB', 'B'); bindBtn('bJ', 'J');
 // Fire button: one tap casts a fireball where the camera is looking (the same as the F key)
-document.getElementById('bFire').addEventListener('pointerdown', e => { e.preventDefault(); castFireball(viewDir(innerWidth / 2, innerHeight / 2)); });
+document.getElementById('bFire').addEventListener('pointerdown', e => { e.preventDefault(); fireAt(innerWidth / 2, innerHeight / 2); });
 
 // On-screen controls: on by default on touch devices, off on PCs. Choice is remembered.
 const isTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
@@ -1045,6 +1045,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.48', title: 'Fireball aims at what you click', items: [
+    'A fireball flies to the point you click or tap, and it follows an enemy you hit. It lasts long enough to reach it',
+    'Fire sparks burst where a fireball lands. Any part of an enemy\'s body counts as a hit'] },
   { v: '0.6.47', title: 'Fireball controls', items: [
     'Right-click on a computer casts a fireball when the fireball is the selected quick bar item. Otherwise right-click still places a block',
     'Tablets and phones get a FIRE button to the right of the quick bar (shown with on-screen controls on, once you have learned the fireball)'] },
@@ -1681,14 +1684,14 @@ function chooseSkill(id) {
 }
 
 // Shoots a fireball from the character's chest, in direction dir (a unit vector). Level 2 magic is stronger.
-function castFireball(dir) {
+function castFireball(dir, target = null) {
   if (!skills.includes('fireball') || spellCool > 0) return;
   const tier = pw.magic.lvl >= 2 ? 1 : 0;
   const s = FIRE[tier];
   const d = dir.clone().normalize();
   const mesh = new THREE.Mesh(fireGeo, fireMat);
   mesh.scale.setScalar(s.size);
-  const f = { mesh, x: px, y: py + HH * 0.7, z: pz, vx: d.x * s.speed, vy: d.y * s.speed, vz: d.z * s.speed, t: 0, tier };
+  const f = { mesh, x: px, y: py + HH * 0.7, z: pz, vx: d.x * s.speed, vy: d.y * s.speed, vz: d.z * s.speed, t: 0, tier, homing: target, life: s.life + (target ? 1.5 : 0) };
   mesh.position.set(f.x, f.y, f.z);
   scene.add(mesh);
   fireballs.push(f);
@@ -1697,16 +1700,83 @@ function castFireball(dir) {
   gain('magic', 1);
 }
 
+// The enemy whose body is under the screen point (x, y), or null. Any part of its body counts:
+// the body is treated as a column about 1.8 blocks tall, and the click counts anywhere inside its outline on screen.
+function enemyAt(x, y) {
+  let best = null, bestD = Infinity;
+  const halfH = innerHeight / 2 / Math.tan(camera.fov * Math.PI / 360);
+  for (const en of enemies) {
+    const mid = new THREE.Vector3(en.x, en.y + 0.6, en.z);   // the middle of the body
+    const c = mid.clone().project(camera);
+    if (c.z >= 1) continue;   // behind the camera
+    const sx = (c.x + 1) / 2 * innerWidth, sy = (1 - c.y) / 2 * innerHeight;
+    const dist = camera.position.distanceTo(mid);
+    const r = Math.max(40, 1.1 * halfH / dist * en.base);   // the body's outline on screen, in pixels
+    const d = Math.hypot(x - sx, y - sy);
+    if (d <= r && d < bestD) { best = en; bestD = d; }
+  }
+  return best;
+}
+
+// Fire effect: small orange and yellow sparks that fly out and fade. Made where a fireball bursts.
+const sparks = [];
+function fireBurst(x, y, z, size) {
+  for (let i = 0; i < 14; i++) {
+    const mat = new THREE.MeshBasicMaterial({ color: i % 2 ? 0xffc04a : 0xff5a1a, transparent: true, opacity: 1 });
+    const m = new THREE.Mesh(fireGeo, mat);
+    m.scale.setScalar(0.22 * Math.max(0.6, size));
+    m.position.set(x, y, z);
+    scene.add(m);
+    const a = Math.random() * Math.PI * 2, sp = 2.5 + Math.random() * 3;
+    sparks.push({ m, mat, x, y, z, vx: Math.cos(a) * sp, vy: 2 + Math.random() * 4, vz: Math.sin(a) * sp, t: 0 });
+  }
+}
+
+// Casts toward the point under the screen position (x, y). Hitting an enemy makes the fireball follow it.
+function fireAt(x, y) {
+  const a = aim({ clientX: x, clientY: y });
+  const hitEnemy = (a && a.enemy) || enemyAt(x, y);
+  if (hitEnemy) {
+    // Aim at the middle of the enemy you hit, so the fireball flies to it
+    const en = hitEnemy;
+    const to = new THREE.Vector3(en.x - px, en.y + 0.5 - (py + HH * 0.7), en.z - pz);
+    if (to.lengthSq() > 0.01) return castFireball(to, en);
+  }
+  // Anything else: along the camera direction, the same as before
+  castFireball(viewDir(x, y));
+}
+
 // Moves the fireballs. A fireball bursts when it hits an enemy or a block, or when its time runs out.
 // Enemies inside the burst take fire damage. Blocks are never changed.
 function updateFireballs(dt) {
   spellCool = Math.max(0, spellCool - dt);
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const p = sparks[i];
+    p.t += dt;
+    p.vy -= 9 * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    p.m.position.set(p.x, p.y, p.z);
+    p.mat.opacity = Math.max(0, 1 - p.t / 0.5);
+    if (p.t >= 0.5) { scene.remove(p.m); p.mat.dispose(); sparks.splice(i, 1); }
+  }
   for (let i = fireballs.length - 1; i >= 0; i--) {
     const f = fireballs[i], s = FIRE[f.tier];
     f.t += dt;
+    if (f.homing && enemies.includes(f.homing)) {
+      // Turn gently toward the enemy's middle, keeping the same speed
+      const en = f.homing;
+      const tx = en.x - f.x, ty = en.y + 0.5 - f.y, tz = en.z - f.z;
+      const len = Math.hypot(tx, ty, tz) || 1;
+      const k = Math.min(1, dt * 8);
+      const sp = Math.hypot(f.vx, f.vy, f.vz) || s.speed;
+      let nx = f.vx / sp * (1 - k) + tx / len * k, ny = f.vy / sp * (1 - k) + ty / len * k, nz = f.vz / sp * (1 - k) + tz / len * k;
+      const nl = Math.hypot(nx, ny, nz) || 1;
+      f.vx = nx / nl * s.speed; f.vy = ny / nl * s.speed; f.vz = nz / nl * s.speed;
+    } else f.homing = null;
     f.x += f.vx * dt; f.y += f.vy * dt; f.z += f.vz * dt;
     f.mesh.position.set(f.x, f.y, f.z);
-    let boom = f.t >= s.life || solid(get(Math.floor(f.x), Math.floor(f.y), Math.floor(f.z)));
+    // A new fireball is not checked for walls for its first moment, so it does not burst at the character
+    let boom = f.t >= f.life || (f.t > 0.15 && solid(get(Math.floor(f.x), Math.floor(f.y), Math.floor(f.z))));
     if (!boom) boom = enemies.some(en => Math.hypot(en.x - f.x, en.y + 0.5 - f.y, en.z - f.z) < 0.8);
     if (!boom) continue;
     for (const en of [...enemies]) {
@@ -1719,6 +1789,7 @@ function updateFireballs(dt) {
     flash.position.set(f.x, f.y, f.z);
     scene.add(flash);
     blasts.push({ mesh: flash, mat, t: 0, max: s.boom });
+    fireBurst(f.x, f.y, f.z, s.boom);
   }
   for (let i = blasts.length - 1; i >= 0; i--) {
     const b = blasts[i];
@@ -1738,7 +1809,7 @@ let camYaw = 0;      // camera angle around the character
 let headTarget = 0, headYaw = 0;
 let press = null;        // {id, x, lastX, moved}
 let pendingPlace = null; // cell to build in, used only if the press was a tap
-let pendingCast = null;  // direction to shoot, used only if the press was a tap
+let pendingCast = null;  // screen point to shoot at, used only if the press was a tap
 
 // Which block or enemy the press landed on, and the cell it would dig or build in
 function aim(e) {
@@ -1753,7 +1824,7 @@ function aim(e) {
   // Reach is measured from the character, not the camera (the camera is far behind)
   const dist = Math.hypot(dig[0] + 0.5 - px, dig[1] + 0.5 - (py + HH / 2), dig[2] + 0.5 - pz);
   return {
-    enemy, dist, dig,
+    enemy, dist, dig, point: p,
     place: [Math.floor(p.x - d.x * e2), Math.floor(p.y - d.y * e2), Math.floor(p.z - d.z * e2)]
   };
 }
@@ -1803,7 +1874,7 @@ function blockFromQuickBar() {
 }
 
 canvas.addEventListener('pointerdown', e => {
-  if (e.button === 2 && defOf(held()) && defOf(held()).kind === 'spell') { castFireball(viewDir(e.clientX, e.clientY)); return; }
+  if (e.button === 2 && defOf(held()) && defOf(held()).kind === 'spell') { fireAt(e.clientX, e.clientY); return; }
   if (e.button === 2) {
     const a = aim(e);
     if (!a || a.enemy) return;
@@ -1816,7 +1887,7 @@ canvas.addEventListener('pointerdown', e => {
   if (touches.size > 1) return; // two fingers = pinch
   press = { id: e.pointerId, x: e.clientX, lastX: e.clientX, moved: false };
   pendingPlace = null;
-  if (defOf(held()) && defOf(held()).kind === 'spell') { pendingCast = viewDir(e.clientX, e.clientY); return; }
+  if (defOf(held()) && defOf(held()).kind === 'spell') { pendingCast = { x: e.clientX, y: e.clientY }; return; }
   const a = aim(e);
   if (!a) return;
   if (a.enemy) {
@@ -1839,7 +1910,7 @@ canvas.addEventListener('pointerdown', e => {
 });
 canvas.addEventListener('pointerup', e => {
   if (press && press.id === e.pointerId && !press.moved && pendingPlace) placeCell(...pendingPlace);
-  if (press && press.id === e.pointerId && !press.moved && pendingCast) castFireball(pendingCast);
+  if (press && press.id === e.pointerId && !press.moved && pendingCast) fireAt(pendingCast.x, pendingCast.y);
   pendingPlace = null;
   pendingCast = null;
   press = null;
@@ -2058,7 +2129,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.47';
+const VERSION = '0.6.48';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2559,7 +2630,9 @@ window.gameTest = {
   damageTo, hurtEnemy, wear, addGear, waterNear, addItem, gearFor, gearOf, defOf, tplOf, labelOf, weaponDamage, invTotal, updateHand,
   get gear() { return gear; }, get qb() { return qb; }, get recent() { return recent; },
   get skills() { return skills; },
-  castFireball, viewDir, get fireballs() { return fireballs; },
+  castFireball, fireAt, enemyAt, viewDir, setYaw: y => { camYaw = y; }, get sparks() { return sparks; }, get fireballs() { return fireballs; }, get enemies() { return enemies; },
+  // Where an enemy's middle is on the screen: [x, y] (y from the top), and whether it is in front of the camera
+  screenOf: en => { const v = new THREE.Vector3(en.x, en.y + 0.5, en.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight, v.z < 1]; },
 };
 window.gameProbe = () => ({ enemies: enemies.length, px, py, pz, vy, onGround, camYaw, drawn: lastDrawn, rebuildMs: lastRebuildMs, version: VERSION,
   skills: skills.slice(), fireballs: fireballs.length, blasts: blasts.length, skillPanel: !!skillPanel, magicLvl: pw.magic.lvl,
