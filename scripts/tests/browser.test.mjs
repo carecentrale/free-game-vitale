@@ -457,3 +457,29 @@ test('a shot at any part of an enemy is linked to that enemy, so it flies to it'
     assert.ok(r.linked, 'the fireball should be linked to the enemy it was fired at');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [fightLevel2Game()] }));
+
+// The extra jump: in the air, just after leaving the water, one more tap of jump lifts the character again
+test('after leaving the water, a tap of jump in the air gives one extra jump', { skip, timeout: 150000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => Math.abs(window.gameProbe().px - (200055 + 0.5)) < 0.01, null, { timeout: 60000 });
+    // Walk out of the water onto the shore with right only (no jump), until the character is in the air above the water edge
+    // Hold right and jump to climb, then let go of jump once the character is up over the step
+    await page.keyboard.down('KeyD');
+    await page.keyboard.down('Space');
+    await page.waitForFunction(() => { const p = window.gameProbe(); return p.px > 200057.6 && p.py > 10.5; }, null, { timeout: 60000, polling: 50 });
+    await page.keyboard.up('Space');
+    await page.keyboard.up('KeyD');
+    const before = await page.evaluate(() => window.gameProbe());
+    assert.ok(!before.onGround, 'the character should be in the air after letting go of jump: ' + JSON.stringify(before));
+    // Tap jump again in the air: the extra jump (held briefly, so the game sees the press)
+    await page.keyboard.down('Space');
+    await page.waitForTimeout(150);
+    await page.keyboard.up('Space');
+    const peak = await page.evaluate(() => new Promise(res => {
+      let best = -99; const t0 = performance.now();
+      const f = () => { const p = window.gameProbe(); best = Math.max(best, p.vy); if (performance.now() - t0 < 300) requestAnimationFrame(f); else res(best); };
+      requestAnimationFrame(f);
+    }));
+    assert.ok(peak > 2, `the extra jump did not lift the character: peak upward speed ${peak}`);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [shoreGame()] }));
