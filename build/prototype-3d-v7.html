@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.50 (3D)</title>
+<title>Adventurers of Drenerics v0.6.51 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -1086,6 +1086,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.51', title: 'Water puts out fireballs', items: [
+    'A fireball that reaches water fizzles out in a puff of steam, with no blast and no damage',
+    'Enemies still take the blast when a fireball hits them'] },
   { v: '0.6.50', title: 'Trees, bushes and scenery on the grass', items: [
     'Trees, bushes, grass tufts, flowers, mushrooms, stones and stumps from the free CC0 Low Poly Nature Pack by flo-bit now grow on the grass',
     'Scenery does not block walking or digging; it is decoration only',
@@ -1825,6 +1828,18 @@ function fireBurst(x, y, z, size) {
   }
 }
 
+// Steam where a fireball meets water: a few grey-white puffs that rise and fade
+function steamPuff(x, y, z) {
+  for (let i = 0; i < 8; i++) {
+    const mat = new THREE.MeshBasicMaterial({ color: i % 2 ? 0xe6eef2 : 0xb9c7cf, transparent: true, opacity: 0.9 });
+    const m = new THREE.Mesh(fireGeo, mat);
+    m.scale.setScalar(0.25);
+    m.position.set(x, y, z);
+    scene.add(m);
+    const a = Math.random() * Math.PI * 2, sp = 0.8 + Math.random() * 0.8;
+    sparks.push({ m, mat, x, y, z, vx: Math.cos(a) * sp, vy: 1.5 + Math.random() * 1.5, vz: Math.sin(a) * sp, t: 0, steam: true });
+  }
+}
 // Casts toward the point under the screen position (x, y). Hitting an enemy makes the fireball follow it.
 // Local debugging only: when on, each shot is logged to the browser console. Nothing is sent anywhere.
 let fireDebug = /[?&]fireDebug=1/.test(location.search);
@@ -1894,15 +1909,29 @@ function updateFireballs(dt) {
     f.x += f.vx * dt; f.y += f.vy * dt; f.z += f.vz * dt;
     f.mesh.position.set(f.x, f.y, f.z);
     // A new fireball is not checked for walls for its first moment, so it does not burst at the character
-    let boom = f.t >= f.life || (f.t > 0.15 && get(Math.floor(f.x), Math.floor(f.y), Math.floor(f.z)) !== T.AIR);
-    if (!boom) boom = enemies.some(en => Math.hypot(en.x - f.x, en.y + 0.5 - f.y, en.z - f.z) < 0.8);
+    const here = get(Math.floor(f.x), Math.floor(f.y), Math.floor(f.z));
+    const nearEnemy = enemies.some(en => Math.hypot(en.x - f.x, en.y + 0.5 - f.y, en.z - f.z) < 0.8);
+    // Water puts the fireball out: a puff of steam, no blast and no damage. Only an enemy or the time running out makes a blast.
+    if (f.t > 0.15 && here === T.WATER && !nearEnemy && f.t < f.life) {
+      if (lastShot && !lastShot.burst) {
+        lastShot.burst = [Math.floor(f.x), Math.floor(f.y), Math.floor(f.z)];
+        lastShot.burstBy = 'water';
+        if (fireDebug) console.log('[fireDebug] shot', JSON.stringify(lastShot));
+      }
+      scene.remove(f.mesh);
+      fireballs.splice(i, 1);
+      steamPuff(f.x, f.y, f.z);
+      continue;
+    }
+    let boom = f.t >= f.life || (f.t > 0.15 && here !== T.AIR);
+    if (!boom) boom = nearEnemy;
     if (!boom) continue;
     for (const en of [...enemies]) {
       if (Math.hypot(en.x - f.x, en.y + 0.5 - f.y, en.z - f.z) < s.boom) hurtEnemy(en, damageTo(en, s.dmg, 'fire'));
     }
     if (lastShot && !lastShot.burst) {
       lastShot.burst = [Math.floor(f.x), Math.floor(f.y), Math.floor(f.z)];
-      lastShot.burstBy = f.t >= f.life ? 'time' : (solid(get(Math.floor(f.x), Math.floor(f.y), Math.floor(f.z))) ? 'block' : 'enemy');
+      lastShot.burstBy = f.t >= f.life ? 'time' : (here !== T.AIR ? 'block' : 'enemy');
       if (fireDebug) console.log('[fireDebug] shot', JSON.stringify(lastShot));
     }
     scene.remove(f.mesh);
@@ -2257,7 +2286,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.50';
+const VERSION = '0.6.51';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

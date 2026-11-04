@@ -492,6 +492,7 @@ test('a fireball aimed at water bursts on the water', { skip, timeout: 480000 },
     await page.waitForFunction(() => window.gameTest.lastShot && window.gameTest.lastShot.burst, null, { timeout: 400000 });
     const b = await page.evaluate(() => { const s = window.gameTest.lastShot; return { cell: window.gameTest.cellAt(...s.burst), by: s.burstBy, water: window.gameTest.T.WATER }; });
     assert.equal(b.cell, b.water, 'the fireball should burst on water, not pass through it (burst cell type ' + b.cell + ', by ' + b.by + ')');
+    assert.equal(b.by, 'water', 'water should put the fireball out (fizzle), not blast it: ' + b.by);
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [shoreGameLevel2()] }));
 

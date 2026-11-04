@@ -2,6 +2,11 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.51: water puts out fireballs
+- A fireball that reaches water fizzles out in a puff of steam, with no blast and no damage
+- Enemies still take the blast when a fireball hits them
+- Test updated: a fireball aimed at water is put out by the water
+
 ## 0.6.50: trees, bushes and scenery on the grass
 - Trees (pine, common, palm), bushes, grass tufts, flowers, mushrooms, stones and tree stumps now grow on the grass. They come from the free CC0 Low Poly Nature Pack by flo-bit, which is in build/models/nature and www/models/nature
 - Scenery is decoration only: it does not block walking, jumping or digging
