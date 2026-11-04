@@ -454,6 +454,36 @@ test('a fireball aimed at a block flies from the character to the point that was
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [fightLevel2Game()] }));
 
+// A fireball aimed at water flies to the water's surface and bursts there, instead of passing through to the ground
+test('a fireball aimed at water bursts on the water', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
+    await page.click('#skillPanel [data-skill="fireball"]');
+    await page.waitForFunction(() => window.gameTest.skills.includes('fireball'), null, { timeout: 60000 });
+    await page.waitForTimeout(800);
+    const r = await page.evaluate(() => {
+      const g = window.gameTest;
+      // Look for a screen point that sees water: the surface point, just below it, is a water block
+      let found = null;
+      for (const fy of [0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5]) {
+        for (const fx of [0.5, 0.4, 0.6, 0.3, 0.7]) {
+          const x = innerWidth * fx, y = innerHeight * fy;
+          const p = g.sightAt(x, y);
+          if (p && g.cellAt(Math.floor(p[0]), Math.floor(p[1] - 0.05), Math.floor(p[2])) === g.T.WATER) { found = { x, y }; break; }
+        }
+        if (found) break;
+      }
+      if (!found) return { found: false };
+      g.fireAt(found.x, found.y);
+      return { found: true, x: found.x, y: found.y };
+    });
+    assert.ok(r.found, 'no screen point sees water from the test position');
+    await page.waitForFunction(() => window.gameTest.lastShot && window.gameTest.lastShot.burst, null, { timeout: 8000 });
+    const b = await page.evaluate(() => { const s = window.gameTest.lastShot; return { cell: window.gameTest.cellAt(...s.burst), by: s.burstBy, water: window.gameTest.T.WATER }; });
+    assert.equal(b.cell, b.water, 'the fireball should burst on water, not pass through it (burst cell type ' + b.cell + ', by ' + b.by + ')');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [shoreGame()] }));
+
 // Clicking an enemy sends the fireball to it: it follows the enemy and hurts it, and does not burst on the character
 test('a shot at any part of an enemy is linked to that enemy, so it flies to it', { skip, timeout: 150000 }, () =>
   withGame(async (page, errors) => {

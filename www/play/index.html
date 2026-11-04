@@ -1738,6 +1738,14 @@ function fireBurst(x, y, z, size) {
 // Local debugging only: when on, each shot is logged to the browser console. Nothing is sent anywhere.
 let fireDebug = /[?&]fireDebug=1/.test(location.search);
 let lastShot = null;   // the most recent shot's numbers, for the console and tests
+// The nearest point seen under the screen point, water surfaces included (for fireballs only)
+function sightPoint(x, y) {
+  ndc.x = (x / window.innerWidth) * 2 - 1;
+  ndc.y = -(y / window.innerHeight) * 2 + 1;
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects([...chunkMeshes.values()].flatMap(c => c.list), true)[0];
+  return hit ? hit.point : null;
+}
 function fireAt(x, y) {
   const a = aim({ clientX: x, clientY: y });
   const rect = canvas.getBoundingClientRect();
@@ -1754,8 +1762,11 @@ function fireAt(x, y) {
   // A block (or ground) was clicked: aim from the chest at the exact point that was hit, so the fireball lands on that block.
   // Aiming along the camera ray instead would miss, because the camera is behind and above the character.
   const origin = new THREE.Vector3(px, py + HH * 0.7, pz);
-  if (a && a.point) {
-    const to = a.point.clone().sub(origin);
+  let target = a && a.point;
+  const sight = sightPoint(x, y);   // water surface, if the nearest thing seen is water
+  if (sight && (!target || sight.distanceTo(camera.position) < target.distanceTo(camera.position))) target = sight;
+  if (target) {
+    const to = target.clone().sub(origin);
     if (to.lengthSq() > 0.04) return castFireball(to);
   }
   // Nothing was hit: a point far along the click's ray, seen from the chest
@@ -1792,7 +1803,7 @@ function updateFireballs(dt) {
     f.x += f.vx * dt; f.y += f.vy * dt; f.z += f.vz * dt;
     f.mesh.position.set(f.x, f.y, f.z);
     // A new fireball is not checked for walls for its first moment, so it does not burst at the character
-    let boom = f.t >= f.life || (f.t > 0.15 && solid(get(Math.floor(f.x), Math.floor(f.y), Math.floor(f.z))));
+    let boom = f.t >= f.life || (f.t > 0.15 && get(Math.floor(f.x), Math.floor(f.y), Math.floor(f.z)) !== T.AIR);
     if (!boom) boom = enemies.some(en => Math.hypot(en.x - f.x, en.y + 0.5 - f.y, en.z - f.z) < 0.8);
     if (!boom) continue;
     for (const en of [...enemies]) {
@@ -2652,6 +2663,7 @@ requestAnimationFrame(frame);
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  sightAt: (x, y) => { const p = sightPoint(x, y); return p ? [p.x, p.y, p.z] : null; }, cellAt: (x, y, z) => get(x, y, z), T,
   get lastShot() { return lastShot; }, setFireDebug: v => { fireDebug = v; },
   ENEMY_KINDS, GEAR, ITEMS, GEAR_LOOT, inv, pw,
   damageTo, hurtEnemy, wear, addGear, waterNear, addItem, gearFor, gearOf, defOf, tplOf, labelOf, weaponDamage, invTotal, updateHand,
