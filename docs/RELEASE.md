@@ -5,7 +5,7 @@ The GitHub workflow in `.github/workflows/release.yml` builds, signs, and upload
 ## Part 1: Things only you can do (about 1–2 hours, plus waiting)
 
 1. **Google Play Console account.** Sign in with your dedicated Google account at play.google.com/console, pay the $25 one-time fee, and verify your identity with government ID. Google may take a few days to approve it.
-2. **Choose the app ID.** Pick something unique and permanent, like `com.yourname.kidsgame`. Put it in `capacitor.config.json` (replace `com.example.kidsgame`) and in the GitHub variable `APP_ID`. It can't be changed later.
+2. **Choose the app ID.** The chosen ID is `com.drenerics.adventurers`. Put it in `capacitor.config.json` (replace `com.example.kidsgame`) and in the GitHub variable `APP_ID`. It can't be changed later.
 3. **Create the app** in Play Console (name: "Kids Game" or your choice; free; for kids).
 4. **Upload keystore (keep it safe).** Create it once on your computer:
    `keytool -genkey -v -keystore upload.keystore -alias upload -keyalg RSA -keysize 2048 -validity 10000`

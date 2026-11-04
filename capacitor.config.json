@@ -1,6 +1,6 @@
 {
-  "appId": "com.example.kidsgame",
-  "appName": "Kids Game",
+  "appId": "com.drenerics.adventurers",
+  "appName": "Adventurers of Drenerics",
   "webDir": "www",
   "android": {
     "allowMixedContent": false

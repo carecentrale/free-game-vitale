@@ -9,7 +9,7 @@
 #     KEY_PASSWORD              key password
 #     PLAY_SERVICE_ACCOUNT_JSON service account key JSON for the Play Console API
 #   Variables:
-#     APP_ID                    the appId from capacitor.config.json (com.yourname.kidsgame)
+#     APP_ID                    the appId from capacitor.config.json (com.drenerics.adventurers)
 
 name: Release to Google Play
 
@@ -41,7 +41,7 @@ jobs:
       - name: Copy the game into the web folder
         run: |
           mkdir -p www
-          cp build/prototype-3d-v6.html www/index.html
+          cp build/prototype-3d-v7.html www/index.html
 
       - name: Create the Android project (first run only)
         run: |
