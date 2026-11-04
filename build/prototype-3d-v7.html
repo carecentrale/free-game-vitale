@@ -334,8 +334,8 @@ function makeChunk(cx, cz) {
   for (let lx = 0; lx < CS; lx++) for (let lz = 0; lz < CS; lz++) {
     const x = cx * CS + lx, z = cz * CS + lz;
     const top = groundY(x, z);
+    const B = BIOMES[biomeIndexAt(x, z)];   // once per column
     for (let y = 0; y <= top; y++) {
-      const B = BIOMES[biomeIndexAt(x, z)];
       let t = y === top ? (top < WATER_Y ? T.SAND : B.top) : (y >= top - 2 ? (top < WATER_Y ? T.DIRT : B.under) : T.STONE);
       if (t === T.STONE && y >= 1 && y < H - 4) {
         if (noise3(x * 0.16, y * 0.2, z * 0.16, seed + 99) > 0.62) t = T.AIR;   // caves
