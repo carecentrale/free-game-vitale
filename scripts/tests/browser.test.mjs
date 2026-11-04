@@ -468,7 +468,7 @@ test('a fireball aimed at water bursts on the water', { skip, timeout: 480000 },
     await page.click('#skillPanel [data-skill="fireball"]');
     await page.waitForFunction(() => window.gameTest.skills.includes('fireball'), null, { timeout: 60000 });
     await page.waitForTimeout(800);
-    await page.waitForFunction(() => window.gameTest.pendingChunks() === 0, null, { timeout: 120000 });   // the chunks around the player exist (scenery is not part of this check, so it is not waited for)
+    await page.waitForFunction(() => window.gameTest.pendingNear(2) === 0, null, { timeout: 60000 });   // the chunks right around the player exist (far chunks and scenery are not needed for this check)
     await page.evaluate(() => window.gameTest.settleCamera());   // put the camera behind the player now, instead of waiting for it to ease there
     const r = await page.evaluate(() => {
       const g = window.gameTest;

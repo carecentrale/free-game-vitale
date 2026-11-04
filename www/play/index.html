@@ -2857,7 +2857,7 @@ requestAnimationFrame(frame);
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
   perf: () => ({ ...perfStats, ...perfSnapshot() }),
-  camDist: () => camera.position.distanceTo(new THREE.Vector3(px, py, pz)), drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles, settleCamera: () => { camera.position.set(px + Math.sin(camYaw) * 9 * zoom, py + 5 * zoom, pz + Math.cos(camYaw) * 9 * zoom); camera.lookAt(px, py + 1, pz); camera.updateMatrixWorld(); }, pendingChunks: () => waiting.length, decorReady: () => decorReady, decorCount: () => { let n = 0; for (const c of chunkMeshes.values()) n += c.decorCount || 0; return n; },
+  camDist: () => camera.position.distanceTo(new THREE.Vector3(px, py, pz)), drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles, settleCamera: () => { camera.position.set(px + Math.sin(camYaw) * 9 * zoom, py + 5 * zoom, pz + Math.cos(camYaw) * 9 * zoom); camera.lookAt(px, py + 1, pz); camera.updateMatrixWorld(); }, pendingChunks: () => waiting.length, pendingNear: (r) => { const pc = Math.floor(px / CS), pz2 = Math.floor(pz / CS); return waiting.filter(w => Math.abs(w.cx - pc) <= r && Math.abs(w.cz - pz2) <= r).length; }, decorReady: () => decorReady, decorCount: () => { let n = 0; for (const c of chunkMeshes.values()) n += c.decorCount || 0; return n; },
   decorKinds: () => DECOR_KINDS.map(d => d.kind), decorAt, DECOR_CLEAR,
   biomeAt: (x, z) => BIOMES[biomeIndexAt(x, z)].name, biomeNames: () => BIOMES.map(b => b.name),
   sightAt: (x, y) => { const p = sightPoint(x, y); return p ? [p.x, p.y, p.z] : null; }, cellAt: (x, y, z) => get(x, y, z), T,
