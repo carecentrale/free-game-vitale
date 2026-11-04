@@ -2,6 +2,10 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.49: fireball hits the block you click
+- Fixed: a right-click fireball flew along the camera's line, so it landed on a different block than the one clicked. It now flies from the character straight at the exact point clicked
+- Test added: a fireball aimed at a block flies toward the clicked point
+
 ## 0.6.48: fireball aims at what you click
 - A fireball flies from the character toward the point you click or tap, instead of going off in the camera direction and bursting near you
 - If you click an enemy, the fireball follows it and lasts long enough to reach it

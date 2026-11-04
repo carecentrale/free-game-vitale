@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.48 (3D)</title>
+<title>Adventurers of Drenerics v0.6.49 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -1045,6 +1045,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.49', title: 'Fireball hits the block you click', items: [
+    'A right-click fireball now flies straight at the block or enemy you click, so it lands where you aimed'] },
   { v: '0.6.48', title: 'Fireball aims at what you click', items: [
     'A fireball flies to the point you click or tap, and it follows an enemy you hit. It lasts long enough to reach it',
     'Fire sparks burst where a fireball lands. Any part of an enemy\'s body counts as a hit'] },
@@ -1742,8 +1744,15 @@ function fireAt(x, y) {
     const to = new THREE.Vector3(en.x - px, en.y + 0.5 - (py + HH * 0.7), en.z - pz);
     if (to.lengthSq() > 0.01) return castFireball(to, en);
   }
-  // Anything else: along the camera direction, the same as before
-  castFireball(viewDir(x, y));
+  // A block (or ground) was clicked: aim from the chest at the exact point that was hit, so the fireball lands on that block.
+  // Aiming along the camera ray instead would miss, because the camera is behind and above the character.
+  const origin = new THREE.Vector3(px, py + HH * 0.7, pz);
+  if (a && a.point) {
+    const to = a.point.clone().sub(origin);
+    if (to.lengthSq() > 0.04) return castFireball(to);
+  }
+  // Nothing was hit: a point far along the click's ray, seen from the chest
+  castFireball(ray.ray.at(60, new THREE.Vector3()).sub(origin));
 }
 
 // Moves the fireballs. A fireball bursts when it hits an enemy or a block, or when its time runs out.
@@ -2134,7 +2143,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.48';
+const VERSION = '0.6.49';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2635,7 +2644,7 @@ window.gameTest = {
   damageTo, hurtEnemy, wear, addGear, waterNear, addItem, gearFor, gearOf, defOf, tplOf, labelOf, weaponDamage, invTotal, updateHand,
   get gear() { return gear; }, get qb() { return qb; }, get recent() { return recent; },
   get skills() { return skills; },
-  castFireball, fireAt, enemyAt, viewDir, setYaw: y => { camYaw = y; }, get sparks() { return sparks; }, get fireballs() { return fireballs; }, get enemies() { return enemies; },
+  castFireball, fireAt, enemyAt, viewDir, aimAt: (x, y) => aim({ clientX: x, clientY: y }), setYaw: y => { camYaw = y; }, get sparks() { return sparks; }, get fireballs() { return fireballs; }, get enemies() { return enemies; },
   // Where an enemy's middle is on the screen: [x, y] (y from the top), and whether it is in front of the camera
   screenOf: en => { const v = new THREE.Vector3(en.x, en.y + 0.5, en.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight, v.z < 1]; },
 };

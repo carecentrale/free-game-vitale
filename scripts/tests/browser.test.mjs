@@ -421,6 +421,39 @@ test('a fireball aimed at a screen point is fired and flies toward it', { skip, 
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [fightLevel2Game()] }));
 
+// A fireball aimed at a block is fired from the character toward the exact point clicked, so it lands on that block
+test('a fireball aimed at a block flies from the character to the point that was clicked', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
+    await page.click('#skillPanel [data-skill="fireball"]');
+    await page.waitForFunction(() => window.gameTest.skills.includes('fireball'), null, { timeout: 60000 });
+    await page.waitForTimeout(500);
+    const r = await page.evaluate(() => {
+      const g = window.gameTest, p = window.gameProbe();
+      // Find a screen point, from low to the centre, that is over a block
+      let sx = 0, sy = 0, a = null;
+      for (const fy of [0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65, 0.6, 0.55, 0.5]) {
+        for (const fx of [0.5, 0.45, 0.55, 0.4, 0.6]) {
+          const c = g.aimAt(innerWidth * fx, innerHeight * fy);
+          if (c && c.point) { sx = innerWidth * fx; sy = innerHeight * fy; a = c; break; }
+        }
+        if (a) break;
+      }
+      if (!a) return { hit: false };
+      const before = g.fireballs.length;
+      g.fireAt(sx, sy);
+      const f = g.fireballs[g.fireballs.length - 1];
+      const want = { x: a.point.x - p.px, y: a.point.y - (p.py + 1.6 * 0.7), z: a.point.z - p.pz };
+      const wl = Math.hypot(want.x, want.y, want.z), fl = Math.hypot(f.vx, f.vy, f.vz);
+      const dot = (want.x * f.vx + want.y * f.vy + want.z * f.vz) / (wl * fl);
+      return { hit: true, added: g.fireballs.length - before, dot };
+    });
+    assert.ok(r.hit, 'the screen point should hit a block or the ground');
+    assert.equal(r.added, 1, 'one fireball should be fired');
+    assert.ok(r.dot > 0.999, 'the fireball should fly straight at the clicked point, alignment ' + r.dot);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [fightLevel2Game()] }));
+
 // Clicking an enemy sends the fireball to it: it follows the enemy and hurts it, and does not burst on the character
 test('a shot at any part of an enemy is linked to that enemy, so it flies to it', { skip, timeout: 150000 }, () =>
   withGame(async (page, errors) => {
