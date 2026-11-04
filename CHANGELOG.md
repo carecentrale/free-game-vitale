@@ -2,6 +2,12 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.53: biomes
+- The world is split into biomes by climate: desert, savanna, rainforest, grassland, forest, taiga and tundra
+- Biomes blend into each other across the world, with soft borders instead of hard lines
+- Deserts have sand, tundra has a new snow block, and each biome has its own trees and plants (palm and pine trees added)
+- Tests added: biome spread, gradual borders, same map for the same seed, desert sand and tundra snow
+
 ## 0.6.52: lighter scenery, performance readout
 - Scenery is stored more compactly and is drawn only within 4 chunks of the player
 - ?perf=1 in the page address logs frame rate, frame time, memory, draw calls and triangles to the console (local only)

@@ -503,7 +503,7 @@ test('trees and other scenery load and appear on the grass around the player', {
     await page.waitForFunction(() => window.gameTest.decorCount() > 0 && window.gameTest.pendingChunks() === 0, null, { timeout: 120000 });
     const r = await page.evaluate(() => ({ count: window.gameTest.decorCount(), kinds: window.gameTest.decorKinds(), clear: window.gameTest.DECOR_CLEAR }));
     assert.ok(r.count > 0, 'no scenery was placed: ' + JSON.stringify(r));
-    assert.ok(r.kinds.includes('tree') && r.kinds.includes('grass'), 'scenery kinds: ' + r.kinds.join(','));
+    assert.ok(r.kinds.includes('common') && r.kinds.includes('grass'), 'scenery kinds: ' + r.kinds.join(','));
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }));
 

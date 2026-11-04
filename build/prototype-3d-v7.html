@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.52 (3D)</title>
+<title>Adventurers of Drenerics v0.6.53 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -1127,6 +1127,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.53', title: 'Biomes', items: [
+    'The world is split into biomes (desert, savanna, rainforest, grassland, forest, taiga, tundra) that blend into each other across the world',
+    'Deserts are sand, tundra is snow (new snow block), and each biome has its own trees and plants'] },
   { v: '0.6.52', title: 'Lighter scenery, performance readout', items: [
     'Scenery is stored more compactly and is drawn only near the player',
     'Add ?perf=1 to the page address to see frame rate and memory in the console (stays on your device)'] },
@@ -1574,7 +1577,8 @@ function spawnEnemy() {
     const x = Math.floor(px) + Math.floor(Math.random() * 40) - 20, z = Math.floor(pz) + Math.floor(Math.random() * 40) - 20;
     let y = H - 1;
     while (y > 0 && get(x, y, z) === T.AIR) y--;
-    if (get(x, y, z) !== T.GRASS) continue;
+    const ground = get(x, y, z);
+    if (!(ground === T.GRASS || ground === T.SNOW || (ground === T.SAND && y >= WATER_Y))) continue;   // dry ground only
     if (Math.hypot(x + 0.5 - px, z + 0.5 - pz) < 6) continue;
     const kind = ENEMY_LIST[Math.floor(Math.random() * ENEMY_LIST.length)];
     const group = enemyModel(kind);
@@ -2355,7 +2359,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.52';
+const VERSION = '0.6.53';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.52 (3D)</title>
+<title>Adventurers of Drenerics v0.6.53 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -122,7 +122,7 @@ const PMIN = CENTER - PLAY, PMAX = CENTER + PLAY;
 const inPlay = (x, z) => x >= PMIN && x < PMAX && z >= PMIN && z < PMAX;
 const WATER_Y = 9;                        // low places fill with water (lakes and sea) up to this height
 const H = 96, SURF = 12, CS = 16;        // height in blocks, average ground level, chunk size in blocks
-const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4, WATER: 5, SAND: 6 };
+const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4, WATER: 5, SAND: 6, SNOW: 7 };
 // Blocks that stop the player and enemies. Water does not: you can wade and sink into it.
 const solid = t => t !== T.AIR && t !== T.WATER;
 
@@ -270,25 +270,60 @@ const groundY = (x, z) => {
 
 // Scenery: small models placed on grass (trees, bushes, flowers and so on). They have no collision, so they never block
 // the player or change digging. Each kind takes a share of the grass cells; the rest stay bare.
-const DECOR_KINDS = [
-  { kind: 'tree',     share: 0.003, files: ['common_tree_1', 'common_tree_2', 'common_tree_3', 'pine_tree_1', 'pine_tree_2', 'pine_tree_3', 'palm_tree_1', 'palm_tree_2', 'palm_tree_3'] },
-  { kind: 'bush',     share: 0.015, files: ['bush_1', 'bush_2', 'bush_3', 'bush_4', 'bush_5'] },
-  { kind: 'grass',    share: 0.030, files: ['grass_1', 'grass_2', 'grass_3', 'grass_4'] },
-  { kind: 'flower',   share: 0.015, files: ['flower_1', 'flower_2', 'flower_3'] },
-  { kind: 'mushroom', share: 0.008, files: ['mushroom_1', 'mushroom_2', 'mushroom_3', 'mushroom_4', 'mushroom_5'] },
-  { kind: 'stone',    share: 0.004, files: ['stone_1', 'stone_2', 'stone_3', 'stone_4', 'stone_5'] },
-  { kind: 'stump',    share: 0.002, files: ['tree_stump_1', 'tree_stump_2', 'tree_stump_3'] },
+const DECOR_KINDS = [   // the model files for each kind of scenery (which biome uses which kind is set in BIOMES)
+  { kind: 'common',   files: ['common_tree_1', 'common_tree_2', 'common_tree_3'] },
+  { kind: 'pine',     files: ['pine_tree_1', 'pine_tree_2', 'pine_tree_3'] },
+  { kind: 'palm',     files: ['palm_tree_1', 'palm_tree_2', 'palm_tree_3'] },
+  { kind: 'bush',     files: ['bush_1', 'bush_2', 'bush_3', 'bush_4', 'bush_5'] },
+  { kind: 'grass',    files: ['grass_1', 'grass_2', 'grass_3', 'grass_4'] },
+  { kind: 'flower',   files: ['flower_1', 'flower_2', 'flower_3'] },
+  { kind: 'plant',    files: ['plant_1', 'plant_2', 'plant_3'] },
+  { kind: 'mushroom', files: ['mushroom_1', 'mushroom_2', 'mushroom_3', 'mushroom_4', 'mushroom_5'] },
+  { kind: 'stone',    files: ['stone_1', 'stone_2', 'stone_3', 'stone_4', 'stone_5'] },
+  { kind: 'stump',    files: ['tree_stump_1', 'tree_stump_2', 'tree_stump_3'] },
 ];
 const DECOR_CLEAR = 6;
 const DECOR_NEAR = 4;   // scenery is drawn within this many chunks of the player   // no scenery within this many blocks of the start point
-// What scenery sits on the grass block at (x, y, z), or null. y is the grass block's height.
+// Biomes: the land is split by climate (how warm and how wet each spot is). Each spot's climate comes from two smooth
+// noise maps, so biomes form large regions. Near a border, each column picks its biome by a smooth noise draw, weighted by how close
+// its climate is to each biome, so biomes blend into each other instead of meeting at a hard line.
+const CLIMATE_SCALE = 0.006;   // size of the climate regions (about 170 blocks across)
+const BLEND_EPS = 0.01;        // softens the weighting so a spot at a biome's centre is always that biome
+const BIOMES = [   // t = warmth, r = wetness (0..1); top = surface block; under = block just below the surface; shares = scenery kinds and how much of the surface gets each
+  { name: 'desert',     t: 0.90, r: 0.10, top: T.SAND,  under: T.SAND, shares: { plant: 0.01, stone: 0.02 } },
+  { name: 'savanna',    t: 0.85, r: 0.40, top: T.GRASS, under: T.DIRT, shares: { grass: 0.04, common: 0.004, flower: 0.01, stone: 0.01 } },
+  { name: 'rainforest', t: 0.85, r: 0.85, top: T.GRASS, under: T.DIRT, shares: { palm: 0.02, common: 0.02, bush: 0.04, plant: 0.04, mushroom: 0.02, flower: 0.02 } },
+  { name: 'grassland',  t: 0.55, r: 0.30, top: T.GRASS, under: T.DIRT, shares: { grass: 0.05, flower: 0.03, bush: 0.01, stone: 0.01 } },
+  { name: 'forest',     t: 0.55, r: 0.70, top: T.GRASS, under: T.DIRT, shares: { common: 0.02, bush: 0.03, grass: 0.03, flower: 0.02, mushroom: 0.02, stump: 0.005 } },
+  { name: 'taiga',      t: 0.25, r: 0.60, top: T.GRASS, under: T.DIRT, shares: { pine: 0.02, bush: 0.01, mushroom: 0.01, stone: 0.02, grass: 0.02, stump: 0.005 } },
+  { name: 'tundra',     t: 0.10, r: 0.30, top: T.SNOW,  under: T.DIRT, shares: { plant: 0.005, stone: 0.03 } },
+];
+const BIOME_W = new Float64Array(BIOMES.length);
+// Index of the biome for the column at (x, z). The same answer every time for the same place and seed.
+function biomeIndexAt(x, z) {
+  const t = Math.max(0, Math.min(1, 0.5 + (noise3(x * CLIMATE_SCALE, 0.5, z * CLIMATE_SCALE, seed + 800) - 0.5) * 2.5));
+  const r = Math.max(0, Math.min(1, 0.5 + (noise3(x * CLIMATE_SCALE, 0.5, z * CLIMATE_SCALE, seed + 900) - 0.5) * 2.5));
+  let total = 0;
+  for (let i = 0; i < BIOMES.length; i++) {
+    const dt = t - BIOMES[i].t, dr = r - BIOMES[i].r;
+    const d2 = dt * dt + dr * dr + BLEND_EPS;
+    BIOME_W[i] = 1 / (d2 * d2 * d2);   // closer biomes count much more
+    total += BIOME_W[i];
+  }
+  const u = noise3(x * 0.15, 0.5, z * 0.15, seed + 950) * total;   // smooth, so borders form soft bands rather than speckles
+  let acc = 0;
+  for (let i = 0; i < BIOMES.length; i++) { acc += BIOME_W[i]; if (u < acc) return i; }
+  return BIOMES.length - 1;
+}
+// What scenery sits on the surface block at (x, y, z), or null. y is the surface block's height.
 function decorAt(x, y, z) {
   if (y < WATER_Y || Math.hypot(x - CENTER, z - CENTER) < DECOR_CLEAR) return null;
+  const shares = BIOMES[biomeIndexAt(x, z)].shares;
   const r = hash3(x, y, z, seed + 31);
   let acc = 0;
-  for (const d of DECOR_KINDS) {
-    acc += d.share;
-    if (r < acc) return { kind: d.kind, pick: hash3(x, y, z, seed + 37), rot: hash3(x, y, z, seed + 41) * Math.PI * 2 };
+  for (const kind in shares) {
+    acc += shares[kind];
+    if (r < acc) return { kind, pick: hash3(x, y, z, seed + 37), rot: hash3(x, y, z, seed + 41) * Math.PI * 2 };
   }
   return null;
 }
@@ -300,7 +335,8 @@ function makeChunk(cx, cz) {
     const x = cx * CS + lx, z = cz * CS + lz;
     const top = groundY(x, z);
     for (let y = 0; y <= top; y++) {
-      let t = y === top ? (top < WATER_Y ? T.SAND : T.GRASS) : (y >= top - 2 ? T.DIRT : T.STONE);
+      const B = BIOMES[biomeIndexAt(x, z)];
+      let t = y === top ? (top < WATER_Y ? T.SAND : B.top) : (y >= top - 2 ? (top < WATER_Y ? T.DIRT : B.under) : T.STONE);
       if (t === T.STONE && y >= 1 && y < H - 4) {
         if (noise3(x * 0.16, y * 0.2, z * 0.16, seed + 99) > 0.62) t = T.AIR;   // caves
         else if (hash3(x, y, z, seed + 7) < 0.03) t = T.GEM;                   // gems
@@ -498,6 +534,7 @@ const texGem = makeTex((g, S) => {
 });
 
 const texSand = makeTex((g, S) => noise(g, S, 0xd9c27a, 0.07));
+const texSnow = makeTex((g, S) => noise(g, S, 0xeef4f8, 0.05));
 const mapMat = map => new THREE.MeshLambertMaterial({ map });
 const waterMat = new THREE.MeshLambertMaterial({ color: 0x2f7fd0, transparent: true, opacity: 0.6 });
 // Six faces per block: +x, -x, +y (top), -y (bottom), +z, -z
@@ -507,6 +544,7 @@ const blockMats = {
   [T.STONE]: Array(6).fill(0).map(() => mapMat(texStone)),
   [T.GEM]: Array(6).fill(0).map(() => mapMat(texGem)),
   [T.SAND]: Array(6).fill(0).map(() => mapMat(texSand)),
+  [T.SNOW]: Array(6).fill(0).map(() => mapMat(texSnow)),
   [T.WATER]: Array(6).fill(waterMat),
 };
 
@@ -595,7 +633,7 @@ const VIEW = 8;                                   // chunks drawn in each direct
 const BUILD_MS = 8;                               // time per frame spent making new chunk meshes
 const blockGeo = new THREE.BoxGeometry(1, 1, 1);
 const m4 = new THREE.Matrix4();
-const drawTypes = [T.GRASS, T.DIRT, T.STONE, T.GEM, T.SAND, T.WATER];
+const drawTypes = [T.GRASS, T.DIRT, T.STONE, T.GEM, T.SAND, T.WATER, T.SNOW];
 const worldGroup = new THREE.Group();
 scene.add(worldGroup);
 const chunkMeshes = new Map();   // ckey -> { cx, cz, list: [InstancedMesh], count }
@@ -647,7 +685,7 @@ function buildChunkMeshes(cx, cz) {
     if (!t) continue;
     const x = cx * CS + lx, z = cz * CS + lz;
     // Scenery stands on grass that has air above it (so digging the grass away removes its scenery when the chunk is redrawn)
-    if (decorReady && t === T.GRASS && y + 1 < H && data[cellIndex(lx, y + 1, lz)] === T.AIR) {
+    if (decorReady && (t === T.GRASS || t === T.SAND || t === T.SNOW) && y + 1 < H && data[cellIndex(lx, y + 1, lz)] === T.AIR) {
       const d = decorAt(x, y, z);
       if (d && addDecor(decorBins, d, x, y + 1, z)) decorCount++;
     }
@@ -1089,6 +1127,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.53', title: 'Biomes', items: [
+    'The world is split into biomes (desert, savanna, rainforest, grassland, forest, taiga, tundra) that blend into each other across the world',
+    'Deserts are sand, tundra is snow (new snow block), and each biome has its own trees and plants'] },
   { v: '0.6.52', title: 'Lighter scenery, performance readout', items: [
     'Scenery is stored more compactly and is drawn only near the player',
     'Add ?perf=1 to the page address to see frame rate and memory in the console (stays on your device)'] },
@@ -1288,7 +1329,7 @@ function digCell(x, y, z) {
   if (full && drops.size >= MAX_DROPS) { say('Too many things on the ground. Pick some up first.', 2500); return false; }
   setBlock(x, y, z, T.AIR);
   shareBlock(x, y, z, T.AIR);
-  const id = (t === T.GRASS || t === T.DIRT || t === T.SAND) ? 'dirt' : (t === T.STONE ? 'stone' : 'gem');
+  const id = (t === T.GRASS || t === T.DIRT || t === T.SAND || t === T.SNOW) ? 'dirt' : (t === T.STONE ? 'stone' : 'gem');
   if (full) {
     addDrop(x, y, z, id);
     say(ITEMS[id].name + ' dropped on the ground. Make room in your bag to pick it up.', 2500);
@@ -1415,7 +1456,7 @@ function loadModel(file) {
   return modelCache[file];
 }
 // Scenery models: each is scaled to a target height in blocks, with its base on the ground
-const DECOR_HEIGHT = { tree: 6, bush: 1.3, grass: 0.8, flower: 0.8, mushroom: 0.4, stone: 0.7, stump: 1.0 };
+const DECOR_HEIGHT = { common: 6, pine: 7, palm: 6, bush: 1.3, grass: 0.8, flower: 0.8, plant: 1.0, mushroom: 0.4, stone: 0.7, stump: 1.0 };
 const decorTpl = {};   // kind -> [Group], ready to clone
 let decorReady = false;
 function normalizeDecor(scene, height) {
@@ -1434,7 +1475,7 @@ async function loadDecor() {
     for (const d of DECOR_KINDS) {
       const scenes = await Promise.all(d.files.map(f => loadModel('/models/nature/' + f + '.glb')));
       decorTpl[d.kind] = scenes.filter(Boolean).map(s => {
-        const holder = normalizeDecor(s, DECOR_HEIGHT[d.kind]);
+        const holder = normalizeDecor(s, DECOR_HEIGHT[d.kind] || 1);
         holder.updateMatrixWorld(true);
         const parts = [];
         holder.traverse(o => { if (o.isMesh) parts.push({ geo: o.geometry, mat: o.material, m: o.matrixWorld.clone() }); });
@@ -1536,7 +1577,8 @@ function spawnEnemy() {
     const x = Math.floor(px) + Math.floor(Math.random() * 40) - 20, z = Math.floor(pz) + Math.floor(Math.random() * 40) - 20;
     let y = H - 1;
     while (y > 0 && get(x, y, z) === T.AIR) y--;
-    if (get(x, y, z) !== T.GRASS) continue;
+    const ground = get(x, y, z);
+    if (!(ground === T.GRASS || ground === T.SNOW || (ground === T.SAND && y >= WATER_Y))) continue;   // dry ground only
     if (Math.hypot(x + 0.5 - px, z + 0.5 - pz) < 6) continue;
     const kind = ENEMY_LIST[Math.floor(Math.random() * ENEMY_LIST.length)];
     const group = enemyModel(kind);
@@ -2317,7 +2359,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.52';
+const VERSION = '0.6.53';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2817,6 +2859,7 @@ window.gameTest = {
   perf: () => ({ ...perfStats, ...perfSnapshot() }),
   camDist: () => camera.position.distanceTo(new THREE.Vector3(px, py, pz)), drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles, settleCamera: () => { camera.position.set(px + Math.sin(camYaw) * 9 * zoom, py + 5 * zoom, pz + Math.cos(camYaw) * 9 * zoom); camera.lookAt(px, py + 1, pz); camera.updateMatrixWorld(); }, pendingChunks: () => waiting.length, decorReady: () => decorReady, decorCount: () => { let n = 0; for (const c of chunkMeshes.values()) n += c.decorCount || 0; return n; },
   decorKinds: () => DECOR_KINDS.map(d => d.kind), decorAt, DECOR_CLEAR,
+  biomeAt: (x, z) => BIOMES[biomeIndexAt(x, z)].name, biomeNames: () => BIOMES.map(b => b.name),
   sightAt: (x, y) => { const p = sightPoint(x, y); return p ? [p.x, p.y, p.z] : null; }, cellAt: (x, y, z) => get(x, y, z), T,
   get lastShot() { return lastShot; }, setFireDebug: v => { fireDebug = v; },
   ENEMY_KINDS, GEAR, ITEMS, GEAR_LOOT, inv, pw,
