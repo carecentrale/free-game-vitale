@@ -153,12 +153,63 @@ const ctx2 = vm.createContext({
   bytesToB64: u8 => Buffer.from(u8).toString('base64'),
 });
 const W2 = vm.runInContext(prefix + game.slice(start, end) + `
-;({ decorAt, DECOR_KINDS, DECOR_CLEAR, CENTER, WATER_Y, initWorld, groundY, get, T, CS, H })`, ctx2);
+;({ decorAt, DECOR_KINDS, DECOR_CLEAR, CENTER, WATER_Y, initWorld, groundY, get, T, CS, H, BIOMES, biomeIndexAt })`, ctx2);
 
-test('scenery kinds have models and their shares add up to less than half the grass', () => {
-  const total = W2.DECOR_KINDS.reduce((s, d) => s + d.share, 0);
-  assert.ok(total > 0 && total < 0.5, 'shares add up to ' + total);
+test('every scenery kind has model files, and each biome\'s shares add up to less than half its surface', () => {
   for (const d of W2.DECOR_KINDS) assert.ok(d.files.length > 0, d.kind + ' has no model files');
+  for (const b of W2.BIOMES) {
+    const total = Object.values(b.shares).reduce((s, v) => s + v, 0);
+    assert.ok(total > 0 && total < 0.5, b.name + ' shares add up to ' + total);
+    for (const kind of Object.keys(b.shares)) assert.ok(W2.DECOR_KINDS.some(d => d.kind === kind), b.name + ' uses unknown scenery ' + kind);
+  }
+});
+
+// ---- Biomes: climate regions that blend into each other
+test('the world has several biomes, not one', () => {
+  W2.initWorld(4242);
+  const seen = new Set();
+  for (let x = -1000; x <= 1000; x += 25) for (let z = -1000; z <= 1000; z += 25) seen.add(W2.BIOMES[W2.biomeIndexAt(W2.CENTER + x, W2.CENTER + z)].name);
+  assert.ok(seen.size >= 5, 'only ' + seen.size + ' biomes found: ' + [...seen].join(', '));
+});
+
+test('biomes blend: neighbouring columns mostly match, and some borders mix', () => {
+  W2.initWorld(4242);
+  let pairs = 0, changes = 0;
+  for (let x = -300; x < 300; x += 2) for (let z = -300; z < 300; z += 2) {
+    const a = W2.biomeIndexAt(W2.CENTER + x, W2.CENTER + z);
+    const b = W2.biomeIndexAt(W2.CENTER + x + 2, W2.CENTER + z);
+    pairs++;
+    if (a !== b) changes++;
+  }
+  const share = changes / pairs;
+  assert.ok(changes > 0, 'no border between biomes was found');
+  assert.ok(share < 0.2, 'biomes change too often (' + share.toFixed(3) + ') — they look sporadic');
+});
+
+test('the same seed makes the same biomes', () => {
+  W2.initWorld(4242);
+  const a = [], b = [];
+  for (let i = 0; i < 300; i++) a.push(W2.biomeIndexAt(W2.CENTER + i * 13, W2.CENTER - i * 7));
+  W2.initWorld(4242);
+  for (let i = 0; i < 300; i++) b.push(W2.biomeIndexAt(W2.CENTER + i * 13, W2.CENTER - i * 7));
+  assert.deepEqual(a, b);
+});
+
+function findBiome(name) {
+  for (let x = -1000; x <= 1000; x += 25) for (let z = -1000; z <= 1000; z += 25) {
+    const X = W2.CENTER + x, Z = W2.CENTER + z;
+    if (W2.BIOMES[W2.biomeIndexAt(X, Z)].name === name && W2.groundY(X, Z) >= W2.WATER_Y) return { x: X, z: Z, top: W2.groundY(X, Z) };
+  }
+  return null;
+}
+
+test('desert ground is sand and tundra ground is snow', () => {
+  W2.initWorld(4242);
+  const d = findBiome('desert'), t = findBiome('tundra');
+  assert.ok(d, 'no desert found near the start');
+  assert.ok(t, 'no tundra found near the start');
+  assert.equal(W2.get(d.x, d.top, d.z), W2.T.SAND, 'desert surface is sand');
+  assert.equal(W2.get(t.x, t.top, t.z), W2.T.SNOW, 'tundra surface is snow');
 });
 
 test('no scenery within the clear area around the start point', () => {
