@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.49 (3D)</title>
+<title>Adventurers of Drenerics v0.6.50 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -267,6 +267,30 @@ const groundY = (x, z) => {
   const h = SURF + hills * 12 + mask * (14 + ridge * 60) - canyon * 18;
   return Math.max(3, Math.min(H - 8, Math.round(h)));
 };
+
+// Scenery: small models placed on grass (trees, bushes, flowers and so on). They have no collision, so they never block
+// the player or change digging. Each kind takes a share of the grass cells; the rest stay bare.
+const DECOR_KINDS = [
+  { kind: 'tree',     share: 0.003, files: ['common_tree_1', 'common_tree_2', 'common_tree_3', 'pine_tree_1', 'pine_tree_2', 'pine_tree_3', 'palm_tree_1', 'palm_tree_2', 'palm_tree_3'] },
+  { kind: 'bush',     share: 0.015, files: ['bush_1', 'bush_2', 'bush_3', 'bush_4', 'bush_5'] },
+  { kind: 'grass',    share: 0.030, files: ['grass_1', 'grass_2', 'grass_3', 'grass_4'] },
+  { kind: 'flower',   share: 0.015, files: ['flower_1', 'flower_2', 'flower_3'] },
+  { kind: 'mushroom', share: 0.008, files: ['mushroom_1', 'mushroom_2', 'mushroom_3', 'mushroom_4', 'mushroom_5'] },
+  { kind: 'stone',    share: 0.004, files: ['stone_1', 'stone_2', 'stone_3', 'stone_4', 'stone_5'] },
+  { kind: 'stump',    share: 0.002, files: ['tree_stump_1', 'tree_stump_2', 'tree_stump_3'] },
+];
+const DECOR_CLEAR = 6;   // no scenery within this many blocks of the start point
+// What scenery sits on the grass block at (x, y, z), or null. y is the grass block's height.
+function decorAt(x, y, z) {
+  if (y < WATER_Y || Math.hypot(x - CENTER, z - CENTER) < DECOR_CLEAR) return null;
+  const r = hash3(x, y, z, seed + 31);
+  let acc = 0;
+  for (const d of DECOR_KINDS) {
+    acc += d.share;
+    if (r < acc) return { kind: d.kind, pick: hash3(x, y, z, seed + 37), rot: hash3(x, y, z, seed + 41) * Math.PI * 2 };
+  }
+  return null;
+}
 
 // Builds one chunk: grass on top, dirt, stone, then caves and gems
 function makeChunk(cx, cz) {
@@ -614,11 +638,18 @@ function buildChunkMeshes(cx, cz) {
   for (const t of drawTypes) lists[t] = [];
   const data = chunkAt(cx, cz).data;
   const SY = CS * CS;
+  const decorBins = new Map();   // one bin per model part: its geometry, material and instance matrices
+  let decorCount = 0;
   for (let y = 0; y < H; y++) for (let lz = 0; lz < CS; lz++) for (let lx = 0; lx < CS; lx++) {
     const i = cellIndex(lx, y, lz);
     const t = data[i];
     if (!t) continue;
     const x = cx * CS + lx, z = cz * CS + lz;
+    // Scenery stands on grass that has air above it (so digging the grass away removes its scenery when the chunk is redrawn)
+    if (decorReady && t === T.GRASS && y + 1 < H && data[cellIndex(lx, y + 1, lz)] === T.AIR) {
+      const d = decorAt(x, y, z);
+      if (d && addDecor(decorBins, d, x, y + 1, z)) decorCount++;
+    }
     // Inside the chunk the six neighbours are read straight from the data; the edges use the general lookup
     const inside = lx > 0 && lx < CS - 1 && lz > 0 && lz < CS - 1 && y > 0 && y < H - 1;
     const hidden = inside ? innerFaceHidden(data, i, t) : faceHidden(x, y, z, t);
@@ -642,12 +673,22 @@ function buildChunkMeshes(cx, cz) {
     list.push(im);
     count += n;
   }
-  return { cx, cz, list, count };
+  // Scenery: one instanced mesh per model part, so a chunk costs a few draw calls, not one per object
+  const decor = new THREE.Group();
+  for (const b of decorBins.values()) {
+    const im = new THREE.InstancedMesh(b.geo, b.mat, b.list.length);
+    for (let i = 0; i < b.list.length; i++) im.setMatrixAt(i, b.list[i]);
+    im.instanceMatrix.needsUpdate = true;
+    decor.add(im);
+  }
+  if (decor.children.length) worldGroup.add(decor);
+  return { cx, cz, list, count, decor, decorCount };
 }
 function dropChunk(k) {
   const c = chunkMeshes.get(k);
   if (!c) return;
   for (const im of c.list) { worldGroup.remove(im); im.dispose(); }
+  if (c.decor.children.length) { worldGroup.remove(c.decor); for (const im of c.decor.children) im.dispose(); }
   lastDrawn -= c.count;
   chunkMeshes.delete(k);
 }
@@ -1045,6 +1086,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.50', title: 'Trees, bushes and scenery on the grass', items: [
+    'Trees, bushes, grass tufts, flowers, mushrooms, stones and stumps from the free CC0 Low Poly Nature Pack by flo-bit now grow on the grass',
+    'Scenery does not block walking or digging; it is decoration only',
+    'Fireballs aimed at water now burst on the water instead of passing through it'] },
   { v: '0.6.49', title: 'Fireball hits the block you click', items: [
     'A right-click fireball now flies straight at the block or enemy you click, so it lands where you aimed'] },
   { v: '0.6.48', title: 'Fireball aims at what you click', items: [
@@ -1360,6 +1405,52 @@ function loadModel(file) {
   }
   return modelCache[file];
 }
+// Scenery models: each is scaled to a target height in blocks, with its base on the ground
+const DECOR_HEIGHT = { tree: 6, bush: 1.3, grass: 0.8, flower: 0.8, mushroom: 0.4, stone: 0.7, stump: 1.0 };
+const decorTpl = {};   // kind -> [Group], ready to clone
+let decorReady = false;
+function normalizeDecor(scene, height) {
+  const g = new THREE.Group();
+  g.add(scene);
+  const size = new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3());
+  g.scale.setScalar(height / Math.max(size.y, 0.01));
+  const box = new THREE.Box3().setFromObject(g);
+  g.position.y -= box.min.y;   // base on the ground
+  const holder = new THREE.Group();
+  holder.add(g);
+  return holder;
+}
+async function loadDecor() {
+  try {
+    for (const d of DECOR_KINDS) {
+      const scenes = await Promise.all(d.files.map(f => loadModel('/models/nature/' + f + '.glb')));
+      decorTpl[d.kind] = scenes.filter(Boolean).map(s => {
+        const holder = normalizeDecor(s, DECOR_HEIGHT[d.kind]);
+        holder.updateMatrixWorld(true);
+        const parts = [];
+        holder.traverse(o => { if (o.isMesh) parts.push({ geo: o.geometry, mat: o.material, m: o.matrixWorld.clone() }); });
+        return parts;
+      });
+    }
+    decorReady = true;
+    viewReset = true;   // redraw the chunks in view so they get their scenery
+  } catch (e) { /* no scenery if the models do not load; the game still works */ }
+}
+// Adds one scenery object to the bins (the parts of its model, placed on the ground). Returns false if no model is ready.
+function addDecor(bins, d, x, y, z) {
+  const list = decorTpl[d.kind];
+  if (!list || !list.length) return false;
+  const idx = Math.floor(d.pick * list.length) % list.length;
+  const place = new THREE.Matrix4().makeTranslation(x + 0.5, y, z + 0.5).multiply(new THREE.Matrix4().makeRotationY(d.rot));
+  list[idx].forEach((part, p) => {
+    const key = d.kind + idx + ':' + p;
+    let b = bins.get(key);
+    if (!b) { b = { geo: part.geo, mat: part.mat, list: [] }; bins.set(key, b); }
+    b.list.push(new THREE.Matrix4().multiplyMatrices(place, part.m));
+  });
+  return true;
+}
+loadDecor();   // start loading the scenery models now; chunks are redrawn when they are ready
 function enemyModel(kind) {
   const k = ENEMY_KINDS[kind];
   if (k.file) {
@@ -2166,7 +2257,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.49';
+const VERSION = '0.6.50';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2663,6 +2754,8 @@ requestAnimationFrame(frame);
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  camDist: () => camera.position.distanceTo(new THREE.Vector3(px, py, pz)), drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles, settleCamera: () => { camera.position.set(px + Math.sin(camYaw) * 9 * zoom, py + 5 * zoom, pz + Math.cos(camYaw) * 9 * zoom); camera.lookAt(px, py + 1, pz); camera.updateMatrixWorld(); }, pendingChunks: () => waiting.length, decorReady: () => decorReady, decorCount: () => { let n = 0; for (const c of chunkMeshes.values()) n += c.decorCount || 0; return n; },
+  decorKinds: () => DECOR_KINDS.map(d => d.kind), decorAt, DECOR_CLEAR,
   sightAt: (x, y) => { const p = sightPoint(x, y); return p ? [p.x, p.y, p.z] : null; }, cellAt: (x, y, z) => get(x, y, z), T,
   get lastShot() { return lastShot; }, setFireDebug: v => { fireDebug = v; },
   ENEMY_KINDS, GEAR, ITEMS, GEAR_LOOT, inv, pw,

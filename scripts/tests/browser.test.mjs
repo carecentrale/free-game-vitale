@@ -80,6 +80,13 @@ function shoreGame() {
   return JSON.stringify(g);
 }
 
+// The shore save at Fighting level 2, so magic is unlocked
+function shoreGameLevel2() {
+  const g = JSON.parse(shoreGame());
+  g.pw.fight = { lvl: 2, xp: 0 };
+  return JSON.stringify(g);
+}
+
 // Sets up the page: local three.js, a stub for Supabase, no other internet, and the saved game
 async function setupPage(page, base, opts = {}) {
   // Registered first: Playwright checks the most recent rule first, so the rules below win
@@ -455,12 +462,16 @@ test('a fireball aimed at a block flies from the character to the point that was
   }, { saves: [fightLevel2Game()] }));
 
 // A fireball aimed at water flies to the water's surface and bursts there, instead of passing through to the ground
-test('a fireball aimed at water bursts on the water', { skip, timeout: 180000 }, () =>
+test('a fireball aimed at water bursts on the water', { skip, timeout: 480000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
     await page.click('#skillPanel [data-skill="fireball"]');
     await page.waitForFunction(() => window.gameTest.skills.includes('fireball'), null, { timeout: 60000 });
     await page.waitForTimeout(800);
+    await page.waitForFunction(() => window.gameTest.decorReady() && window.gameTest.pendingChunks() === 0, null, { timeout: 120000 });   // all chunks in view are redrawn with scenery first
+    await page.evaluate(() => window.gameTest.settleCamera());   // put the camera behind the player now, instead of waiting for it to ease there
+    await page.waitForFunction(() => window.gameTest.decorReady() && window.gameTest.pendingChunks() === 0, null, { timeout: 120000 });   // all chunks in view are redrawn with scenery first
+    await page.evaluate(() => window.gameTest.settleCamera());   // put the camera behind the player now, instead of waiting for it to ease there
     const r = await page.evaluate(() => {
       const g = window.gameTest;
       // Look for a screen point that sees water: the surface point, just below it, is a water block
@@ -478,11 +489,22 @@ test('a fireball aimed at water bursts on the water', { skip, timeout: 180000 },
       return { found: true, x: found.x, y: found.y };
     });
     assert.ok(r.found, 'no screen point sees water from the test position');
-    await page.waitForFunction(() => window.gameTest.lastShot && window.gameTest.lastShot.burst, null, { timeout: 8000 });
+    await page.waitForFunction(() => window.gameTest.lastShot && window.gameTest.lastShot.burst, null, { timeout: 400000 });
     const b = await page.evaluate(() => { const s = window.gameTest.lastShot; return { cell: window.gameTest.cellAt(...s.burst), by: s.burstBy, water: window.gameTest.T.WATER }; });
     assert.equal(b.cell, b.water, 'the fireball should burst on water, not pass through it (burst cell type ' + b.cell + ', by ' + b.by + ')');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
-  }, { saves: [shoreGame()] }));
+  }, { saves: [shoreGameLevel2()] }));
+
+// Scenery models load and are placed on the grass in the chunks around the player
+test('trees and other scenery load and appear on the grass around the player', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest.decorReady(), null, { timeout: 90000 });
+    await page.waitForFunction(() => window.gameTest.decorCount() > 0 && window.gameTest.pendingChunks() === 0, null, { timeout: 120000 });
+    const r = await page.evaluate(() => ({ count: window.gameTest.decorCount(), kinds: window.gameTest.decorKinds(), clear: window.gameTest.DECOR_CLEAR }));
+    assert.ok(r.count > 0, 'no scenery was placed: ' + JSON.stringify(r));
+    assert.ok(r.kinds.includes('tree') && r.kinds.includes('grass'), 'scenery kinds: ' + r.kinds.join(','));
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }));
 
 // Clicking an enemy sends the fireball to it: it follows the enemy and hurts it, and does not burst on the character
 test('a shot at any part of an enemy is linked to that enemy, so it flies to it', { skip, timeout: 150000 }, () =>

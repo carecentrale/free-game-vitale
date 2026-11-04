@@ -144,3 +144,55 @@ test('water fills the low ground, and sand lines the water\'s edge', () => {
   assert.equal(W.get(200052, 8, 199970), W.T.WATER, 'low ground next to the shore is water');
   assert.equal(W.get(200057, 8, 199970), W.T.SAND, 'the shore block at the water\'s edge is sand');
 });
+
+// ---- Scenery (trees, bushes, flowers...) on grass. The rule is pure, so it is tested here.
+const DECOR_CLEAR_TEST = 6;
+const ctx2 = vm.createContext({
+  Math, Uint8Array, Map, Set, JSON, Number, String,
+  atob: s => Buffer.from(s, 'base64').toString('binary'),
+  bytesToB64: u8 => Buffer.from(u8).toString('base64'),
+});
+const W2 = vm.runInContext(prefix + game.slice(start, end) + `
+;({ decorAt, DECOR_KINDS, DECOR_CLEAR, CENTER, WATER_Y, initWorld, groundY, get, T, CS, H })`, ctx2);
+
+test('scenery kinds have models and their shares add up to less than half the grass', () => {
+  const total = W2.DECOR_KINDS.reduce((s, d) => s + d.share, 0);
+  assert.ok(total > 0 && total < 0.5, 'shares add up to ' + total);
+  for (const d of W2.DECOR_KINDS) assert.ok(d.files.length > 0, d.kind + ' has no model files');
+});
+
+test('no scenery within the clear area around the start point', () => {
+  W2.initWorld(4242);
+  for (let dx = -DECOR_CLEAR_TEST; dx <= DECOR_CLEAR_TEST; dx++) for (let dz = -DECOR_CLEAR_TEST; dz <= DECOR_CLEAR_TEST; dz++) {
+    if (Math.hypot(dx, dz) >= DECOR_CLEAR_TEST) continue;
+    const x = W2.CENTER + dx, z = W2.CENTER + dz;
+    const top = W2.groundY(x, z);
+    assert.equal(W2.decorAt(x, top, z), null, `scenery too close to the start at ${x},${z}`);
+  }
+});
+
+test('scenery is the same every time for the same place and seed', () => {
+  W2.initWorld(4242);
+  const pts = [];
+  for (let i = 0; i < 200; i++) pts.push([W2.CENTER + 20 + i * 3, W2.CENTER + 15 + i * 2]);
+  const a = pts.map(([x, z]) => JSON.stringify(W2.decorAt(x, W2.groundY(x, z), z)));
+  W2.initWorld(4242);
+  const b = pts.map(([x, z]) => JSON.stringify(W2.decorAt(x, W2.groundY(x, z), z)));
+  assert.deepEqual(a, b);
+});
+
+test('scenery never sits under water, and only some grass gets it', () => {
+  W2.initWorld(4242);
+  let grass = 0, decorated = 0;
+  for (let x = W2.CENTER + 40; x < W2.CENTER + 200; x++) for (let z = W2.CENTER + 40; z < W2.CENTER + 140; z++) {
+    const top = W2.groundY(x, z);
+    if (top < W2.WATER_Y) {
+      assert.equal(W2.decorAt(x, top, z), null, 'scenery under water at ' + x + ',' + z);
+      continue;
+    }
+    grass++;
+    if (W2.decorAt(x, top, z)) decorated++;
+  }
+  const share = decorated / grass;
+  assert.ok(share > 0.02 && share < 0.25, 'share of grass with scenery is ' + share.toFixed(3));
+});

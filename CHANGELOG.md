@@ -2,6 +2,13 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.50: trees, bushes and scenery on the grass
+- Trees (pine, common, palm), bushes, grass tufts, flowers, mushrooms, stones and tree stumps now grow on the grass. They come from the free CC0 Low Poly Nature Pack by flo-bit, which is in build/models/nature and www/models/nature
+- Scenery is decoration only: it does not block walking, jumping or digging
+- Fireballs aimed at water now burst on the water instead of passing through it
+- Fireball debug trace added: open the game with ?fireDebug=1 to log each shot to the browser console (nothing is sent anywhere)
+- Tests added: scenery rules (clear start area, same every time, not under water, share of grass), scenery loads and appears in view, a fireball aimed at water bursts on it
+
 ## 0.6.49: fireball hits the block you click
 - Fixed: a right-click fireball flew along the camera's line, so it landed on a different block than the one clicked. It now flies from the character straight at the exact point clicked
 - Test added: a fireball aimed at a block flies toward the clicked point
