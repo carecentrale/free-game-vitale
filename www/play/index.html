@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.51 (3D)</title>
+<title>Adventurers of Drenerics v0.6.52 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -279,7 +279,8 @@ const DECOR_KINDS = [
   { kind: 'stone',    share: 0.004, files: ['stone_1', 'stone_2', 'stone_3', 'stone_4', 'stone_5'] },
   { kind: 'stump',    share: 0.002, files: ['tree_stump_1', 'tree_stump_2', 'tree_stump_3'] },
 ];
-const DECOR_CLEAR = 6;   // no scenery within this many blocks of the start point
+const DECOR_CLEAR = 6;
+const DECOR_NEAR = 4;   // scenery is drawn within this many chunks of the player   // no scenery within this many blocks of the start point
 // What scenery sits on the grass block at (x, y, z), or null. y is the grass block's height.
 function decorAt(x, y, z) {
   if (y < WATER_Y || Math.hypot(x - CENTER, z - CENTER) < DECOR_CLEAR) return null;
@@ -676,8 +677,8 @@ function buildChunkMeshes(cx, cz) {
   // Scenery: one instanced mesh per model part, so a chunk costs a few draw calls, not one per object
   const decor = new THREE.Group();
   for (const b of decorBins.values()) {
-    const im = new THREE.InstancedMesh(b.geo, b.mat, b.list.length);
-    for (let i = 0; i < b.list.length; i++) im.setMatrixAt(i, b.list[i]);
+    const im = new THREE.InstancedMesh(b.geo, b.mat, b.vals.length / 16);
+    im.instanceMatrix.array.set(b.vals);
     im.instanceMatrix.needsUpdate = true;
     decor.add(im);
   }
@@ -718,6 +719,8 @@ function updateView(budgetMs = BUILD_MS) {
       if (!edited.has(k) && (Math.abs(c.cx - pcx) > VIEW + 3 || Math.abs(c.cz - pcz) > VIEW + 3)) chunks.delete(k);
     }
   }
+  // Scenery is drawn only close to the player; the blocks are drawn across the whole view
+  for (const c of chunkMeshes.values()) c.decor.visible = Math.abs(c.cx - pcx) <= DECOR_NEAR && Math.abs(c.cz - pcz) <= DECOR_NEAR;
   // Chunks a player changed are drawn again first
   for (const [k, c] of touched) {
     if (chunkMeshes.has(k)) dropChunk(k);
@@ -1086,6 +1089,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.52', title: 'Lighter scenery, performance readout', items: [
+    'Scenery is stored more compactly and is drawn only near the player',
+    'Add ?perf=1 to the page address to see frame rate and memory in the console (stays on your device)'] },
   { v: '0.6.51', title: 'Water puts out fireballs', items: [
     'A fireball that reaches water fizzles out in a puff of steam, with no blast and no damage',
     'Enemies still take the blast when a fireball hits them'] },
@@ -1440,16 +1446,18 @@ async function loadDecor() {
   } catch (e) { /* no scenery if the models do not load; the game still works */ }
 }
 // Adds one scenery object to the bins (the parts of its model, placed on the ground). Returns false if no model is ready.
+const DECOR_PLACE = new THREE.Matrix4(), DECOR_ROT = new THREE.Matrix4(), DECOR_OUT = new THREE.Matrix4();
 function addDecor(bins, d, x, y, z) {
   const list = decorTpl[d.kind];
   if (!list || !list.length) return false;
   const idx = Math.floor(d.pick * list.length) % list.length;
-  const place = new THREE.Matrix4().makeTranslation(x + 0.5, y, z + 0.5).multiply(new THREE.Matrix4().makeRotationY(d.rot));
+  DECOR_PLACE.makeTranslation(x + 0.5, y, z + 0.5).multiply(DECOR_ROT.makeRotationY(d.rot));
   list[idx].forEach((part, p) => {
     const key = d.kind + idx + ':' + p;
     let b = bins.get(key);
-    if (!b) { b = { geo: part.geo, mat: part.mat, list: [] }; bins.set(key, b); }
-    b.list.push(new THREE.Matrix4().multiplyMatrices(place, part.m));
+    if (!b) { b = { geo: part.geo, mat: part.mat, vals: [] }; bins.set(key, b); }
+    DECOR_OUT.multiplyMatrices(DECOR_PLACE, part.m);
+    for (let e = 0; e < 16; e++) b.vals.push(DECOR_OUT.elements[e]);
   });
   return true;
 }
@@ -2205,7 +2213,30 @@ function drawHud() {
 }
 
 let last = performance.now();
+// Performance metrics (local only). With ?perf=1 in the page address they are logged to the console every 2 seconds.
+const perfOn = /[?&]perf=1/.test(location.search);
+let perfLast = 0, perfFrames = 0, perfSum = 0;
+let perfStats = { fps: 0, frameMs: 0 };
+function perfSnapshot() {
+  const m = performance.memory;
+  return {
+    heapMB: m ? +(m.usedJSHeapSize / 1048576).toFixed(1) : null,
+    calls: renderer.info.render.calls, tris: renderer.info.render.triangles,
+    geometries: renderer.info.memory.geometries,
+    chunks: chunkMeshes.size, scenery: decorReady, rebuildMs: +lastRebuildMs.toFixed(1),
+  };
+}
+function perfTick(now) {
+  if (perfLast) { perfSum += now - perfLast; perfFrames++; }
+  perfLast = now;
+  if (perfSum >= 2000) {
+    perfStats = { fps: +(1000 * perfFrames / perfSum).toFixed(1), frameMs: +(perfSum / perfFrames).toFixed(1) };
+    if (perfOn) console.log('[perf] ' + JSON.stringify({ ...perfStats, ...perfSnapshot() }));
+    perfSum = 0; perfFrames = 0;
+  }
+}
 function frame(now) {
+  perfTick(now);
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
   if (!paused) update(dt);
@@ -2286,7 +2317,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.51';
+const VERSION = '0.6.52';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2783,6 +2814,7 @@ requestAnimationFrame(frame);
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  perf: () => ({ ...perfStats, ...perfSnapshot() }),
   camDist: () => camera.position.distanceTo(new THREE.Vector3(px, py, pz)), drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles, settleCamera: () => { camera.position.set(px + Math.sin(camYaw) * 9 * zoom, py + 5 * zoom, pz + Math.cos(camYaw) * 9 * zoom); camera.lookAt(px, py + 1, pz); camera.updateMatrixWorld(); }, pendingChunks: () => waiting.length, decorReady: () => decorReady, decorCount: () => { let n = 0; for (const c of chunkMeshes.values()) n += c.decorCount || 0; return n; },
   decorKinds: () => DECOR_KINDS.map(d => d.kind), decorAt, DECOR_CLEAR,
   sightAt: (x, y) => { const p = sightPoint(x, y); return p ? [p.x, p.y, p.z] : null; }, cellAt: (x, y, z) => get(x, y, z), T,

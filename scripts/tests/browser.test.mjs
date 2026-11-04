@@ -507,6 +507,22 @@ test('trees and other scenery load and appear on the grass around the player', {
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }));
 
+// Performance is measured while the world is drawn: the numbers are printed so they can be recorded in docs/PERFORMANCE.md
+test('performance is measured: frame rate, memory, draw calls, triangles', { skip, timeout: 400000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
+    await page.click('#skillPanel [data-skill="fireball"]');
+    await page.waitForFunction(() => window.gameTest.skills.includes('fireball'), null, { timeout: 60000 });
+    await page.waitForFunction(() => window.gameTest.decorReady() && window.gameTest.pendingChunks() === 0, null, { timeout: 300000 });
+    await page.evaluate(() => window.gameTest.settleCamera());
+    await page.waitForTimeout(4000);
+    const p = await page.evaluate(() => window.gameTest.perf());
+    console.log('PERF_RECORD ' + JSON.stringify(p));
+    assert.ok(p.fps > 0 && p.frameMs > 0, 'frame rate should be measured: ' + JSON.stringify(p));
+    assert.ok(p.heapMB > 0 && p.calls > 0 && p.tris > 0 && p.chunks > 0, 'metrics should be filled in: ' + JSON.stringify(p));
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [fightLevel2Game()] }));
+
 // Clicking an enemy sends the fireball to it: it follows the enemy and hurts it, and does not burst on the character
 test('a shot at any part of an enemy is linked to that enemy, so it flies to it', { skip, timeout: 150000 }, () =>
   withGame(async (page, errors) => {

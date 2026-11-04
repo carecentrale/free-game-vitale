@@ -2,6 +2,11 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.52: lighter scenery, performance readout
+- Scenery is stored more compactly and is drawn only within 4 chunks of the player
+- ?perf=1 in the page address logs frame rate, frame time, memory, draw calls and triangles to the console (local only)
+- Test added: performance numbers are measured and recorded (PERF_RECORD in the test output)
+
 ## 0.6.51: water puts out fireballs
 - A fireball that reaches water fizzles out in a puff of steam, with no blast and no damage
 - Enemies still take the blast when a fireball hits them
