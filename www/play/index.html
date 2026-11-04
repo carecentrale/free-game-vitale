@@ -1735,8 +1735,15 @@ function fireBurst(x, y, z, size) {
 }
 
 // Casts toward the point under the screen position (x, y). Hitting an enemy makes the fireball follow it.
+// Local debugging only: when on, each shot is logged to the browser console. Nothing is sent anywhere.
+let fireDebug = /[?&]fireDebug=1/.test(location.search);
+let lastShot = null;   // the most recent shot's numbers, for the console and tests
 function fireAt(x, y) {
   const a = aim({ clientX: x, clientY: y });
+  const rect = canvas.getBoundingClientRect();
+  lastShot = { click: [Math.round(x), Math.round(y)], canvas: [rect.left, rect.top, rect.width, rect.height],
+    dpr: devicePixelRatio, aimDig: a ? a.dig : null, aimPoint: a ? [a.point.x, a.point.y, a.point.z].map(v => +v.toFixed(3)) : null,
+    aimEnemy: a && a.enemy ? a.enemy.kind : null, origin: [px, +(py + HH * 0.7).toFixed(3), pz] };
   const hitEnemy = (a && a.enemy) || enemyAt(x, y);
   if (hitEnemy) {
     // Aim at the middle of the enemy you hit, so the fireball flies to it
@@ -1790,6 +1797,11 @@ function updateFireballs(dt) {
     if (!boom) continue;
     for (const en of [...enemies]) {
       if (Math.hypot(en.x - f.x, en.y + 0.5 - f.y, en.z - f.z) < s.boom) hurtEnemy(en, damageTo(en, s.dmg, 'fire'));
+    }
+    if (lastShot && !lastShot.burst) {
+      lastShot.burst = [Math.floor(f.x), Math.floor(f.y), Math.floor(f.z)];
+      lastShot.burstBy = f.t >= f.life ? 'time' : (solid(get(Math.floor(f.x), Math.floor(f.y), Math.floor(f.z))) ? 'block' : 'enemy');
+      if (fireDebug) console.log('[fireDebug] shot', JSON.stringify(lastShot));
     }
     scene.remove(f.mesh);
     fireballs.splice(i, 1);
@@ -2640,6 +2652,7 @@ requestAnimationFrame(frame);
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  get lastShot() { return lastShot; }, setFireDebug: v => { fireDebug = v; },
   ENEMY_KINDS, GEAR, ITEMS, GEAR_LOOT, inv, pw,
   damageTo, hurtEnemy, wear, addGear, waterNear, addItem, gearFor, gearOf, defOf, tplOf, labelOf, weaponDamage, invTotal, updateHand,
   get gear() { return gear; }, get qb() { return qb; }, get recent() { return recent; },
