@@ -470,8 +470,6 @@ test('a fireball aimed at water bursts on the water', { skip, timeout: 480000 },
     await page.waitForTimeout(800);
     await page.waitForFunction(() => window.gameTest.decorReady() && window.gameTest.pendingChunks() === 0, null, { timeout: 120000 });   // all chunks in view are redrawn with scenery first
     await page.evaluate(() => window.gameTest.settleCamera());   // put the camera behind the player now, instead of waiting for it to ease there
-    await page.waitForFunction(() => window.gameTest.decorReady() && window.gameTest.pendingChunks() === 0, null, { timeout: 120000 });   // all chunks in view are redrawn with scenery first
-    await page.evaluate(() => window.gameTest.settleCamera());   // put the camera behind the player now, instead of waiting for it to ease there
     const r = await page.evaluate(() => {
       const g = window.gameTest;
       // Look for a screen point that sees water: the surface point, just below it, is a water block
