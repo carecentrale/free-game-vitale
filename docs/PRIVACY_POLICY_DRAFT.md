@@ -7,7 +7,8 @@ Adventurers of Drenerics is a block-building game for children and families. Chi
 
 ## Parents and sign-in
 - A parent can sign in with their email address. We send a one-time code to that email; no password is stored.
-- A parent can connect an account with an email code, or, which is preferred for parental controls, with a Google account. Google is not required. If a parent signs in with Google, we receive only what Google provides for the parent (the name and email address). We do not receive the child's details from Google.
+- A parent can connect an account with an email code, or, which is preferred for parental controls, with the Google account already on the device. If the device has a Google account, the game uses it to sign in automatically when the parent connects. Google is not required. If a parent signs in with Google, we receive only what Google provides for the parent (the name and email address). We do not receive the child's details from Google.
+- Because the Google sign-in can happen automatically on a shared device, the connect button stays behind the adult-only check. A child must not be able to connect an account.
 - [DECIDE: what Google is asked to confirm for the age and identity check when it is used, and whether we store the result or only the yes/no outcome.]
 - Children are never asked to sign in with Google or any other account.
 - A parent sign-in is used for the parent area and the stats page. It is not used by the child to play.
