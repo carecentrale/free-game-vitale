@@ -7,8 +7,8 @@ Adventurers of Drenerics is a block-building game for children and families. Chi
 
 ## Parents and sign-in
 - A parent can sign in with their email address. We send a one-time code to that email; no password is stored.
-- Connecting an account requires the parent to sign in with a Google account. This is used to check that the person connecting is an adult and the parent. We receive only what Google provides for that check (the parent's name and email address). We do not receive the child's details from Google.
-- [DECIDE: what Google is asked to confirm for the age and identity check, and whether we store the result or only the yes/no outcome.]
+- A parent can connect an account with an email code, or, which is preferred for parental controls, with a Google account. Google is not required. If a parent signs in with Google, we receive only what Google provides for the parent (the name and email address). We do not receive the child's details from Google.
+- [DECIDE: what Google is asked to confirm for the age and identity check when it is used, and whether we store the result or only the yes/no outcome.]
 - Children are never asked to sign in with Google or any other account.
 - A parent sign-in is used for the parent area and the stats page. It is not used by the child to play.
 
@@ -30,7 +30,7 @@ On our servers (only when a parent or a family uses a feature that needs it):
 ## Achievements
 - Achievements are saved on the device, under a random local ID that the game creates. They do not include a name or any other personal information.
 - When a parent connects an account, the achievements on that device are moved to a child profile under the parent's account. Connecting is only possible through the parent area, behind an adult-only check.
-- Connecting always requires the parent's Google sign-in (see Parents and sign-in). Children never sign in with any account.
+- Connecting is possible with an email code or a parent's Google account (see Parents and sign-in). Children never sign in with any account.
 
 ## How long we keep data
 - Achievements and saved games: kept for as long as the game is installed and the save is kept on the device, and for the same period on the parent account once connected.
