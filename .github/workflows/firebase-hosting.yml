@@ -1,0 +1,40 @@
+# Tests, then deploys the www folder to Firebase Hosting (Google Cloud) when main changes.
+# Needed once, in GitHub → Settings → Secrets and variables → Actions:
+#   Secret:   FIREBASE_SERVICE_ACCOUNT   the service account key JSON for Firebase Hosting
+#   Variable: FIREBASE_PROJECT_ID        the Firebase / Google Cloud project ID
+# See docs/FIREBASE_SETUP.md for the steps.
+
+name: Deploy to Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Run all tests
+        run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
+          channelId: live
