@@ -2857,7 +2857,28 @@ requestAnimationFrame(frame);
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
   perf: () => ({ ...perfStats, ...perfSnapshot() }),
-  camDist: () => camera.position.distanceTo(new THREE.Vector3(px, py, pz)), drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles, settleCamera: () => { camera.position.set(px + Math.sin(camYaw) * 9 * zoom, py + 5 * zoom, pz + Math.cos(camYaw) * 9 * zoom); camera.lookAt(px, py + 1, pz); camera.updateMatrixWorld(); }, pendingChunks: () => waiting.length, pendingNear: (r) => { const pc = Math.floor(px / CS), pz2 = Math.floor(pz / CS); return waiting.filter(w => Math.abs(w.cx - pc) <= r && Math.abs(w.cz - pz2) <= r).length; }, decorReady: () => decorReady, decorCount: () => { let n = 0; for (const c of chunkMeshes.values()) n += c.decorCount || 0; return n; },
+  camDist: () => camera.position.distanceTo(new THREE.Vector3(px, py, pz)), drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles, settleCamera: () => { camera.position.set(px + Math.sin(camYaw) * 9 * zoom, py + 5 * zoom, pz + Math.cos(camYaw) * 9 * zoom); camera.lookAt(px, py + 1, pz); camera.updateMatrixWorld(); }, pendingChunks: () => waiting.length, fireAtNearestWater: (r) => {   // test hook: fire at the closest water block that has a clear line from the player (no solid block in between)
+    const cx = Math.floor(px), cz = Math.floor(pz), cy = Math.floor(py);
+    const origin = new THREE.Vector3(px, py + HH * 0.7, pz);
+    let best = null, bd = 1e9;
+    for (let x = cx - r; x <= cx + r; x++) for (let z = cz - r; z <= cz + r; z++) for (let y = cy - 3; y <= cy + 3; y++) {
+      if (get(x, y, z) !== T.WATER) continue;
+      const d = (x - cx) ** 2 + (z - cz) ** 2 + (y - cy) ** 2;
+      if (d >= bd) continue;
+      const to = new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5);
+      let clear = true;
+      for (let s = 0.1; s < 0.95; s += 0.1) {
+        const p = origin.clone().lerp(to, s);
+        const t = get(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z));
+        if (t !== T.AIR && t !== T.WATER) { clear = false; break; }
+      }
+      if (clear) { best = to; bd = d; }
+    }
+    if (!best) return false;
+    castFireball(best.sub(origin));
+    return true;
+  },
+  pendingNear: (r) => { const pc = Math.floor(px / CS), pz2 = Math.floor(pz / CS); return waiting.filter(w => Math.abs(w.cx - pc) <= r && Math.abs(w.cz - pz2) <= r).length; }, decorReady: () => decorReady, decorCount: () => { let n = 0; for (const c of chunkMeshes.values()) n += c.decorCount || 0; return n; },
   decorKinds: () => DECOR_KINDS.map(d => d.kind), decorAt, DECOR_CLEAR,
   biomeAt: (x, z) => BIOMES[biomeIndexAt(x, z)].name, biomeNames: () => BIOMES.map(b => b.name),
   sightAt: (x, y) => { const p = sightPoint(x, y); return p ? [p.x, p.y, p.z] : null; }, cellAt: (x, y, z) => get(x, y, z), T,
