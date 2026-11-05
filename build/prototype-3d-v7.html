@@ -2874,7 +2874,8 @@ window.gameTest = {
       }
       if (clear) { best = to; bd = d; }
     }
-    if (!best) return false;
+    if (!best || !skills.includes('fireball') || spellCool > 0) return false;
+    lastShot = { origin: [origin.x, origin.y, origin.z].map(v => +v.toFixed(3)), aimPoint: [best.x, best.y, best.z] };   // recorded the same way as a click, so the test can see where it burst
     castFireball(best.sub(origin));
     return true;
   },
