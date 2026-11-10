@@ -491,6 +491,61 @@ test('trees and other scenery load and appear on the grass around the player', {
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }));
 
+// Scenery made in code (0.6.54): every shape of every kind is built, with no model files
+test('cactuses, ice crystals, snowmen and pumpkins are built in the game', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest.decorReady(), null, { timeout: 90000 });
+    const made = await page.evaluate(() => window.gameTest.decorMade());
+    assert.deepEqual(made.map(m => m.kind).sort(), ['cactus', 'crystal', 'pumpkin', 'snowman']);
+    for (const m of made) {
+      assert.equal(m.shapes, m.want, m.kind + ' should have ' + m.want + ' shapes, has ' + m.shapes);
+      assert.ok(m.points > 0, m.kind + ' has an empty shape');
+    }
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }));
+
+// Monster models (0.6.54): every Imp and Spike Beast shows its own model, and the bones move when it walks
+test('each Imp and Spike Beast has its own model, and its legs, arms and head move', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    for (const kind of ['imp', 'spike']) {
+      await page.waitForFunction(k => { const t = window.gameTest; while (t.enemies.filter(e => e.kind === k).length < 2) { if (!t.spawnKind(k)) return false; } return true; }, kind, { timeout: 60000 });
+      await page.waitForFunction(k => window.gameTest.rigged(k).length >= 2, kind, { timeout: 120000 });
+      const r = await page.evaluate(k => {
+        const t = window.gameTest, list = t.rigged(k);
+        return {
+          skinned: list.map(e => e.skinned),
+          ownBones: list[0].bones[0] !== list[1].bones[0],
+          names: Object.keys(list[0].rig).sort(),
+          stand: t.poseAngles(list[0].rig, false, 0, 0, 0),
+          stepA: t.poseAngles(list[0].rig, true, Math.PI / 2, 0, 0),
+          stepB: t.poseAngles(list[0].rig, true, -Math.PI / 2, 0, 0),
+          look: t.poseAngles(list[0].rig, false, 0, 2, 0),
+          other: t.poseAngles(list[1].rig, false, 0, 0, 0),
+        };
+      }, kind);
+      assert.ok(r.skinned.every(n => n > 0), kind + ': every one should show its model: ' + JSON.stringify(r.skinned));
+      assert.ok(r.ownBones, kind + ': two of them share one skeleton');
+      assert.deepEqual(r.names, ['Head', 'calf_l', 'calf_r', 'thigh_l', 'thigh_r', 'upperarm_l', 'upperarm_r'], kind + ' bones');
+      assert.ok(r.stand.thigh_l === 0 && r.stand.thigh_r === 0, kind + ': legs should be still when standing');
+      assert.ok(r.stand.upperarm_l > 1 && r.stand.upperarm_r > 1, kind + ': arms should hang down when standing');
+      assert.ok(r.stepA.thigh_l > 0.3 && r.stepA.thigh_r > 0.3, kind + ': both legs should swing when walking: ' + JSON.stringify(r.stepA));
+      assert.ok(r.stepA.calf_r > 0.3 && r.stepA.calf_l === 0, kind + ': one knee bends on one step');
+      assert.ok(r.stepB.calf_l > 0.3 && r.stepB.calf_r === 0, kind + ': the other knee bends on the next step');
+      assert.ok(r.look.Head > 0.1, kind + ': the head should look around when standing');
+      assert.ok(r.other.upperarm_l > 1, kind + ': the second one moves too');
+    }
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }));
+
+// The monsters made in code swing their arms and legs
+test('a goblin has arms and legs that the game can swing', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => { const t = window.gameTest; return t.enemies.some(e => e.kind === 'goblin') || (t.spawnKind('goblin'), false); }, null, { timeout: 60000 });
+    const limbs = await page.evaluate(() => { const l = window.gameTest.enemies.find(e => e.kind === 'goblin').group.userData.limbs; return { arms: l.arms.length, legs: l.legs.length }; });
+    assert.deepEqual(limbs, { arms: 2, legs: 2 });
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }));
+
 // Performance is measured while the world is drawn: the numbers are printed so they can be recorded in docs/PERFORMANCE.md
 test('performance is measured: frame rate, memory, draw calls, triangles', { skip, timeout: 400000 }, () =>
   withGame(async (page, errors) => {

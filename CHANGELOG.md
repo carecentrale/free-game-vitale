@@ -2,6 +2,13 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.54: moving monsters, new scenery
+- The Imp and the Spike Beast move their legs, arms and head: they step and bend a knee when they walk, let their arms hang, look around when they stand, and lift their arms when they are about to be hit. The models have a skeleton but no ready-made animation, so the game moves the bones itself
+- Fixed: all Imps shared one model (and all Spike Beasts another), so only the newest one could be seen and the others were invisible. Each one now has its own copy
+- Goblins, Brutes, Spear Imps and Hood Goblins swing their arms and legs when they walk
+- New scenery made in the game's code, with no downloads: cactuses in the desert, ice crystals and snowmen in the tundra, pumpkins in the grassland and forest. Decoration only, like the other scenery. Scenery that was already in a world stays where it was
+- Tests added: each new kind grows only in its own biomes, the new shapes are built, every Imp and Spike Beast has its own model and moving bones, goblins have arms and legs to swing
+
 ## 0.6.53: biomes
 - The world is split into biomes by climate: desert, savanna, rainforest, grassland, forest, taiga and tundra
 - Biomes blend into each other across the world, with soft borders instead of hard lines
