@@ -2,6 +2,16 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.56: database lockdown and visit-only logging
+- Shared worlds: the game now opens, creates and saves a world only through three database functions that need the world's code. Direct access to the worlds table is removed by migration 0007 (to be applied after this version is live, with the parent's approval)
+- Privacy: the game no longer keeps a random code on the device. A new code is made on every visit and is never stored, so gameplay records cannot follow a player from one visit to the next. The old stored code is removed from the device
+- Parent area: the "Player code" line is gone, and the stats link no longer carries a code
+- Stats page: "Players" is now "Visits" (one opening of the game). Counts of visits, game starts and errors remain
+- Privacy page: "Device code" replaced by "Visit code"; shared-world wording updated; date updated. Needs the parent's review
+- Database (migration 0007, not applied yet): players table closed; logs stay add-only with length limits
+- Not in this version: per-child stats for a linked, consenting parent (see docs/PARENT_LINK_DESIGN.md)
+- Tests added: scripts/tests/privacy-lockdown.test.mjs; scripts/tests/access-rules.sql updated for the new rules
+
 ## 0.6.55: standing still
 - Fixed: the character's head bobbed up and down while standing still. The squash meant for landing after a jump was applied on every frame of standing, so the character stayed squashed (about 81% of its height) by an amount that changed from frame to frame
 - The squash now happens only on a real landing (falling faster than 2 blocks a second) and at the start of a jump. The character stands at its full height

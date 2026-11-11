@@ -41,7 +41,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const DAY = 86400000;
 let allEvents = [];
-let selectedPid = new URLSearchParams(location.search).get('pid') || '';
+let selectedPid = '';
 
 function show(view) {
   for (const v of ['signin', 'dash']) $(v).classList.toggle('hide', v !== view);
@@ -145,8 +145,8 @@ function renderStats(events, errors) {
   const startsWeek = last7.filter(e => e.kind === 'game_started').length;
 
   $('stats').innerHTML = [
-    ['Players today', uniq(last24)],
-    ['Players this week', uniq(last7)],
+    ['Visits today', uniq(last24)],
+    ['Visits this week', uniq(last7)],
     ['Game starts this week', startsWeek],
     ['Errors (latest 100)', errors.length],
   ].map(([label, n]) => `<div class="stat card"><b>${n}</b><span>${esc(label)}</span></div>`).join('');
@@ -193,10 +193,10 @@ function renderPlayers(events) {
   }
   const list = Object.values(players).sort((a, b) => b.last.localeCompare(a.last));
   $('players').innerHTML = list.length
-    ? `<table><tr><th>Player</th><th>Last seen</th><th>Games started</th><th>Enemies defeated</th><th>Power-ups</th><th>Version</th></tr>` +
+    ? `<table><tr><th>Visit</th><th>Last seen</th><th>Games started</th><th>Enemies defeated</th><th>Power-ups</th><th>Version</th></tr>` +
       list.map(p => `<tr data-pid="${esc(p.id)}" style="cursor:pointer;${p.id === selectedPid ? 'background:var(--line)' : ''}"><td>${esc(p.id.slice(0, 8))}</td><td>${esc(new Date(p.last).toLocaleString())}</td><td>${p.starts}</td><td>${p.kills}</td><td>${p.powers}</td><td>${esc(p.version)}</td></tr>`).join('') +
-      `</table><div class="muted" style="margin-top:6px">Tap a player to see what they did.</div>`
-    : '<div class="muted">No players in the last 14 days.</div>';
+      `</table><div class="muted" style="margin-top:6px">Tap a visit to see what happened. A visit is one opening of the game. Visits are not linked to each other or to a child.</div>`
+    : '<div class="muted">No visits in the last 14 days.</div>';
 }
 
 function renderDetail() {
@@ -205,7 +205,7 @@ function renderDetail() {
   $('playerDetail').innerHTML = rows.length
     ? `<table><tr><th>When</th><th>What</th><th>Detail</th><th>Version</th></tr>` +
       rows.map(e => `<tr><td>${esc(new Date(e.created_at).toLocaleString())}</td><td>${esc(e.kind)}</td><td>${esc(e.detail || '')}</td><td>${esc(e.version)}</td></tr>`).join('') + `</table>`
-    : '<div class="muted">No activity for this player in the last 14 days.</div>';
+    : '<div class="muted">No activity for this visit in the last 14 days.</div>';
 }
 $('players').addEventListener('click', e => {
   const row = e.target.closest('tr[data-pid]');
@@ -264,13 +264,13 @@ load();
   <div id="stats" class="grid" style="margin-bottom:14px"></div>
 
   <div class="card">
-    <b>Players (last 14 days)</b>
+    <b>Visits (last 14 days)</b>
     <div id="players" style="margin-top:8px;overflow-x:auto"></div>
     <div id="playerDetail" style="margin-top:12px;overflow-x:auto"></div>
   </div>
 
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
-    <div class="card"><b>Players per day (last 14 days)</b><div id="daily" class="bars" style="margin-top:8px"></div></div>
+    <div class="card"><b>Visits per day (last 14 days)</b><div id="daily" class="bars" style="margin-top:8px"></div></div>
     <div class="card"><b>What people did (last 7 days)</b><div id="kinds" class="bars" style="margin-top:8px"></div></div>
   </div>
 
