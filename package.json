@@ -6,6 +6,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "test": "node --test scripts/tests/*.test.mjs",
+    "test:quick": "node scripts/test-quick.mjs",
     "android:sync": "npx cap sync android"
   },
   "dependencies": {

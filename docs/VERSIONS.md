@@ -16,7 +16,7 @@ Every version that goes online has three records. Keep all three in step.
 | 0.6.51 | (commit to be recorded, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Fireballs fizzle in water (steam, no blast) |
 | 0.6.53 | (commit to be recorded, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Biomes that blend across the world, snow block |
 | 0.6.52 | (commit to be recorded, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Lighter scenery, local performance readout |
-| 0.6.54 | (commit to be recorded, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Shake fix: blocks drawn relative to their chunk; camera eases by elapsed time |
+| 0.6.54 | (commit f7c4cbb, not tagged) | build/prototype-3d-v7.html; www/play/index.html | dpl_3DZvkXdyNpHmpgdtBqWGYGxetNPS | Shake fix: blocks drawn relative to their chunk; camera eases by elapsed time |
 | 0.6.47 | (commit 888049c, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Fireball: right-click on PC, FIRE button for tablets and phones |
 | 0.6.46 | (commit to be added) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Climbing out of water; automated tests for enemies, damage, gear, durability, drops, parts and old saves |
 | 0.6.45 | (commit 32e1275, not tagged) | build/prototype-3d-v7.html; www/play/index.html | (check Vercel) | Durability on pickaxes and weapons; gear drops (weapons, armour); enemy parts that stack in the bag |
