@@ -60,6 +60,14 @@ function fightLevel2Game() {
   return JSON.stringify(g);
 }
 
+// The basic saved game, already in a world, so the game starts without the wizard (and without the level-2 skill choice)
+function phoneGame() {
+  const g = JSON.parse(savedGame());
+  g.worldId = 'TESTWORLD';
+  g.profile = { sex: 'boy', race: 'human', name: 'Test Hero' };
+  return JSON.stringify(g);
+}
+
 // A character inside a lake (columns 199960, 200040 in seed 4242: sand at height 3, water from 4 to 8)
 function swimGame() {
   const g = JSON.parse(savedGame());
@@ -120,7 +128,8 @@ async function withGame(fn, opts) {
   const browser = await chromium.launch(CHROME_PATH ? { executablePath: CHROME_PATH } : {});
   const errors = [];
   try {
-    const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
+    // opts.device: a phone-like page, for example { viewport: { width: 780, height: 360 }, hasTouch: true, isMobile: true }
+    const page = await browser.newPage(opts && opts.device ? opts.device : { viewport: { width: 800, height: 600 } });
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
     page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
     await setupPage(page, base, opts);
@@ -636,3 +645,98 @@ test('the character keeps its full height while standing still, and a jump still
     assert.ok(landed > 5 && jump[landed].s < 0.95, 'landing from a jump did not squash the character');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [standingGame()] }));
+
+
+// ---- Phone controls (0.6.57) ----
+// A Samsung S22 is about 780 x 360 points held sideways, and 360 x 780 held upright
+const PHONE_WIDE = { viewport: { width: 780, height: 360 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 };
+const PHONE_TALL = { viewport: { width: 360, height: 780 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 };
+const PHONE_CONTROLS = ['stick', 'bJ', 'hudBtn', 'toggle', 'bagBtn', 'settingsBtn', 'teleBtn'];
+
+// Every listed control that is shown must sit fully inside the screen
+async function offScreenControls(page) {
+  return page.evaluate(ids => ids.map(id => {
+    const el = document.getElementById(id);
+    if (!el || getComputedStyle(el).display === 'none') return null;
+    const r = el.getBoundingClientRect();
+    const inside = r.left >= 0 && r.top >= 0 && r.right <= innerWidth + 0.5 && r.bottom <= innerHeight + 0.5;
+    return inside ? null : `${id}: ${[r.left, r.top, r.right, r.bottom].map(Math.round).join(',')} on ${innerWidth}x${innerHeight}`;
+  }).filter(Boolean), PHONE_CONTROLS);
+}
+
+for (const [label, device] of [['held sideways', PHONE_WIDE], ['held upright', PHONE_TALL]]) {
+  test(`on a phone ${label}, the controls fit the screen and the quick bar and power meters start hidden`, { skip, timeout: 120000 }, () =>
+    withGame(async (page, errors) => {
+      await page.waitForTimeout(1500);
+      const st = await page.evaluate(() => ({
+        phone: document.body.classList.contains('phone'),
+        qb: getComputedStyle(document.getElementById('qb')).display,
+        recent: getComputedStyle(document.getElementById('recent')).display,
+        bars: (() => { const b = document.querySelector('#hud .bars'); return b ? getComputedStyle(b).display : 'missing'; })(),
+        hudBtn: getComputedStyle(document.getElementById('hudBtn')).display,
+        arrows: ['bF', 'bL', 'bR', 'bB'].filter(id => document.getElementById(id)).length,
+      }));
+      assert.ok(st.phone, 'the phone layout should be on');
+      assert.equal(st.arrows, 0, 'the old arrow buttons should be gone');
+      assert.equal(st.qb, 'none', 'the quick bar should start hidden on a phone');
+      assert.equal(st.recent, 'none', 'the recent list should start hidden on a phone');
+      assert.equal(st.bars, 'none', 'the power meters should start hidden on a phone');
+      assert.notEqual(st.hudBtn, 'none', 'the button to show them should be visible');
+      assert.deepEqual(await offScreenControls(page), [], 'controls outside the screen');
+      assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+    }, { device, saves: [phoneGame()] }));
+}
+
+test('on a phone, the top-left button shows the quick bar and meters, and choosing a tool hides them again', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForTimeout(1500);
+    // Taps are sent straight to the elements: the test browser can draw slowly, which makes simulated taps time out
+    await page.evaluate(() => document.getElementById('hudBtn').click());
+    const open = await page.evaluate(() => ({
+      qb: getComputedStyle(document.getElementById('qb')).display,
+      bars: getComputedStyle(document.querySelector('#hud .bars')).display,
+      panel: window.gameTest.panelOpen,
+    }));
+    assert.ok(open.panel && open.qb !== 'none' && open.bars !== 'none', 'tapping the button should show the quick bar and meters: ' + JSON.stringify(open));
+    // The open quick bar must also fit the screen
+    const qbBox = await page.evaluate(() => { const r = document.getElementById('qb').getBoundingClientRect(); return [r.left, r.right, r.bottom, innerWidth, innerHeight]; });
+    assert.ok(qbBox[0] >= 0 && qbBox[1] <= qbBox[3] + 0.5 && qbBox[2] <= qbBox[4] + 0.5, 'the open quick bar goes off the screen: ' + qbBox.map(Math.round).join(','));
+    await page.evaluate(() => document.querySelector('#qb [data-slot="1"]').click());
+    const after = await page.evaluate(() => ({ panel: window.gameTest.panelOpen, qb: getComputedStyle(document.getElementById('qb')).display, btn: document.getElementById('hudBtn').textContent }));
+    assert.equal(after.panel, false, 'choosing a tool should close the bar');
+    assert.equal(after.qb, 'none', 'the quick bar should be hidden again');
+    assert.match(after.btn, /Sword/, 'the button should show the chosen tool: ' + after.btn);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PHONE_WIDE, saves: [phoneGame()] }));
+
+test('the thumb stick moves with the finger, springs back when let go, and a small push walks slower', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameProbe().drawn > 0, null, { timeout: 60000 });
+    await page.waitForTimeout(1000);
+    // A finger on the stick: pointer events at screen points, measured from the stick's middle
+    const finger = (type, fx, fy) => page.evaluate(([type, fx, fy]) => {
+      const el = document.getElementById('stick'), r = el.getBoundingClientRect(), half = r.width / 2;
+      el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch', isPrimary: true,
+        clientX: r.left + half + fx * half, clientY: r.top + half + fy * half }));
+      return window.gameTest.stick;
+    }, [type, fx, fy]);
+    await finger('pointerdown', 0, 0);
+    const held = await finger('pointermove', 1.5, 0);
+    assert.ok(held.x > 0.95 && Math.abs(held.z) < 0.05, 'pushed all the way right, the stick should read about x=1: ' + JSON.stringify(held));
+    const half = await finger('pointermove', 0, -0.5);
+    assert.ok(Math.abs(half.z + 0.5) < 0.02 && half.x === 0, 'pushed halfway up, the stick should read about z=-0.5: ' + JSON.stringify(half));
+    const centre = await finger('pointermove', 0, 0.05);
+    assert.deepEqual(centre, { x: 0, z: 0 }, 'a tiny push near the middle should do nothing');
+    await finger('pointerup', 0, 0.05);
+    const released = await page.evaluate(() => window.gameTest.stick);
+    assert.deepEqual(released, { x: 0, z: 0 }, 'letting go should stop the character');
+    // Walking speed with a half and a full push (speed, not distance, so a wall in the way does not matter)
+    const speed = await page.evaluate(() => {
+      const g = window.gameTest, at = v => { g.setStick(0, -v); g.stepFrames([1 / 60]); const sp = g.walkSpeed; g.setStick(0, 0); return sp; };
+      return { half: at(0.5), full: at(1), keysOff: (g.stepFrames([1 / 60]), g.walkSpeed) };
+    });
+    assert.ok(speed.full > 2, 'a full push should walk: ' + JSON.stringify(speed));
+    assert.ok(Math.abs(speed.half / speed.full - 0.5) < 0.05, 'a half push should walk at about half speed: ' + JSON.stringify(speed));
+    assert.equal(speed.keysOff, 0, 'with the stick let go the character should stop');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PHONE_WIDE, saves: [phoneGame()] }));

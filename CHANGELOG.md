@@ -2,6 +2,14 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.57: phone controls
+- New: a thumb stick replaces the four arrow buttons on touch screens. Push it a little to walk slowly, all the way to walk at full speed. Letting go stops the character; a tiny push near the middle does nothing
+- Phones, held either way: the phone layout now switches on for any touch screen whose short side is 500 points or less. Before, it only switched on when the screen was narrow, so a phone held sideways (about 780 x 360) got the large computer layout and buttons went off the screen
+- Phones: smaller buttons that scale with the screen; the quick bar, the recent list and the power meters are hidden. A button at the top left shows the item in hand; tapping it shows them, and choosing a tool hides them again
+- Computers and tablets: no change
+- Tests added (browser.test.mjs): on a phone held sideways and upright, every control fits the screen and the bar and meters start hidden; the top-left button shows and hides them; the stick reads the finger, springs back, ignores tiny pushes, and a half push walks at half speed
+- Not tested on a real phone yet
+
 ## 0.6.56: database lockdown and visit-only logging
 - Shared worlds: the game now opens, creates and saves a world only through three database functions that need the world's code. Direct access to the worlds table is removed by migration 0007 (to be applied after this version is live, with the parent's approval)
 - Privacy: the game no longer keeps a random code on the device. A new code is made on every visit and is never stored, so gameplay records cannot follow a player from one visit to the next. The old stored code is removed from the device

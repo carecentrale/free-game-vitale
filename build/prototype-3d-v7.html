@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.56 (3D)</title>
+<title>Adventurers of Drenerics v0.6.57 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -38,6 +38,32 @@
     #recent .row{font-size:12px;padding:4px 6px}
     .title{font-size:12px}
   }
+  /* Analog stick for touch movement: drag the knob in any direction; further from the middle = faster */
+  #stick{position:fixed;left:16px;bottom:16px;width:clamp(96px,30vmin,150px);height:clamp(96px,30vmin,150px);border-radius:50%;background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.4);touch-action:none;box-sizing:border-box}
+  #knob{position:absolute;left:28%;top:28%;width:44%;height:44%;border-radius:50%;background:rgba(255,255,255,.6);box-shadow:0 2px 6px rgba(0,0,0,.35);pointer-events:none}
+  /* Phone button: shows the item in hand; tap it to show the quick bar and power meters */
+  #hudBtn{display:none;position:fixed;top:8px;left:8px;padding:6px 10px;background:rgba(0,0,0,.45);color:#fff;border-radius:10px;font-size:14px;align-items:center;gap:6px;z-index:10;cursor:pointer;touch-action:none;max-width:45vw;white-space:nowrap;overflow:hidden}
+  /* Phones, held either way: smaller controls; the quick bar, recent list and power meters stay hidden until the button is tapped */
+  body.phone #hudBtn{display:flex}
+  body.phone #hud{top:46px;left:8px;font-size:12px;line-height:1.3}
+  body.phone #hud .bar{width:120px;height:9px;margin:2px 0}
+  body.phone #hud .bars{display:none}
+  body.phone #qb,body.phone #recent{display:none}
+  body.phone.panel #hud .bars{display:block}
+  body.phone.panel #qb,body.phone.panel #recent{display:flex}
+  body.phone #qb{bottom:10px;left:calc(clamp(96px,30vmin,150px) + 28px);right:calc(clamp(64px,20vmin,88px) + 24px);transform:none;justify-content:center;gap:4px;padding:0;box-sizing:border-box;flex-wrap:wrap}
+  body.phone .slot{width:clamp(44px,13vmin,62px);height:clamp(40px,12vmin,54px);font-size:9px;border-width:2px}
+  body.phone .slot .sw{width:20px;height:20px}
+  body.phone #recent{top:auto;bottom:calc(clamp(40px,12vmin,54px) + 22px);right:auto;left:calc(clamp(96px,30vmin,150px) + 28px);width:auto;flex-direction:row;flex-wrap:wrap;gap:4px;max-width:55vw}
+  body.phone #recent .title{width:100%;font-size:11px}
+  body.phone #recent .row{font-size:11px;padding:3px 6px}
+  body.phone #bJ{right:12px;bottom:14px;width:clamp(64px,20vmin,88px)!important;height:clamp(48px,15vmin,62px);font-size:15px}
+  body.phone #bFire{right:12px!important;bottom:calc(clamp(48px,15vmin,62px) + 26px)!important;width:clamp(56px,17vmin,72px)!important;height:clamp(42px,13vmin,52px)!important;font-size:14px}
+  body.phone #toggle,body.phone #bagBtn,body.phone #settingsBtn{font-size:12px;padding:5px 8px}
+  body.phone #bagBtn{top:38px}
+  body.phone #settingsBtn{right:92px}
+  body.phone #teleBtn{right:166px;width:30px;height:30px;font-size:15px}
+  body.phone #msg{font-size:15px;top:46px;white-space:normal;text-align:center;width:60vw}
   #wiz{position:fixed;inset:0;background:rgba(10,12,25,.85);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;box-sizing:border-box}
   #wiz.hide{display:none}
   #wiz .box{background:#1d2440;color:#fff;border-radius:18px;padding:20px;max-width:420px;width:100%;box-sizing:border-box;text-align:center}
@@ -76,6 +102,7 @@
 <div id="hud"></div>
 <div id="msg"></div>
 <div id="toggle">Controls</div>
+<div id="hudBtn"></div>
 <div id="settingsBtn">Settings</div>
 <div id="teleBtn" title="Teleport to the start">&#10022;</div>
 <div id="bagBtn">Bag (B)</div>
@@ -86,10 +113,7 @@
 <div id="slots" class="hide"><div class="box"><div id="slotsBody"></div></div></div>
 <div id="wiz" class="hide"><div class="box"><div id="wizBody"></div><div id="wizErr"></div><div class="nav"><button id="wizBack" class="secondary">Back</button><button id="wizNext">Next</button></div></div></div>
 <div id="pad">
-  <div class="btn" id="bF" style="left:40px;bottom:110px">&#9650;</div>
-  <div class="btn" id="bL" style="left:10px;bottom:56px">&#9664;</div>
-  <div class="btn" id="bR" style="left:70px;bottom:56px">&#9654;</div>
-  <div class="btn" id="bB" style="left:40px;bottom:2px">&#9660;</div>
+  <div id="stick"><div id="knob"></div></div>
   <div class="btn" id="bJ" style="right:14px;bottom:14px;width:80px">JUMP</div>
   <div class="btn" id="bFire" style="display:none;right:12px;bottom:190px;width:66px;height:52px;background:rgba(255,120,30,.5)">FIRE</div>
 </div>
@@ -943,13 +967,39 @@ addEventListener('keydown', e => {
   if (e.code === 'Escape') { if (settingsOpen) toggleSettings(false); else toggleBag(false); }
 });
 addEventListener('keyup', e => keys[e.code] = false);
-const touch = { L: false, R: false, F: false, B: false, J: false };
+const touch = { J: false };
+// Analog stick: x is right (+) / left (-), z is back (+) / forward (-), each from -1 to 1. Zero when released.
+const stick = { x: 0, z: 0, id: null };
+const STICK_DEAD = 0.12;   // a small push near the middle does nothing, so the character does not creep
+function setStick(x, z) {
+  let m = Math.hypot(x, z);
+  if (m > 1) { x /= m; z /= m; m = 1; }
+  if (m < STICK_DEAD) { x = 0; z = 0; }
+  stick.x = x; stick.z = z;
+  const knob = document.getElementById('knob');
+  if (knob) knob.style.transform = `translate(${x * 64}%, ${z * 64}%)`;
+}
 function bindBtn(id, key) {
   const el = document.getElementById(id);
   el.addEventListener('pointerdown', e => { e.preventDefault(); touch[key] = true; });
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, () => touch[key] = false);
 }
-bindBtn('bL', 'L'); bindBtn('bR', 'R'); bindBtn('bF', 'F'); bindBtn('bB', 'B'); bindBtn('bJ', 'J');
+bindBtn('bJ', 'J');
+{
+  const el = document.getElementById('stick');
+  const fromEvent = e => {
+    const r = el.getBoundingClientRect(), half = r.width / 2;
+    setStick((e.clientX - r.left - half) / half, (e.clientY - r.top - half) / half);
+  };
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation();
+    stick.id = e.pointerId;
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    fromEvent(e);
+  });
+  el.addEventListener('pointermove', e => { if (e.pointerId === stick.id) { e.preventDefault(); fromEvent(e); } });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, e => { if (e.pointerId === stick.id) { stick.id = null; setStick(0, 0); } });
+}
 // Fire button: one tap casts a fireball where the camera is looking (the same as the F key)
 document.getElementById('bFire').addEventListener('pointerdown', e => { e.preventDefault(); fireAt(innerWidth / 2, innerHeight / 2); });
 
@@ -969,6 +1019,20 @@ toggleEl.addEventListener('click', () => {
   applyPad();
 });
 applyPad();
+
+// Phone layout: a touch screen whose short side is small (a phone, held either way up).
+// The quick bar, recent list and power meters stay hidden until the button at the top left is tapped.
+const isPhone = () => isTouch && Math.min(innerWidth, innerHeight) <= 500;
+const hudBtnEl = document.getElementById('hudBtn');
+let panelOpen = false;
+function applyPhone() {
+  document.body.classList.toggle('phone', isPhone());
+  document.body.classList.toggle('panel', panelOpen);
+}
+function setPanel(open) { panelOpen = open; applyPhone(); renderHudBtn(); }
+hudBtnEl.addEventListener('click', () => setPanel(!panelOpen));
+addEventListener('resize', applyPhone);
+applyPhone();
 
 // ---- Powers ----
 const pw = { dig: { lvl: 1, xp: 0 }, build: { lvl: 1, xp: 0 }, inv: { lvl: 1, xp: 0 }, fight: { lvl: 1, xp: 0 }, magic: { lvl: 1, xp: 0 } };
@@ -1036,7 +1100,16 @@ function renderUI() {
     (id ? `<span class="sw" style="background-image:url(${itemIcon(id)})"></span><span>${labelOf(id)}</span>`
         : '<span>empty</span>') +
     '</div>').join('');
+  renderHudBtn();
   if (bagOpen) renderBag();
+}
+// The phone button shows what is in hand, and whether the bar is open
+function renderHudBtn() {
+  const el = document.getElementById('hudBtn');
+  if (!el) return;
+  const id = qb[sel];
+  el.innerHTML = (id ? `<span class="sw" style="width:20px;height:20px;background-image:url(${itemIcon(id)})"></span>${labelOf(id)}` : 'Empty hand') +
+    ` <span style="opacity:.8">${panelOpen ? '&#9650;' : '&#9660;'}</span>`;
 }
 
 function renderBag() {
@@ -1064,7 +1137,9 @@ recentEl.addEventListener('click', e => {
 });
 qbEl.addEventListener('click', e => {
   const s = e.target.closest('[data-slot]');
-  if (s) selectSlot(+s.dataset.slot);
+  if (!s) return;
+  selectSlot(+s.dataset.slot);
+  if (isPhone()) setPanel(false);   // on a phone, choosing a tool hides the bar again
 });
 bagEl.addEventListener('click', e => {
   if (e.target.closest('#bagClose')) return toggleBag(false);
@@ -1136,6 +1211,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.57', title: 'Phone controls', items: [
+    'New: a thumb stick to walk. Push it a little to walk slowly, all the way to run',
+    'On phones, held either way, the buttons are smaller and fit the screen',
+    'On phones, the quick bar and power meters are hidden. Tap the button at the top left to show them; choosing a tool hides them again'] },
   { v: '0.6.56', title: 'Safer shared worlds', items: [
     'Shared worlds are better protected: a world can only be opened or saved with its code',
     'The game no longer keeps a code on the device to count play. Each visit is counted on its own'] },
@@ -2183,9 +2262,11 @@ let camGoalSet = false;
 
 function update(dt) {
   const k = c => !!keys[c];
-  const sx = ((k('KeyD') || k('ArrowRight') || touch.R) ? 1 : 0) - ((k('KeyA') || k('ArrowLeft') || touch.L) ? 1 : 0);
-  const sz = ((k('KeyS') || k('ArrowDown') || touch.B) ? 1 : 0) - ((k('KeyW') || k('ArrowUp') || touch.F) ? 1 : 0);
-  const norm = Math.hypot(sx, sz) || 1;
+  // Keys give full speed; the analog stick gives anything from slow to full speed
+  const clamp1 = v => Math.max(-1, Math.min(1, v));
+  const sx = clamp1(((k('KeyD') || k('ArrowRight')) ? 1 : 0) - ((k('KeyA') || k('ArrowLeft')) ? 1 : 0) + stick.x);
+  const sz = clamp1(((k('KeyS') || k('ArrowDown')) ? 1 : 0) - ((k('KeyW') || k('ArrowUp')) ? 1 : 0) + stick.z);
+  const norm = Math.max(1, Math.hypot(sx, sz));
   // Move relative to the camera, so "up" is always away from you on screen
   const cosY = Math.cos(camYaw), sinY = Math.sin(camYaw);
   const wx = sx * cosY + sz * sinY, wz = -sx * sinY + sz * cosY;
@@ -2295,12 +2376,12 @@ function drawHud() {
   const cap = invCap(), total = invTotal();
   const bar = (k, ratio) => `<div class="bar"><div style="width:${Math.min(1, ratio) * 100}%;background:${BAR[k]}"></div></div>`;
   hud.innerHTML =
-    `${playerName}<br>` +
+    `${playerName}<br><div class="bars">` +
     `Digging Lv ${pw.dig.lvl}${bar('dig', pw.dig.xp / need(pw.dig.lvl))}` +
     `Building Lv ${pw.build.lvl}${bar('build', pw.build.xp / need(pw.build.lvl))}` +
     `Inventory Lv ${pw.inv.lvl}${bar('inv', total / cap)}` +
     `Fighting Lv ${pw.fight.lvl}${bar('fight', pw.fight.xp / need(pw.fight.lvl))}` +
-    (skills.length ? `Magic Lv ${pw.magic.lvl}${bar('magic', pw.magic.xp / need(pw.magic.lvl))}` : '') +
+    (skills.length ? `Magic Lv ${pw.magic.lvl}${bar('magic', pw.magic.xp / need(pw.magic.lvl))}` : '') + `</div>` +
     `Bag ${total}/${cap} &nbsp; Gems ${inv.gem}<br>` +
     `World ${esc(worldId || 'alone')} &middot; v${VERSION}` + (others.size ? ' &middot; With: ' + [...others.values()].map(o => esc(o.name)).join(', ') : '');
 }
@@ -2410,7 +2491,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.56';
+const VERSION = '0.6.57';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2900,6 +2981,9 @@ requestAnimationFrame(frame);
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  // Phone layout and analog stick (0.6.57)
+  get stick() { return { x: stick.x, z: stick.z }; }, setStick, isPhone, get panelOpen() { return panelOpen; },
+  get pos() { return [px, py, pz]; }, get walkSpeed() { return Math.hypot(vx, vz); },
   // Plays the given frame times straight away (no waiting for the screen) and returns the character's height scale, height and ground state after each
   stepFrames: dts => dts.map(dt => { update(dt); return { s: avatar.scale.y, y: py, g: onGround }; }),
   // Camera follow: plays the given frame times with the camera's spot moving at `speed`, and returns the gap after each frame (once settled)
