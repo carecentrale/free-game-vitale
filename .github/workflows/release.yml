@@ -50,11 +50,12 @@ jobs:
           # Google Play needs Android 16 (API 36) as the target and Android 7 (API 24) as the minimum (Capacitor 8 defaults)
           grep -E 'minSdkVersion|targetSdkVersion|compileSdkVersion' android/variables.gradle
 
-      - name: Allow Google Play purchases (billing permission)
+      - name: Add the Google Play Billing Library (purchases)
         run: |
-          M=android/app/src/main/AndroidManifest.xml
-          grep -q 'com.android.vending.BILLING' "$M" || sed -i 's#</manifest>#    <uses-permission android:name="com.android.vending.BILLING" />\n</manifest>#' "$M"
-          grep -n 'uses-permission' "$M"
+          # Google requires Play Billing Library 8 or newer. The library also adds the billing permission.
+          G=android/app/build.gradle
+          grep -q 'com.android.billingclient:billing' "$G" || sed -i '0,/^dependencies {/s//dependencies {\n    implementation "com.android.billingclient:billing:8.2.1"/' "$G"
+          grep -n 'billingclient' "$G"
 
       - name: Set version name and code
         run: |
