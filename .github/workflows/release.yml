@@ -51,7 +51,11 @@ jobs:
       - name: Set version name and code
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then VERSION="0.0.0"; fi
+          # Run by hand (no version tag): use the version written in the game file
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            VERSION=$(grep -oE "const VERSION = '[0-9]+\.[0-9]+\.[0-9]+'" build/prototype-3d-v7.html | grep -oE "[0-9]+\.[0-9]+\.[0-9]+")
+          fi
+          echo "Version name: $VERSION, version code: $GITHUB_RUN_NUMBER"
           sed -i "s/versionCode 1/versionCode ${GITHUB_RUN_NUMBER}/; s/versionName \"1.0\"/versionName \"${VERSION}\"/" android/app/build.gradle
 
       - name: Add the signing setup
@@ -69,6 +73,12 @@ jobs:
         working-directory: android
         run: ./gradlew bundleRelease
 
+      - name: Keep the bundle as a download (for the first upload, download this and upload it in Play Console by hand)
+        uses: actions/upload-artifact@v4
+        with:
+          name: kids-game-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+
       - name: Upload to Google Play (internal testing track)
         uses: r0adkll/upload-google-play@v1
         with:
@@ -78,8 +88,3 @@ jobs:
           track: internal
           status: completed
 
-      - name: Keep the bundle as a download
-        uses: actions/upload-artifact@v4
-        with:
-          name: kids-game-aab
-          path: android/app/build/outputs/bundle/release/app-release.aab
