@@ -31,12 +31,43 @@ if (-not $env:JAVA_HOME -or -not (Test-Path "$env:JAVA_HOME\bin\java.exe")) {
   }
 }
 if (-not $env:JAVA_HOME -or -not (Test-Path "$env:JAVA_HOME\bin\java.exe")) { Fail 'Java was not found. Install Android Studio from https://developer.android.com/studio and open it once.' }
+# The Android build tool (Gradle 8.14) runs on Java 17 to 24. New Android Studio versions bring Java 25, which it cannot use.
+# If the Java found is not 17-24, use a private Java 21 kept in "Claude tools for access\jdk-21" (downloaded once, about 200 MB).
+function JavaMajor($home_) {
+  # java -version prints to the error stream; read it without stopping the script
+  $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  $out = cmd /c "`"$home_\bin\java.exe`" -version 2>&1" | Out-String
+  $ErrorActionPreference = $old
+  if ($out -match 'version "(\d+)') { return [int]$matches[1] } else { return 0 }
+}
+$major = JavaMajor $env:JAVA_HOME
+if ($major -lt 17 -or $major -gt 24) {
+  $toolsDir = Join-Path $HOME 'Desktop\Claude tools for access'
+  $jdkDir = Join-Path $toolsDir 'jdk-21'
+  if (-not (Test-Path "$jdkDir\bin\java.exe")) {
+    Say "Java $major cannot run the Android build tool. Downloading Java 21 into $jdkDir (once only)"
+    $zip = Join-Path $env:TEMP 'temurin-21.zip'
+    $ProgressPreference = 'SilentlyContinue'
+    Invoke-WebRequest -Uri 'https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jdk/hotspot/normal/eclipse' -OutFile $zip
+    $unpack = Join-Path $env:TEMP 'temurin-21-unpack'
+    if (Test-Path $unpack) { Remove-Item $unpack -Recurse -Force }
+    Expand-Archive $zip $unpack
+    $inner = Get-ChildItem $unpack -Directory | Select-Object -First 1
+    New-Item -ItemType Directory $toolsDir -Force | Out-Null
+    if (Test-Path $jdkDir) { Remove-Item $jdkDir -Recurse -Force }
+    Move-Item $inner.FullName $jdkDir
+    Remove-Item $zip, $unpack -Recurse -Force -ErrorAction SilentlyContinue
+  }
+  if (-not (Test-Path "$jdkDir\bin\java.exe")) { Fail "Could not set up Java 21 in $jdkDir." }
+  $env:JAVA_HOME = $jdkDir
+  $major = JavaMajor $env:JAVA_HOME
+}
 $env:Path = "$env:JAVA_HOME\bin;$env:Path"
 
 if (-not $env:ANDROID_HOME) { $env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk" }
 if (-not (Test-Path "$env:ANDROID_HOME\platform-tools")) { Fail "The Android SDK was not found at $env:ANDROID_HOME. Open Android Studio once and let it finish its setup (it installs the SDK)." }
 $env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
-Write-Host "Node $(& node -v), Java at $env:JAVA_HOME, Android SDK at $env:ANDROID_HOME"
+Write-Host "Node $(& node -v), Java $major at $env:JAVA_HOME, Android SDK at $env:ANDROID_HOME"
 
 # ---- Upload key ----
 $keyDir = Join-Path $HOME 'Desktop\Claude tools for access\drenerics-upload-key'
@@ -104,6 +135,7 @@ try {
   # ---- 4. Build and sign ----
   Say 'Building and signing the app (a few minutes the first time)'
   Push-Location android
+  & .\gradlew.bat --stop | Out-Null
   & .\gradlew.bat bundleRelease
   $ok = ($LASTEXITCODE -eq 0)
   Pop-Location

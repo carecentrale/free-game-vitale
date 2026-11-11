@@ -1,5 +1,7 @@
 # Supporter packages: decisions and design
 
+Words: a **guardian** is the adult account (parent or legal guardian) that signs in, buys and manages. The paid packs are still called Supporter (monthly / lifetime) in Google Play; their IDs cannot change.
+
 Status: DECIDED BY THE PARENT (11 Nov 2026). Purchase code, admin panel and server checks are NOT BUILT yet.
 Purchases are Android only (Google Play billing). The website shows "available in the Android app".
 
@@ -37,8 +39,8 @@ Table `packages` (one row per package; editable by the parent in the admin panel
 - icon (path of the store icon)
 - extra_cloud_saves, gems_once, gems_daily, gems_accumulate (true for monthly, false for lifetime), locked_saves_keep_days (365)
 
-Table `supporters` (one row per paying parent account; written only by the server and the parent admin, never by the game):
-- parent_user_id, package_id, status (active, ended, granted), source (google_play, granted_by_admin)
+Table `guardian_packages` (which package each guardian has: a guardian is the parent or legal guardian sign-in account; written only by the server and the parent admin, never by the game):
+- user_id (the guardian's account), package_id, status (active, ended, granted, refunded), source (google_play, admin_grant)
 - started_at, ends_at, last_chest_claimed_at, gems_waiting
 - play_purchase_token (to check the purchase with Google; never shown in the game)
 
