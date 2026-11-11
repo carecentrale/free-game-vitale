@@ -7,7 +7,7 @@ Purchases are Android only (Google Play billing). The website shows "available i
 
 | | Free | Supporter monthly | Supporter lifetime |
 |---|---|---|---|
-| Google Play product ID | (none) | `supporter_monthly` (subscription), base plan `monthly` | `supporter_lifetime` (one-time product, not consumable) |
+| Google Play product ID | (none) | `supporter_monthly` (subscription), base plan `monthly` | `supporter_lifetime` (one-time product, not consumable), purchase option `buy-lifetime-1` (Buy, backwards compatible) |
 | Price (set in Play Console, CAD) | free | $5.00 a month, auto-renewing | $100.00 once |
 | Play Console icon | (none) | assets/store/supporter-monthly.png (chest with moon) | assets/store/supporter-lifetime.png (chest with star) |
 | The game itself | yes | yes | yes |
@@ -32,7 +32,7 @@ Low-income families: free Supporter access, granted by hand from the admin panel
 
 Table `packages` (one row per package; editable by the parent in the admin panel):
 - id (free, monthly, lifetime), name, active (on/off)
-- play_product_id (supporter_monthly / supporter_lifetime), play_base_plan_id (monthly / none), kind (subscription / one-time / none)
+- play_product_id (supporter_monthly / supporter_lifetime), play_option_id (base plan `monthly` / purchase option `buy-lifetime-1`), kind (subscription / one-time / none)
 - display_price (text shown in the game; must match the Play Console price)
 - icon (path of the store icon)
 - extra_cloud_saves, gems_once, gems_daily, gems_accumulate (true for monthly, false for lifetime), locked_saves_keep_days (365)
@@ -50,6 +50,6 @@ Nothing about the child is stored in either table.
 - Gems and cloud saves are granted by the server after it has checked the purchase with Google, never by the game on the device.
 
 ## Still to set up
-- Google Play: payments profile; activate both products; real-time developer notifications (Pub/Sub topic `play-billing`, all notifications) once the server receiver exists.
+- Google Play: both products created and active (11 Nov 2026). Still to do: payments profile; real-time developer notifications (Pub/Sub topic `play-billing`, all notifications) once the server receiver exists.
 - Privacy policy and terms: describe purchases, the 1-year hold, and the parent gate; professional review.
 - Build: parent gate, purchase screen (Android), server purchase check (Supabase), packages and supporters tables, admin panel page.
