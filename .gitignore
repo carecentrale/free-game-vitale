@@ -20,3 +20,7 @@ Thumbs.db
 
 # Original zip downloads from Quaternius (keep only the extracted models in git)
 assets/**/*.zip
+
+# Local Android builds (build-android.bat)
+releases/
+build-android-work/
