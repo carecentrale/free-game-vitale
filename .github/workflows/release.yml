@@ -48,6 +48,12 @@ jobs:
           if [ ! -d android ]; then npx cap add android; fi
           npx cap sync android
 
+      - name: Allow Google Play purchases (billing permission)
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          grep -q 'com.android.vending.BILLING' "$M" || sed -i 's#</manifest>#    <uses-permission android:name="com.android.vending.BILLING" />\n</manifest>#' "$M"
+          grep -n 'uses-permission' "$M"
+
       - name: Set version name and code
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
