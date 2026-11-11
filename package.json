@@ -1,6 +1,6 @@
 {
   "name": "kids-game",
-  "version": "0.6.0",
+  "version": "0.6.56",
   "private": true,
   "description": "Kids block-world game: web prototype wrapped with Capacitor for Android",
   "license": "UNLICENSED",
@@ -10,11 +10,11 @@
     "android:sync": "npx cap sync android"
   },
   "dependencies": {
-    "@capacitor/android": "^6.1.0",
-    "@capacitor/core": "^6.1.0"
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.1.0",
+    "@capacitor/cli": "^8.6.0",
     "eslint": "^10.14.0",
     "playwright": "^1.64.1",
     "three": "^0.160.0"

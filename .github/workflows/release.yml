@@ -29,11 +29,11 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install Capacitor
         run: npm install
@@ -47,6 +47,8 @@ jobs:
         run: |
           if [ ! -d android ]; then npx cap add android; fi
           npx cap sync android
+          # Google Play needs Android 16 (API 36) as the target and Android 7 (API 24) as the minimum (Capacitor 8 defaults)
+          grep -E 'minSdkVersion|targetSdkVersion|compileSdkVersion' android/variables.gradle
 
       - name: Allow Google Play purchases (billing permission)
         run: |
