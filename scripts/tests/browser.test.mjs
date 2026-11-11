@@ -220,13 +220,17 @@ test('in water the character sinks slowly, and holding jump swims up', { skip, t
 test('from the water, holding right and jump climbs out onto the shore', { skip, timeout: 180000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => Math.abs(window.gameProbe().px - (200055 + 0.5)) < 0.01, null, { timeout: 60000 });
-    // Hold right and jump until the character is past the shore, or 60 s have passed.
-    // (A fixed wait is not enough: the game moves as fast as the browser draws frames.)
-    await page.keyboard.down('KeyD');
-    await page.keyboard.down('Space');
-    await page.waitForFunction(() => window.gameProbe().px > 200058, null, { timeout: 60000, polling: 100 }).catch(() => {});
-    await page.keyboard.up('KeyD');
-    await page.keyboard.up('Space');
+    // Hold right and jump, and play the game's frames directly (1/60 s each, up to 6 s of game time).
+    // Playing in real time failed on slow test machines: they drew only about 15-20 frames a minute, not enough game time to climb out.
+    await page.evaluate(() => {
+      const g = window.gameTest;
+      g.setYaw(0);
+      dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyD' }));
+      dispatchEvent(new KeyboardEvent('keydown', { code: 'Space' }));
+      for (let i = 0; i < 360 && window.gameProbe().px <= 200058; i++) g.stepFrames([1 / 60]);
+      dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyD' }));
+      dispatchEvent(new KeyboardEvent('keyup', { code: 'Space' }));
+    });
     const p = await page.evaluate(() => window.gameProbe());
     assert.ok(p.px > 200058, `the character did not get out of the water: x ${p.px}, y ${p.py}`);
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
