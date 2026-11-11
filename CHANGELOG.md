@@ -2,6 +2,12 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.54: steady picture (shake fix)
+- Fixed: the ground shook slightly while moving. Since 0.6.34 the world starts 200,000 blocks from zero, and graphics cards cannot draw numbers that large exactly. Blocks and scenery are now drawn relative to their own chunk, so they are exact anywhere in the world
+- Fixed: the camera, the head turn and other players eased by a fixed share per frame, so uneven frame times made the picture shake. They now ease by elapsed time, and the camera keeps a steady gap behind the character
+- No change to saves, data, sign-in, ads or purchases
+- Tests added: blocks and scenery are drawn with small numbers and in the right places; the camera gap stays steady with uneven frame times
+
 ## 0.6.53: biomes
 - The world is split into biomes by climate: desert, savanna, rainforest, grassland, forest, taiga and tundra
 - Biomes blend into each other across the world, with soft borders instead of hard lines

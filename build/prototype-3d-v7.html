@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.53 (3D)</title>
+<title>Adventurers of Drenerics v0.6.54 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -687,14 +687,18 @@ function buildChunkMeshes(cx, cz) {
     // Scenery stands on grass that has air above it (so digging the grass away removes its scenery when the chunk is redrawn)
     if (decorReady && (t === T.GRASS || t === T.SAND || t === T.SNOW) && y + 1 < H && data[cellIndex(lx, y + 1, lz)] === T.AIR) {
       const d = decorAt(x, y, z);
-      if (d && addDecor(decorBins, d, x, y + 1, z)) decorCount++;
+      if (d && addDecor(decorBins, d, lx, y + 1, lz)) decorCount++;
     }
     // Inside the chunk the six neighbours are read straight from the data; the edges use the general lookup
     const inside = lx > 0 && lx < CS - 1 && lz > 0 && lz < CS - 1 && y > 0 && y < H - 1;
     const hidden = inside ? innerFaceHidden(data, i, t) : faceHidden(x, y, z, t);
     if (hidden) continue;
-    lists[t].push(x, y, z);
+    lists[t].push(lx, y, lz);
   }
+  // Blocks and scenery are placed relative to the chunk's corner, and the chunk's mesh is moved to that corner.
+  // The world starts 200,000 blocks from zero, and a graphics card keeps only about 7 digits, so whole-world positions
+  // were drawn in steps of up to 1/32 of a block: the ground shook as the camera moved. Small numbers are drawn exactly.
+  const ox = cx * CS, oz = cz * CS;
   const list = [];
   let count = 0;
   for (const t of drawTypes) {
@@ -708,6 +712,8 @@ function buildChunkMeshes(cx, cz) {
     im.instanceMatrix.needsUpdate = true;
     im.userData.water = t === T.WATER;
     if (t === T.WATER) im.renderOrder = 1;   // water is drawn after the solid blocks
+    im.position.set(ox, 0, oz);
+    im.updateMatrixWorld(true);   // so a click can find the blocks before the next frame is drawn
     worldGroup.add(im);
     list.push(im);
     count += n;
@@ -720,6 +726,8 @@ function buildChunkMeshes(cx, cz) {
     im.instanceMatrix.needsUpdate = true;
     decor.add(im);
   }
+  decor.position.set(ox, 0, oz);
+  decor.updateMatrixWorld(true);
   if (decor.children.length) worldGroup.add(decor);
   return { cx, cz, list, count, decor, decorCount };
 }
@@ -1127,6 +1135,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.54', title: 'Steady picture', items: [
+    'Fixed: the ground and the character shook slightly while moving. The world is now drawn steadily, and the camera follows smoothly even when the device is busy'] },
   { v: '0.6.53', title: 'Biomes', items: [
     'The world is split into biomes (desert, savanna, rainforest, grassland, forest, taiga, tundra) that blend into each other across the world',
     'Deserts are sand, tundra is snow (new snow block), and each biome has its own trees and plants'] },
@@ -1488,6 +1498,7 @@ async function loadDecor() {
 }
 // Adds one scenery object to the bins (the parts of its model, placed on the ground). Returns false if no model is ready.
 const DECOR_PLACE = new THREE.Matrix4(), DECOR_ROT = new THREE.Matrix4(), DECOR_OUT = new THREE.Matrix4();
+// x and z are counted from the chunk's corner (see buildChunkMeshes)
 function addDecor(bins, d, x, y, z) {
   const list = decorTpl[d.kind];
   if (!list || !list.length) return false;
@@ -2146,6 +2157,23 @@ let wetT = 0;
 let airJumpLeft = 1;
 const AIR_JUMP = JUMP * 0.75;
 
+// Easing by elapsed time. The old code moved a fixed share each frame (camera 12%, head 15%, other players 25%),
+// so the amount of easing changed whenever frames came unevenly, and the picture shook.
+// ease(rate, dt) is the share to move in dt seconds; rate is chosen so 60 frames a second feels the same as before.
+const perFrame = share => -Math.log(1 - share) * 60;
+const CAM_RATE = perFrame(0.12), HEAD_RATE = perFrame(0.15), OTHERS_RATE = perFrame(0.25);
+const ease = (rate, dt) => 1 - Math.exp(-rate * dt);
+// One step of the camera following its spot behind the character (one axis at a time).
+// It allows for how far the spot moved during the frame, so the gap between camera and character stays
+// the same whatever the frame time: speed / CAM_RATE. With that, uneven frames no longer shake the view.
+function followStep(cam, goalBefore, goal, dt) {
+  if (!(dt > 0)) return cam;
+  const lag = (goal - goalBefore) / (CAM_RATE * dt);
+  return goal - lag + (cam - goalBefore + lag) * Math.exp(-CAM_RATE * dt);
+}
+const camGoal = new THREE.Vector3(), camGoalBefore = new THREE.Vector3();
+let camGoalSet = false;
+
 function update(dt) {
   const k = c => !!keys[c];
   const sx = ((k('KeyD') || k('ArrowRight') || touch.R) ? 1 : 0) - ((k('KeyA') || k('ArrowLeft') || touch.L) ? 1 : 0);
@@ -2201,7 +2229,7 @@ function update(dt) {
 
   const moving = sx || sz;
   if (moving) avatar.rotation.y = Math.atan2(vx, vz);
-  headYaw += (headTarget - headYaw) * 0.15;
+  headYaw += (headTarget - headYaw) * ease(HEAD_RATE, dt);
   headGroup.rotation.y = headYaw;
 
   walkT += dt * (moving && onGround ? 9 : 0);
@@ -2226,7 +2254,11 @@ function update(dt) {
 
   // Camera follows from behind, turned by camYaw, and zoomed by zoom
   const camX = px + Math.sin(camYaw) * 9 * zoom, camZ = pz + Math.cos(camYaw) * 9 * zoom;
-  camera.position.lerp(new THREE.Vector3(camX, py + 5 * zoom, camZ), 0.12);
+  camGoal.set(camX, py + 5 * zoom, camZ);
+  if (!camGoalSet) { camGoalBefore.copy(camGoal); camGoalSet = true; }
+  const cp = camera.position;
+  cp.set(followStep(cp.x, camGoalBefore.x, camGoal.x, dt), followStep(cp.y, camGoalBefore.y, camGoal.y, dt), followStep(cp.z, camGoalBefore.z, camGoal.z, dt));
+  camGoalBefore.copy(camGoal);
   camera.lookAt(px, py + 1, pz);
 
   const head = get(Math.floor(px), Math.floor(py + HH), Math.floor(pz));
@@ -2359,7 +2391,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.53';
+const VERSION = '0.6.54';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2606,7 +2638,7 @@ function updateOthers(dt) {
     const p = o.g.position;
     const dx = o.x - p.x, dy = o.y - p.y, dz = o.z - p.z;
     if (Math.hypot(dx, dy, dz) > 10) { p.set(o.x, o.y, o.z); }   // jumped far: snap
-    else { p.x += dx * 0.25; p.y += dy * 0.25; p.z += dz * 0.25; }
+    else { const a = ease(OTHERS_RATE, dt); p.x += dx * a; p.y += dy * a; p.z += dz * a; }
     const moving = Math.hypot(dx, dz) > 0.02;
     o.walk += dt * (moving ? 9 : 0);
     const sw = Math.sin(o.walk) * 0.8;
@@ -2856,6 +2888,13 @@ requestAnimationFrame(frame);
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  // Camera follow: plays the given frame times with the camera's spot moving at `speed`, and returns the gap after each frame (once settled)
+  camFollowGaps: (speed, dts) => { let goal = 0, before = 0, cam = 0; const gaps = []; dts.forEach((dt, i) => { goal += speed * dt; cam = followStep(cam, before, goal, dt); before = goal; if (i >= dts.length / 2) gaps.push(goal - cam); }); return gaps; },
+  camRate: CAM_RATE,
+  // The largest position number handed to the graphics card for any block or scenery piece (must stay small: counted from the chunk's corner)
+  maxDrawnCoord: () => { let m = 0; worldGroup.traverse(o => { if (!o.isInstancedMesh) return; const a = o.instanceMatrix.array; for (let i = 12; i < a.length; i += 16) m = Math.max(m, Math.abs(a[i]), Math.abs(a[i + 1]), Math.abs(a[i + 2])); }); return m; },
+  // Where the first drawn grass block really is in the world (mesh corner + its own small position), to check blocks did not move
+  drawnBlocks: () => { let n = 0, bad = 0; const m = new THREE.Matrix4(), v = new THREE.Vector3(); for (const c of chunkMeshes.values()) for (const im of c.list) for (let i = 0; i < im.count; i++) { im.getMatrixAt(i, m); v.setFromMatrixPosition(m).applyMatrix4(im.matrixWorld); n++; if (get(Math.floor(v.x), Math.floor(v.y), Math.floor(v.z)) === T.AIR) bad++; } return { n, bad }; },
   perf: () => ({ ...perfStats, ...perfSnapshot() }),
   camDist: () => camera.position.distanceTo(new THREE.Vector3(px, py, pz)), drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles, settleCamera: () => { camera.position.set(px + Math.sin(camYaw) * 9 * zoom, py + 5 * zoom, pz + Math.cos(camYaw) * 9 * zoom); camera.lookAt(px, py + 1, pz); camera.updateMatrixWorld(); }, pendingChunks: () => waiting.length, fireAtNearestWater: (r) => {   // test hook: fire at the closest water block that has a clear line from the player (no solid block in between)
     const cx = Math.floor(px), cz = Math.floor(pz), cy = Math.floor(py);

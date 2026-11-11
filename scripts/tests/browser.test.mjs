@@ -569,3 +569,33 @@ test('after leaving the water, a tap of jump in the air gives one extra jump', {
     assert.ok(peak > 2, `the extra jump did not lift the character: peak upward speed ${peak}`);
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [shoreGame()] }));
+
+// 0.6.54, shake fix part 1. The world starts 200,000 blocks from zero. A graphics card keeps about 7 digits, so numbers that big
+// are drawn in coarse steps and the ground shakes as the camera moves. Blocks and scenery must reach the graphics card as small
+// numbers (counted from their chunk's corner), and must still stand exactly where the world says they are.
+test('blocks and scenery are drawn with small numbers, in the right places (no shake far from zero)', { skip, timeout: 400000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest.decorReady() && window.gameTest.pendingChunks() === 0 && window.gameProbe().drawn > 0, null, { timeout: 300000 });
+    const biggest = await page.evaluate(() => window.gameTest.maxDrawnCoord());
+    assert.ok(biggest > 0 && biggest < 200, `a block or scenery piece is drawn with a large position number (${biggest}); it should be counted from its chunk's corner`);
+    const blocks = await page.evaluate(() => window.gameTest.drawnBlocks());
+    assert.ok(blocks.n > 0, 'no blocks were drawn');
+    assert.equal(blocks.bad, 0, `${blocks.bad} of ${blocks.n} drawn blocks stand where the world has no block`);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }));
+
+// 0.6.54, shake fix part 2. The camera eases behind the character. With uneven frame times the gap between them must stay the same,
+// otherwise the character and the world appear to shake. The frame times below mix fast, normal and slow frames.
+test('the camera keeps a steady gap behind a walking character when frame times are uneven', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    const dts = [];
+    let s = 7;
+    for (let i = 0; i < 600; i++) { s = (s * 16807) % 2147483647; const r = s / 2147483647; dts.push(r < 0.5 ? 1 / 60 : r < 0.7 ? 1 / 120 : r < 0.9 ? 2 / 60 : 0.05); }
+    const { gaps, rate } = await page.evaluate(d => ({ gaps: window.gameTest.camFollowGaps(5, d), rate: window.gameTest.camRate }), dts);
+    const want = 5 / rate;
+    const worst = Math.max(...gaps.map(g => Math.abs(g - want)));
+    assert.ok(gaps.length > 100 && worst < 1e-6, `the gap should stay at ${want.toFixed(4)} blocks; it strayed by ${worst}`);
+    // At a steady 60 frames a second the camera feels as it did before: it closes about 12% of the gap each frame
+    assert.ok(Math.abs(rate - (-Math.log(0.88) * 60)) < 1e-9, 'camera follow rate changed: ' + rate);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }));
