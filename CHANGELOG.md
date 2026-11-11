@@ -2,6 +2,12 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.55: standing still
+- Fixed: the character's head bobbed up and down while standing still. The squash meant for landing after a jump was applied on every frame of standing, so the character stayed squashed (about 81% of its height) by an amount that changed from frame to frame
+- The squash now happens only on a real landing (falling faster than 2 blocks a second) and at the start of a jump. The character stands at its full height
+- Fixed: the character stopped a little above the ground, so on some frames it counted as in the air (arms flicked up, and a jump press could be missed). It now rests exactly on the block below
+- Tests added: through uneven frame times the character keeps its full height, stays on the ground and does not move; a jump still squashes it at take-off and on landing
+
 ## 0.6.54: steady picture (shake fix)
 - Fixed: the ground shook slightly while moving. Since 0.6.34 the world starts 200,000 blocks from zero, and graphics cards cannot draw numbers that large exactly. Blocks and scenery are now drawn relative to their own chunk, so they are exact anywhere in the world
 - Fixed: the camera, the head turn and other players eased by a fixed share per frame, so uneven frame times made the picture shake. They now ease by elapsed time, and the camera keeps a steady gap behind the character

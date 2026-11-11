@@ -7,7 +7,7 @@ Nothing here has been submitted to Google Play.
 - App name: Adventurers of Drenerics (24 of 30 characters)
 - Package name: com.drenerics.adventurers (set in capacitor.config.json; cannot change after the first upload)
 - Default language: English (United States)
-- Current version: 0.6.54 (version code comes from the CI run number)
+- Current version: 0.6.55 (version code comes from the CI run number)
 
 ## Store listing (draft)
 - Short description (80 characters max): "Dig, build, collect gems and fight monsters in a block world."

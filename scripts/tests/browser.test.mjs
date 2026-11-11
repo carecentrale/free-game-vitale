@@ -599,3 +599,40 @@ test('the camera keeps a steady gap behind a walking character when frame times 
     assert.ok(Math.abs(rate - (-Math.log(0.88) * 60)) < 1e-9, 'camera follow rate changed: ' + rate);
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }));
+
+// The saved game in the middle of the world, with a world id so the game starts running at once (no wizard, no skill choice)
+function standingGame() {
+  const g = JSON.parse(savedGame());
+  g.worldId = 'TESTWORLD';
+  g.profile = { sex: 'boy', race: 'human', name: 'Test Hero' };
+  return JSON.stringify(g);
+}
+
+// 0.6.55. The landing squash is for landings only. Standing on the ground used to count as landing on every frame,
+// so the character stayed squashed by an amount that changed with the frame time, and its head bobbed while standing still.
+test('the character keeps its full height while standing still, and a jump still squashes it', { skip, timeout: 150000 }, () =>
+  withGame(async (page, errors) => {
+    // Frames are played straight away through the test hook, so the check does not depend on how fast this machine draws
+    const step = dts => page.evaluate(d => window.gameTest.stepFrames(d), dts);
+    // Let the character drop from its starting height and settle on the ground
+    let settled = false;
+    for (let i = 0; i < 40 && !settled; i++) { const f = (await step(Array(60).fill(1 / 60))).pop(); settled = f.g && f.s === 1; }
+    assert.ok(settled, 'the character did not come to rest on the ground');
+    // Stand still through fast, normal and slow frames
+    const dts = [];
+    let s = 11;
+    for (let i = 0; i < 400; i++) { s = (s * 16807) % 2147483647; const r = s / 2147483647; dts.push(r < 0.5 ? 1 / 60 : r < 0.7 ? 1 / 120 : r < 0.9 ? 2 / 60 : 0.05); }
+    const still = await step(dts);
+    const squashed = still.filter(f => f.s !== 1);
+    assert.equal(squashed.length, 0, `standing still, the character was squashed on ${squashed.length} of ${still.length} frames (height scale as low as ${Math.min(...still.map(f => f.s))})`);
+    assert.ok(still.every(f => f.g), 'standing still, the character was counted as in the air on some frames');
+    assert.ok(Math.max(...still.map(f => f.y)) - Math.min(...still.map(f => f.y)) < 1e-9, 'standing still, the character moved up or down');
+    // A jump still squashes the character at take-off, and landing from it squashes it again
+    await page.keyboard.down('Space');
+    const jump = await step(Array(90).fill(1 / 60));
+    await page.keyboard.up('Space');
+    assert.ok(jump[0].s < 0.95, 'the start of a jump did not squash the character');
+    const landed = jump.findIndex((f, i) => i > 5 && f.g);
+    assert.ok(landed > 5 && jump[landed].s < 0.95, 'landing from a jump did not squash the character');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [standingGame()] }));

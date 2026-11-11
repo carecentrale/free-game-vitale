@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.54 (3D)</title>
+<title>Adventurers of Drenerics v0.6.55 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -925,8 +925,9 @@ function waterNear(x, y, z) {
   return false;
 }
 
+const FOOT = 0.01;   // the feet and the top of the head are checked this far inside the body
 function hits(x, y, z) {
-  for (const dx of [-HW, HW]) for (const dz of [-HW, HW]) for (const dy of [0.01, HH - 0.01]) {
+  for (const dx of [-HW, HW]) for (const dz of [-HW, HW]) for (const dy of [FOOT, HH - FOOT]) {
     if (solid(get(Math.floor(x + dx), Math.floor(y + dy), Math.floor(z + dz)))) return true;
   }
   return false;
@@ -1135,6 +1136,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.55', title: 'Standing still', items: [
+    'Fixed: the character\'s head bobbed up and down while standing still. The landing squash now happens only when the character really lands'] },
   { v: '0.6.54', title: 'Steady picture', items: [
     'Fixed: the ground and the character shook slightly while moving. The world is now drawn steadily, and the camera follows smoothly even when the device is busy'] },
   { v: '0.6.53', title: 'Biomes', items: [
@@ -2156,6 +2159,7 @@ let wetT = 0;
 // The extra jump: once in the air, shortly after leaving the water, one more jump (a smaller one, 1.5 jumps in all)
 let airJumpLeft = 1;
 const AIR_JUMP = JUMP * 0.75;
+const LAND_SQUASH_SPEED = 2;   // blocks a second: slower touches than this are just standing, not landing
 
 // Easing by elapsed time. The old code moved a fixed share each frame (camera 12%, head 15%, other players 25%),
 // so the amount of easing changed whenever frames came unevenly, and the picture shook.
@@ -2208,7 +2212,19 @@ function update(dt) {
   else vy = Math.max(vy - GRAV * dt, -30);
   const ny = py + vy * dt;
   if (!hits(px, ny, pz)) { py = ny; onGround = false; }
-  else { if (vy < 0) { onGround = true; squash = 1; } vy = 0; }
+  // The landing squash is for a real landing only. Standing on the ground also "lands" a tiny bit every frame (gravity pulls, the ground stops it);
+  // squashing on those kept the character squashed all the time, by an amount that changed with the frame time, so its head bobbed while standing still.
+  else {
+    if (vy < 0) {
+      onGround = true;
+      if (vy < -LAND_SQUASH_SPEED) squash = 1;
+      // Rest exactly on top of the block below. Without this the character stopped a little above the ground, and on a shorter
+      // frame the small pull of gravity did not reach it: for that frame the character counted as in the air (arms flicked up, a jump could be missed).
+      const rest = Math.floor(ny + FOOT) + 1 - FOOT + 1e-6;
+      if (rest < py && !hits(px, rest, pz)) py = rest;
+    }
+    vy = 0;
+  }
 
   if (py < -10) { [px, py, pz] = topSpawnPoint(); vy = 0; }
 
@@ -2391,7 +2407,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.54';
+const VERSION = '0.6.55';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -2888,6 +2904,8 @@ requestAnimationFrame(frame);
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  // Plays the given frame times straight away (no waiting for the screen) and returns the character's height scale, height and ground state after each
+  stepFrames: dts => dts.map(dt => { update(dt); return { s: avatar.scale.y, y: py, g: onGround }; }),
   // Camera follow: plays the given frame times with the camera's spot moving at `speed`, and returns the gap after each frame (once settled)
   camFollowGaps: (speed, dts) => { let goal = 0, before = 0, cam = 0; const gaps = []; dts.forEach((dt, i) => { goal += speed * dt; cam = followStep(cam, before, goal, dt); before = goal; if (i >= dts.length / 2) gaps.push(goal - cam); }); return gaps; },
   camRate: CAM_RATE,
@@ -2931,7 +2949,7 @@ window.gameTest = {
   // Where an enemy's middle is on the screen: [x, y] (y from the top), and whether it is in front of the camera
   screenOf: en => { const v = new THREE.Vector3(en.x, en.y + 0.5, en.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight, v.z < 1]; },
 };
-window.gameProbe = () => ({ enemies: enemies.length, px, py, pz, vy, onGround, camYaw, drawn: lastDrawn, rebuildMs: lastRebuildMs, version: VERSION,
+window.gameProbe = () => ({ enemies: enemies.length, px, py, pz, vy, onGround, scaleY: avatar.scale.y, camYaw, drawn: lastDrawn, rebuildMs: lastRebuildMs, version: VERSION,
   skills: skills.slice(), fireballs: fireballs.length, blasts: blasts.length, skillPanel: !!skillPanel, magicLvl: pw.magic.lvl,
   list: enemies.map(e => ({ kind: e.kind, x: e.x, y: e.y, z: e.z, airT: e.airT || 0 })) });
 </script>
