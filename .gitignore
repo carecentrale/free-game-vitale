@@ -24,4 +24,7 @@ assets/**/*.zip
 
 # Local Android builds (build-android.bat)
 releases/
+
+# Build watcher requests, status and logs (build-requests\)
+build-requests/
 build-android-work/
