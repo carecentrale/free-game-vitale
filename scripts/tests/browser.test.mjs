@@ -414,12 +414,13 @@ test('the Fire button is hidden until on-screen controls are on, then tapping it
     const hidden = await page.evaluate(() => getComputedStyle(document.getElementById('bFire')).display);
     assert.equal(hidden, 'none', 'the Fire button should be hidden while on-screen controls are off');
     await page.click('#toggle');
-    const shown = await page.evaluate(() => getComputedStyle(document.getElementById('bFire')).display);
-    assert.notEqual(shown, 'none', 'the Fire button should show once on-screen controls are on');
+    // The game shows or hides the Fire button on its next frame, which can take a while on a slow machine: wait for it
+    const shown = await page.waitForFunction(() => getComputedStyle(document.getElementById('bFire')).display !== 'none', null, { timeout: 30000 }).then(() => true, () => false);
+    assert.ok(shown, 'the Fire button should show once on-screen controls are on');
     const before = await page.evaluate(() => { const p = window.gameProbe(); return p.fireballs + p.blasts; });
     await page.evaluate(() => document.getElementById('bFire').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true })));
-    await page.waitForTimeout(300);
-    const after = await page.evaluate(() => { const p = window.gameProbe(); return p.fireballs + p.blasts; });
+    const after = await page.waitForFunction(b => { const p = window.gameProbe(); return p.fireballs + p.blasts > b && p.fireballs + p.blasts; }, before, { timeout: 30000 })
+      .then(h => h.jsonValue(), () => before);
     assert.ok(after > before, `the Fire button did not cast: ${before} -> ${after}`);
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [fightLevel2Game()] }));
