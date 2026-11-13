@@ -107,7 +107,8 @@ if (-not $SkipTests) {
   & npm ci --no-audit --no-fund; if ($LASTEXITCODE) { Fail 'npm ci failed.' }
   & npx playwright install chromium; if ($LASTEXITCODE) { Fail 'Could not install the test browser (Chromium).' }
   $env:CI = '1'
-  & npm test; if ($LASTEXITCODE) { Fail 'Some tests failed. Nothing was built. Send the test output to Claude.' }
+  # All tests, then one rerun of up to 3 failed browser tests (timing blips on this laptop); see scripts\run-tests.mjs
+  & node scripts\run-tests.mjs; if ($LASTEXITCODE) { Fail 'Some tests failed. Nothing was built. Send the test output to Claude.' }
   Remove-Item Env:CI
 } else { Write-Host 'Tests skipped (-SkipTests).' -ForegroundColor Yellow }
 

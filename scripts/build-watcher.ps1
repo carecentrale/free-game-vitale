@@ -122,8 +122,10 @@ while ($true) {
       if ($text -match 'Done: build (\d+) is on the (\w+) track[^\r\n]*') { $detail = $matches[0] }
       elseif ($text -match '(BUILD|UPLOAD) STOPPED:[^\r\n]*') { $detail = $matches[0] }
       $tests = ''
-      if ($text -match '# pass (\d+)') { $tests = "tests passed: $($matches[1])" }
-      if ($text -match '# fail (\d+)') { $tests += ", failed: $($matches[1])" }
+      if ($text -match 'Tests: ([^\r\n]*)') { $tests = 'Tests: ' + $matches[1] }
+      elseif ($text -match '# pass (\d+)') { $tests = "tests passed: $($matches[1])" }
+      $flaky = @([regex]::Matches($text, 'FLAKY \(failed, then passed on the rerun\): ([^\r\n]*)') | ForEach-Object { $_.Groups[1].Value })
+      if ($flaky.Count) { Add-Content (Join-Path $dir 'flaky.log') ($flaky | ForEach-Object { "$start  $mode  $_" }) }
       $end = Stamp
       $saved = Archive $mode $result
       Set-Content $status ("$result`: $mode, started $start, finished $end, exit code $code. $tests $detail Full log: history\$saved").Trim()
