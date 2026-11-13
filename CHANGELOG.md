@@ -2,6 +2,15 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.59: quit the game
+- New Quit button at the top right, under Settings. It asks "Quit the game?" first; Save and quit saves the game and closes it, Keep playing goes back
+- Computers: Esc opens the same question. Esc still closes the bag or Settings first, and Esc on the question means keep playing
+- Android app: the phone's Back button works the same way, and Save and quit closes the app (new Capacitor App plugin, @capacitor/app 8.1.2)
+- In a web browser a page cannot close its own tab, so Save and quit goes to the home page instead
+- No new data is collected
+- Tests added (browser.test.mjs): Esc and the Quit button ask first, panels close before the question, Save and quit saves and leaves; in the Android app (stood in for in the test), Back asks first and Save and quit closes the app
+- Not tried on a phone yet
+
 ## 0.6.58: moving monsters, new scenery
 - The Imp and the Spike Beast move their legs, arms and head: they step and bend a knee when they walk, let their arms hang, look around when they stand, and lift their arms when they are about to be hit. The models have a skeleton but no ready-made animation, so the game moves the bones itself
 - Fixed: all Imps shared one model (and all Spike Beasts another), so only the newest one could be seen and the others were invisible. Each one now has its own copy

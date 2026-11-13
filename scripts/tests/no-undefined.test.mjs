@@ -14,13 +14,15 @@ const game = fs.readFileSync(path.join(root, 'build', 'prototype-3d-v7.html'), '
 const m = game.match(/<script type="module">([\s\S]*?)<\/script>/);
 if (!m) throw new Error('module script not found in the game file');
 
-const eslint = spawnSync(path.join(root, 'node_modules', '.bin', 'eslint'), ['--version'], { encoding: 'utf8' });
+// Runs ESLint through Node itself (not the node_modules/.bin wrapper), so it starts the same way on Windows and Linux
+const ESLINT = [path.join(root, 'node_modules', 'eslint', 'bin', 'eslint.js')];
+const eslint = spawnSync(process.execPath, [...ESLINT, '--version'], { encoding: 'utf8' });
 const hasEslint = eslint.status === 0;
 // On CI the check must run, so a missing eslint is a failure there, not a skip.
 if (!hasEslint && process.env.CI) throw new Error('eslint is not installed: run npm install');
 
 test('every name the game script uses is declared', { skip: !hasEslint && 'eslint is not installed: run npm install' }, () => {
-  const r = spawnSync(path.join(root, 'node_modules', '.bin', 'eslint'), [
+  const r = spawnSync(process.execPath, [...ESLINT,
     '-c', path.join(here, 'eslint.game.config.mjs'),
     '--stdin', '--stdin-filename', 'scripts/tests/game-module.mjs',
   ], { input: m[1], encoding: 'utf8', cwd: root });

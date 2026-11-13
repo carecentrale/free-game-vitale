@@ -115,6 +115,7 @@ async function setupPage(page, base, opts = {}) {
       sessionStorage.setItem('seeded', '1');
     }
   }, { saves, choice });
+  if (opts.init) await page.addInitScript(opts.init);   // runs before the game, e.g. to stand in for the Android app
   await page.goto(base + '/play/', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof window.gameProbe === 'function', null, { timeout: 60000 });
 }
@@ -125,7 +126,9 @@ const skip = !chromium ? 'playwright is not installed: run npm install'
 async function withGame(fn, opts) {
   const server = await serveWww();
   const base = `http://127.0.0.1:${server.address().port}`;
-  const browser = await chromium.launch(CHROME_PATH ? { executablePath: CHROME_PATH } : {});
+  // Software drawing (SwiftShader): the test browser draws frames the same way on every machine, also on the
+  // build laptop with its screen off or locked, where the graphics chip may stop drawing (0.6.59)
+  const browser = await chromium.launch({ ...(CHROME_PATH ? { executablePath: CHROME_PATH } : {}), args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const errors = [];
   try {
     // opts.device: a phone-like page, for example { viewport: { width: 780, height: 360 }, hasTouch: true, isMobile: true }
@@ -799,3 +802,58 @@ test('the thumb stick moves with the finger, springs back when let go, and a sma
     assert.equal(speed.keysOff, 0, 'with the stick let go the character should stop');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { device: PHONE_WIDE, saves: [phoneGame()] }));
+
+// The saved game with a world id and a full profile, so the game starts straight away (no wizard)
+function readyGame() {
+  const g = JSON.parse(savedGame());
+  g.worldId = 'TESTWORLD';
+  g.profile = { sex: 'boy', race: 'human', name: 'Test Hero' };
+  return JSON.stringify(g);
+}
+
+// Quit (0.6.59): Esc asks first, closes open panels before asking, and Save and quit saves the game and leaves for the home page.
+// Buttons are pressed with click events: real mouse clicks can stall while the slow test machine draws the world
+test('Esc asks before quitting, and Save and quit saves the game and goes to the home page', { skip, timeout: 150000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!window.gameTest, null, { timeout: 60000 });
+    const st = () => page.evaluate(() => ({ quit: window.gameTest.quitOpen, bag: window.gameTest.bagOpen, shown: getComputedStyle(document.getElementById('quit')).display }));
+    await page.keyboard.press('KeyB');
+    await page.keyboard.press('Escape');
+    assert.deepEqual(await st(), { quit: false, bag: false, shown: 'none' }, 'Esc closes the bag first, without asking to quit');
+    await page.keyboard.press('Escape');
+    assert.deepEqual(await st(), { quit: true, bag: false, shown: 'block' }, 'Esc with nothing open asks whether to quit');
+    await page.dispatchEvent('#quitNo', 'click');
+    assert.equal((await st()).quit, false, 'Keep playing closes the question');
+    await page.dispatchEvent('#quitBtn', 'click');
+    assert.equal((await st()).quit, true, 'the Quit button asks too');
+    await page.keyboard.press('Escape');
+    assert.equal((await st()).quit, false, 'Esc on the question means keep playing');
+    const before = await page.evaluate(() => JSON.parse(localStorage.getItem('kidsgame.slot.0')).at);
+    await page.dispatchEvent('#quitBtn', 'click');
+    await Promise.all([page.waitForURL(u => new URL(u).pathname === '/', { timeout: 30000 }), page.dispatchEvent('#quitYes', 'click')]);
+    const after = await page.evaluate(() => JSON.parse(localStorage.getItem('kidsgame.slot.0')).at);
+    assert.ok(after > before, 'the game was saved before leaving');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
+// Quit in the Android app (0.6.59): Back asks first, and Save and quit closes the app (the app is stood in for here)
+test('in the Android app, the Back button asks first and Save and quit closes the app', { skip, timeout: 150000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!window.gameTest, null, { timeout: 60000 });
+    assert.equal(await page.evaluate(() => typeof window.__back), 'function', 'the game listens to the Back button');
+    await page.evaluate(() => window.__back());
+    assert.equal(await page.evaluate(() => window.gameTest.quitOpen), true, 'Back asks whether to quit');
+    await page.evaluate(() => window.__back());
+    assert.equal(await page.evaluate(() => window.gameTest.quitOpen), false, 'Back again means keep playing');
+    await page.evaluate(() => window.__back());
+    await page.dispatchEvent('#quitYes', 'click');
+    assert.equal(await page.evaluate(() => window.__exited), true, 'Save and quit closes the app');
+    assert.equal(new URL(page.url()).pathname, '/play/', 'the app closes instead of going to the home page');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()], init: () => {
+    window.__exited = false;
+    window.Capacitor = { isNativePlatform: () => true, Plugins: { App: {
+      exitApp: () => { window.__exited = true; },
+      addListener: (name, fn) => { if (name === 'backButton') window.__back = fn; return Promise.resolve({ remove() {} }); },
+    } } };
+  } }));

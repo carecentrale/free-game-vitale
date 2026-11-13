@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.58 (3D)</title>
+<title>Adventurers of Drenerics v0.6.59 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -16,6 +16,11 @@
   #toggle{top:10px}
   #bagBtn{top:44px}
   #settingsBtn{top:10px;right:100px}
+  #quitBtn{position:fixed;top:44px;right:100px;padding:6px 10px;background:rgba(0,0,0,.4);color:#fff;border-radius:8px;font-size:14px;cursor:pointer;z-index:10}
+  #quit{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(340px,86vw);background:rgba(20,20,35,.96);color:#fff;border-radius:16px;padding:18px;display:none;z-index:30;box-sizing:border-box;text-align:center;font-size:17px}
+  #quit button{display:block;width:100%;margin-top:10px;padding:12px;border:0;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer}
+  #quitYes{background:#d9473b;color:#fff}
+  #quitNo{background:#3b6fd8;color:#fff}
   #teleBtn{position:fixed;top:10px;right:186px;width:36px;height:36px;border-radius:50%;background:#8e44ad;border:2px solid #d7b3ee;box-shadow:0 0 8px rgba(142,68,173,.8);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;z-index:10;user-select:none}
   #teleBtn.wait{opacity:.45}
   #settings{position:fixed;left:8%;right:8%;top:6%;bottom:6%;background:rgba(20,20,35,.94);color:#fff;border-radius:16px;padding:14px;display:none;overflow:auto;z-index:21;box-sizing:border-box;font-size:15px}
@@ -62,6 +67,7 @@
   body.phone #toggle,body.phone #bagBtn,body.phone #settingsBtn{font-size:12px;padding:5px 8px}
   body.phone #bagBtn{top:38px}
   body.phone #settingsBtn{right:92px}
+  body.phone #quitBtn{font-size:12px;padding:5px 8px;top:38px;right:92px}
   body.phone #teleBtn{right:166px;width:30px;height:30px;font-size:15px}
   body.phone #msg{font-size:15px;top:46px;white-space:normal;text-align:center;width:60vw}
   #wiz{position:fixed;inset:0;background:rgba(10,12,25,.85);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;box-sizing:border-box}
@@ -104,6 +110,8 @@
 <div id="toggle">Controls</div>
 <div id="hudBtn"></div>
 <div id="settingsBtn">Settings</div>
+<div id="quitBtn">Quit</div>
+<div id="quit"><div style="font-weight:700;font-size:19px">Quit the game?</div><div style="margin-top:6px;opacity:.85;font-size:14px">Your game is saved first.</div><button id="quitYes">Save and quit</button><button id="quitNo">Keep playing</button></div>
 <div id="teleBtn" title="Teleport to the start">&#10022;</div>
 <div id="bagBtn">Bag (B)</div>
 <div id="recent"></div>
@@ -969,7 +977,7 @@ addEventListener('keydown', e => {
   if (/^Digit[1-6]$/.test(e.code)) selectSlot(+e.code.slice(5) - 1);
   if (e.code === 'KeyB') toggleBag();
   if (e.code === 'KeyF') fireAt(innerWidth / 2, innerHeight / 2);
-  if (e.code === 'Escape') { if (settingsOpen) toggleSettings(false); else toggleBag(false); }
+  if (e.code === 'Escape') backAction();
 });
 addEventListener('keyup', e => keys[e.code] = false);
 const touch = { J: false };
@@ -1216,6 +1224,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.59', title: 'Quit the game', items: [
+    'New Quit button at the top, under Settings. It asks first, then saves your game and closes it',
+    'On a computer, Esc opens the same question (Esc still closes the bag or Settings first)',
+    'On Android, the phone\'s Back button opens the question too, and Save and quit closes the app'] },
   { v: '0.6.58', title: 'Moving monsters, new scenery', items: [
     'The Imp and the Spike Beast now move their legs, arms and head when they walk and look around when they stand',
     'Fixed: only one Imp and one Spike Beast could be seen at a time. Now every one of them shows',
@@ -1425,6 +1437,46 @@ addEventListener('pointerdown', e => {
   e.preventDefault();
   toggleSettings(false);
 }, true);
+
+// ---- Quit: the Quit button, Esc on a computer, and the Back button on Android all ask first, then save and close ----
+const quitEl = document.getElementById('quit');
+let quitOpen = false;
+// Inside the Android app (Capacitor) the App plugin can close the app; in a browser a page cannot close its own tab,
+// so quitting goes to the home page instead.
+const appPlugin = () => {
+  const C = window.Capacitor;
+  return C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.App ? C.Plugins.App : null;
+};
+function toggleQuit(force) {
+  quitOpen = force !== undefined ? force : !quitOpen;
+  quitEl.style.display = quitOpen ? 'block' : 'none';
+}
+function quitGame() {
+  saveGame();
+  toggleQuit(false);
+  const app = appPlugin();
+  if (app) app.exitApp();
+  else location.href = '/';
+}
+// Esc and the Android Back button: close an open panel first; with nothing open, ask whether to quit
+function backAction() {
+  if (quitOpen) toggleQuit(false);
+  else if (settingsOpen) toggleSettings(false);
+  else if (bagOpen) toggleBag(false);
+  else toggleQuit(true);
+}
+document.getElementById('quitBtn').addEventListener('click', () => toggleQuit());
+document.getElementById('quitYes').addEventListener('click', quitGame);
+document.getElementById('quitNo').addEventListener('click', () => toggleQuit(false));
+// A tap outside the question means keep playing; it is used up here, so it does not dig, build or fight
+addEventListener('pointerdown', e => {
+  if (!quitOpen || quitEl.contains(e.target)) return;
+  if (e.target.closest && e.target.closest('#quitBtn')) return;
+  e.stopPropagation();
+  e.preventDefault();
+  toggleQuit(false);
+}, true);
+{ const app = appPlugin(); if (app) { try { app.addListener('backButton', backAction); } catch (e) { /* older app without the plugin: Back works as before */ } } }
 
 // Finish digging the block at (x,y,z). If the bag is full, the block is dropped on the ground to pick up later.
 function digCell(x, y, z) {
@@ -2611,7 +2663,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.58';
+const VERSION = '0.6.59';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -3103,6 +3155,7 @@ requestAnimationFrame(frame);
 window.gameTest = {
   // Phone layout and analog stick (0.6.57)
   get stick() { return { x: stick.x, z: stick.z }; }, setStick, isPhone, get panelOpen() { return panelOpen; },
+  get quitOpen() { return quitOpen; }, backAction, get bagOpen() { return bagOpen; }, get settingsOpen() { return settingsOpen; },
   get pos() { return [px, py, pz]; }, get walkSpeed() { return Math.hypot(vx, vz); },
   // Plays the given frame times straight away (no waiting for the screen) and returns the character's height scale, height and ground state after each
   stepFrames: dts => dts.map(dt => { update(dt); return { s: avatar.scale.y, y: py, g: onGround }; }),
