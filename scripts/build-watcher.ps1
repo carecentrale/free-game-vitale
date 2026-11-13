@@ -111,7 +111,10 @@ while ($true) {
       Remove-Item $log, $errLog -Force -ErrorAction SilentlyContinue
       $code = 1
       try {
-        $p = Start-Process -FilePath $ps -ArgumentList $argList -WorkingDirectory $root -NoNewWindow -Wait -PassThru -RedirectStandardOutput $log -RedirectStandardError $errLog
+        # Waits for the run itself only: Start-Process -Wait would also wait for any background process the build left running
+        $p = Start-Process -FilePath $ps -ArgumentList $argList -WorkingDirectory $root -NoNewWindow -PassThru -RedirectStandardOutput $log -RedirectStandardError $errLog
+        $null = $p.Handle   # keeps the exit code readable after the process ends
+        $p.WaitForExit()
         $code = $p.ExitCode
       } catch { Add-Content $errLog ("Watcher could not start the run: " + $_) }
       $text = ''

@@ -149,8 +149,11 @@ try {
   Say 'Building and signing the app (a few minutes the first time)'
   Push-Location android
   & .\gradlew.bat --stop | Out-Null
-  & .\gradlew.bat bundleRelease
+  # --no-daemon and in-process Kotlin: no Gradle or Kotlin background process is left running after the build
+  # (one left running kept the build watcher waiting for hours). --stop afterwards ends any that started anyway.
+  & .\gradlew.bat bundleRelease --no-daemon '-Pkotlin.compiler.execution.strategy=in-process'
   $ok = ($LASTEXITCODE -eq 0)
+  & .\gradlew.bat --stop | Out-Null
   Pop-Location
   if (-not $ok) { Fail 'The Android build failed. Send the output above to Claude.' }
 } finally { Pop-Location }
