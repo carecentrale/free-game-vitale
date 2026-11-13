@@ -619,25 +619,28 @@ test('a shot at any part of an enemy is linked to that enemy, so it flies to it'
 test('after leaving the water, a tap of jump in the air gives one extra jump', { skip, timeout: 150000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => Math.abs(window.gameProbe().px - (200055 + 0.5)) < 0.01, null, { timeout: 60000 });
-    // Walk out of the water onto the shore with right only (no jump), until the character is in the air above the water edge
-    // Hold right and jump to climb, then let go of jump once the character is up over the step
-    await page.keyboard.down('KeyD');
-    await page.keyboard.down('Space');
-    await page.waitForFunction(() => { const p = window.gameProbe(); return p.px > 200057.6 && p.py > 10.5; }, null, { timeout: 60000, polling: 50 });
-    await page.keyboard.up('Space');
-    await page.keyboard.up('KeyD');
-    const before = await page.evaluate(() => window.gameProbe());
-    assert.ok(!before.onGround, 'the character should be in the air after letting go of jump: ' + JSON.stringify(before));
-    // Tap jump again in the air: the extra jump (held briefly, so the game sees the press)
-    await page.keyboard.down('Space');
-    await page.waitForTimeout(150);
-    await page.keyboard.up('Space');
-    const peak = await page.evaluate(() => new Promise(res => {
-      let best = -99; const t0 = performance.now();
-      const f = () => { const p = window.gameProbe(); best = Math.max(best, p.vy); if (performance.now() - t0 < 300) requestAnimationFrame(f); else res(best); };
-      requestAnimationFrame(f);
-    }));
-    assert.ok(peak > 2, `the extra jump did not lift the character: peak upward speed ${peak}`);
+    // Plays the game's frames directly (1/60 s each), like the shore test. In real time it failed on slow or busy test machines
+    // (the build laptop with its screen off): a 150 ms tap of jump could fall between two frames, so the game never saw it.
+    const r = await page.evaluate(() => {
+      const g = window.gameTest;
+      const key = (type, code) => dispatchEvent(new KeyboardEvent(type, { code }));
+      g.setYaw(0);
+      // Hold right and jump to climb, then let go of jump once the character is up over the step
+      key('keydown', 'KeyD'); key('keydown', 'Space');
+      for (let i = 0; i < 360; i++) { const p = window.gameProbe(); if (p.px > 200057.6 && p.py > 10.5) break; g.stepFrames([1 / 60]); }
+      key('keyup', 'Space'); key('keyup', 'KeyD');
+      g.stepFrames([1 / 60]);   // one frame with jump let go, so the next press is a new press
+      const before = window.gameProbe();
+      // Tap jump in the air: the extra jump
+      key('keydown', 'Space');
+      let peak = -99;
+      for (let i = 0; i < 9; i++) { g.stepFrames([1 / 60]); peak = Math.max(peak, window.gameProbe().vy); }
+      key('keyup', 'Space');
+      return { before, peak };
+    });
+    assert.ok(r.before.px > 200057.6 && r.before.py > 10.5, 'the character should have climbed up over the step: ' + JSON.stringify(r.before));
+    assert.ok(!r.before.onGround, 'the character should be in the air after letting go of jump: ' + JSON.stringify(r.before));
+    assert.ok(r.peak > 2, `the extra jump did not lift the character: peak upward speed ${r.peak}`);
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [shoreGame()] }));
 
