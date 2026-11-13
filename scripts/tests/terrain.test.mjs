@@ -155,8 +155,8 @@ const ctx2 = vm.createContext({
 const W2 = vm.runInContext(prefix + game.slice(start, end) + `
 ;({ decorAt, DECOR_KINDS, DECOR_CLEAR, CENTER, WATER_Y, initWorld, groundY, get, T, CS, H, BIOMES, biomeIndexAt })`, ctx2);
 
-test('every scenery kind has model files, and each biome\'s shares add up to less than half its surface', () => {
-  for (const d of W2.DECOR_KINDS) assert.ok(d.files.length > 0, d.kind + ' has no model files');
+test('every scenery kind has model files or is made in code, and each biome\'s shares add up to less than half its surface', () => {
+  for (const d of W2.DECOR_KINDS) assert.ok(d.files.length > 0 || d.made > 0, d.kind + ' has no model files and is not made in code');
   for (const b of W2.BIOMES) {
     const total = Object.values(b.shares).reduce((s, v) => s + v, 0);
     assert.ok(total > 0 && total < 0.5, b.name + ' shares add up to ' + total);
@@ -220,6 +220,22 @@ test('no scenery within the clear area around the start point', () => {
     const top = W2.groundY(x, z);
     assert.equal(W2.decorAt(x, top, z), null, `scenery too close to the start at ${x},${z}`);
   }
+});
+
+// Scenery made in code (0.6.58): each kind grows only in its own biomes, and every kind turns up somewhere
+test('cactuses grow only in the desert, ice crystals and snowmen only in the tundra, pumpkins only in grassland and forest', () => {
+  W2.initWorld(4242);
+  const home = { cactus: ['desert'], crystal: ['tundra'], snowman: ['tundra'], pumpkin: ['grassland', 'forest'] };
+  const seen = { cactus: 0, crystal: 0, snowman: 0, pumpkin: 0 };
+  for (let x = W2.CENTER - 1900; x < W2.CENTER + 1900; x += 3) for (let z = W2.CENTER - 1900; z < W2.CENTER + 1900; z += 3) {
+    const top = W2.groundY(x, z);
+    const d = W2.decorAt(x, top, z);
+    if (!d || !home[d.kind]) continue;
+    const biome = W2.BIOMES[W2.biomeIndexAt(x, z)].name;
+    assert.ok(home[d.kind].includes(biome), d.kind + ' found in the ' + biome + ' at ' + x + ',' + z);
+    seen[d.kind]++;
+  }
+  for (const kind in seen) assert.ok(seen[kind] > 0, 'no ' + kind + ' anywhere in the playable land');
 });
 
 test('scenery is the same every time for the same place and seed', () => {

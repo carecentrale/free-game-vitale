@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.57 (3D)</title>
+<title>Adventurers of Drenerics v0.6.58 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -305,6 +305,11 @@ const DECOR_KINDS = [   // the model files for each kind of scenery (which biome
   { kind: 'mushroom', files: ['mushroom_1', 'mushroom_2', 'mushroom_3', 'mushroom_4', 'mushroom_5'] },
   { kind: 'stone',    files: ['stone_1', 'stone_2', 'stone_3', 'stone_4', 'stone_5'] },
   { kind: 'stump',    files: ['tree_stump_1', 'tree_stump_2', 'tree_stump_3'] },
+  // Made in the game's code (see DECOR_MADE), so they need no model files. made = how many different shapes there are
+  { kind: 'cactus',   files: [], made: 3 },
+  { kind: 'crystal',  files: [], made: 2 },
+  { kind: 'snowman',  files: [], made: 1 },
+  { kind: 'pumpkin',  files: [], made: 2 },
 ];
 const DECOR_CLEAR = 6;
 const DECOR_NEAR = 4;   // scenery is drawn within this many chunks of the player   // no scenery within this many blocks of the start point
@@ -314,13 +319,13 @@ const DECOR_NEAR = 4;   // scenery is drawn within this many chunks of the playe
 const CLIMATE_SCALE = 0.006;   // size of the climate regions (about 170 blocks across)
 const BLEND_EPS = 0.01;        // softens the weighting so a spot at a biome's centre is always that biome
 const BIOMES = [   // t = warmth, r = wetness (0..1); top = surface block; under = block just below the surface; shares = scenery kinds and how much of the surface gets each
-  { name: 'desert',     t: 0.90, r: 0.10, top: T.SAND,  under: T.SAND, shares: { plant: 0.01, stone: 0.02 } },
+  { name: 'desert',     t: 0.90, r: 0.10, top: T.SAND,  under: T.SAND, shares: { plant: 0.01, stone: 0.02, cactus: 0.012 } },
   { name: 'savanna',    t: 0.85, r: 0.40, top: T.GRASS, under: T.DIRT, shares: { grass: 0.04, common: 0.004, flower: 0.01, stone: 0.01 } },
   { name: 'rainforest', t: 0.85, r: 0.85, top: T.GRASS, under: T.DIRT, shares: { palm: 0.02, common: 0.02, bush: 0.04, plant: 0.04, mushroom: 0.02, flower: 0.02 } },
-  { name: 'grassland',  t: 0.55, r: 0.30, top: T.GRASS, under: T.DIRT, shares: { grass: 0.05, flower: 0.03, bush: 0.01, stone: 0.01 } },
-  { name: 'forest',     t: 0.55, r: 0.70, top: T.GRASS, under: T.DIRT, shares: { common: 0.02, bush: 0.03, grass: 0.03, flower: 0.02, mushroom: 0.02, stump: 0.005 } },
+  { name: 'grassland',  t: 0.55, r: 0.30, top: T.GRASS, under: T.DIRT, shares: { grass: 0.05, flower: 0.03, bush: 0.01, stone: 0.01, pumpkin: 0.004 } },
+  { name: 'forest',     t: 0.55, r: 0.70, top: T.GRASS, under: T.DIRT, shares: { common: 0.02, bush: 0.03, grass: 0.03, flower: 0.02, mushroom: 0.02, stump: 0.005, pumpkin: 0.003 } },
   { name: 'taiga',      t: 0.25, r: 0.60, top: T.GRASS, under: T.DIRT, shares: { pine: 0.02, bush: 0.01, mushroom: 0.01, stone: 0.02, grass: 0.02, stump: 0.005 } },
-  { name: 'tundra',     t: 0.10, r: 0.30, top: T.SNOW,  under: T.DIRT, shares: { plant: 0.005, stone: 0.03 } },
+  { name: 'tundra',     t: 0.10, r: 0.30, top: T.SNOW,  under: T.DIRT, shares: { plant: 0.005, stone: 0.03, crystal: 0.01, snowman: 0.002 } },
 ];
 const BIOME_W = new Float64Array(BIOMES.length);
 // Index of the biome for the column at (x, z). The same answer every time for the same place and seed.
@@ -1211,6 +1216,11 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.58', title: 'Moving monsters, new scenery', items: [
+    'The Imp and the Spike Beast now move their legs, arms and head when they walk and look around when they stand',
+    'Fixed: only one Imp and one Spike Beast could be seen at a time. Now every one of them shows',
+    'The other monsters swing their arms and legs when they walk',
+    'New scenery made in the game: cactuses in the desert, ice crystals and snowmen in the tundra, pumpkins in the grassland and forest'] },
   { v: '0.6.57', title: 'Phone controls', items: [
     'New: a thumb stick to walk. Push it a little to walk slowly, all the way to run',
     'On phones, held either way, the buttons are smaller and fit the screen',
@@ -1551,7 +1561,63 @@ function loadModel(file) {
   return modelCache[file];
 }
 // Scenery models: each is scaled to a target height in blocks, with its base on the ground
-const DECOR_HEIGHT = { common: 6, pine: 7, palm: 6, bush: 1.3, grass: 0.8, flower: 0.8, plant: 1.0, mushroom: 0.4, stone: 0.7, stump: 1.0 };
+const DECOR_HEIGHT = { common: 6, pine: 7, palm: 6, bush: 1.3, grass: 0.8, flower: 0.8, plant: 1.0, mushroom: 0.4, stone: 0.7, stump: 1.0, cactus: 2.4, crystal: 1.2, snowman: 1.5, pumpkin: 0.5 };
+// ---- Scenery made in code: simple low-poly shapes joined into one mesh each, so each kind costs one draw call per chunk ----
+const propMat = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9, metalness: 0 });
+// parts: [geometry, colour, x, y, z, turn about x, turn about z, [scale x, y, z]]
+function prop(parts) {
+  const pos = [], nor = [], col = [];
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), c = new THREE.Color();
+  for (const [geo, colour, x = 0, y = 0, z = 0, rx = 0, rz = 0, sc = [1, 1, 1]] of parts) {
+    const g = geo.index ? geo.toNonIndexed() : geo.clone();
+    g.applyMatrix4(m.compose(new THREE.Vector3(x, y, z), q.setFromEuler(e.set(rx, 0, rz)), new THREE.Vector3(sc[0], sc[1], sc[2])));
+    for (const v of g.attributes.position.array) pos.push(v);
+    for (const v of g.attributes.normal.array) nor.push(v);
+    c.setHex(colour);
+    for (let i = 0; i < g.attributes.position.count; i++) col.push(c.r, c.g, c.b);
+    g.dispose();
+    if (g !== geo) geo.dispose();
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  out.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  return new THREE.Mesh(out, propMat);
+}
+const cyl = (r1, r2, h, n = 7) => new THREE.CylinderGeometry(r1, r2, h, n);
+const blob = (r, detail = 0) => new THREE.IcosahedronGeometry(r, detail);
+const CACTUS = 0x4f9a4a, CACTUS_DARK = 0x3f7f3d, ICE = 0xa8dcf5, ICE_DEEP = 0x7fbfe8, SNOW_WHITE = 0xf4f8fb, PUMPKIN = 0xe8842c;
+// One arm of a cactus: a short piece out to the side, then a piece going up. side is -1 (left) or 1 (right)
+const cactusArm = (side, y, up) => [
+  [cyl(0.11, 0.11, 0.4), CACTUS_DARK, side * 0.3, y, 0, 0, Math.PI / 2],
+  [cyl(0.1, 0.11, up), CACTUS_DARK, side * 0.48, y + up / 2 - 0.05, 0],
+  [blob(0.1), CACTUS_DARK, side * 0.48, y + up - 0.05, 0],
+];
+const DECOR_MADE = {
+  cactus: [
+    () => prop([[cyl(0.2, 0.22, 2.0), CACTUS, 0, 1.0, 0], [blob(0.2), CACTUS, 0, 2.0, 0], ...cactusArm(-1, 0.9, 0.7), ...cactusArm(1, 1.2, 0.6)]),
+    () => prop([[cyl(0.2, 0.22, 2.0), CACTUS, 0, 1.0, 0], [blob(0.2), CACTUS, 0, 2.0, 0], ...cactusArm(1, 1.0, 0.8), [blob(0.07), 0xf2779a, 0, 2.2, 0]]),
+    () => prop([[cyl(0.22, 0.24, 2.0), CACTUS, 0, 1.0, 0], [blob(0.22), CACTUS, 0, 2.0, 0], [blob(0.08), 0xf2c94c, 0.05, 2.22, 0]]),
+  ],
+  crystal: [
+    () => prop([[cyl(0, 0.22, 1.2, 6), ICE, 0, 0.6, 0], [cyl(0, 0.16, 0.8, 6), ICE_DEEP, 0.24, 0.38, 0.05, 0, -0.45], [cyl(0, 0.14, 0.7, 6), ICE_DEEP, -0.2, 0.33, -0.08, 0.3, 0.5]]),
+    () => prop([[cyl(0, 0.2, 1.2, 6), ICE_DEEP, 0, 0.6, 0], [cyl(0, 0.15, 0.75, 6), ICE, -0.22, 0.36, 0.1, -0.25, 0.4], [cyl(0, 0.12, 0.55, 6), ICE, 0.16, 0.27, -0.14, 0.4, -0.3], [cyl(0, 0.1, 0.45, 6), ICE, 0.1, 0.22, 0.2, -0.5, -0.2]]),
+  ],
+  snowman: [
+    () => prop([
+      [blob(0.42, 1), SNOW_WHITE, 0, 0.38, 0], [blob(0.32, 1), SNOW_WHITE, 0, 0.92, 0], [blob(0.23, 1), SNOW_WHITE, 0, 1.33, 0],
+      [cyl(0, 0.045, 0.22, 6), 0xf08a2a, 0, 1.33, 0.3, Math.PI / 2, 0],                                   // carrot nose
+      [blob(0.03), 0x222222, -0.08, 1.4, 0.2], [blob(0.03), 0x222222, 0.08, 1.4, 0.2],                    // eyes
+      [blob(0.035), 0x222222, 0, 1.0, 0.31], [blob(0.035), 0x222222, 0, 0.84, 0.3],                       // buttons
+      [cyl(0.02, 0.02, 0.5, 5), 0x6b4a2a, -0.45, 1.02, 0, 0, 1.1], [cyl(0.02, 0.02, 0.5, 5), 0x6b4a2a, 0.45, 1.02, 0, 0, -1.1],   // stick arms
+      [cyl(0.16, 0.16, 0.03, 8), 0x333333, 0, 1.5, 0], [cyl(0.11, 0.11, 0.18, 8), 0x333333, 0, 1.6, 0],  // hat
+    ]),
+  ],
+  pumpkin: [
+    () => prop([[blob(0.3, 1), PUMPKIN, 0, 0.21, 0, 0, 0, [1, 0.7, 1]], [cyl(0.03, 0.045, 0.14, 5), 0x5a7a2a, 0, 0.45, 0]]),
+    () => prop([[blob(0.3, 1), 0xf0a03a, 0, 0.24, 0, 0, 0, [0.85, 0.8, 0.85]], [cyl(0.03, 0.045, 0.14, 5), 0x5a7a2a, 0, 0.5, 0, 0, 0.3]]),
+  ],
+};
 const decorTpl = {};   // kind -> [Group], ready to clone
 let decorReady = false;
 function normalizeDecor(scene, height) {
@@ -1568,7 +1634,7 @@ function normalizeDecor(scene, height) {
 async function loadDecor() {
   try {
     for (const d of DECOR_KINDS) {
-      const scenes = await Promise.all(d.files.map(f => loadModel('/models/nature/' + f + '.glb')));
+      const scenes = d.made ? DECOR_MADE[d.kind].map(make => make()) : await Promise.all(d.files.map(f => loadModel('/models/nature/' + f + '.glb')));
       decorTpl[d.kind] = scenes.filter(Boolean).map(s => {
         const holder = normalizeDecor(s, DECOR_HEIGHT[d.kind] || 1);
         holder.updateMatrixWorld(true);
@@ -1599,6 +1665,42 @@ function addDecor(bins, d, x, y, z) {
   return true;
 }
 loadDecor();   // start loading the scenery models now; chunks are redrawn when they are ready
+// ---- Model rigs: the monster models have a skeleton but no ready-made animation, so the game moves the bones itself ----
+const RIG_BONES = ['thigh_l', 'thigh_r', 'calf_l', 'calf_r', 'upperarm_l', 'upperarm_r', 'Head'];
+// Records each bone's rest pose. Call it on a fresh copy of the model, before it is scaled or placed.
+function makeRig(model) {
+  model.updateMatrixWorld(true);
+  const rootInv = model.getWorldQuaternion(new THREE.Quaternion()).invert();
+  const rig = {};
+  model.traverse(o => {
+    if (!o.isBone || !RIG_BONES.includes(o.name) || !o.parent || rig[o.name]) return;
+    const parent = rootInv.clone().multiply(o.parent.getWorldQuaternion(new THREE.Quaternion()));
+    rig[o.name] = { bone: o, rest: o.quaternion.clone(), parent, parentInv: parent.clone().invert() };
+  });
+  return rig;
+}
+const RIG_Q = new THREE.Quaternion(), RIG_E = new THREE.Euler();
+// Turns one bone away from its rest pose, by angles around the model's own directions: x = sideways, y = up, z = forward
+function turnBone(rig, name, x, y, z) {
+  const r = rig[name];
+  if (!r) return;
+  RIG_Q.setFromEuler(RIG_E.set(x, y, z, 'XYZ'));
+  r.bone.quaternion.copy(r.parentInv).multiply(RIG_Q).multiply(r.parent).multiply(r.rest);
+}
+// Walking: legs and arms swing in turn and the knee bends on the back leg. Standing: the arms hang and the head looks around.
+// ph = where the walk is in its step; now = the time in seconds; hitP = how close the next hit on it is (0..1): the arms go up
+function poseRig(rig, moving, ph, now, hitP = 0) {
+  const s = moving ? Math.sin(ph) : 0;
+  const hang = 1.2 - hitP * 0.9 + (moving ? 0 : Math.sin(now * 1.6 + ph) * 0.04);   // the models rest with arms straight out
+  turnBone(rig, 'thigh_l', -s * 0.55, 0, 0);
+  turnBone(rig, 'thigh_r', s * 0.55, 0, 0);
+  turnBone(rig, 'calf_l', Math.max(0, -s) * 0.7, 0, 0);
+  turnBone(rig, 'calf_r', Math.max(0, s) * 0.7, 0, 0);
+  turnBone(rig, 'upperarm_l', s * 0.5, 0, -hang);
+  turnBone(rig, 'upperarm_r', -s * 0.5, 0, hang);
+  turnBone(rig, 'Head', moving ? Math.sin(ph * 2) * 0.05 : 0, moving ? 0 : Math.sin(now * 0.7 + ph) * 0.4, 0);
+}
+const SKELETON_UTILS = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/SkeletonUtils.js';
 function enemyModel(kind) {
   const k = ENEMY_KINDS[kind];
   if (k.file) {
@@ -1607,17 +1709,22 @@ function enemyModel(kind) {
     holder.scale.setScalar(k.scale);
     holder.add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: k.body })));
     holder.children[0].position.y = 0.4;
-    loadModel(k.file).then(sc => {
-      if (!sc) return;
+    loadModel(k.file).then(async loaded => {
+      if (!loaded) return;
+      // Each enemy gets its own copy of the model and its own skeleton. (Before 0.6.58 they all shared one, so only the newest one showed.)
+      const { clone } = await import(SKELETON_UTILS);
+      const sc = clone(loaded);
+      const rig = makeRig(sc);
       const box = new THREE.Box3().setFromObject(sc);
       const size = box.getSize(new THREE.Vector3());
-      const f = k.height / size.y;
+      const f = k.height / Math.max(size.y, 0.01);
       sc.scale.setScalar(f);
       sc.position.set(-(box.min.x + box.max.x) / 2 * f, -box.min.y * f, -(box.min.z + box.max.z) / 2 * f);
       sc.traverse(c => { c.userData.enemy = holder.userData.enemy; });
       holder.clear();
       holder.add(sc);
-    });
+      holder.userData.rig = rig;
+    }).catch(() => { /* the placeholder block stays if the model cannot be set up */ });
     return holder;
   }
   const g = new THREE.Group();
@@ -1648,6 +1755,7 @@ function enemyModel(kind) {
     g.scale.setScalar(k.scale);
     return g;
   }
+  const limbs = { arms: [], legs: [] };
   g.add(ball(0.26, k.body, 0, 0.5, 0, 1.15));                // round body
   g.add(ball(0.24, k.head, 0, 1.02, 0));                    // round head
   if (k.hood) g.add(ball(0.27, k.cloth, 0, 1.12, -0.05, 0.7)); // hood
@@ -1656,9 +1764,12 @@ function enemyModel(kind) {
     ear.rotation.z = sx * 0.6;
     g.add(ear);
     g.add(eye(sx * 0.1, 1.04, 0.2));                         // shiny eyes
-    g.add(tube(0.07, 0.22, k.body, sx * 0.31, 0.52, 0));      // arms
-    g.add(tube(0.08, 0.3, k.cloth, sx * 0.13, 0.15, 0));      // legs
+    const arm = tube(0.07, 0.22, k.body, sx * 0.31, 0.52, 0), leg = tube(0.08, 0.3, k.cloth, sx * 0.13, 0.15, 0);
+    g.add(arm, leg);
+    limbs.arms.push(arm);
+    limbs.legs.push(leg);
   }
+  g.userData.limbs = limbs;   // swung in updateEnemies while the monster walks
   if (k.horns) for (const sx of [-1, 1]) { const h = tube(0.03, 0.2, 0xffe08a, sx * 0.14, 1.3, 0); h.rotation.z = sx * 0.25; g.add(h); }
   if (k.sword) g.add(box(0.05, 0.5, 0.05, 0xdfe6ee, 0.42, 0.62, 0.12));
   if (k.spear) { g.add(tube(0.025, 1.5, 0x8b5a2b, -0.42, 0.85, 0.12)); g.add(box(0.1, 0.2, 0.04, 0xdfe6ee, -0.42, 1.65, 0.12)); }
@@ -1667,7 +1778,7 @@ function enemyModel(kind) {
   g.scale.setScalar(k.scale);
   return g;
 }
-function spawnEnemy() {
+function spawnEnemy(forceKind) {
   for (let tries = 0; tries < 20; tries++) {
     // Near the player, so enemies appear where the player can see them
     const x = Math.floor(px) + Math.floor(Math.random() * 40) - 20, z = Math.floor(pz) + Math.floor(Math.random() * 40) - 20;
@@ -1676,15 +1787,16 @@ function spawnEnemy() {
     const ground = get(x, y, z);
     if (!(ground === T.GRASS || ground === T.SNOW || (ground === T.SAND && y >= WATER_Y))) continue;   // dry ground only
     if (Math.hypot(x + 0.5 - px, z + 0.5 - pz) < 6) continue;
-    const kind = ENEMY_LIST[Math.floor(Math.random() * ENEMY_LIST.length)];
+    const kind = forceKind || ENEMY_LIST[Math.floor(Math.random() * ENEMY_LIST.length)];
     const group = enemyModel(kind);
     scene.add(group);
     const en = { group, kind, hp: ENEMY_KINDS[kind].health, base: ENEMY_KINDS[kind].scale, x: x + 0.5, y: y + 1.01, z: z + 0.5, vx: 0, vy: 0, vz: 0, timer: 1, hitP: 0 };
     group.traverse(c => { c.userData.enemy = en; });
     group.userData.enemy = en; // so a model that loads later can be tagged too
     enemies.push(en);
-    return;
+    return en;
   }
+  return null;
 }
 let enemySpawnT = 6;
 function updateSpawns(dt) {
@@ -1754,6 +1866,14 @@ function updateEnemies(dt) {
     en.group.scale.set((1 + sq - bounce * 0.5) * en.base, (1 - sq + bounce) * en.base, (1 + sq - bounce * 0.5) * en.base);
     en.group.rotation.z = moving ? Math.sin(ph) * 0.08 : 0;
     if (moving) en.group.rotation.y = Math.atan2(en.vx, en.vz);
+    // Limbs: the loaded models move their bones; the monsters made in code swing their arms and legs
+    const rig = en.group.userData.rig, limbs = en.group.userData.limbs;
+    if (rig) poseRig(rig, !!moving, ph, now, en.hitP);
+    else if (limbs) {
+      const s = moving ? Math.sin(ph) : 0;
+      limbs.legs.forEach((leg, i) => { leg.rotation.x = (i ? s : -s) * 0.6; });
+      limbs.arms.forEach((arm, i) => { arm.rotation.x = (i ? -s : s) * 0.5; });
+    }
   }
   updateCorpses(dt);
 }
@@ -2491,7 +2611,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.57';
+const VERSION = '0.6.58';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -3018,6 +3138,23 @@ window.gameTest = {
   },
   pendingNear: (r) => { const pc = Math.floor(px / CS), pz2 = Math.floor(pz / CS); return waiting.filter(w => Math.abs(w.cx - pc) <= r && Math.abs(w.cz - pz2) <= r).length; }, decorReady: () => decorReady, decorCount: () => { let n = 0; for (const c of chunkMeshes.values()) n += c.decorCount || 0; return n; },
   decorKinds: () => DECOR_KINDS.map(d => d.kind), decorAt, DECOR_CLEAR,
+  // Scenery made in code: for each kind, how many shapes were built and how many corner points the smallest one has
+  decorMade: () => DECOR_KINDS.filter(d => d.made).map(d => ({ kind: d.kind, want: d.made, shapes: (decorTpl[d.kind] || []).length,
+    points: Math.min(...(decorTpl[d.kind] || [[]]).map(parts => parts.reduce((n, p) => n + p.geo.attributes.position.count, 0))) })),
+  spawnKind: kind => !!spawnEnemy(kind),
+  // For each enemy that has a loaded model: is the model in the scene, and does it have its own skeleton?
+  rigged: kind => enemies.filter(e => e.kind === kind && e.group.userData.rig).map(e => {
+    let skinned = 0, bones = null;
+    e.group.traverse(o => { if (o.isSkinnedMesh) { skinned++; bones = o.skeleton.bones; } });
+    return { skinned, bones, rig: e.group.userData.rig };
+  }),
+  // Poses a rig and reports how far each bone has turned from its rest pose (radians)
+  poseAngles: (rig, moving, ph, now, hitP) => {
+    poseRig(rig, moving, ph, now, hitP);
+    const out = {};
+    for (const name in rig) out[name] = +rig[name].bone.quaternion.angleTo(rig[name].rest).toFixed(3);
+    return out;
+  },
   biomeAt: (x, z) => BIOMES[biomeIndexAt(x, z)].name, biomeNames: () => BIOMES.map(b => b.name),
   sightAt: (x, y) => { const p = sightPoint(x, y); return p ? [p.x, p.y, p.z] : null; }, cellAt: (x, y, z) => get(x, y, z), T,
   get lastShot() { return lastShot; }, setFireDebug: v => { fireDebug = v; },
