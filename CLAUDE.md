@@ -21,7 +21,8 @@ A 3D block-world game for kids and families (dig, build, gems, power levels, ene
 - `build/models/`, `www/models/`: optimized GLB models (Quaternius Bestiary: imp.glb, puglin.glb).
 - `docs/VERSIONS.md`: version, commit and deployment table, with rollback steps.
 - `CHANGELOG.md`: user-facing changes per version.
-- `.github/workflows/release.yml`: Play Store release (still points at v6; update before store release).
+- `build-android.bat`, `build-android-upload.bat`, `scripts/build-android.ps1`, `scripts/upload-play.mjs`: Android build and Play Store upload, run on the parent's PC.
+- `.github/workflows/release.yml`: old GitHub release workflow. Do not use it (see "Play Store releases").
 
 ## Hosting and backend
 - GitHub: `carecentrale/free-game-vitale`, main branch. Pushes to main auto-deploy to Vercel project `free-game-vitale`, output folder `www`.
@@ -39,6 +40,11 @@ A 3D block-world game for kids and families (dig, build, gems, power levels, ene
 5. Commit with a clear message. Keep commits local on the parent's computer. Push to `main` (which deploys to Vercel) at most once a day, and only when the parent agrees. Several versions can go out in one push.
 6. Every new feature or rule change gets an automated test in `scripts/tests/` in the same release (browser rules go in `browser.test.mjs` and use `window.gameTest`; world rules go in `terrain.test.mjs`). Add the test before the feature is committed, and run it.
 7. Never claim a feature works in a browser unless the parent has tested it. The sandbox cannot load the CDN, so only syntax checks run there. Say what was checked and what was not.
+
+## Play Store releases (parent's decision, 13 Nov 2026)
+- Do not use git or GitHub to build or push the app to the Play Store. Do not run or trigger `.github/workflows/release.yml`.
+- Build, sign and upload locally on the parent's PC (Android Studio's Java and SDK): `build-android-upload.bat`, or `build-android.bat` to build without uploading. Details in `docs/RELEASE.md`, "Uploading from this PC".
+- Improve this by adding to the project's own local tools, not by adding cloud steps.
 
 ## Versioning and rollback
 - Every release has a version number and a commit. Rollback = restore an older build file or check out an older commit, and record it as a new version.
