@@ -2,6 +2,7 @@
 # Run it by double-clicking build-android.bat in the project folder.
 #
 # What it does:
+#   0. Gets the latest game from GitHub (git pull --ff-only). Skip with -NoUpdate. Stops if the update cannot be done safely.
 #   1. Checks that Node.js 22+, Java (from Android Studio) and the Android SDK are installed.
 #   2. Runs all the tests (skip with -SkipTests). Stops if any test fails.
 #   3. Builds the app in a separate work folder (build-android-work), so the project files are not changed.
@@ -13,13 +14,21 @@
 #
 # Without -Upload, upload the .aab in Play Console: Test and release > Testing > Internal testing > Create new release.
 
-param([switch]$SkipTests, [switch]$Upload)
+param([switch]$SkipTests, [switch]$Upload, [switch]$NoUpdate)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 function Say($msg) { Write-Host ''; Write-Host "== $msg" -ForegroundColor Cyan }
 function Fail($msg) { Write-Host ''; Write-Host "BUILD STOPPED: $msg" -ForegroundColor Red; exit 1 }
+
+# ---- 0. Latest game from GitHub ----
+if (-not $NoUpdate) {
+  Say 'Getting the latest game from GitHub'
+  if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Fail 'Git for Windows is not installed, so the game could not be updated. Install it from https://git-scm.com/download/win, or build without updating: -NoUpdate.' }
+  & git pull --ff-only
+  if ($LASTEXITCODE) { Fail 'The update from GitHub did not work (see the message above). Nothing was built. Send the message to Claude.' }
+}
 
 # ---- 1. Tools ----
 Say 'Checking the tools'

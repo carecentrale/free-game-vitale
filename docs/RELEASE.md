@@ -30,7 +30,7 @@ The GitHub workflow in `.github/workflows/release.yml` builds, signs, and upload
 
 ## Uploading from this PC (no GitHub)
 
-`build-android-upload.bat` builds and signs the app on the PC (the same as `build-android.bat`), then uploads it to the **internal testing** track with `scripts/upload-play.mjs`. Add `-SkipTests` when the tests have already passed for this version.
+`build-android-upload.bat` gets the latest game from GitHub (`git pull --ff-only`, needs Git for Windows; skip with `-NoUpdate`), then builds and signs the app on the PC (the same as `build-android.bat`), then uploads it to the **internal testing** track with `scripts/upload-play.mjs`. Add `-SkipTests` when the tests have already passed for this version.
 
 One-time setup:
 1. In Google Cloud (the project that owns the service account), switch on the **Google Play Android Developer API**.
