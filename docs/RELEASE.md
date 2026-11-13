@@ -28,6 +28,18 @@ The GitHub workflow in `.github/workflows/release.yml` builds, signs, and upload
 3. GitHub builds the app, signs it, and uploads it to the **internal testing** track in Play Console.
 4. When the closed test is done and the questionnaires are complete, promote the release to production from Play Console.
 
+## Uploading from this PC (no GitHub)
+
+`build-android-upload.bat` builds and signs the app on the PC (the same as `build-android.bat`), then uploads it to the **internal testing** track with `scripts/upload-play.mjs`. Add `-SkipTests` when the tests have already passed for this version.
+
+One-time setup:
+1. In Google Cloud (the project that owns the service account), switch on the **Google Play Android Developer API**.
+2. In Play Console → Users and permissions, invite the service account's email (it ends in `.iam.gserviceaccount.com`) and give it the release permissions for this app.
+3. Download a JSON key for the service account and save it as `Desktop\Claude tools for access\play-service-account.json`. It is a secret: keep it out of the project folder.
+4. Check it: `node scripts/upload-play.mjs --check`. It signs in and opens the app on Google Play without uploading anything, and says in plain words what is wrong if it cannot.
+
+To upload a file that is already built: `node scripts/upload-play.mjs releases\drenerics-<version>-code<N>.aab`.
+
 ## Important notes
 
 - The first workflow run is a test. The signing step edits Android's build file with `sed`, so check the first run's log. Tell me what fails and I'll fix it.

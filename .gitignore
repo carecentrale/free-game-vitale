@@ -13,6 +13,7 @@ keystore.properties
 # Secrets and local settings
 .env
 *.key
+play-service-account*.json
 
 # System files
 .DS_Store
