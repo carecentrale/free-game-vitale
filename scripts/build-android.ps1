@@ -8,9 +8,12 @@
 #   4. Signs it with the upload key in "Claude tools for access\drenerics-upload-key".
 #   5. Saves it as releases\drenerics-<version>-code<N>.aab and raises the build number in android-version-code.txt.
 #
-# Then upload the .aab in Play Console: Test and release > Testing > Internal testing > Create new release.
+#   6. With -Upload (build-android-upload.bat): sends the file to Google Play's internal testing track
+#      (scripts\upload-play.mjs; needs the Play service account key, see docs\RELEASE.md).
+#
+# Without -Upload, upload the .aab in Play Console: Test and release > Testing > Internal testing > Create new release.
 
-param([switch]$SkipTests)
+param([switch]$SkipTests, [switch]$Upload)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
@@ -151,5 +154,13 @@ Copy-Item $aab $out -Force
 Set-Content $codeFile $code
 Say 'DONE'
 Write-Host "App file: $out" -ForegroundColor Green
-Write-Host "Version $version, build number $code. Upload it in Play Console: Testing > Internal testing > Create new release."
 Write-Host "The build number in android-version-code.txt went up to $code. Commit it with the version."
+
+# ---- 6. Upload to Google Play (only with -Upload) ----
+if ($Upload) {
+  Say 'Uploading to Google Play (internal testing)'
+  & node 'scripts\upload-play.mjs' $out
+  if ($LASTEXITCODE) { Fail "The app was built ($out) but the upload did not work. Fix what the message above says, then run: node scripts\upload-play.mjs `"$out`"" }
+} else {
+  Write-Host "Version $version, build number $code. Upload it in Play Console: Testing > Internal testing > Create new release."
+}
