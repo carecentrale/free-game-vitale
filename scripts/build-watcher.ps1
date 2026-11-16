@@ -6,6 +6,11 @@
 #   check  only check that the Play key works (uploads nothing)
 #   push   push this folder's main branch to GitHub (needs github-sign-in.bat once)
 #   tidy   close finished "Press any key" windows left by the project's .bat files
+#   run    run build-requests\run.ps1 (a PowerShell script Claude writes for one job, e.g. a maintenance step), then
+#          delete it. Its output goes to last.log, and the script is kept with the log in history\.
+#   status write build-requests\machine.txt: Windows, uptime, free disk, power and sleep settings, tool versions,
+#          the build watcher task and its processes (read-only)
+#   restart  stop this watcher; the scheduled task starts it again within 5 minutes (picks up a new version)
 # Results in build-requests\:
 #   status.txt          RUNNING, OK or FAILED, with the request and the times
 #   last.log            everything the last run printed; last-errors.log: its error stream
@@ -89,21 +94,36 @@ while ($true) {
       $start = Stamp
       $tidied = Tidy
       $build = Join-Path $root 'scripts\build-android.ps1'
+      $runScript = Join-Path $dir 'run.ps1'
+      $statusScript = Join-Path $root 'scripts\machine-status.ps1'
       $argList = $null
+      $handled = $false   # set inside the switch when the request is already dealt with (a continue there would only leave the switch)
       switch ($mode) {
         'full'  { $argList = "-NoProfile -ExecutionPolicy Bypass -File `"$build`" -Upload" }
         'quick' { $argList = "-NoProfile -ExecutionPolicy Bypass -File `"$build`" -Upload -SkipTests" }
         'build' { $argList = "-NoProfile -ExecutionPolicy Bypass -File `"$build`"" }
         'check' { $argList = "-NoProfile -ExecutionPolicy Bypass -Command `"node scripts\upload-play.mjs --check; exit `$LASTEXITCODE`"" }
         'push'  { $argList = "-NoProfile -ExecutionPolicy Bypass -Command `"`$env:GCM_INTERACTIVE='never'; `$env:GIT_TERMINAL_PROMPT='0'; git push origin main 2>&1; exit `$LASTEXITCODE`"" }
+        'run'   {
+          if (Test-Path $runScript) { $argList = "-NoProfile -ExecutionPolicy Bypass -File `"$runScript`"" }
+          else { Set-Content $status "FAILED: run, but there is no build-requests\run.ps1. At $start"; Add-Content $history "$start  run  FAILED  no run.ps1"; $handled = $true }
+        }
+        'status' { $argList = "-NoProfile -ExecutionPolicy Bypass -File `"$statusScript`"" }
+        'restart' {
+          Set-Content $status "OK: restart requested at $start. The scheduled task starts the watcher again within 5 minutes."
+          Add-Content $history "$start  restart  OK"
+          Set-Content $alive ("Watcher stopped on request at " + (Stamp) + ". The scheduled task starts it again within 5 minutes.")
+          exit 0
+        }
         'tidy'  {
           Set-Content $status "OK: tidy, $tidied finished window(s) closed, at $start."
           Add-Content $history "$start  tidy  OK  ($tidied window(s) closed)"
-          continue
+          $handled = $true
         }
       }
+      if ($handled) { continue }
       if (-not $argList) {
-        Set-Content $status "FAILED: unknown request '$mode' (use full, quick, build, check, push or tidy). At $start"
+        Set-Content $status "FAILED: unknown request '$mode' (use full, quick, build, check, push, tidy, run, status or restart). At $start"
         Add-Content $history "$start  '$mode'  FAILED  unknown request"
         continue
       }
@@ -131,6 +151,12 @@ while ($true) {
       if ($flaky.Count) { Add-Content (Join-Path $dir 'flaky.log') ($flaky | ForEach-Object { "$start  $mode  $_" }) }
       $end = Stamp
       $saved = Archive $mode $result
+      if ($mode -eq 'run' -and (Test-Path $runScript)) {
+        $kept = Join-Path $histDir $saved
+        Add-Content $kept "`r`n---- the script that was run (run.ps1) ----"
+        Get-Content $runScript | Add-Content $kept
+        Remove-Item $runScript -Force -ErrorAction SilentlyContinue
+      }
       Set-Content $status ("$result`: $mode, started $start, finished $end, exit code $code. $tests $detail Full log: history\$saved").Trim()
       Add-Content $history ("$start  $mode  $result  exit $code  $tests  $detail").TrimEnd()
       if ($result -eq 'FAILED') {
@@ -138,7 +164,7 @@ while ($true) {
         if ($text) { ($text -split "`r?`n" | Select-Object -Last 30) | Add-Content $errors }
         if ((Test-Path $errLog) -and (Get-Item $errLog).Length -gt 0) { Add-Content $errors '-- error stream (end) --'; Get-Content $errLog | Select-Object -Last 15 | Add-Content $errors }
         Notify "Drenerics: $mode FAILED" ($(if ($detail) { $detail } else { "Exit code $code. See build-requests\errors.log" }))
-      } elseif ($mode -ne 'check') {
+      } elseif ($mode -notin @('check', 'run', 'status')) {
         Notify "Drenerics: $mode OK" ($(if ($detail) { $detail } else { "Finished at $end" }))
       }
     }
