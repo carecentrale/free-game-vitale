@@ -41,6 +41,19 @@ $myStamp = (Get-Item $myFile).LastWriteTimeUtc
 
 function Stamp { Get-Date -Format 'yyyy-MM-dd HH:mm:ss' }
 
+# Keeps Windows awake while the watcher runs, so the build PC stays reachable (the screen can still turn off).
+# This is what media players do; it changes no Windows setting, and ends when the watcher stops.
+# To let the PC sleep again, create build-requests\allow-sleep.txt (the watcher checks every 15 seconds).
+$awakeOk = $true
+try { Add-Type -Namespace Drenerics -Name Power -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint esFlags);' -ErrorAction Stop }
+catch { $awakeOk = $false }
+function StayAwake {
+  if (-not $awakeOk) { return }
+  # ES_CONTINUOUS (0x80000000) + ES_SYSTEM_REQUIRED (0x1), or ES_CONTINUOUS alone to allow sleep again
+  $flags = if (Test-Path (Join-Path $dir 'allow-sleep.txt')) { [uint32]2147483648 } else { [uint32]2147483649 }
+  try { [Drenerics.Power]::SetThreadExecutionState($flags) | Out-Null } catch { }
+}
+
 # A Windows notification on this PC. Never stops the watcher if notifications are not available.
 function Notify($title, $text) {
   try {
@@ -86,7 +99,9 @@ while ($true) {
       Add-Content $history ((Stamp) + "  watcher restarting for an update")
       exit 0
     }
-    Set-Content $alive ("Watcher running. Last check: " + (Stamp))
+    StayAwake
+    $awakeNote = if (-not $awakeOk) { ' (could not keep the PC awake)' } elseif (Test-Path (Join-Path $dir 'allow-sleep.txt')) { ' (sleep allowed)' } else { ' (keeping the PC awake)' }
+    Set-Content $alive ("Watcher running. Last check: " + (Stamp) + $awakeNote)
     if (Test-Path $req) {
       $mode = ''
       try { $mode = ([string](Get-Content $req -Raw)).Trim().ToLower() } catch { }
@@ -103,7 +118,7 @@ while ($true) {
         'quick' { $argList = "-NoProfile -ExecutionPolicy Bypass -File `"$build`" -Upload -SkipTests" }
         'build' { $argList = "-NoProfile -ExecutionPolicy Bypass -File `"$build`"" }
         'check' { $argList = "-NoProfile -ExecutionPolicy Bypass -Command `"node scripts\upload-play.mjs --check; exit `$LASTEXITCODE`"" }
-        'push'  { $argList = "-NoProfile -ExecutionPolicy Bypass -Command `"`$env:GCM_INTERACTIVE='never'; `$env:GIT_TERMINAL_PROMPT='0'; git push origin main 2>&1; exit `$LASTEXITCODE`"" }
+        'push'  { $argList = "-NoProfile -ExecutionPolicy Bypass -Command `"`$env:GCM_INTERACTIVE='never'; `$env:GIT_TERMINAL_PROMPT='0'; cmd /c 'git push origin main 2>&1'; exit `$LASTEXITCODE`"" }
         'run'   {
           if (Test-Path $runScript) { $argList = "-NoProfile -ExecutionPolicy Bypass -File `"$runScript`"" }
           else { Set-Content $status "FAILED: run, but there is no build-requests\run.ps1. At $start"; Add-Content $history "$start  run  FAILED  no run.ps1"; $handled = $true }
