@@ -16,8 +16,10 @@ Weekly check of the build laptop (LAPTOP-N8LD8GM1): build watcher, recent runs, 
 
 **Fixed:** `install-build-watcher.ps1` now stops a running watcher copy before reinstalling. Without this, reinstalling while the old copy runs would do nothing (the task ignores a second start).
 
-**Needs Nicola:** double-click `install-build-watcher.bat` once (or restart the laptop). Then the current watcher, with history, notifications, `push` and `tidy`, takes over.
+**Update, 21:11 laptop time:** while this tune-up ran, another Claude session added `run`, `status` and `restart` requests (d261e08) and the current watcher started at 21:10:52. It closed 8 leftover .bat windows (`tidy`) and now keeps `history.log` and `history/`. Nothing needed from Nicola.
+
+**From the new `status` report:** C: 78 GB free; uptime 4.9 days; Node 26.13, npm 11.20, Git 2.56, Java 21, Android SDK 36 and 37; no Gradle processes left; on mains power the laptop sleeps after 2 hours idle.
 
 **Recommendations**
 1. Skip `npm ci` when nothing changed: it runs twice per build (game folder and `build-android-work`), plus `npx playwright install`. Keep a stamp of the `package-lock.json` hash and skip when it matches. Saves roughly 1–3 minutes per build. Nothing needed from Nicola.
-2. Weekly tune-up: send `check` before anything else is read, or save `last.log` first, because each request overwrites `last.log`. (Only matters while the history folder is missing.)
+2. Keep the laptop awake while a build runs: the watcher could ask Windows not to sleep during a run (SetThreadExecutionState), without changing the 2-hour sleep setting. Avoids a run being cut off or a request waiting until someone wakes the laptop. Nothing needed from Nicola.
