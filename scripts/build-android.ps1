@@ -6,6 +6,7 @@
 #   1. Checks that Node.js 22+, Java (from Android Studio) and the Android SDK are installed.
 #   2. Runs all the tests (skip with -SkipTests). Stops if any test fails.
 #   3. Builds the app in a separate work folder (build-android-work), so the project files are not changed.
+#      npm ci runs only when package-lock.json changed since the last build (force it with -FreshInstall).
 #   4. Signs it with the upload key in "Claude tools for access\drenerics-upload-key".
 #   5. Saves it as releases\drenerics-<version>-code<N>.aab and raises the build number in android-version-code.txt.
 #
@@ -14,13 +15,26 @@
 #
 # Without -Upload, upload the .aab in Play Console: Test and release > Testing > Internal testing > Create new release.
 
-param([switch]$SkipTests, [switch]$Upload, [switch]$NoUpdate)
+param([switch]$SkipTests, [switch]$Upload, [switch]$NoUpdate, [switch]$FreshInstall)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 function Say($msg) { Write-Host ''; Write-Host "== $msg" -ForegroundColor Cyan }
 function Fail($msg) { Write-Host ''; Write-Host "BUILD STOPPED: $msg" -ForegroundColor Red; exit 1 }
+
+# npm ci only when package-lock.json changed since the last install in this folder (or with -FreshInstall).
+# A stamp with the lock file's hash is kept in node_modules; npm ci replaces node_modules, so a failed install leaves no stamp.
+function Install-Packages($where) {
+  $stamp = 'node_modules\.drenerics-lock-hash'
+  $hash = (Get-FileHash 'package-lock.json' -Algorithm SHA256).Hash
+  if (-not $FreshInstall -and (Test-Path 'node_modules\.package-lock.json') -and (Test-Path $stamp) -and ((Get-Content $stamp -Raw).Trim() -eq $hash)) {
+    Write-Host "Packages already installed $where (package-lock.json unchanged): npm ci skipped."
+    return
+  }
+  & npm ci --no-audit --no-fund; if ($LASTEXITCODE) { Fail "npm ci failed $where." }
+  Set-Content $stamp $hash
+}
 
 # ---- 0. Latest game from GitHub ----
 if (-not $NoUpdate) {
@@ -104,7 +118,7 @@ Write-Host "Version $version, build number $code"
 # ---- 2. Tests ----
 if (-not $SkipTests) {
   Say 'Running all the tests (this can take 15-30 minutes)'
-  & npm ci --no-audit --no-fund; if ($LASTEXITCODE) { Fail 'npm ci failed.' }
+  Install-Packages 'in the game folder'
   & npx playwright install chromium; if ($LASTEXITCODE) { Fail 'Could not install the test browser (Chromium).' }
   $env:CI = '1'
   # All tests, then one rerun of up to 3 failed browser tests (timing blips on this laptop); see scripts\run-tests.mjs
@@ -115,14 +129,15 @@ if (-not $SkipTests) {
 # ---- 3. Work folder ----
 Say 'Preparing the Android project'
 $work = Join-Path $root 'build-android-work'
-if (Test-Path $work) { Remove-Item $work -Recurse -Force }
-New-Item -ItemType Directory $work | Out-Null
+# Clears the work folder but keeps its node_modules, so npm ci can be skipped when nothing changed
+if (Test-Path $work) { Get-ChildItem $work -Force | Where-Object { $_.Name -ne 'node_modules' } | Remove-Item -Recurse -Force }
+else { New-Item -ItemType Directory $work | Out-Null }
 Copy-Item package.json, package-lock.json, capacitor.config.json $work
 Copy-Item www (Join-Path $work 'www') -Recurse
 Copy-Item 'build\prototype-3d-v7.html' (Join-Path $work 'www\index.html') -Force   # the app opens the game directly
 Push-Location $work
 try {
-  & npm ci --no-audit --no-fund; if ($LASTEXITCODE) { Fail 'npm ci failed in the work folder.' }
+  Install-Packages 'in the work folder'
   & npx cap add android; if ($LASTEXITCODE) { Fail 'Could not create the Android project (npx cap add android).' }
   & npx cap sync android; if ($LASTEXITCODE) { Fail 'npx cap sync android failed.' }
 

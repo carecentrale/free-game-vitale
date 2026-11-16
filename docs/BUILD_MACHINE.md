@@ -21,5 +21,5 @@ Weekly check of the build laptop (LAPTOP-N8LD8GM1): build watcher, recent runs, 
 **From the new `status` report:** C: 78 GB free; uptime 4.9 days; Node 26.13, npm 11.20, Git 2.56, Java 21, Android SDK 36 and 37; no Gradle processes left; on mains power the laptop sleeps after 2 hours idle.
 
 **Recommendations**
-1. Skip `npm ci` when nothing changed: it runs twice per build (game folder and `build-android-work`), plus `npx playwright install`. Keep a stamp of the `package-lock.json` hash and skip when it matches. Saves roughly 1–3 minutes per build. Nothing needed from Nicola.
-2. Keep the laptop awake while a build runs: the watcher could ask Windows not to sleep during a run (SetThreadExecutionState), without changing the 2-hour sleep setting. Avoids a run being cut off or a request waiting until someone wakes the laptop. Nothing needed from Nicola.
+1. **Done (16 Nov, build-android.ps1):** Skip `npm ci` when nothing changed: it runs twice per build (game folder and `build-android-work`), plus `npx playwright install`. Keep a stamp of the `package-lock.json` hash and skip when it matches. Saves roughly 1–3 minutes per build. Nothing needed from Nicola.
+2. **Done (5b8d7c4, the watcher keeps the PC awake while it runs):** Keep the laptop awake while a build runs: the watcher could ask Windows not to sleep during a run (SetThreadExecutionState), without changing the 2-hour sleep setting. Avoids a run being cut off or a request waiting until someone wakes the laptop. Nothing needed from Nicola.
