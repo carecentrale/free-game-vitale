@@ -67,3 +67,18 @@ The parent wants Claude to do the build and release work on this PC (Windows lap
 
 ## Style
 - Explain changes in plain language. Keep answers short, with detail on request.
+
+## Requirements come from the product manager's hand-offs
+Requirements come from the Google Drive folder "Adventurers of Drenerics - PM requirements". When Nicola says "build hand-off NNN", read that document in full before changing anything, build exactly what it says, run its acceptance tests, and report anything you built differently and why. Do not build from a hand-off whose status is not "Ready to build". Anything marked "needs parent decision" waits for Nicola's yes.
+
+## Sound and music (0.6.60)
+- Audio files live in `www/audio/sfx/` and `www/audio/music/`. The game learns which files exist from `www/audio/credits.json`, so a file that is not listed is never asked for.
+- Every file needs a row in the audio table in `docs/ASSETS.md` and a saved licence page in `docs/licences/`. Then run `node scripts/audio-credits.mjs`: it writes `www/audio/credits.json` and the credits on `www/terms.html`. `scripts/tests/audio.test.mjs` fails if any of this is missing.
+- Allowed licences: public domain, CC0, CC BY. Never NC, ND or SA.
+
+## Folders on the build machine
+- One game folder: `Desktop\adventurers-of-drenerics-game`. Never create another project folder, clone or copy on the parent's computer.
+- Scratch work (test clones, downloads, temporary files) stays in the cloud workspace or the session's scratch folder.
+- If a clone or copy fails halfway, remove what it left straight away, or tell the parent exactly what was left and where.
+- First step of any session that needs the computer: check which computer and Windows account the chat is linked to. The build machine's account is `15144`. If it does not match, stop and say so. Do not guess paths.
+- Anything new that must live on the build machine goes inside the game folder and is written down here.

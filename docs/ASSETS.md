@@ -38,3 +38,18 @@ Keep the original zip files out of git (add them to `.gitignore`), but keep the 
 3. Replace the slimes with an animated monster from Cute Animated Monsters.
 4. Replace the box-drawn sword and pickaxe with the Modular Weapons models.
 5. Test on the tablet, and check the file size (large models slow down the browser version).
+
+## Audio files (music and sound effects)
+
+Rules from hand-off 002 (17 Nov 2026). A file may be used only if its own page says public domain, CC0 or CC BY. Not allowed: NC, ND, SA, anything from YouTube, a streaming service or a CD, and anything whose licence page cannot be read.
+
+For every audio file:
+1. Put the file in `www/audio/sfx/` (effects, at most 40 KB each, 600 KB in total) or `www/audio/music/` (music, 2 to 3 minutes, at most 1.5 MB each, 6 MB in total).
+2. Save a copy of its licence page in `docs/licences/` and name that copy in the last column.
+3. Add a row to the table below. "Use" is `music`, or the sound it plays: dig, place, gem, jump, land, swing, hit, defeat, hurt, fireball, fizzle, teleport, splash, break, tap, open, close. Write `-` for an effect's composer. "Shortened" is yes or no.
+4. Run `node scripts/audio-credits.mjs`. It writes `www/audio/credits.json` (the game reads it) and the credits on `www/terms.html`.
+
+The tests fail if a file has no row, a row has no file, a licence is not allowed, a licence copy is missing, or the credits are out of date.
+
+| File | Use | Piece or sound | Composer | Performer or maker | Source address | Licence | Licence link | Shortened | Date checked | Licence copy |
+|---|---|---|---|---|---|---|---|---|---|---|

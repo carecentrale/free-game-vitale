@@ -106,6 +106,8 @@ async function setupPage(page, base, opts = {}) {
     route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(local) });
   });
   await page.route(/cdn\.jsdelivr\.net\/npm\/@supabase/, route => route.fulfill({ status: 200, contentType: 'text/javascript', body: SUPABASE_STUB }));
+  // opts.audioList: stands in for www/audio/credits.json, so the sound tests have files to ask for
+  if (opts.audioList) await page.route(/\/audio\/credits\.json$/, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(opts.audioList) }));
   const saves = opts.saves || [savedGame()];
   const choice = opts.choice === undefined ? '0' : opts.choice;
   await page.addInitScript(({ saves, choice }) => {
@@ -130,13 +132,15 @@ async function withGame(fn, opts) {
   // build laptop with its screen off or locked, where the graphics chip may stop drawing (0.6.59)
   const browser = await chromium.launch({ ...(CHROME_PATH ? { executablePath: CHROME_PATH } : {}), args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const errors = [];
+  const requests = [];   // every address the page asks for (used by the sound tests)
   try {
     // opts.device: a phone-like page, for example { viewport: { width: 780, height: 360 }, hasTouch: true, isMobile: true }
     const page = await browser.newPage(opts && opts.device ? opts.device : { viewport: { width: 800, height: 600 } });
     page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+    page.on('request', r => requests.push(r.url()));
     page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
     await setupPage(page, base, opts);
-    await fn(page, errors);
+    await fn(page, errors, requests);
   } finally {
     await browser.close();
     server.close();
@@ -407,21 +411,22 @@ test('with the fireball selected, right-click casts a fireball', { skip, timeout
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [fightLevel2Game()] }));
 
-test('the Fire button is hidden until on-screen controls are on, then tapping it casts a fireball', { skip, timeout: 180000 }, () =>
+test('the Spell button is hidden until on-screen controls are on, then tapping it casts a fireball; there is no FIRE button', { skip, timeout: 180000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
     await page.click('#skillPanel [data-skill="fireball"]');
-    const hidden = await page.evaluate(() => getComputedStyle(document.getElementById('bFire')).display);
-    assert.equal(hidden, 'none', 'the Fire button should be hidden while on-screen controls are off');
+    assert.equal(await page.evaluate(() => !!document.getElementById('bFire')), false, 'the FIRE button should be gone');
+    const hidden = await page.evaluate(() => getComputedStyle(document.getElementById('bSpell')).display);
+    assert.equal(hidden, 'none', 'the Spell button should be hidden while on-screen controls are off');
     await page.click('#toggle');
-    // The game shows or hides the Fire button on its next frame, which can take a while on a slow machine: wait for it
-    const shown = await page.waitForFunction(() => getComputedStyle(document.getElementById('bFire')).display !== 'none', null, { timeout: 30000 }).then(() => true, () => false);
-    assert.ok(shown, 'the Fire button should show once on-screen controls are on');
+    // The game shows or hides the Spell button on its next frame, which can take a while on a slow machine: wait for it
+    const shown = await page.waitForFunction(() => getComputedStyle(document.getElementById('bSpell')).display !== 'none', null, { timeout: 30000 }).then(() => true, () => false);
+    assert.ok(shown, 'the Spell button should show once on-screen controls are on');
     const before = await page.evaluate(() => { const p = window.gameProbe(); return p.fireballs + p.blasts; });
-    await page.evaluate(() => document.getElementById('bFire').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true })));
+    await page.evaluate(() => document.getElementById('bSpell').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true })));
     const after = await page.waitForFunction(b => { const p = window.gameProbe(); return p.fireballs + p.blasts > b && p.fireballs + p.blasts; }, before, { timeout: 30000 })
       .then(h => h.jsonValue(), () => before);
-    assert.ok(after > before, `the Fire button did not cast: ${before} -> ${after}`);
+    assert.ok(after > before, `the Spell button did not cast: ${before} -> ${after}`);
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [fightLevel2Game()] }));
 
@@ -717,7 +722,7 @@ test('the character keeps its full height while standing still, and a jump still
 // A Samsung S22 is about 780 x 360 points held sideways, and 360 x 780 held upright
 const PHONE_WIDE = { viewport: { width: 780, height: 360 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 };
 const PHONE_TALL = { viewport: { width: 360, height: 780 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 };
-const PHONE_CONTROLS = ['stick', 'bJ', 'hudBtn', 'toggle', 'bagBtn', 'settingsBtn', 'teleBtn'];
+const PHONE_CONTROLS = ['stick', 'bJ', 'bH1', 'bH2', 'hudBtn', 'toggle', 'bagBtn', 'settingsBtn', 'teleBtn'];
 
 // Every listed control that is shown must sit fully inside the screen
 async function offScreenControls(page) {
@@ -828,12 +833,13 @@ test('Esc asks before quitting, and Save and quit saves the game and goes to the
     assert.deepEqual(await st(), { quit: true, bag: false, shown: 'block' }, 'Esc with nothing open asks whether to quit');
     await page.dispatchEvent('#quitNo', 'click');
     assert.equal((await st()).quit, false, 'Keep playing closes the question');
-    await page.dispatchEvent('#quitBtn', 'click');
-    assert.equal((await st()).quit, true, 'the Quit button asks too');
+    await page.dispatchEvent('#settingsBtn', 'click');
+    await page.dispatchEvent('#settingsQuit', 'click');
+    assert.equal((await st()).quit, true, 'Quit the game in Settings asks too');
     await page.keyboard.press('Escape');
     assert.equal((await st()).quit, false, 'Esc on the question means keep playing');
     const before = await page.evaluate(() => JSON.parse(localStorage.getItem('kidsgame.slot.0')).at);
-    await page.dispatchEvent('#quitBtn', 'click');
+    await page.keyboard.press('Escape');
     await Promise.all([page.waitForURL(u => new URL(u).pathname === '/', { timeout: 30000 }), page.dispatchEvent('#quitYes', 'click')]);
     const after = await page.evaluate(() => JSON.parse(localStorage.getItem('kidsgame.slot.0')).at);
     assert.ok(after > before, 'the game was saved before leaving');
@@ -861,3 +867,431 @@ test('in the Android app, the Back button asks first and Save and quit closes th
       addListener: (name, fn) => { if (name === 'backButton') window.__back = fn; return Promise.resolve({ remove() {} }); },
     } } };
   } }));
+
+// ---- Hand-off 001 (0.6.60): Quit in Settings, hand buttons and Spell button, tap a close monster ----
+const TABLET = { viewport: { width: 1024, height: 768 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 };
+// The game is running (no wizard or panel) and the character stands on the ground
+const playing = page => page.waitForFunction(() => window.gameTest && !window.gameTest.paused && window.gameProbe().onGround, null, { timeout: 90000 });
+// A finger or mouse press on one control
+const pressOn = (page, sel) => page.evaluate(s => document.querySelector(s).dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 7 })), sel);
+// A saved game in which the fireball is already learned (no skill choice at the start)
+function spellGame() {
+  const g = JSON.parse(phoneGame());
+  g.pw.fight = { lvl: 2, xp: 0 };
+  g.skills = ['fireball'];
+  return JSON.stringify(g);
+}
+
+test('Quit is in Settings: there is no Quit button at the top, and "Quit the game" asks the same question', { skip, timeout: 150000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const st = () => page.evaluate(() => ({ quit: window.gameTest.quitOpen, settings: window.gameTest.settingsOpen }));
+    assert.equal(await page.evaluate(() => !!document.getElementById('quitBtn')), false, 'the top-right Quit button should be gone');
+    await page.dispatchEvent('#settingsBtn', 'click');
+    assert.equal(await page.evaluate(() => { const b = document.getElementById('settingsQuit'); return !!b && b.textContent; }), 'Quit the game');
+    await page.dispatchEvent('#settingsQuit', 'click');
+    assert.deepEqual(await st(), { quit: true, settings: false }, 'Quit the game closes Settings and asks the question');
+    await page.dispatchEvent('#quitNo', 'click');
+    assert.deepEqual(await st(), { quit: false, settings: false }, 'Keep playing goes back to the game, not to Settings');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
+for (const [label, device] of [['a phone held sideways', PHONE_WIDE], ['a phone held upright', PHONE_TALL], ['a tablet', TABLET]]) {
+  test(`on ${label}, the hand buttons, the Spell button and JUMP fit the screen and cover no other control`, { skip, timeout: 150000 }, () =>
+    withGame(async (page, errors) => {
+      await playing(page);
+      await page.waitForFunction(() => getComputedStyle(document.getElementById('bSpell')).display !== 'none', null, { timeout: 60000 });
+      const r = await page.evaluate(ids => {
+        const rects = ids.map(id => { const el = document.getElementById(id); return el && getComputedStyle(el).display !== 'none' ? [id, el.getBoundingClientRect()] : null; })
+          .filter(x => x && x[1].width > 0);
+        const off = rects.filter(([, b]) => !(b.left >= 0 && b.top >= 0 && b.right <= innerWidth + 0.5 && b.bottom <= innerHeight + 0.5)).map(([id]) => id);
+        const over = [];
+        for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
+          const a = rects[i][1], b = rects[j][1];
+          if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5) over.push(rects[i][0] + '+' + rects[j][0]);
+        }
+        const small = rects.filter(([id, b]) => ['bH1', 'bH2', 'bSpell'].includes(id) && (b.width < 44 || b.height < 44)).map(([id]) => id);
+        return { shown: rects.map(([id]) => id), off, over, small };
+      }, ['stick', 'bJ', 'bH1', 'bH2', 'bSpell', 'hudBtn', 'toggle', 'bagBtn', 'settingsBtn', 'teleBtn']);
+      for (const id of ['bJ', 'bH1', 'bH2', 'bSpell']) assert.ok(r.shown.includes(id), id + ' should be shown');
+      assert.deepEqual(r.off, [], 'controls outside the screen');
+      assert.deepEqual(r.over, [], 'controls on top of each other');
+      assert.deepEqual(r.small, [], 'buttons smaller than 44 points');
+      assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+    }, { device, saves: [spellGame()] }));
+}
+
+test('the hand buttons show quick bar slots 1 and 2, only change the item in hand, and an empty one opens the bag', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const st = () => page.evaluate(() => {
+      const g = window.gameTest;
+      const b = id => { const el = document.getElementById(id); return { empty: el.classList.contains('empty'), on: el.classList.contains('on'), icon: !!el.querySelector('.sw'), count: (el.querySelector('.ct') || {}).textContent || '' }; };
+      return { sel: g.sel, qb: g.qb.slice(), tpl: g.qb.map(id => g.tplOf(id)), dur: g.gear.map(x => x.uid + ':' + x.dur).join(','), bag: g.bagOpen, h1: b('bH1'), h2: b('bH2'), fight: !!g.fight };
+    });
+    // A new game: the pickaxe on Hand 1 (in the hand), the sword on Hand 2
+    const a = await st();
+    assert.deepEqual(a.tpl.slice(0, 2), ['pick', 'sword']);
+    assert.ok(a.h1.icon && a.h2.icon && !a.h1.empty && !a.h2.empty, 'both hand buttons show a picture');
+    assert.ok(a.h1.on && !a.h2.on, 'the ring is on the item in hand (the pickaxe)');
+    // Tapping Hand 2 puts the sword in the hand, and nothing else: no swing, nothing wears, the bar is unchanged
+    await pressOn(page, '#bH2');
+    const b = await st();
+    assert.equal(b.sel, 1, 'the sword is in the hand');
+    assert.ok(b.h2.on && !b.h1.on, 'the ring moved to Hand 2');
+    assert.equal(b.dur, a.dur, 'nothing wears');
+    assert.deepEqual(b.qb, a.qb, 'the quick bar is unchanged');
+    assert.equal(b.fight, false, 'no swing happens');
+    // The ring follows the item in hand when it is changed through the quick bar
+    await page.keyboard.press('Digit1');
+    assert.ok((await st()).h1.on, 'the ring follows the quick bar');
+    // Putting an item in quick bar slot 1 changes Hand 1, and nothing else
+    await page.evaluate(() => { window.gameTest.addItem('stone', 3); window.gameTest.toQuick('stone'); });
+    const c = await st();
+    assert.equal(c.qb[0], 'stone');
+    assert.equal(c.h1.count, '3', 'a stack shows how many there are');
+    assert.equal(c.qb[1], a.qb[1], 'slot 2 is unchanged');
+    // The sword on Hand 2 breaks: the button is empty, and nothing is put there
+    await page.evaluate(() => window.gameTest.wear(window.gameTest.qb[1], 999));
+    const d = await st();
+    assert.equal(d.qb[1], null);
+    assert.ok(d.h2.empty, 'Hand 2 is empty after the sword breaks');
+    assert.deepEqual([d.qb[0], ...d.qb.slice(2)], [c.qb[0], ...c.qb.slice(2)], 'no item was moved');
+    // An empty hand button opens the bag with that slot chosen
+    await pressOn(page, '#bH2');
+    const e = await st();
+    assert.ok(e.bag, 'the bag opens');
+    assert.equal(e.sel, 1, 'slot 2 is chosen');
+    // With a panel open the buttons do nothing
+    await pressOn(page, '#bH1');
+    assert.equal((await st()).sel, 1, 'a hand button does nothing while the bag is open');
+    await page.keyboard.press('KeyB');
+    // A stack that runs out leaves the button empty
+    await page.evaluate(() => { window.gameTest.inv.stone = 0; window.gameTest.addItem('dirt', 0); });
+    assert.ok((await st()).h1.empty, 'Hand 1 is empty when its stack reaches zero');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PHONE_WIDE, saves: [phoneGame()] }));
+
+test('on a touch screen the fireball needs no quick bar slot: the Spell button casts it, and it does nothing while a panel is open', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
+    assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('bSpell')).display), 'none', 'the Spell button is hidden before the fireball is learned');
+    const before = await page.evaluate(() => window.gameTest.qb.slice());
+    await pressOn(page, '#bH2');
+    assert.equal(await page.evaluate(() => window.gameTest.sel), 0, 'a hand button does nothing while the skill choice is open');
+    await page.dispatchEvent('#skillPanel [data-skill="fireball"]', 'click');
+    await page.waitForFunction(() => window.gameTest.skills.includes('fireball') && !window.gameTest.paused, null, { timeout: 60000 });
+    assert.deepEqual(await page.evaluate(() => window.gameTest.qb.slice()), before, 'the quick bar is not changed by learning the fireball');
+    await page.waitForFunction(() => getComputedStyle(document.getElementById('bSpell')).display !== 'none', null, { timeout: 60000 });
+    const cast = await page.evaluate(() => {
+      const g = window.gameTest, n = g.fireballs.length;
+      const tap = () => document.getElementById('bSpell').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 7 }));
+      tap();
+      const one = g.fireballs.length - n;
+      tap();   // straight away again: the power is still recharging
+      return { one, two: g.fireballs.length - n, sel: g.sel };
+    });
+    assert.equal(cast.one, 1, 'one tap casts one fireball');
+    assert.equal(cast.two, 1, 'no second fireball while the power recharges');
+    assert.equal(cast.sel, 0, 'the item in hand is unchanged');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PHONE_WIDE, saves: [fightLevel2Game()] }));
+
+test('on a computer there are no hand buttons, and a learned fireball goes into an empty quick bar slot only', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
+    const shown = await page.evaluate(() => ['bH1', 'bH2', 'bSpell'].filter(id => document.getElementById(id).getBoundingClientRect().width > 0));
+    assert.deepEqual(shown, [], 'hand and spell buttons are not shown on a computer');
+    // Fill the bar, then learn the fireball: no slot is taken over, and F still casts
+    const before = await page.evaluate(() => { const g = window.gameTest; g.addItem('dirt', 1); for (let i = 2; i < 6; i++) g.qb[i] = 'dirt'; return g.qb.slice(); });
+    await page.click('#skillPanel [data-skill="fireball"]');
+    await page.waitForFunction(() => window.gameTest.skills.includes('fireball'), null, { timeout: 60000 });
+    assert.deepEqual(await page.evaluate(() => window.gameTest.qb.slice()), before, 'a full quick bar is left alone');
+    const n = await page.evaluate(() => window.gameTest.fireballs.length);
+    await page.keyboard.press('KeyF');
+    assert.equal(await page.evaluate(() => window.gameTest.fireballs.length), n + 1, 'F casts the fireball');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [fightLevel2Game()] }));
+
+// Puts a goblin on the ground just in front of the character and presses on it (a tap: press and release, or a held press).
+// Returns what the game looked like before and after.
+function tapMonster(page, opts = {}) {
+  return page.evaluate(o => {
+    const g = window.gameTest;
+    g.setYaw(0);
+    g.settleCamera();
+    for (const old of g.enemies.splice(0)) if (old.group.parent) old.group.parent.remove(old.group);   // start with no other monster in the way
+    let en = null, pt = null;
+    for (const [dx, dz] of [[0, -2], [1, -2], [-1, -2], [0, -3], [2, -2], [-2, -2]]) {
+      if (!g.enemyNear('goblin', dx + (o.shift || 0), dz)) continue;
+      en = g.enemies[g.enemies.length - 1];
+      const [sx, sy] = g.screenOf(en);
+      for (const oy of [0, -10, 10, -20, 20, -30]) for (const ox of [0, -8, 8]) {
+        const a = pt ? null : g.aimAt(sx + ox, sy + oy);
+        if (a && a.enemy === en) pt = [sx + ox, sy + oy];
+      }
+      if (pt) break;
+      g.enemies.splice(g.enemies.indexOf(en), 1);   // not under the pointer from here: take it away and try the next spot
+      if (en.group.parent) en.group.parent.remove(en.group);
+      en = null;
+    }
+    if (!en) return { error: 'no goblin could be put under the pointer' };
+    const snap = () => ({ hp: en.hp, sel: g.sel, dur: Object.fromEntries(g.gear.map(x => [g.tplOf(x.uid), x.dur])), fireballs: g.fireballs.length,
+      dirt: g.inv.dirt || 0, digging: !!g.digging, fight: !!g.fight, msg: g.msg, alive: g.enemies.includes(en) });
+    const c = document.querySelector('canvas');
+    const ev = t => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: pt[0], clientY: pt[1], pointerId: 5, button: 0, pointerType: o.touch ? 'touch' : 'mouse' }));
+    const before = snap();
+    ev('pointerdown');
+    const held = snap();
+    if (o.hold) g.stepFrames(Array(o.hold).fill(0.05));
+    const heldLong = snap();
+    ev('pointerup');
+    if (o.again) { ev('pointerdown'); ev('pointerup'); }
+    return { before, held, heldLong, after: snap(), log: g.sfxLog.slice(-6) };
+  }, opts);
+}
+
+test('a tap on a close monster swings the sword from a hand button once, and the item in hand stays in hand', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    // Pickaxe in hand, sword on Hand 2: one hit, the sword wears by one, the pickaxe stays in hand, no block is dug.
+    // A second tap straight away does not hit again (a swing takes a moment).
+    const a = await tapMonster(page, { again: true });
+    assert.equal(a.error, undefined, a.error);
+    assert.equal(a.after.hp, a.before.hp - 1, 'one sword hit');
+    assert.equal(a.after.dur.sword, a.before.dur.sword - 1, 'the sword wears by one');
+    assert.equal(a.after.dur.pick, a.before.dur.pick, 'the pickaxe does not wear');
+    assert.equal(a.after.sel, 0, 'the pickaxe is still the item in hand');
+    assert.equal(a.held.digging, false, 'no block is dug');
+    assert.ok(a.log.includes('swing') && a.log.includes('hit'), 'the swing and the hit ask for their sounds: ' + a.log.join(','));
+    await page.waitForTimeout(600);
+    await page.evaluate(() => window.gameTest.stepFrames(Array(10).fill(0.05)));
+    // The same with a finger
+    const b = await tapMonster(page, { touch: true, shift: 3 });
+    assert.equal(b.error, undefined, b.error);
+    assert.equal(b.after.hp, b.before.hp - 1, 'a touch hits once too');
+    await page.evaluate(() => window.gameTest.stepFrames(Array(10).fill(0.05)));
+    // A block in hand: the sword swings, and no block is placed
+    await page.evaluate(() => { const g = window.gameTest; g.selectSlot(2); g.toQuick('dirt'); });
+    const c = await tapMonster(page, { shift: -3 });
+    assert.equal(c.error, undefined, c.error);
+    assert.equal(c.after.hp, c.before.hp - 1, 'the sword swings with a block in hand');
+    assert.equal(c.after.dirt, c.before.dirt, 'no block is placed');
+    assert.equal(c.after.sel, 2, 'the block is still in hand');
+    await page.evaluate(() => window.gameTest.stepFrames(Array(10).fill(0.05)));
+    // No sword in the hand or on a hand button: no hit, and the message shows
+    await page.evaluate(() => { const g = window.gameTest; g.wear(g.qb[1], 999); g.selectSlot(0); });
+    const d = await tapMonster(page, {});
+    assert.equal(d.error, undefined, d.error);
+    assert.equal(d.after.hp, d.before.hp, 'no hit without a sword');
+    assert.equal(d.after.msg, 'Put a sword on a hand button');
+    assert.equal(d.held.digging, false, 'the monster wins the tap: no block is dug');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
+test('with the sword in hand a monster is hit as before: a quick tap does not hit, holding does', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    await page.keyboard.press('Digit2');
+    const a = await tapMonster(page, {});
+    assert.equal(a.error, undefined, a.error);
+    assert.equal(a.held.fight, true, 'the press starts the fight');
+    assert.equal(a.after.hp, a.before.hp, 'a quick tap does not hit (as in 0.6.59)');
+    assert.equal(a.after.dur.sword, a.before.dur.sword, 'a quick tap does not wear the sword');
+    const b = await tapMonster(page, { hold: 60, shift: 3 });
+    assert.equal(b.error, undefined, b.error);
+    assert.ok(b.heldLong.hp < b.before.hp || !b.heldLong.alive, 'holding hits the monster');
+    assert.ok(b.heldLong.dur.sword < b.before.dur.sword, 'holding wears the sword');
+    assert.equal(b.after.sel, 1, 'the sword stays in hand');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
+test('with the fireball in hand, a tap on a close monster casts a fireball and does not swing the sword', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
+    await page.click('#skillPanel [data-skill="fireball"]');
+    await playing(page);
+    await page.keyboard.press('Digit3');   // the fireball went into the first empty quick bar slot (slot 3)
+    const a = await tapMonster(page, {});
+    assert.equal(a.error, undefined, a.error);
+    assert.equal(a.after.fireballs, a.before.fireballs + 1, 'one fireball is cast');
+    assert.equal(a.after.dur.sword, a.before.dur.sword, 'the sword does not swing');
+    assert.equal(a.held.fight, false, 'no sword fight starts');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [fightLevel2Game()] }));
+
+// ---- Hand-off 002 (0.6.60): sound and music. The audio files are stood in for: a pretend player records every call. ----
+const SOUNDS = ['dig', 'place', 'gem', 'jump', 'land', 'swing', 'hit', 'defeat', 'hurt', 'fireball', 'fizzle', 'teleport', 'splash', 'break', 'tap', 'open', 'close'];
+const FAKE_AUDIO = { files: [
+  ...SOUNDS.map(k => ({ file: 'sfx/' + k + '.mp3', use: k, credit: 'Test sound ' + k + '. Made by Tester. Source: example.org. Licence: CC0.' })),
+  { file: 'music/one.mp3', use: 'music', credit: 'Test piece one, by A Composer. Performed by Tester. Source: example.org. Licence: Public domain.' },
+  { file: 'music/two.mp3', use: 'music', credit: 'Test piece two, by A Composer. Performed by Tester. Source: example.org. Licence: CC BY 4.0. Shortened for the Game.' },
+] };
+// Stands in for the browser's audio player (runs in the page before the game). `first` keeps the address the player was made with.
+const fakeAudio = () => {
+  window.__audio = [];
+  window.Audio = class {
+    constructor(src) { this.src = src; this.first = src; this.volume = 1; this.paused = true; this.plays = 0; this.l = {}; window.__audio.push(this); }
+    addEventListener(n, f) { (this.l[n] = this.l[n] || []).push(f); }
+    play() { this.paused = false; this.plays++; return Promise.resolve(); }
+    pause() { this.paused = true; }
+    removeAttribute() { this.src = ''; }
+    load() {}
+    finish() { (this.l.ended || []).forEach(f => f()); }
+  };
+};
+// The same, but every file fails to play
+const brokenAudio = () => {
+  window.__audio = [];
+  window.Audio = class {
+    constructor(src) { this.src = src; this.first = src; this.volume = 1; this.paused = true; this.l = {}; window.__audio.push(this); }
+    addEventListener(n, f) { (this.l[n] = this.l[n] || []).push(f); }
+    play() { setTimeout(() => (this.l.error || []).forEach(f => f()), 0); return Promise.reject(new Error('cannot play')); }
+    pause() { this.paused = true; }
+    removeAttribute() { this.src = ''; }
+    load() {}
+  };
+};
+
+test('sound and music: silent before the first input, each action plays its sound once, the sliders set the volume and are remembered', { skip, timeout: 300000 }, () =>
+  withGame(async (page, errors, requests) => {
+    await playing(page);
+    const audioAsked = () => requests.filter(u => new URL(u).pathname.startsWith('/audio/'));
+    await page.waitForTimeout(1500);
+    assert.equal(await page.evaluate(() => window.__audio.length), 0, 'nothing plays before the first input');
+    assert.deepEqual(audioAsked(), [], 'no audio file is asked for before the first input');
+    assert.deepEqual(await page.evaluate(() => window.gameTest.vol), { sfx: 4, music: 2 }, 'a first start has Sounds at 4 and Music at 2');
+    await page.keyboard.press('KeyB');   // the first input (it opens the bag)
+    await page.waitForFunction(() => window.gameTest.audioState().music, null, { timeout: 30000 });
+    const m = await page.evaluate(() => { const g = window.gameTest; return { ...g.audioState().music, want: g.VOL[2] * g.MUSIC_QUIETER, effects: g.VOL[2], origin: location.origin }; });
+    assert.ok(m.src.startsWith(m.origin + '/audio/music/'), 'the music comes from our own site: ' + m.src);
+    assert.ok(Math.abs(m.volume - m.want) < 1e-9 && m.want < m.effects, 'at equal slider levels the music is quieter than the effects');
+    // Each action asks for its sound once
+    const played = await page.evaluate(async () => {
+      const g = window.gameTest, out = {};
+      const count = name => window.__audio.filter(a => a.first.endsWith('/audio/sfx/' + name + '.mp3')).length;
+      const wait = ms => new Promise(r => setTimeout(r, ms));
+      const once = async (name, fn) => { const b = count(name); fn(); out[name] = count(name) - b; await wait(90); };
+      const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code }));
+      const [x, y, z] = g.pos.map(Math.floor);
+      await once('close', () => key('keydown', 'KeyB'));
+      await once('open', () => key('keydown', 'KeyB'));
+      key('keydown', 'KeyB');
+      await wait(90);
+      await once('jump', () => { key('keydown', 'Space'); g.stepFrames([1 / 60]); key('keyup', 'Space'); });
+      await once('land', () => g.stepFrames(Array(120).fill(1 / 60)));
+      await once('gem', () => g.addItem('gem'));
+      await once('tap', () => document.querySelector('#qb [data-slot="2"]').click());
+      await once('place', () => g.placeCell(x + 2, y + 3, z, 'dirt'));
+      await once('hit', () => { g.enemyNear('brute', 3, 0); g.hurtEnemy(g.enemies[g.enemies.length - 1], 1); });
+      await once('defeat', () => g.hurtEnemy(g.enemies[g.enemies.length - 1], 999));
+      await once('break', () => g.wear(g.qb[1], 999));
+      await once('dig', () => g.digCell(x, y - 1, z));
+      return out;
+    });
+    assert.deepEqual(played, { close: 1, open: 1, jump: 1, land: 1, gem: 1, tap: 1, place: 1, hit: 1, defeat: 1, break: 1, dig: 1 });
+    // The Sounds slider: one sample sound per change, louder at 5 than at 1, nothing at off
+    const v = await page.evaluate(async () => {
+      const g = window.gameTest, wait = ms => new Promise(r => setTimeout(r, ms));
+      const sfxCount = () => window.__audio.filter(a => a.first.includes('/audio/sfx/')).length;
+      const last = () => window.__audio[window.__audio.length - 1];
+      const out = {};
+      await wait(90);
+      let n = sfxCount(); g.setVol('sfx', 1); out.sample1 = sfxCount() - n; out.vol1 = last().volume; await wait(90);
+      n = sfxCount(); g.setVol('sfx', 5); out.sample5 = sfxCount() - n; out.vol5 = last().volume; await wait(90);
+      n = sfxCount(); g.setVol('sfx', 5); out.same = sfxCount() - n; await wait(90);
+      n = sfxCount(); g.setVol('sfx', 0); g.sfx('dig'); g.addItem('gem'); out.off = sfxCount() - n;
+      return out;
+    });
+    assert.deepEqual([v.sample1, v.sample5, v.same, v.off], [1, 1, 0, 0], 'one sample sound per change, none when nothing changes, nothing at off');
+    assert.ok(v.vol5 > v.vol1 && v.vol1 > 0, 'step 5 is louder than step 1');
+    // The Music slider: off stops the music and asks for no file; back on starts a piece; another piece follows, never the same twice in a row
+    const mu = await page.evaluate(async () => {
+      const g = window.gameTest, wait = ms => new Promise(r => setTimeout(r, ms));
+      const pieces = () => window.__audio.filter(a => a.first.includes('/audio/music/'));
+      const out = {};
+      const first = pieces().pop();
+      g.setVol('music', 0);
+      out.stopped = first.paused && !g.audioState().music;
+      const n = pieces().length;
+      await wait(600);
+      out.askedWhileOff = pieces().length - n;
+      g.setVol('music', 3);
+      const second = pieces().pop();
+      out.started = pieces().length - n; out.vol3 = second.volume; out.want3 = g.VOL[3] * g.MUSIC_QUIETER;
+      g.setVol('music', 5); out.vol5 = second.volume; out.want5 = g.VOL[5] * g.MUSIC_QUIETER;
+      second.finish();
+      await wait(5000);
+      const third = pieces().pop();
+      out.second = second.first; out.third = third === second ? null : third.first;
+      return out;
+    });
+    assert.ok(mu.stopped, 'Music at off stops the music');
+    assert.equal(mu.askedWhileOff, 0, 'no music file is asked for while Music is off');
+    assert.equal(mu.started, 1, 'Music back on starts one piece');
+    assert.ok(Math.abs(mu.vol3 - mu.want3) < 1e-9 && Math.abs(mu.vol5 - mu.want5) < 1e-9, 'the Music slider sets the volume of the playing piece');
+    assert.ok(mu.third && mu.third !== mu.second, 'after a piece ends another piece starts, not the same one: ' + mu.second + ' then ' + mu.third);
+    // Hiding the page pauses everything; showing it resumes the music
+    const hid = await page.evaluate(() => {
+      const g = window.gameTest, hide = h => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => h }); document.dispatchEvent(new Event('visibilitychange')); };
+      g.setVol('sfx', 3);
+      const cur = window.__audio.filter(a => a.first.includes('/audio/music/')).pop();
+      hide(true);
+      const n = window.__audio.length;
+      g.sfx('dig');
+      const out = { paused: cur.paused, silent: window.__audio.length === n };
+      hide(false);
+      out.resumed = !cur.paused;
+      return out;
+    });
+    assert.deepEqual(hid, { paused: true, silent: true, resumed: true }, 'hidden: all audio pauses; shown again: the music resumes');
+    // The sliders in Settings: six steps, big enough for a thumb, a tap on the track sets the level, and the credits are listed
+    await page.dispatchEvent('#settingsBtn', 'click');
+    const ui = await page.evaluate(() => {
+      const g = window.gameTest, el = document.querySelector('#settings .vol[data-vol="sfx"]'), mus = document.querySelector('#settings .vol[data-vol="music"]');
+      const r = el.getBoundingClientRect();
+      const tap = step => el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 9, clientX: r.left + r.width * (step + 0.5) / 6, clientY: r.top + r.height / 2 }));
+      tap(2);
+      const two = g.vol.sfx, lit = [...el.children].map(c => c.classList.contains('on') ? 1 : 0).join('');
+      tap(0);
+      return { steps: el.children.length, musicSteps: mus ? mus.children.length : 0, height: r.height, two, lit, zero: g.vol.sfx, offLit: el.children[0].classList.contains('on'),
+        credits: document.getElementById('creditList').textContent, quit: !!document.getElementById('settingsQuit') };
+    });
+    assert.deepEqual([ui.steps, ui.musicSteps], [6, 6], 'each slider has six steps');
+    assert.ok(ui.height >= 44, 'the slider track is at least 44 points high');
+    assert.equal(ui.two, 2, 'a tap on the track sets the level');
+    assert.equal(ui.lit, '011000', 'the steps up to the level are lit');
+    assert.ok(ui.zero === 0 && ui.offLit, 'all the way left is off, with the crossed-out speaker lit');
+    assert.ok(ui.credits.includes('Test piece two, by A Composer') && ui.credits.includes('Test sound dig'), 'Settings lists the credits');
+    assert.ok(ui.quit, 'Settings still has the Quit button');
+    // Every audio address is on our own site
+    const own = await page.evaluate(() => window.__audio.filter(a => !a.first.startsWith(location.origin + '/audio/')).map(a => a.first));
+    assert.deepEqual(own, [], 'audio from another site');
+    assert.ok(audioAsked().length > 0 && audioAsked().every(u => new URL(u).hostname === '127.0.0.1'), 'audio requests go to our own address');
+    // Both levels survive closing and opening the game
+    await page.evaluate(() => { window.gameTest.setVol('sfx', 2); window.gameTest.setVol('music', 4); });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await playing(page);
+    assert.deepEqual(await page.evaluate(() => window.gameTest.vol), { sfx: 2, music: 4 }, 'both levels are remembered');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()], init: fakeAudio, audioList: FAKE_AUDIO }));
+
+test('a missing or broken audio file causes no error, and the game plays on', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    await page.keyboard.press('KeyB');
+    await page.waitForFunction(() => window.gameTest.audioState().listed, null, { timeout: 30000 });
+    const r = await page.evaluate(async () => {
+      const g = window.gameTest;
+      g.addItem('gem'); g.sfx('dig'); g.sfx('tap'); g.setVol('music', 5);
+      await new Promise(res => setTimeout(res, 800));
+      g.stepFrames(Array(30).fill(1 / 60));
+      const box = document.getElementById('errBanner');
+      return { tried: window.__audio.length, live: g.audioState().live, box: !!(box && box.textContent.trim()), version: window.gameProbe().version };
+    });
+    assert.ok(r.tried >= 3, 'the game tried to play the files');
+    assert.equal(r.live, 0, 'broken effects are dropped');
+    assert.equal(r.box, false, 'no error box is shown');
+    assert.ok(r.version, 'the game is still running');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()], init: brokenAudio, audioList: FAKE_AUDIO }));

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.59 (3D)</title>
+<title>Adventurers of Drenerics v0.6.60 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -16,7 +16,21 @@
   #toggle{top:10px}
   #bagBtn{top:44px}
   #settingsBtn{top:10px;right:100px}
-  #quitBtn{position:fixed;top:44px;right:100px;padding:6px 10px;background:rgba(0,0,0,.4);color:#fff;border-radius:8px;font-size:14px;cursor:pointer;z-index:10}
+  /* Hand buttons and Spell button (touch screens): round picture buttons in a column above JUMP (0.6.60) */
+  .hb{position:fixed;right:28px;width:52px;height:52px;border-radius:50%;background:rgba(0,0,0,.4);border:3px solid rgba(255,255,255,.45);box-sizing:border-box;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer}
+  .hb .sw{width:30px;height:30px;border:0;border-radius:4px;pointer-events:none}
+  .hb .ct{position:absolute;right:-4px;bottom:-4px;background:rgba(0,0,0,.75);color:#fff;font-size:11px;border-radius:8px;padding:1px 5px;pointer-events:none}
+  .hb.empty{background:rgba(0,0,0,.15);border-style:dashed}
+  .hb.on{border-color:#ffd54a;box-shadow:0 0 10px 2px #ffd54a}
+  .hb.wait{opacity:.45}
+  #bH1{bottom:76px}
+  #bH2{bottom:138px}
+  #bSpell{bottom:200px;background:rgba(255,120,30,.55)}
+  /* Volume sliders in Settings: six steps, off at the left; tap or drag (0.6.60) */
+  .vol{display:flex;gap:4px;height:48px;margin-top:6px;touch-action:none;cursor:pointer}
+  .vol .vs{flex:1;border-radius:8px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;font-size:20px;pointer-events:none}
+  .vol .vs.on{background:#3b6fd8}
+  .vol .vs.off.on{background:#8a4038}
   #quit{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(340px,86vw);background:rgba(20,20,35,.96);color:#fff;border-radius:16px;padding:18px;display:none;z-index:30;box-sizing:border-box;text-align:center;font-size:17px}
   #quit button{display:block;width:100%;margin-top:10px;padding:12px;border:0;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer}
   #quitYes{background:#d9473b;color:#fff}
@@ -63,11 +77,14 @@
   body.phone #recent .title{width:100%;font-size:11px}
   body.phone #recent .row{font-size:11px;padding:3px 6px}
   body.phone #bJ{right:12px;bottom:14px;width:clamp(64px,20vmin,88px)!important;height:clamp(48px,15vmin,62px);font-size:15px}
-  body.phone #bFire{right:12px!important;bottom:calc(clamp(48px,15vmin,62px) + 26px)!important;width:clamp(56px,17vmin,72px)!important;height:clamp(42px,13vmin,52px)!important;font-size:14px}
+  body.phone .hb{width:46px;height:46px;right:calc(12px + (clamp(64px,20vmin,88px) - 46px) / 2)}
+  body.phone .hb .sw{width:26px;height:26px}
+  body.phone #bH1{bottom:calc(clamp(48px,15vmin,62px) + 24px)}
+  body.phone #bH2{bottom:calc(clamp(48px,15vmin,62px) + 80px)}
+  body.phone #bSpell{bottom:calc(clamp(48px,15vmin,62px) + 136px)}
   body.phone #toggle,body.phone #bagBtn,body.phone #settingsBtn{font-size:12px;padding:5px 8px}
   body.phone #bagBtn{top:38px}
   body.phone #settingsBtn{right:92px}
-  body.phone #quitBtn{font-size:12px;padding:5px 8px;top:38px;right:92px}
   body.phone #teleBtn{right:166px;width:30px;height:30px;font-size:15px}
   body.phone #msg{font-size:15px;top:46px;white-space:normal;text-align:center;width:60vw}
   #wiz{position:fixed;inset:0;background:rgba(10,12,25,.85);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;box-sizing:border-box}
@@ -110,7 +127,6 @@
 <div id="toggle">Controls</div>
 <div id="hudBtn"></div>
 <div id="settingsBtn">Settings</div>
-<div id="quitBtn">Quit</div>
 <div id="quit"><div style="font-weight:700;font-size:19px">Quit the game?</div><div style="margin-top:6px;opacity:.85;font-size:14px">Your game is saved first.</div><button id="quitYes">Save and quit</button><button id="quitNo">Keep playing</button></div>
 <div id="teleBtn" title="Teleport to the start">&#10022;</div>
 <div id="bagBtn">Bag (B)</div>
@@ -123,7 +139,9 @@
 <div id="pad">
   <div id="stick"><div id="knob"></div></div>
   <div class="btn" id="bJ" style="right:14px;bottom:14px;width:80px">JUMP</div>
-  <div class="btn" id="bFire" style="display:none;right:12px;bottom:190px;width:66px;height:52px;background:rgba(255,120,30,.5)">FIRE</div>
+  <div class="hb" id="bSpell" style="display:none"><span class="sw"></span></div>
+  <div class="hb empty" id="bH2"></div>
+  <div class="hb empty" id="bH1"></div>
 </div>
 
 <script type="module">
@@ -232,6 +250,7 @@ function wear(id, n = 1) {
   for (let i = 0; i < qb.length; i++) if (qb[i] === id) qb[i] = null;
   recent = recent.filter(r => r !== id);
   say(GEAR[g.t].name + ' broke!', 3000);
+  sfx('break');
   updateHand();
   renderUI();
 }
@@ -924,13 +943,14 @@ armR.add(heldCube);
 avatar.add(legL, legR, armL, armR);
 scene.add(avatar);
 
+let swordShown = false;   // true while a sword from a hand button is swung although another item is in the hand (0.6.60)
 // Show the right things in the hands for the selected quick bar item
 function updateHand() {
   const id = held();
   const d = id ? defOf(id) : null;
   const kind = d ? d.kind : null;
   pickGroup.visible = tplOf(id) === 'pick';
-  swordGroup.visible = kind === 'weapon';
+  swordGroup.visible = kind === 'weapon' || swordShown;
   heldCube.visible = kind === 'block' || kind === 'gem' || kind === 'spell';
   if (heldCube.visible) heldCube.material.color.setHex(d.color);
 }
@@ -968,6 +988,140 @@ function hits(x, y, z) {
     if (solid(get(Math.floor(x + dx), Math.floor(y + dy), Math.floor(z + dz)))) return true;
   }
   return false;
+}
+
+// ---- Sound and music (0.6.60) ----
+// Every audio file comes from our own site (www/audio/). The list of files and their credits is www/audio/credits.json,
+// written by scripts/audio-credits.mjs from the audio table in docs/ASSETS.md. Nothing is loaded or played before the
+// first tap or key press, and the two volume levels are kept on this device only.
+const AUDIO_BASE = new URL('../audio/', location.href).href;
+const VOL = [0, 0.2, 0.4, 0.6, 0.8, 1];     // the six slider steps: off, 1 to 5
+const MUSIC_QUIETER = 0.5;                  // at equal slider levels the music is quieter than the effects
+const MUSIC_GAP = 4000;                     // pause between two pieces, ms
+const SOUND_KEYS = ['dig', 'place', 'gem', 'jump', 'land', 'swing', 'hit', 'defeat', 'hurt', 'fireball', 'fizzle', 'teleport', 'splash', 'break', 'tap', 'open', 'close'];
+const vol = { sfx: 4, music: 2 };           // first start: Sounds at 4, Music at 2
+try { const v = JSON.parse(localStorage.getItem('kidsgame.audio')); for (const k of ['sfx', 'music']) if (v && Number.isInteger(v[k]) && v[k] >= 0 && v[k] <= 5) vol[k] = v[k]; } catch (e) {}
+let audioStarted = false;                   // true after the first tap or key press
+let audioQuit = false;                      // true once the game quits: nothing plays after that
+let audioList = null;                       // once loaded: { sounds: { name: file }, music: [file], credits: [text] }
+let audioListAsked = false;
+const sfxLive = [];                         // effects playing now: { key, a }
+const sfxLast = {};                         // name -> when it last started
+const sfxLog = [];                          // the last effects asked for (read by the tests)
+let musicEl = null, musicLast = null, musicTimer = 0, musicFails = 0;
+
+function loadAudioList() {
+  if (audioListAsked) return;
+  audioListAsked = true;
+  const empty = { sounds: {}, music: [], credits: [] };
+  fetch(AUDIO_BASE + 'credits.json').then(r => r.ok ? r.json() : null).then(j => {
+    const list = { sounds: {}, music: [], credits: [] };
+    for (const f of (j && Array.isArray(j.files) ? j.files : [])) {
+      if (f.use === 'music') list.music.push(f.file);
+      else if (SOUND_KEYS.includes(f.use)) list.sounds[f.use] = f.file;
+      list.credits.push(String(f.credit || ''));
+    }
+    audioList = list;
+    startMusic();
+    const el = document.getElementById('creditList');
+    if (el) el.innerHTML = creditsHtml();
+  }).catch(() => { audioList = empty; });
+}
+function firstInput() {
+  if (audioStarted) return;
+  audioStarted = true;
+  loadAudioList();
+}
+addEventListener('pointerdown', firstInput, true);
+addEventListener('keydown', firstInput, true);
+
+// Plays one effect. The same sound never plays more than 3 times at once. A missing or broken file is skipped quietly.
+function sfx(key) {
+  sfxLog.push(key);
+  if (sfxLog.length > 200) sfxLog.shift();
+  if (!audioStarted || audioQuit || document.hidden || !vol.sfx || !audioList) return;
+  const file = audioList.sounds[key], now = performance.now();
+  if (!file || now - (sfxLast[key] || 0) < 60 || sfxLive.filter(s => s.key === key).length >= 3) return;
+  sfxLast[key] = now;
+  try {
+    const a = new Audio(AUDIO_BASE + file);
+    a.volume = VOL[vol.sfx];
+    const s = { key, a };
+    const done = () => { const i = sfxLive.indexOf(s); if (i >= 0) sfxLive.splice(i, 1); };
+    a.addEventListener('ended', done);
+    a.addEventListener('error', done);
+    sfxLive.push(s);
+    const p = a.play();
+    if (p && p.catch) p.catch(done);
+  } catch (e) { /* no sound on this device: the game plays on */ }
+}
+
+// Music: one piece at a time, shuffled, never the same piece twice in a row, with a short pause in between.
+// A piece is only asked for when the Music slider is on.
+function startMusic() {
+  clearTimeout(musicTimer);
+  if (musicEl || !audioStarted || audioQuit || !audioList || !vol.music || document.hidden || !audioList.music.length || musicFails >= 3) return;
+  const all = audioList.music, choices = all.length > 1 ? all.filter(f => f !== musicLast) : all;
+  const file = choices[Math.floor(Math.random() * choices.length)];
+  musicLast = file;
+  try {
+    const a = new Audio(AUDIO_BASE + file);
+    a.volume = VOL[vol.music] * MUSIC_QUIETER;
+    const next = failed => { if (musicEl !== a) return; musicEl = null; musicFails = failed ? musicFails + 1 : 0; musicTimer = setTimeout(startMusic, MUSIC_GAP); };
+    a.addEventListener('ended', () => next(false));
+    a.addEventListener('error', () => next(true));
+    musicEl = a;
+    const p = a.play();
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) { /* no sound on this device */ }
+}
+function stopMusic() {
+  clearTimeout(musicTimer);
+  if (!musicEl) return;
+  const a = musicEl;
+  musicEl = null;
+  try { a.pause(); a.removeAttribute('src'); a.load(); } catch (e) {}
+}
+// The tab is hidden or the app is in the background: everything goes quiet. Music carries on afterwards if its slider is on.
+function audioPause() {
+  clearTimeout(musicTimer);
+  if (musicEl) { try { musicEl.pause(); } catch (e) {} }
+  for (const s of sfxLive.splice(0)) { try { s.a.pause(); } catch (e) {} }
+}
+function audioResume() {
+  if (audioQuit || !vol.music) return;
+  if (musicEl) { try { const p = musicEl.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+  else startMusic();
+}
+function stopAudio() { audioQuit = true; audioPause(); stopMusic(); }
+document.addEventListener('visibilitychange', () => { if (document.hidden) audioPause(); else audioResume(); });
+addEventListener('pagehide', audioPause);
+
+// Sets a volume slider (k is 'sfx' or 'music', step is 0 to 5) and keeps it on this device
+function setVol(k, step) {
+  if (!(k in vol) || !Number.isInteger(step) || step < 0 || step > 5 || vol[k] === step) return;
+  vol[k] = step;
+  try { localStorage.setItem('kidsgame.audio', JSON.stringify(vol)); } catch (e) {}
+  if (k === 'sfx') { for (const s of sfxLive) s.a.volume = VOL[step]; sfx('gem'); }   // one sample sound, so the child hears the new level
+  else if (!step) stopMusic();
+  else if (musicEl) musicEl.volume = VOL[step] * MUSIC_QUIETER;
+  else { musicFails = 0; startMusic(); }
+  paintVol(k);
+}
+function volHtml(k) {
+  return `<div class="vol" data-vol="${k}">` + [0, 1, 2, 3, 4, 5].map(i =>
+    `<div class="vs${i === 0 ? ' off' : ''}${(i === 0 ? vol[k] === 0 : i <= vol[k]) ? ' on' : ''}">` +
+    (i === 0 ? '&#128263;' : `<span style="display:inline-block;width:9px;height:${6 + i * 6}px;background:#fff;border-radius:2px"></span>`) + '</div>').join('') + '</div>';
+}
+function paintVol(k) {
+  const el = document.querySelector(`#settings .vol[data-vol="${k}"]`);
+  if (el) [...el.children].forEach((c, i) => c.classList.toggle('on', i === 0 ? vol[k] === 0 : i <= vol[k]));
+}
+// The credits list in Settings. Source addresses are plain text, not links, so nothing leads a child outside the game.
+function creditsHtml() {
+  if (!audioList) return 'Loading...';
+  if (!audioList.credits.length) return 'No music or sound files are in the game yet.';
+  return '<ul style="margin:6px 0 0 18px;padding:0">' + audioList.credits.map(c => `<li style="margin:5px 0">${esc(c)}</li>`).join('') + '</ul>';
 }
 
 // ---- Input ----
@@ -1013,8 +1167,22 @@ bindBtn('bJ', 'J');
   el.addEventListener('pointermove', e => { if (e.pointerId === stick.id) { e.preventDefault(); fromEvent(e); } });
   for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, e => { if (e.pointerId === stick.id) { stick.id = null; setStick(0, 0); } });
 }
-// Fire button: one tap casts a fireball where the camera is looking (the same as the F key)
-document.getElementById('bFire').addEventListener('pointerdown', e => { e.preventDefault(); fireAt(innerWidth / 2, innerHeight / 2); });
+// Hand buttons and Spell button, above JUMP on touch screens (0.6.60).
+// Hand 1 and Hand 2 are quick bar slots 1 and 2. A tap only puts that item in the hand; the game never moves an item
+// onto a hand button or changes the item in hand by itself. An empty hand button opens the bag with its slot chosen.
+// With the bag, Settings, the quit question or another panel open, the buttons do nothing.
+const anyPanelOpen = () => bagOpen || settingsOpen || quitOpen || !!skillPanel || paused;
+// The item a hand button shows. A stack that has run out counts as empty.
+const handItem = i => { const id = qb[i], d = id ? defOf(id) : null; return d && !(ITEMS[id] && d.kind !== 'spell' && !(inv[id] > 0)) ? id : null; };
+function handTap(i) {
+  if (anyPanelOpen()) return;
+  sfx('tap');
+  selectSlot(i);
+  if (!handItem(i)) toggleBag(true);
+}
+for (const [id, i] of [['bH1', 0], ['bH2', 1]]) document.getElementById(id).addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); handTap(i); });
+// Spell button: one tap casts the fireball where the camera is looking (the same as the F key)
+document.getElementById('bSpell').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (!anyPanelOpen()) fireAt(innerWidth / 2, innerHeight / 2); });
 
 // On-screen controls: on by default on touch devices, off on PCs. Choice is remembered.
 const isTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
@@ -1028,6 +1196,7 @@ function applyPad() {
 }
 toggleEl.addEventListener('click', () => {
   padOn = !padOn;
+  sfx('tap');
   try { localStorage.setItem('padOn', padOn ? '1' : '0'); } catch (e) {}
   applyPad();
 });
@@ -1076,6 +1245,7 @@ function gain(p, n) {
 // ---- Inventory and quick bar ----
 function addItem(id, n = 1) {
   inv[id] = (inv[id] || 0) + n;
+  if (id === 'gem' && n > 0) sfx('gem');
   recent = [id, ...recent.filter(r => r !== id)].slice(0, 6);
   renderUI();
 }
@@ -1086,6 +1256,7 @@ function toQuick(id) {
   const old = qb.indexOf(id);
   if (old >= 0) qb[old] = null; // an item sits in one slot at a time
   qb[sel] = id;
+  sfx('tap');
   say(`${defOf(id).name} is in slot ${sel + 1}`, 1200);
   updateHand();
   renderUI();
@@ -1114,6 +1285,7 @@ function renderUI() {
         : '<span>empty</span>') +
     '</div>').join('');
   renderHudBtn();
+  renderHands();
   if (bagOpen) renderBag();
 }
 // The phone button shows what is in hand, and whether the bar is open
@@ -1123,6 +1295,17 @@ function renderHudBtn() {
   const id = qb[sel];
   el.innerHTML = (id ? `<span class="sw" style="width:20px;height:20px;background-image:url(${itemIcon(id)})"></span>${labelOf(id)}` : 'Empty hand') +
     ` <span style="opacity:.8">${panelOpen ? '&#9650;' : '&#9660;'}</span>`;
+}
+
+// The hand buttons show quick bar slots 1 and 2: a picture, the count for a stack, and a bright ring on the item in hand
+function renderHands() {
+  [['bH1', 0], ['bH2', 1]].forEach(([elId, i]) => {
+    const el = document.getElementById(elId), id = handItem(i);
+    el.className = 'hb' + (id ? '' : ' empty') + (id && sel === i ? ' on' : '');
+    el.innerHTML = id ? `<span class="sw" style="background-image:url(${itemIcon(id)})"></span>` + (ITEMS[id] ? `<span class="ct">${inv[id] || 0}</span>` : '') : '';
+  });
+  const sp = document.getElementById('bSpell');
+  if (!sp.dataset.icon) { sp.firstChild.style.backgroundImage = `url(${itemIcon('fireball')})`; sp.dataset.icon = '1'; }
 }
 
 function renderBag() {
@@ -1139,7 +1322,9 @@ function renderBag() {
 }
 
 function toggleBag(force) {
+  const was = bagOpen;
   bagOpen = force !== undefined ? force : !bagOpen;
+  if (bagOpen !== was) sfx(bagOpen ? 'open' : 'close');
   bagEl.style.display = bagOpen ? 'block' : 'none';
   if (bagOpen) renderBag();
 }
@@ -1151,6 +1336,7 @@ recentEl.addEventListener('click', e => {
 qbEl.addEventListener('click', e => {
   const s = e.target.closest('[data-slot]');
   if (!s) return;
+  sfx('tap');
   selectSlot(+s.dataset.slot);
   if (isPhone()) setPanel(false);   // on a phone, choosing a tool hides the bar again
 });
@@ -1202,6 +1388,7 @@ function updateTeleport(dt) {
     teleCast = Math.max(0, (teleEndAt - Date.now()) / 1000);
     if (teleCast <= 0) {
       teleCast = -1;
+      sfx('teleport');
       // Start point, three blocks up so the character drops in safely
       [px, py, pz] = topSpawnPoint();
       vx = 0; vy = 0; vz = 0;
@@ -1224,6 +1411,13 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.60', title: 'Hand buttons, and getting ready for sound', items: [
+    'Quit has moved into Settings: the "Quit the game" button is at the bottom',
+    'Tablets and phones: two hand buttons above JUMP show quick bar slots 1 and 2. Tap one to hold that item',
+    'A Spell button casts the fireball. It replaces the FIRE button',
+    'Tap a close monster to swing a sword that is on a hand button, even with the pickaxe in your hand',
+    'Settings has Sounds and Music sliders, and a list of music and sound credits',
+    'The sounds and the music themselves arrive in a later version'] },
   { v: '0.6.59', title: 'Quit the game', items: [
     'New Quit button at the top, under Settings. It asks first, then saves your game and closes it',
     'On a computer, Esc opens the same question (Esc still closes the bag or Settings first)',
@@ -1414,20 +1608,46 @@ function renderSettings() {
   settingsEl.innerHTML =
     `<div style="display:flex;justify-content:space-between;align-items:center">` +
     `<b style="font-size:20px">Settings</b><button id="settingsClose" style="cursor:pointer;min-height:48px;min-width:110px;padding:10px 18px;background:#3b6fd8;color:#fff;border:0;border-radius:12px;font-size:18px;font-weight:600">Close &#10005;</button></div>` +
-    `<div style="margin-top:12px"><b>Game version ${esc(VERSION)}</b></div>` +
-    `<div style="margin-top:14px;opacity:.85">What has changed, newest first</div>` +
+    `<div style="margin-top:14px"><b>&#128266; Sounds</b>${volHtml('sfx')}</div>` +
+    `<div style="margin-top:14px"><b>&#127925; Music</b>${volHtml('music')}</div>` +
+    `<details style="margin-top:14px"><summary style="cursor:pointer;padding:12px 0">Music and sound credits</summary><div id="creditList" style="font-size:13px;opacity:.9">${creditsHtml()}</div></details>` +
+    `<div style="margin-top:10px"><b>Game version ${esc(VERSION)}</b></div>` +
+    // The list of changes is folded away, so the Quit button below is easy to reach
+    `<details><summary style="cursor:pointer;padding:12px 0;opacity:.85">What has changed, newest first</summary>` +
     GAME_HISTORY.map(h =>
       `<div style="margin-top:14px"><b>${esc(h.v)}: ${esc(h.title)}</b>` +
       `<ul style="margin:6px 0 0 18px;padding:0">${h.items.map(i => `<li style="margin:3px 0">${esc(i)}</li>`).join('')}</ul></div>`
-    ).join('');
+    ).join('') + `</details>` +
+    `<button id="settingsQuit" style="display:block;width:100%;margin-top:28px;min-height:48px;padding:12px;background:#d9473b;color:#fff;border:0;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer">Quit the game</button>`;
 }
 function toggleSettings(force) {
+  const was = settingsOpen;
   settingsOpen = force !== undefined ? force : !settingsOpen;
+  if (settingsOpen !== was) sfx(settingsOpen ? 'open' : 'close');
   settingsEl.style.display = settingsOpen ? 'block' : 'none';
   if (settingsOpen) { renderSettings(); settingsEl.scrollTop = 0; }
 }
 document.getElementById('settingsBtn').addEventListener('click', () => toggleSettings());
-settingsEl.addEventListener('click', e => { if (e.target.closest('#settingsClose')) toggleSettings(false); });
+settingsEl.addEventListener('click', e => {
+  if (e.target.closest('#settingsClose')) toggleSettings(false);
+  // Quit the game: Settings closes and the same question as Esc and Back is asked (0.6.60)
+  else if (e.target.closest('#settingsQuit')) { toggleSettings(false); toggleQuit(true); }
+});
+// Volume sliders: tap a step, or drag along the track
+{
+  let volDrag = null;
+  const stepAt = (el, e) => { const r = el.getBoundingClientRect(); return Math.max(0, Math.min(5, Math.floor((e.clientX - r.left) / r.width * 6))); };
+  settingsEl.addEventListener('pointerdown', e => {
+    const el = e.target.closest && e.target.closest('.vol');
+    if (!el) return;
+    e.preventDefault();
+    volDrag = el;
+    try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    setVol(el.dataset.vol, stepAt(el, e));
+  });
+  settingsEl.addEventListener('pointermove', e => { if (volDrag) setVol(volDrag.dataset.vol, stepAt(volDrag, e)); });
+  for (const ev of ['pointerup', 'pointercancel']) settingsEl.addEventListener(ev, () => { volDrag = null; });
+}
 // Tap or click outside the panel to close it. The tap is used up here, so it does not also
 // dig, build or fight in the game behind it. The Settings button still works as before.
 addEventListener('pointerdown', e => {
@@ -1438,7 +1658,7 @@ addEventListener('pointerdown', e => {
   toggleSettings(false);
 }, true);
 
-// ---- Quit: the Quit button, Esc on a computer, and the Back button on Android all ask first, then save and close ----
+// ---- Quit: "Quit the game" in Settings, Esc on a computer, and the Back button on Android all ask first, then save and close ----
 const quitEl = document.getElementById('quit');
 let quitOpen = false;
 // Inside the Android app (Capacitor) the App plugin can close the app; in a browser a page cannot close its own tab,
@@ -1448,12 +1668,15 @@ const appPlugin = () => {
   return C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.App ? C.Plugins.App : null;
 };
 function toggleQuit(force) {
+  const was = quitOpen;
   quitOpen = force !== undefined ? force : !quitOpen;
+  if (quitOpen !== was) sfx(quitOpen ? 'open' : 'close');
   quitEl.style.display = quitOpen ? 'block' : 'none';
 }
 function quitGame() {
   saveGame();
   toggleQuit(false);
+  stopAudio();
   const app = appPlugin();
   if (app) app.exitApp();
   else location.href = '/';
@@ -1465,13 +1688,11 @@ function backAction() {
   else if (bagOpen) toggleBag(false);
   else toggleQuit(true);
 }
-document.getElementById('quitBtn').addEventListener('click', () => toggleQuit());
 document.getElementById('quitYes').addEventListener('click', quitGame);
 document.getElementById('quitNo').addEventListener('click', () => toggleQuit(false));
 // A tap outside the question means keep playing; it is used up here, so it does not dig, build or fight
 addEventListener('pointerdown', e => {
   if (!quitOpen || quitEl.contains(e.target)) return;
-  if (e.target.closest && e.target.closest('#quitBtn')) return;
   e.stopPropagation();
   e.preventDefault();
   toggleQuit(false);
@@ -1494,6 +1715,7 @@ function digCell(x, y, z) {
     if (id === 'gem') say('+1 gem!', 1200);
     addItem(id);
   }
+  sfx('dig');
   wear(held());
   gain('dig', 1);
   dirty = true;
@@ -1574,6 +1796,7 @@ function placeCell(x, y, z, forceId) {
   shareBlock(x, y, z, item.block);
   inv[id]--;
   gain('build', 1);
+  sfx('place');
   dirty = true;
   armSwing = 0.3;
   renderUI();
@@ -1581,7 +1804,8 @@ function placeCell(x, y, z, forceId) {
 
 // ---- Fights: hold on an enemy with the sword to hit it. Enemies never hurt the player. ----
 const enemies = [];
-let fight = null; // {e, t}: the enemy being hit, and how long we have been hitting it
+let fight = null; // {e, t, id}: the enemy being hit, how long we have been hitting it, and the weapon used
+let swingT = 0, swingCool = 0;   // a swing from a hand button: seconds left to show it, and seconds until the next one (0.6.60)
 const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
 
 // ---- Enemies: friendly goblin-style creatures (they never hurt the player) ----
@@ -2007,11 +2231,21 @@ function updateFight(dt) {
     if (!enemies.includes(en)) fight = null;
   }
 }
+// One swing of a sword that is on a hand button (quick bar slot 1 or 2) but not in the hand (0.6.60).
+// It hits once and the sword wears by one. The item in the hand stays in the hand.
+function swingOnce(en, weapon) {
+  swingT = 0.3;
+  swingCool = 0.3;
+  sfx('swing');
+  hurtEnemy(en, damageTo(en, weaponDamage(weapon), 'sword'));
+  wear(weapon);
+}
 // Takes health off an enemy and says so. Defeats it when its health is gone.
 function hurtEnemy(en, amount) {
   en.hp -= amount;
   const k = ENEMY_KINDS[en.kind];
   if (en.hp <= 0) { defeatEnemy(en); return; }
+  sfx('hit');
   say(k.name + ': ' + en.hp + ' health left' + (k.weak.length ? ' (weak to ' + k.weak.join(', ') + ')' : ''), 2000);
 }
 
@@ -2037,6 +2271,7 @@ function defeatEnemy(en) {
   for (const p of k.parts) if (Math.random() < 0.5) addItem(p);   // parts: ears, hides, horns...
   if (Math.random() < 0.15) addGear(gearFor(k.power));              // gear: weapons and armour
   gain('fight', 2);
+  sfx('defeat');
   logEvent('enemy_defeated', en.kind);
   say(k.name + ' defeated! +' + k.gems + ' gem' + (k.gems > 1 ? 's' : ''), 1500);
 }
@@ -2073,7 +2308,7 @@ function showSkillChoice() {
   el.style.cssText = 'position:fixed;inset:0;background:rgba(10,12,25,.85);display:flex;align-items:center;justify-content:center;z-index:55;padding:16px;box-sizing:border-box';
   el.innerHTML = '<div style="background:#1d2440;color:#fff;border-radius:18px;padding:20px;max-width:420px;width:100%;text-align:center;box-sizing:border-box">' +
     '<h2 style="margin:0 0 8px;font-size:22px">Magic unlocked!</h2>' +
-    '<p style="margin:8px 0;font-size:15px;opacity:.9">Choose your first skill. It goes in the quick bar.</p>' +
+    '<p style="margin:8px 0;font-size:15px;opacity:.9">Choose your first skill.</p>' +
     Object.entries(SKILLS).map(([id, sk]) =>
       `<button data-skill="${id}" style="display:block;width:100%;margin:10px 0;padding:14px;border-radius:12px;border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;font-size:17px;cursor:pointer"><b>${sk.name}</b><br><span style="font-size:14px;opacity:.85">${sk.desc}</span></button>`).join('') +
     '</div>';
@@ -2087,11 +2322,13 @@ function showSkillChoice() {
 function chooseSkill(id) {
   if (!SKILLS[id] || skills.includes(id)) return;
   skills.push(id);
+  // The game never changes the quick bar by itself (0.6.60): the fireball goes into an empty slot only.
+  // With the on-screen controls on it needs no slot at all: the Spell button casts it.
   const empty = qb.indexOf(null);
-  qb[empty >= 0 ? empty : sel] = id;
+  if (!padOn && empty >= 0) qb[empty] = id;
   if (skillPanel) { skillPanel.remove(); skillPanel = null; }
   paused = false;
-  say(SKILLS[id].name + ' learned! Select it in the quick bar. Tap to shoot, or press F.', 4000);
+  say(SKILLS[id].name + ' learned! ' + (padOn ? 'Tap the spell button to shoot.' : empty >= 0 ? 'Select it in the quick bar. Tap to shoot, or press F.' : 'Press F to shoot.'), 4000);
   updateHand();
   renderUI();
   saveGame();
@@ -2111,6 +2348,7 @@ function castFireball(dir, target = null) {
   fireballs.push(f);
   spellCool = 0.4;
   armSwing = 0.3;
+  sfx('fireball');
   gain('magic', 1);
 }
 
@@ -2239,6 +2477,7 @@ function updateFireballs(dt) {
       scene.remove(f.mesh);
       fireballs.splice(i, 1);
       steamPuff(f.x, f.y, f.z);
+      sfx('fizzle');
       continue;
     }
     let boom = f.t >= f.life || (f.t > 0.15 && here !== T.AIR);
@@ -2362,10 +2601,20 @@ canvas.addEventListener('pointerdown', e => {
   if (!a) return;
   if (a.enemy) {
     if (Math.hypot(a.enemy.x - px, a.enemy.y - py, a.enemy.z - pz) > REACH + 1) { say('Too far away! Get closer.'); return; }
-    const wd = defOf(held());
-    if (!wd || wd.kind !== 'weapon') { say('Select a sword in the quick bar (1-6) to fight.', 2000); return; }
-    fight = { e: a.enemy, t: 0, id: held() };
+    // A sword in the hand hits as before (hold to keep hitting). With another item in the hand, a sword on a hand button
+    // (quick bar slot 1 or 2) swings once straight away; the item in the hand stays in the hand (0.6.60).
+    const isWeapon = id => !!(id && defOf(id) && defOf(id).kind === 'weapon');
+    const borrowed = isWeapon(held()) ? null : ([qb[0], qb[1]].find(isWeapon) || null);
+    if (!isWeapon(held()) && !borrowed) { say('Put a sword on a hand button', 2000); return; }
     digging = null;
+    if (borrowed) {
+      if (swingCool > 0) return;   // a swing takes a moment: faster taps do not hit again
+      swingOnce(a.enemy, borrowed);
+      if (enemies.includes(a.enemy) && gearOf(borrowed)) fight = { e: a.enemy, t: 0, id: borrowed };   // holding keeps hitting at the usual pace
+      return;
+    }
+    sfx('swing');
+    fight = { e: a.enemy, t: 0, id: held() };
     return;
   }
   if (a.dist > REACH) { say('Too far away! Get closer.'); return; }
@@ -2410,6 +2659,7 @@ function updateDig(dt) {
 // ---- Game loop ----
 // Seconds since the character was last in water. For a few seconds after leaving the water, it can still climb up a step.
 let wetT = 0;
+let wasInWater = null;   // whether the character was in water on the last frame (null before the first frame), for the splash sound
 // The extra jump: once in the air, shortly after leaving the water, one more jump (a smaller one, 1.5 jumps in all)
 let airJumpLeft = 1;
 const AIR_JUMP = JUMP * 0.75;
@@ -2444,6 +2694,8 @@ function update(dt) {
   const wx = sx * cosY + sz * sinY, wz = -sx * sinY + sz * cosY;
   // Water is not solid, so the body moves through it. In water you swim: slower, and you sink or rise
   const inWater = get(Math.floor(px), Math.floor(py + HH / 2), Math.floor(pz)) === T.WATER;
+  if (inWater && wasInWater === false) sfx('splash');
+  wasInWater = inWater;
   wetT = inWater ? 4 : Math.max(0, wetT - dt);
   const speed = SPEED * (inWater ? 0.6 : 1) / norm;
   vx = wx * speed;
@@ -2458,8 +2710,8 @@ function update(dt) {
 
   const jd = k('Space') || touch.J;
   if (onGround || inWater) airJumpLeft = 1;   // the extra jump comes back when you land or are in water
-  if (jd && !jumpHeld && onGround) { vy = JUMP; onGround = false; squash = 1; }
-  else if (jd && !jumpHeld && !onGround && airJumpLeft > 0 && wetT > 0) { vy = AIR_JUMP; airJumpLeft = 0; squash = 1; }   // the extra jump, just after leaving the water
+  if (jd && !jumpHeld && onGround) { vy = JUMP; onGround = false; squash = 1; sfx('jump'); }
+  else if (jd && !jumpHeld && !onGround && airJumpLeft > 0 && wetT > 0) { vy = AIR_JUMP; airJumpLeft = 0; squash = 1; sfx('jump'); }   // the extra jump, just after leaving the water
   jumpHeld = jd;
   // Climbing out: pressed against a shore next to water, holding jump lifts the character over the edge
   const climbing = jd && blocked && (wetT > 0 || waterNear(px, py, pz));
@@ -2473,7 +2725,7 @@ function update(dt) {
   else {
     if (vy < 0) {
       onGround = true;
-      if (vy < -LAND_SQUASH_SPEED) squash = 1;
+      if (vy < -LAND_SQUASH_SPEED) { squash = 1; sfx('land'); }
       // Rest exactly on top of the block below. Without this the character stopped a little above the ground, and on a shorter
       // frame the small pull of gravity did not reach it: for that frame the character counted as in the air (arms flicked up, a jump could be missed).
       const rest = Math.floor(ny + FOOT) + 1 - FOOT + 1e-6;
@@ -2510,6 +2762,11 @@ function update(dt) {
   legR.rotation.x = -swing;
   armL.rotation.x = onGround ? -swing : -2.4;
   if (fight) armL.rotation.x = -1.3 + Math.sin(performance.now() / 110) * 0.8;
+  // A swing from a hand button: the sword shows in the left hand for the swing, then the hands go back to the item in hand
+  swingCool = Math.max(0, swingCool - dt);
+  if (swingT > 0) { swingT -= dt; armL.rotation.x = -1.3 + Math.sin(performance.now() / 60) * 0.8; }
+  const showSword = swingT > 0 || !!(fight && fight.id !== held());
+  if (showSword !== swordShown) { swordShown = showSword; updateHand(); }
   if (digging) {
     armR.rotation.x = -1.3 + Math.sin(performance.now() / 110) * 0.7;
   } else if (armSwing > 0) {
@@ -2544,7 +2801,9 @@ function update(dt) {
 
 const hud = document.getElementById('hud');
 function drawHud() {
-  document.getElementById('bFire').style.display = padOn && skills.includes('fireball') ? 'flex' : 'none';
+  const spellBtn = document.getElementById('bSpell');   // shown once the fireball is learned; dimmed while the power recharges
+  spellBtn.style.display = padOn && skills.includes('fireball') ? 'flex' : 'none';
+  spellBtn.classList.toggle('wait', spellCool > 0);
   const cap = invCap(), total = invTotal();
   const bar = (k, ratio) => `<div class="bar"><div style="width:${Math.min(1, ratio) * 100}%;background:${BAR[k]}"></div></div>`;
   hud.innerHTML =
@@ -2663,7 +2922,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.59';
+const VERSION = '0.6.60';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -3215,6 +3474,24 @@ window.gameTest = {
   damageTo, hurtEnemy, wear, addGear, waterNear, addItem, gearFor, gearOf, defOf, tplOf, labelOf, weaponDamage, invTotal, updateHand,
   get gear() { return gear; }, get qb() { return qb; }, get recent() { return recent; },
   get skills() { return skills; },
+  // Controls and sound (0.6.60)
+  get sel() { return sel; }, get paused() { return paused; }, get msg() { return msgEl.textContent; }, get digging() { return digging; }, get fight() { return fight; },
+  get swingCool() { return swingCool; }, toQuick, selectSlot, digCell, placeCell, chooseSkill, handItem,
+  // An enemy standing on the ground next to the player, dx and dz blocks away (for the tap-a-monster tests)
+  enemyNear: (kind, dx, dz) => {
+    const en = spawnEnemy(kind);
+    if (!en) return false;
+    const x = Math.floor(px + dx), z = Math.floor(pz + dz);
+    let y = H - 1;
+    while (y > 0 && !solid(get(x, y, z))) y--;
+    en.x = x + 0.5; en.z = z + 0.5; en.y = y + 1.01;
+    en.group.position.set(en.x, en.y, en.z);
+    en.group.updateMatrixWorld(true);
+    return true;
+  },
+  get vol() { return { ...vol }; }, setVol, sfx, get sfxLog() { return sfxLog; }, SOUND_KEYS, VOL, MUSIC_QUIETER,
+  audioState: () => ({ started: audioStarted, listed: !!audioList, live: sfxLive.length,
+    music: musicEl ? { src: musicEl.src, volume: musicEl.volume, paused: !!musicEl.paused } : null }),
   castFireball, fireAt, enemyAt, viewDir, aimAt: (x, y) => aim({ clientX: x, clientY: y }), setYaw: y => { camYaw = y; }, get sparks() { return sparks; }, get fireballs() { return fireballs; }, get enemies() { return enemies; },
   // Where an enemy's middle is on the screen: [x, y] (y from the top), and whether it is in front of the camera
   screenOf: en => { const v = new THREE.Vector3(en.x, en.y + 0.5, en.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight, v.z < 1]; },

@@ -2,6 +2,21 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.60: hand buttons, tap to hit, and the sound engine (hand-offs 001 and 002)
+Built from the product manager's hand-offs 001 (controls) and 002 (sound and music), document version 1 of each.
+- Quit moved into Settings: "Quit the game" at the bottom, in red. The top-right Quit button is gone. Esc and Android Back work as before; Keep playing goes back to the game
+- Settings: the list of changes is folded behind "What has changed", so Quit is easy to reach
+- Touch screens: two round hand buttons above JUMP show quick bar slots 1 and 2, and a Spell button casts the fireball (it replaces FIRE). A hand button only puts its item in the hand; the item in hand has a bright ring; an empty one opens the bag with its slot chosen. Order from the top: Spell, Hand 2, Hand 1
+- The game no longer changes the quick bar by itself: a learned fireball goes into an empty slot only, and on touch screens into no slot (the Spell button casts it; F still casts on computers)
+- Tap or click a close monster with another item in hand: a sword on a hand button swings once (0.3 seconds per swing) and the item in hand stays. With no sword there: "Put a sword on a hand button". With the sword in hand, fighting is as in 0.6.59 (hold to hit)
+- Sound engine and music player, with Sounds and Music sliders in Settings (six steps, first start 4 and 2, kept on the device only) and a "Music and sound credits" list. Nothing loads or plays before the first tap or key; all audio stops when the page is hidden or the game quits
+- **No audio files yet: the game is silent until they are added.** Each file needs a row in docs/ASSETS.md and a saved licence page in docs/licences/; `node scripts/audio-credits.mjs` then writes www/audio/credits.json and the credits on the terms page
+- No "player hurt" sound: monsters never hurt the player
+- Terms page: new wording for music and sounds, dated 17 November 2026. **Needs the parent's review before the push**: it describes music and sounds that are not in the game yet, and it no longer says the models' licences forbid reselling or redistributing them
+- Privacy page: no change. The two volume levels are device settings and are never sent; audio comes from our own site
+- Tests added: 13 browser tests (Quit in Settings, layout on phone sideways, phone upright and tablet, hand buttons, Spell button, computer layout, three tap-a-monster tests, sound and music, broken audio files) and scripts/tests/audio.test.mjs (file rows, licences, credits, size limits, sound call sites, terms wording). The old Quit and FIRE button tests were updated
+- Not tried on a phone or tablet yet. No real sound has been heard
+
 ## 0.6.59: quit the game
 - New Quit button at the top right, under Settings. It asks "Quit the game?" first; Save and quit saves the game and closes it, Keep playing goes back
 - Computers: Esc opens the same question. Esc still closes the bag or Settings first, and Esc on the question means keep playing
