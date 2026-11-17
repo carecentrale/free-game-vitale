@@ -23,3 +23,15 @@ Weekly check of the build laptop (LAPTOP-N8LD8GM1): build watcher, recent runs, 
 **Recommendations**
 1. **Done (16 Nov, build-android.ps1):** Skip `npm ci` when nothing changed: it runs twice per build (game folder and `build-android-work`), plus `npx playwright install`. Keep a stamp of the `package-lock.json` hash and skip when it matches. Saves roughly 1–3 minutes per build. Nothing needed from Nicola.
 2. **Done (5b8d7c4, the watcher keeps the PC awake while it runs):** Keep the laptop awake while a build runs: the watcher could ask Windows not to sleep during a run (SetThreadExecutionState), without changing the 2-hour sleep setting. Avoids a run being cut off or a request waiting until someone wakes the laptop. Nothing needed from Nicola.
+
+## Builds from anywhere (added 17 Nov 2026, not yet tried on the laptop)
+
+The build watcher is a program on the laptop, not Claude. Besides `build-requests\request.txt`, it now looks at GitHub about once a minute:
+
+- **Ask:** `scripts/remote-build.sh quick` from any clone that can push (or `full`, `build`, `check`, `status`). This writes one line, a word and a time, to the branch `build-remote`. Each new line is run once. The first time the watcher sees the branch it only remembers what is there, so an old request never runs.
+- **Result:** the watcher posts one short status (running, then OK or FAILED with test counts and the build number) to the branch `build-status`. Read it with `scripts/remote-build.sh result`. No logs are posted, because the repository is public; the full logs stay in `build-requests\` on the laptop.
+- **Not allowed this way:** `run`, `push`, `restart`, `tidy`. Nothing sent through GitHub can run a script on the laptop other than the project's own build.
+- **Needs:** the laptop on, the parent logged in, internet, and `github-sign-in.bat` done once (for posting the result; the build runs without it).
+- **Turning it off:** delete the branch `build-remote` on GitHub; the watcher then finds nothing to run.
+- **If nothing happens:** `build-requests\watcher-alive.txt` shows whether the watcher runs; `watcher-errors.log` shows problems with GitHub.
+

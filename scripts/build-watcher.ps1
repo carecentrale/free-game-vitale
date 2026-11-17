@@ -11,6 +11,12 @@
 #   status write build-requests\machine.txt: Windows, uptime, free disk, power and sleep settings, tool versions,
 #          the build watcher task and its processes (read-only)
 #   restart  stop this watcher; the scheduled task starts it again within 5 minutes (picks up a new version)
+# Requests from anywhere (remote requests): about once a minute the watcher also looks at the GitHub branch "build-remote"
+#   for a file request.txt holding one line: a word and an id, e.g. "quick 20261117T233000Z". A new line is run once.
+#   Only full, quick, build, check and status are accepted this way (never run, push, restart or tidy).
+#   The result goes back to the GitHub branch "build-status" as status.txt (one short status, no logs: the repository is public).
+#   Posting the result needs github-sign-in.bat done once on this PC; without it the build still runs.
+#   Ask from any clone of the repository with: scripts/remote-build.sh quick   (and: scripts/remote-build.sh result)
 # Results in build-requests\:
 #   status.txt          RUNNING, OK or FAILED, with the request and the times
 #   last.log            everything the last run printed; last-errors.log: its error stream
@@ -40,6 +46,66 @@ $myFile = $PSCommandPath
 $myStamp = (Get-Item $myFile).LastWriteTimeUtc
 
 function Stamp { Get-Date -Format 'yyyy-MM-dd HH:mm:ss' }
+
+# ---- Requests from anywhere, through GitHub (see the top of this file) ----
+# git must never stop to ask for a password here: it runs hidden, so a question would hang the watcher
+$env:GIT_TERMINAL_PROMPT = '0'
+$env:GCM_INTERACTIVE = 'never'
+$remoteLast = Join-Path $dir 'remote-last.txt'      # the last request line seen on GitHub, so each one runs once
+$remoteStatus = Join-Path $dir 'remote-status.txt'  # what was last posted to the build-status branch
+$remoteAllowed = @('full', 'quick', 'build', 'check', 'status')
+$tick = 0
+
+# Posts a short status to the GitHub branch "build-status" (file status.txt). It does not touch the game's files or the main branch.
+function Report($line, $text) {
+  $idx = Join-Path $dir 'remote-index.tmp'
+  try {
+    $head = ((& git rev-parse --short HEAD 2>$null) -join '').Trim()
+    Set-Content $remoteStatus @("request: $line", "status: $text", ("reported: " + (Stamp) + " (build laptop time)"), "game folder commit: $head")
+    Remove-Item $idx -Force -ErrorAction SilentlyContinue
+    $env:GIT_INDEX_FILE = $idx
+    $blob = ((& git hash-object -w $remoteStatus 2>$null) -join '').Trim()
+    & git update-index --add --cacheinfo "100644,$blob,status.txt" 2>$null | Out-Null
+    $tree = ((& git write-tree 2>$null) -join '').Trim()
+    Remove-Item Env:\GIT_INDEX_FILE -ErrorAction SilentlyContinue
+    $commit = ((& git -c user.name=build-watcher -c user.email=build-watcher@localhost commit-tree $tree -m build-status 2>$null) -join '').Trim()
+    if ($commit -notmatch '^[0-9a-f]{40}$') { Add-Content $watcherErrors ((Stamp) + "  remote status: could not make the status commit"); return }
+    & git push --quiet --force origin "${commit}:refs/heads/build-status" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { Add-Content $watcherErrors ((Stamp) + "  remote status: could not push to GitHub (run github-sign-in.bat once on this PC)") }
+  } catch {
+    Add-Content $watcherErrors ((Stamp) + "  remote status: " + $_)
+  } finally {
+    Remove-Item Env:\GIT_INDEX_FILE -ErrorAction SilentlyContinue
+    Remove-Item $idx -Force -ErrorAction SilentlyContinue
+  }
+}
+
+# Looks on GitHub for a new request. Returns its line ("word id") when there is a new one that is allowed, otherwise nothing.
+function RemoteRequest {
+  try {
+    & git fetch --quiet origin '+refs/heads/build-remote:refs/remotes/origin/build-remote' 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { return $null }   # GitHub not reachable, or no such branch yet: look again later
+    $out = & git show 'origin/build-remote:request.txt' 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $out) { return $null }
+    $line = ([string](@($out)[0])).Trim()
+    if (-not $line) { return $null }
+    $seen = $null
+    if (Test-Path $remoteLast) { $seen = ([string](Get-Content $remoteLast -Raw)).Trim() }
+    if ($line -eq $seen) { return $null }
+    Set-Content $remoteLast $line
+    if ($null -eq $seen) { return $null }       # the first look only remembers what is there: an old request is never run
+    $word = ($line -split '\s+')[0].ToLower()
+    if ($remoteAllowed -notcontains $word) {
+      Add-Content $history ((Stamp) + "  remote request '$line'  REFUSED")
+      Report $line "REFUSED: '$word' cannot be asked for from GitHub (use full, quick, build, check or status)"
+      return $null
+    }
+    return $line
+  } catch {
+    Add-Content $watcherErrors ((Stamp) + "  remote request: " + $_)
+    return $null
+  }
+}
 
 # Keeps Windows awake while the watcher runs, so the build PC stays reachable (the screen can still turn off).
 # This is what media players do; it changes no Windows setting, and ends when the watcher stops.
@@ -102,6 +168,13 @@ while ($true) {
     StayAwake
     $awakeNote = if (-not $awakeOk) { ' (could not keep the PC awake)' } elseif (Test-Path (Join-Path $dir 'allow-sleep.txt')) { ' (sleep allowed)' } else { ' (keeping the PC awake)' }
     Set-Content $alive ("Watcher running. Last check: " + (Stamp) + $awakeNote)
+    # About once a minute, and only when nothing is waiting here: look for a request sent through GitHub
+    $remoteLine = $null
+    if (($tick % 4) -eq 0 -and -not (Test-Path $req)) {
+      $remoteLine = RemoteRequest
+      if ($remoteLine) { Set-Content $req (($remoteLine -split '\s+')[0].ToLower()) }
+    }
+    $tick++
     if (Test-Path $req) {
       $mode = ''
       try { $mode = ([string](Get-Content $req -Raw)).Trim().ToLower() } catch { }
@@ -143,6 +216,7 @@ while ($true) {
         continue
       }
       Set-Content $status "RUNNING: $mode, started $start"
+      if ($remoteLine) { Add-Content $history "$start  $mode  asked for through GitHub ($remoteLine)"; Report $remoteLine "RUNNING: $mode, started $start" }
       Remove-Item $log, $errLog -Force -ErrorAction SilentlyContinue
       $code = 1
       try {
@@ -182,6 +256,7 @@ while ($true) {
       } elseif ($mode -notin @('check', 'run', 'status')) {
         Notify "Drenerics: $mode OK" ($(if ($detail) { $detail } else { "Finished at $end" }))
       }
+      if ($remoteLine) { Report $remoteLine ("$result`: $mode, started $start, finished $end, exit code $code. $tests $detail").Trim() }
     }
   } catch {
     Add-Content $watcherErrors ((Stamp) + "  " + $_)
