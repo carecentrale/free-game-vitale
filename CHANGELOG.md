@@ -2,6 +2,14 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.61: first sounds and music (hand-off 002)
+- 16 sound effects from four Kenney packs (CC0), chosen by file name only: nobody has listened to them in the game yet. One per action; "player hurt" has no sound because monsters never hurt the player
+- Music: Grieg, "Morning Mood", Musopen Symphony Orchestra recording from Wikimedia Commons (public domain), shortened to 2 min 45 s with a fade in and out. Only one piece so far, so it repeats after a short pause. Hand-off 002 asks for at least two
+- All files are MP3: effects 57 KB in total, music 1.3 MB
+- Every file has a row in docs/ASSETS.md and a licence copy in docs/licences/. The Commons licence copy is a written record, not the saved page: the parent should save the page to replace it
+- Credits now show in Settings and on the terms page (written by scripts/audio-credits.mjs)
+- Checked: the fast tests, including the audio rules. Not checked: the browser tests; real sound on any device
+
 ## 0.6.60: hand buttons, tap to hit, and the sound engine (hand-offs 001 and 002)
 Built from the product manager's hand-offs 001 (controls) and 002 (sound and music), document version 1 of each.
 - Quit moved into Settings: "Quit the game" at the bottom, in red. The top-right Quit button is gone. Esc and Android Back work as before; Keep playing goes back to the game

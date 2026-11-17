@@ -1,0 +1,19 @@
+Licence record for www/audio/music/morning-mood.mp3
+Checked: 17 November 2026
+
+File: "Musopen - Morning.ogg" on Wikimedia Commons
+Page: https://commons.wikimedia.org/wiki/File:Musopen_-_Morning.ogg
+Original: Ogg Vorbis, 3 min 49 s, 3.29 MB (the file Nicola downloaded on 17 November 2026)
+
+What the file page says (as shown in a web search of the page on 17 November 2026):
+- Description: "Morning Mood" by Edvard Grieg, performed by the Czech National Symphony Orchestra as the
+  Musopen Symphony Orchestra for the Musopen Kickstarter Project.
+- Author: Grieg, Edvard; Musopen Symphony Orchestra
+- Source: Musopen, https://musopen.org/music/777-peer-gynt-suite-no-1-op-46/
+- Licensing: Public domain. "This work has been released into the public domain by its author, Musopen."
+  This applies worldwide.
+
+What we did to it: shortened to the first 2 min 45 s, with a fade in and a fade out, and saved as MP3.
+
+NOTE: this is a written record, not a saved copy of the page itself. The builder could not open the page
+directly. Nicola: please save the page (Ctrl+S, or print to PDF) into this folder to replace this note.
