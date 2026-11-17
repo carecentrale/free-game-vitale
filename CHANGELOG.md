@@ -2,6 +2,17 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.62: building works on phones and tablets, and a full bag can be emptied
+Two problems reported from play on a phone.
+- Fixed: on a touch screen you could not build. A tap on a block always tried to dig, and said "Select the pickaxe" when another item was in hand; only a right-click built, and a touch screen has none
+- Now, with a block in hand, a tap (or left-click) on the side or top of a block builds there. A drag still turns the view and builds nothing. The pickaxe digs and the sword fights as before; right-click on a computer is unchanged
+- New: a Drop button in the bag, next to each block and monster part. One tap puts one of them on the ground two blocks away, where it can be picked up again for 5 minutes (the same as blocks that fall when the bag is full). Before, building was the only way anything left the bag, so a full bag could not be emptied
+- Gems, tools, weapons and spells cannot be dropped. Gems are left out on purpose, since paying families will receive gems
+- The "bag is full" messages now say what to do: open the bag and tap Drop
+- No change to what data is collected. Drops stay on the device, as before
+- Tests added (browser.test.mjs): a finger tap and a click build with a block in hand, a drag does not, the pickaxe still digs; Drop takes one item out, puts it on the ground away from the character, and is not offered for gems or tools
+- Checked: the syntax check and the fast tests. Not checked: the browser tests (the two new ones included); a real phone or tablet
+
 ## 0.6.61: first sounds and music (hand-off 002)
 - 16 sound effects from four Kenney packs (CC0), chosen by file name only: nobody has listened to them in the game yet. One per action; "player hurt" has no sound because monsters never hurt the player
 - Music: Grieg, "Morning Mood", Musopen Symphony Orchestra recording from Wikimedia Commons (public domain), shortened to 2 min 45 s with a fade in and out. Only one piece so far, so it repeats after a short pause. Hand-off 002 asks for at least two

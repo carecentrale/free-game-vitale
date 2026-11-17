@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.61 (3D)</title>
+<title>Adventurers of Drenerics v0.6.62 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -47,6 +47,7 @@
   .slot.sel{border-color:#ffd54a}
   .slot .n{position:absolute;top:2px;left:5px;font-size:10px;opacity:.8}
   #bag{position:fixed;left:8%;right:8%;top:8%;bottom:20%;background:rgba(20,20,35,.92);color:#fff;border-radius:16px;padding:14px;display:none;overflow:auto;z-index:20;box-sizing:border-box}
+  #bag .drop{margin-left:auto;padding:9px 12px;background:#b03a2e;border-radius:8px;font-size:13px;font-weight:bold;cursor:pointer}
   #bag .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px}
   /* Phones (narrow screens): quick bar sits above the controls and fits the screen width */
   @media (max-width:700px){
@@ -1314,8 +1315,10 @@ function renderBag() {
     `<div style="display:flex;justify-content:space-between;align-items:center">` +
     `<b>Bag ${invTotal()}/${invCap()}</b><span id="bagClose" style="cursor:pointer;padding:6px">Close &#10005;</span></div>` +
     `<div style="margin-top:8px;opacity:.85;font-size:14px">Tap an item to put it in quick bar slot ${sel + 1}.</div>` +
+    `<div style="margin-top:4px;opacity:.85;font-size:14px">Bag full? Tap Drop to put one on the ground. It stays there for 5 minutes.</div>` +
     `<div class="grid">` +
-    (ids.map(id => `<div class="row" data-item="${id}"><span class="sw" style="background-image:url(${itemIcon(id)})"></span>${labelOf(id)}</div>`).join('') ||
+    (ids.map(id => `<div class="row" data-item="${id}"><span class="sw" style="background-image:url(${itemIcon(id)})"></span>${labelOf(id)}` +
+      (canDrop(id) ? `<span class="drop" data-drop="${id}">Drop</span>` : '') + `</div>`).join('') ||
      '<div>Empty. Dig some blocks!</div>') +
     `</div>` +
     `<div style="margin-top:14px;opacity:.8"><span id="newGame" style="cursor:pointer;text-decoration:underline">Start a new game (your other saved games are kept)</span></div>`;
@@ -1351,6 +1354,8 @@ bagEl.addEventListener('click', e => {
     }
     return;
   }
+  const dr = e.target.closest('[data-drop]');
+  if (dr) return dropFromBag(dr.dataset.drop);
   const r = e.target.closest('[data-item]');
   if (r) toQuick(r.dataset.item);
 });
@@ -1411,6 +1416,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.62', title: 'Building on phones, and room in a full bag', items: [
+    'Bag full? Open the bag and tap Drop next to a block or a monster part. One goes on the ground nearby, where you can pick it up again for 5 minutes. Gems, tools and weapons cannot be dropped',
+    'With a block in your hand, tap the side or top of a block to build there. Before, a tap only tried to dig, so touch screens could not build'] },
   { v: '0.6.61', title: 'Sounds and music', items: [
     'Sounds for digging, building, gems, jumping, landing, sword swings and hits, fireballs, teleporting, water, broken gear and buttons',
     'Calm classical music plays while you play: "Morning Mood" by Edvard Grieg',
@@ -1714,7 +1722,7 @@ function digCell(x, y, z) {
   const id = (t === T.GRASS || t === T.DIRT || t === T.SAND || t === T.SNOW) ? 'dirt' : (t === T.STONE ? 'stone' : 'gem');
   if (full) {
     addDrop(x, y, z, id);
-    say(ITEMS[id].name + ' dropped on the ground. Make room in your bag to pick it up.', 2500);
+    say(ITEMS[id].name + ' dropped on the ground. Bag is full: open the bag and tap Drop to make room.', 3500);
   } else {
     if (id === 'gem') say('+1 gem!', 1200);
     addItem(id);
@@ -1771,11 +1779,37 @@ function updateDrops(time) {
     d.mesh.rotation.y = time * 1.5;
     const near = Math.hypot(d.x + 0.5 - px, d.z + 0.5 - pz) < 1.0 && py > d.y - 1 && py < d.y + 2;
     if (!near) continue;
-    if (invTotal() >= invCap()) { say('Bag is full. Make room to pick up the ' + ITEMS[d.id].name + '.', 1500); continue; }
+    if (invTotal() >= invCap()) { say('Bag is full. Open the bag and tap Drop to make room for the ' + ITEMS[d.id].name + '.', 2500); continue; }
     addItem(d.id);
     removeDrop(key);
     say('Picked up ' + ITEMS[d.id].name + '!', 1200);
   }
+}
+
+// ---- Drop from the bag (0.6.62): makes room when the bag is full. One item goes on the ground two blocks away,
+// so it is not picked straight back up; it can be picked up again for 5 minutes, like any other drop.
+// Blocks and monster parts can be dropped. Gems, tools, weapons and spells cannot.
+const canDrop = id => !!(ITEMS[id] && (ITEMS[id].kind === 'block' || ITEMS[id].kind === 'part') && inv[id] > 0);
+function dropFromBag(id) {
+  if (!canDrop(id)) return false;
+  if (drops.size >= MAX_DROPS) { say('Too many things on the ground. Pick some up first.', 2500); return false; }
+  const cx = Math.floor(px), cy = Math.floor(py + 0.01), cz = Math.floor(pz);
+  const ring = [[2, 0], [-2, 0], [0, 2], [0, -2], [2, 2], [-2, 2], [2, -2], [-2, -2], [2, 1], [2, -1], [-2, 1], [-2, -1], [1, 2], [-1, 2], [1, -2], [-1, -2]];
+  const free = (x, y, z) => inBounds(x, y, z) && !solid(get(x, y, z)) && !drops.has(x + ',' + y + ',' + z);
+  let spot = null;
+  // First choice: a free cell with ground under it, at the character's height or one step up or down. Otherwise any free cell.
+  for (const needGround of [true, false]) for (const dy of [0, 1, -1]) for (const [dx, dz] of ring) {
+    const x = cx + dx, y = cy + dy, z = cz + dz;
+    if (!spot && free(x, y, z) && (!needGround || (inBounds(x, y - 1, z) && solid(get(x, y - 1, z))))) spot = [x, y, z];
+  }
+  if (!spot) { say('No room on the ground here. Move a little and try again.', 2500); return false; }
+  inv[id]--;
+  addDrop(...spot, id);
+  sfx('tap');
+  say('Dropped ' + ITEMS[id].name + '. It stays on the ground for 5 minutes.', 2500);
+  dirty = true;
+  renderUI();
+  return true;
 }
 
 let armSwing = 0; // quick arm swing when placing
@@ -2623,7 +2657,12 @@ canvas.addEventListener('pointerdown', e => {
   }
   if (a.dist > REACH) { say('Too far away! Get closer.'); return; }
   const [dx, dy, dz] = a.dig;
-  if (solid(get(dx, dy, dz))) {
+  // A block in hand builds: a tap on the side or top of a block puts the new block against it (0.6.62).
+  // Before, a tap on a block always tried to dig, so a touch screen (which has no right-click) could not build at all.
+  const hb = held(), blockInHand = !!(hb && ITEMS[hb] && ITEMS[hb].kind === 'block');
+  if (blockInHand) {
+    pendingPlace = a.place; // build on release, so a drag does not build
+  } else if (solid(get(dx, dy, dz))) {
     if (tplOf(held()) !== 'pick') { say('Select the pickaxe in the quick bar (1-6) to dig.', 2000); return; }
     digging = { x: dx, y: dy, z: dz, t: 0 };
     armSwing = 0;
@@ -2926,7 +2965,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.61';
+const VERSION = '0.6.62';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -3480,7 +3519,9 @@ window.gameTest = {
   get skills() { return skills; },
   // Controls and sound (0.6.60)
   get sel() { return sel; }, get paused() { return paused; }, get msg() { return msgEl.textContent; }, get digging() { return digging; }, get fight() { return fight; },
-  get swingCool() { return swingCool; }, toQuick, selectSlot, digCell, placeCell, chooseSkill, handItem,
+  get swingCool() { return swingCool; }, toQuick, selectSlot, digCell, placeCell, chooseSkill, handItem, dropFromBag, canDrop, invCap, get drops() { return [...drops.values()].map(d => [d.x, d.y, d.z, d.id]); },
+  // Building by tap (0.6.62): the block in a cell, whether it is solid, and how far the character can reach
+  blockAt: (x, y, z) => get(x, y, z), isSolid: t => solid(t), reach: REACH,
   // An enemy standing on the ground next to the player, dx and dz blocks away (for the tap-a-monster tests)
   enemyNear: (kind, dx, dz) => {
     const en = spawnEnemy(kind);

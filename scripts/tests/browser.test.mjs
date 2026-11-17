@@ -1089,6 +1089,114 @@ test('a tap on a close monster swings the sword from a hand button once, and the
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [readyGame()] }));
 
+// Building by tap (0.6.62). A touch screen has no right-click, so a tap with a block in hand must build.
+// Before 0.6.62 a tap on a block always tried to dig and said "Select the pickaxe", so phones and tablets could not build.
+// Finds a spot on the screen that lands on a close block with a free cell in front of it, then presses and lifts there.
+function tapBlock(page, opts = {}) {
+  return page.evaluate(o => {
+    const g = window.gameTest;
+    g.setYaw(0);
+    g.settleCamera();
+    for (const old of g.enemies.splice(0)) if (old.group.parent) old.group.parent.remove(old.group);   // no monster in the way
+    const [px, py, pz] = g.pos;
+    let pt = null, a = null;
+    for (let y = Math.round(innerHeight * 0.9); y > innerHeight * 0.3 && !pt; y -= 12) for (let x = Math.round(innerWidth * 0.25); x < innerWidth * 0.75 && !pt; x += 12) {
+      if (document.elementFromPoint(x, y) !== document.querySelector('canvas')) continue;   // a button is on top here
+      const c = g.aimAt(x, y);
+      if (!c || c.enemy || c.dist > g.reach || !g.isSolid(g.blockAt(...c.dig)) || g.isSolid(g.blockAt(...c.place))) continue;
+      if (Math.abs(c.place[0] + 0.5 - px) < 1.2 && Math.abs(c.place[2] + 0.5 - pz) < 1.2 && c.place[1] + 1 > py && c.place[1] < py + 2.2) continue;   // too close to the character
+      pt = [x, y]; a = c;
+    }
+    if (!pt) return { error: 'no close block was found under the screen' };
+    const c = document.querySelector('canvas');
+    const ev = (t, dx = 0) => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: pt[0] + dx, clientY: pt[1], pointerId: 7, button: 0, pointerType: o.touch ? 'touch' : 'mouse' }));
+    const snap = () => ({ dirt: g.inv.dirt || 0, built: g.isSolid(g.blockAt(...a.place)), dug: !g.isSolid(g.blockAt(...a.dig)), digging: !!g.digging, msg: g.msg, sel: g.sel });
+    const before = snap();
+    ev('pointerdown');
+    const held = snap();
+    if (o.drag) ev('pointermove', o.drag);
+    ev('pointerup');
+    return { before, held, after: snap() };
+  }, opts);
+}
+
+test('with a block in hand, a tap on a block builds there (finger and mouse); a drag does not build; the pickaxe still digs', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    await page.evaluate(() => { const g = window.gameTest; g.addItem('dirt', 5); g.selectSlot(2); g.toQuick('dirt'); });
+    // A finger tap builds one block and uses one from the bag
+    const a = await tapBlock(page, { touch: true });
+    assert.equal(a.error, undefined, a.error);
+    assert.equal(a.before.built, false, 'the cell is free before the tap');
+    assert.equal(a.held.digging, false, 'a block in hand does not dig');
+    assert.equal(a.after.built, true, 'the tap builds the block');
+    assert.equal(a.after.dirt, a.before.dirt - 1, 'one block leaves the bag');
+    assert.equal(a.after.dug, false, 'the block that was tapped is still there');
+    assert.equal(a.after.sel, 2, 'the block stays in hand');
+    // A mouse click builds too
+    const b = await tapBlock(page, {});
+    assert.equal(b.error, undefined, b.error);
+    assert.equal(b.after.built, true, 'a click builds the block');
+    assert.equal(b.after.dirt, b.before.dirt - 1);
+    // A drag turns the view and does not build
+    const c = await tapBlock(page, { touch: true, drag: 40 });
+    assert.equal(c.error, undefined, c.error);
+    assert.equal(c.after.built, false, 'a drag does not build');
+    assert.equal(c.after.dirt, c.before.dirt);
+    // With the pickaxe in hand a press on a block digs as before, and builds nothing
+    await page.evaluate(() => window.gameTest.selectSlot(0));
+    const d = await tapBlock(page, { touch: true });
+    assert.equal(d.error, undefined, d.error);
+    assert.equal(d.held.digging, true, 'the pickaxe starts digging');
+    assert.equal(d.after.built, false, 'the pickaxe does not build');
+    assert.equal(d.after.dirt, d.before.dirt);
+    // With the sword in hand a press on a block says to take the pickaxe, as before
+    await page.evaluate(() => window.gameTest.selectSlot(1));
+    const e = await tapBlock(page, { touch: true });
+    assert.equal(e.error, undefined, e.error);
+    assert.equal(e.after.built, false);
+    assert.match(e.after.msg, /pickaxe/);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
+// Drop from the bag (0.6.62): a full bag could never be emptied except by building, so a child was stuck.
+test('the bag has a Drop button for blocks and monster parts: one goes on the ground nearby and is not picked straight back up; gems and tools cannot be dropped', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const r = await page.evaluate(() => {
+      const g = window.gameTest;
+      g.addItem('dirt', 3); g.addItem('goblin_ear', 1);
+      document.getElementById('bagBtn').click();
+      const btns = () => [...document.querySelectorAll('#bag [data-drop]')].map(b => b.dataset.drop).sort();
+      const shown = btns();
+      const before = { dirt: g.inv.dirt, total: g.invTotal(), drops: g.drops.length, qb: [...g.qb] };
+      document.querySelector('#bag [data-drop="dirt"]').click();
+      const after = { dirt: g.inv.dirt, total: g.invTotal(), drops: g.drops, qb: [...g.qb], msg: g.msg, bagOpen: g.bagOpen };
+      g.stepFrames(Array(20).fill(0.05));   // standing still: the drop is far enough away not to come straight back
+      const later = { dirt: g.inv.dirt, drops: g.drops.length };
+      document.querySelector('#bag [data-drop="goblin_ear"]').click();
+      const [px, py, pz] = g.pos;
+      return { shown, before, after, later, ear: g.inv.goblin_ear, shownAfter: btns(), gemDrop: g.dropFromBag('gem'), pickDrop: g.dropFromBag(g.qb[0]), gem: g.inv.gem,
+        dist: after.drops.map(d => Math.hypot(d[0] + 0.5 - px, d[2] + 0.5 - pz)) };
+    });
+    assert.deepEqual(r.shown, ['dirt', 'goblin_ear'], 'Drop shows for blocks and parts only (no gem, pickaxe or sword)');
+    assert.equal(r.after.dirt, r.before.dirt - 1, 'one dirt leaves the bag');
+    assert.equal(r.after.total, r.before.total - 1, 'the bag has one more free place');
+    assert.equal(r.after.drops.length, r.before.drops + 1, 'one item is on the ground');
+    assert.equal(r.after.drops[r.after.drops.length - 1][3], 'dirt');
+    assert.ok(r.dist.every(d => d >= 1.2), 'the drop is not under the character: ' + r.dist.join(','));
+    assert.deepEqual(r.after.qb, r.before.qb, 'the quick bar is not changed');
+    assert.equal(r.after.bagOpen, true, 'the bag stays open');
+    assert.match(r.after.msg, /Dropped Dirt/);
+    assert.equal(r.later.dirt, r.after.dirt, 'the drop is not picked straight back up');
+    assert.equal(r.ear, 0, 'the last monster part can be dropped');
+    assert.deepEqual(r.shownAfter, ['dirt'], 'no Drop button for an item that has run out');
+    assert.equal(r.gemDrop, false, 'gems cannot be dropped');
+    assert.equal(r.pickDrop, false, 'the pickaxe cannot be dropped');
+    assert.equal(r.gem, 1, 'the gem is still in the bag');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
 test('with the sword in hand a monster is hit as before: a quick tap does not hit, holding does', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors) => {
     await playing(page);
