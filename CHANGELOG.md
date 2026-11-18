@@ -11,6 +11,15 @@ Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one versio
 - No change to what data is collected: the pages are plain pages with no scripts
 - Checked: the fast tests; the pages were looked at in a browser in the cloud workspace. Not checked: the parent has not read the guide against the game; a phone or tablet
 
+## 0.6.69: the buttons at the top right no longer overlap
+Asked for by the parent before the push (17 Nov 2026).
+- Fixed: the "Controls: On/Off" button lay on top of the Settings button, on phones, tablets and computers. Its text had grown since the buttons were given fixed places
+- The teleport button, Settings and Controls now sit in one row at the top right and make room for each other; the Bag button sits under them. On a phone the top-left button is kept narrow enough to leave them room
+- Fixed on phones: the message line at the top (for example "A friend is here!") was written over the name, bag and world lines at the top left. It now sits just under them
+- This is the fault the three "hand buttons, the Spell button and JUMP fit the screen and cover no other control" tests have reported since 0.6.62
+- No change to what the buttons do, and no change to what data is collected. Nothing new for the guide
+- Checked: the syntax check, the fast tests, and the layout tests (phone held both ways, tablet) in the cloud workspace's Chrome; screenshots were looked at. Not checked: a real phone or tablet
+
 ## 0.6.68: hold a quick bar slot to fill it
 Asked for by the parent after playing build 11 (17 Nov 2026).
 - Pressing and holding a quick bar slot for half a second, with a finger or the mouse, opens the bag with that slot chosen. One tap on an item then puts it in the slot. A short press only selects the slot, as before
