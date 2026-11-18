@@ -11,6 +11,18 @@ Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one versio
 - No change to what data is collected: the pages are plain pages with no scripts
 - Checked: the fast tests; the pages were looked at in a browser in the cloud workspace. Not checked: the parent has not read the guide against the game; a phone or tablet
 
+## 0.6.71: tap the "?" bubble, tap outside a window to close it, shorter Recent heading
+Asked for by the parent in the build chat (18 Nov 2026). No PM document.
+- A tap or click on the "?" bubble over a quiz friend opens its question. Before, only a tap on the friend's body counted, and the bubble sits above it
+- A tap or click on the world outside the bag, Settings or the quit question closes it, the same as its Close button. That tap does nothing else (no digging, building or fighting). The guide already said "Tap outside the panel", but the game did not do it
+- The parent area closes on a tap on the dark area around its box
+- Left as they are: a quiz question still closes only with *Not now* or an answer, and the skill choice still needs a choice
+- The Recent list's heading reads "Recent" (was "Recent (tap to add to quick bar)"). Tapping an item there still adds it to the quick bar
+- The number 0.6.70 is left for "Delete my data", which is built but not pushed (see the project note)
+- No change to what data is collected
+- Tests added (browser.test.mjs): a tap on the bubble; a tap outside each window. Guide: the quiz friends part mentions the bubble
+- Checked: the syntax check; the fast tests; the two new browser tests and the 14 existing bag, Settings, quit and quiz friend browser tests, in the cloud workspace's Chrome on a smaller-view copy of the game. Not run: the other browser tests. Not checked: a real phone or tablet
+
 ## Android app icon, 17 Nov 2026 (no change to the game; still 0.6.69)
 Asked for by the parent while preparing the Play Store listing.
 - The Android app has its own icon: a cartoon of the game's character on a pink and purple sunburst. Until now the app carried the plain icon that comes with the app wrapper
