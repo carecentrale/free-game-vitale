@@ -1,0 +1,12 @@
+ENABLE word list (enable1.txt), 172,823 words, 1,743,363 bytes
+Used by the tests only (scripts/tests/data/enable1.txt). Never shipped in the game or the app.
+
+Copy used: https://github.com/dolph/dictionary (file enable1.txt), fetched 18 November 2026.
+
+Licence: public domain. The product manager checked this on 18 November 2026 (SPEC-004 version 4):
+the list's README releases it "into the Public Domain".
+README: https://sources.debian.org/src/scowl/6-2/r/enable/README
+
+Note from the builder, 18 November 2026: the README page could not be opened from the build workspace,
+so its text is not copied here. The statement above is the product manager's record. Save the page
+itself into this folder when it can be reached.

@@ -17,7 +17,7 @@ const CHROME_PATH = process.env.CHROME_PATH || '';
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) { /* not installed */ }
 
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.glb': 'model/gltf-binary', '.png': 'image/png', '.css': 'text/css' };
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.glb': 'model/gltf-binary', '.png': 'image/png', '.css': 'text/css', '.svg': 'image/svg+xml' };
 const THREE_DIR = path.join(root, 'node_modules', 'three');
 // Replaces the Supabase library: every call returns a harmless empty result
 const SUPABASE_STUB = `
@@ -1956,7 +1956,7 @@ test('a word scramble shows a picture and mixed-up letter tiles; tapping them in
       assert.equal(t.open, true);
       return page.evaluate(() => {
         const p = document.getElementById('quizPanel'), q = window.gameTest.quizQuestion;
-        return { word: q.word, letters: q.letters, text: p.querySelector('.qtext').textContent, clue: p.querySelector('.qclue').textContent, slots: p.querySelectorAll('.qs').length,
+        return { word: q.word, letters: q.letters, text: p.querySelector('.qtext').textContent, clue: p.querySelector('.qclue img') ? p.querySelector('.qclue img').getAttribute('src') : '', slots: p.querySelectorAll('.qs').length,
           tiles: [...p.querySelectorAll('.qt')].map(b => b.textContent).join(''), answers: p.querySelectorAll('.qa').length, notNow: !!p.querySelector('.qnot'),
           typing: p.querySelectorAll('input,textarea,select,[contenteditable]').length };
       });
@@ -2134,3 +2134,178 @@ test('on a touch screen, holding a hand button opens the bag for its slot; a qui
     assert.equal(await page.evaluate(() => window.gameTest.qb[0]), 'dirt', 'the tapped item did not go onto the hand button');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { device: TABLET, saves: [readyGame()] }));
+
+// ---- Learning level (0.6.72, SPEC-004) ----
+// Opens the parent area the way a parent does: five taps in the top-left corner
+const openParentArea = page => page.evaluate(() => { const el = document.elementFromPoint(5, 5); for (let i = 0; i < 5; i++) el.click(); return !!document.querySelector('#learnLevel button'); });
+const learnState = page => page.evaluate(() => {
+  const el = document.getElementById('learnLevel');
+  return { text: el.textContent, bands: [...el.querySelectorAll('[data-band]')].map(b => b.textContent.replace(/^\W+/, '')), chosen: [...el.querySelectorAll('[data-band]')].findIndex(b => b.getAttribute('aria-pressed') === 'true'),
+    sliders: [...el.querySelectorAll('input[type=range]')].map(i => [i.dataset.sub, +i.min, +i.max, +i.value]), steps: el.querySelectorAll('[data-step]').length,
+    typing: el.querySelectorAll('input:not([type=range]),textarea,select,[contenteditable]').length, restart: !!el.querySelector('#learnRestart'), levels: window.gameTest.quizLevels };
+});
+// A friend arrives with a question of one kind at the level in use; the panel is opened and described
+const askAtLevel = async (page, kind) => {
+  const a = await friendArrives(page);
+  assert.equal(a.error, undefined, a.error);
+  const q = await page.evaluate(kind => { const g = window.gameTest, sub = kind === 'word' ? 'words' : 'math'; return g.askQuiz(kind, g.quizLevels[sub].use); }, kind);
+  const t = await pressFriend(page);
+  assert.equal(t.open, true, 'the question did not open');
+  const panel = await page.evaluate(() => { const p = document.getElementById('quizPanel'), img = p.querySelector('.qclue img');
+    return { level: p.querySelector('.qlvl').textContent, text: p.querySelector('.qtext').textContent, answers: [...p.querySelectorAll('.qa')].map(b => b.textContent),
+      img: img ? { src: img.getAttribute('src'), drawn: img.complete && img.naturalWidth > 0, w: img.getBoundingClientRect().width } : null,
+      slots: [...p.querySelectorAll('.qs')].map(b => { const r = b.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), Math.round(r.width)]; }),
+      tiles: [...p.querySelectorAll('.qt')].map(b => { const r = b.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), Math.round(r.width)]; }), width: innerWidth }; });
+  return { q, panel };
+};
+const quizClosed = page => page.waitForFunction(() => !window.gameTest.quizOpen, null, { timeout: 10000 });
+
+test('learning level: three right first maths answers give "Maths level 16" with "Level up!", words stay at level 1, two wrong first answers make the questions easier without lowering the number, and the levels are kept in the saved game with nothing sent', { skip, timeout: 300000 }, () =>
+  withGame(async (page, errors, requests) => {
+    await playing(page);
+    assert.deepEqual(await page.evaluate(() => window.gameTest.quizLevels), { band: 0, math: { use: 1, best: 1, fast: true, right: 0, wrong: 0 }, words: { use: 1, best: 1, fast: true, right: 0, wrong: 0 } });
+    const ups = [];
+    for (let i = 0; i < 3; i++) {
+      const { q, panel } = await askAtLevel(page, 'add');
+      assert.equal(panel.level, 'Maths level ' + (1 + i * 5));
+      await clickAnswer(page, q.right);
+      ups.push(await page.evaluate(() => document.querySelector('#quizPanel .qmsg').textContent));
+      await quizClosed(page);
+    }
+    assert.deepEqual(ups, ['Well done! +5 gems. Level up! Maths level 6', 'Well done! +5 gems. Level up! Maths level 11', 'Well done! +5 gems. Level up! Maths level 16']);
+    assert.match(await page.evaluate(() => window.gameTest.msg), /Level up! Maths level 16/);
+    // The next maths question shows level 16 and is a sum in figures within 20, with three answers and no pictures
+    let a = await askAtLevel(page, 'add');
+    assert.equal(a.panel.level, 'Maths level 16');
+    assert.match(a.panel.text, /^What is \d+ \+ \d+\?$/);
+    assert.equal(a.panel.answers.length, 3);
+    assert.ok(Math.max(...a.panel.text.match(/\d+/g).map(Number), ...a.panel.answers.map(Number)) <= 30, 'numbers far outside 20: ' + a.panel.text);
+    // Two wrong tries on it: one wrong answer is taken away as the hint. That is one wrong first answer.
+    const wrong = [0, 1, 2].filter(i => i !== a.q.right);
+    // (the game's own sound and picture files, from its own address, are not counted)
+    const sent = () => requests.filter(u => !/^http:\/\/127\.0\.0\.1:\d+\/(audio|quiz\/pics)\//.test(u));
+    const before = sent().length;
+    await clickAnswer(page, wrong[0]); await clickAnswer(page, wrong[1]);
+    assert.equal(await page.evaluate(() => document.querySelectorAll('#quizPanel .qa.out').length), 1, 'the hint did not take one wrong answer away');
+    await clickAnswer(page, a.q.right);
+    await quizClosed(page);
+    assert.deepEqual(await page.evaluate(() => { const m = window.gameTest.quizLevels.math; return [m.use, m.best, m.fast, m.wrong]; }), [16, 16, false, 1]);
+    // A second wrong first answer in a row: the level in use is 3 lower, the number the child sees is not
+    a = await askAtLevel(page, 'take');
+    await clickAnswer(page, [0, 1, 2].find(i => i !== a.q.right));
+    await page.evaluate(() => window.gameTest.quizNotNow());
+    assert.deepEqual(await page.evaluate(() => { const m = window.gameTest.quizLevels.math; return [m.use, m.best]; }), [13, 16]);
+    assert.equal(sent().length, before, 'a request was made when a level changed: ' + sent().slice(before).join(', '));
+    a = await askAtLevel(page, 'add');
+    assert.equal(a.panel.level, 'Maths level 16', 'the number the child sees went down');
+    await page.evaluate(() => window.gameTest.quizNotNow());
+    // The word scramble still shows Words level 1, with a 3-letter word and its picture drawn from the game's own files
+    a = await askAtLevel(page, 'word');
+    assert.equal(a.panel.level, 'Words level 1');
+    assert.equal(a.q.word.length, 3);
+    assert.match(a.panel.img.src, /\/quiz\/pics\/[0-9a-f-]+\.svg$/);
+    assert.equal(a.panel.img.drawn, true, 'the picture clue was not drawn');
+    await page.evaluate(() => window.gameTest.quizNotNow());
+    // Kept in the saved game, and still there after the game is closed and opened again
+    const kept = await page.evaluate(() => { window.gameTest.saveGame(); return JSON.parse(localStorage.getItem('kidsgame.slot.0')).levels; });
+    assert.deepEqual(kept, { band: 0, math: { use: 13, best: 16, fast: false, right: 0, wrong: 0 }, words: { use: 1, best: 1, fast: true, right: 0, wrong: 0 } });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await playing(page);
+    assert.deepEqual(await page.evaluate(() => window.gameTest.quizLevels), kept, 'the levels were not there after reopening the game');
+    const out = requests.filter(u => !u.startsWith('http://127.0.0.1') && !/cdn\.jsdelivr\.net/.test(u) && !u.startsWith('data:') && !u.startsWith('blob:'));
+    assert.deepEqual(out, [], 'requests to other places');
+    assert.deepEqual(errors, [], errors.join('\n'));
+  }, { saves: [readyGame()], quiz: true }));
+
+test('learning level in the parent area: Auto and five bands, a level setter for each subject with no typing, and "Start levels again" that asks first', { skip, timeout: 300000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    assert.equal(await openParentArea(page), true, 'the parent area has no Learning level part');
+    let s = await learnState(page);
+    assert.match(s.text, /^Learning level/);
+    assert.deepEqual(s.bands, ['Auto', 'Levels 1 to 20 (about ages 6 to 7)', 'Levels 21 to 40 (about ages 7 to 8)', 'Levels 41 to 60 (about ages 9 to 10)', 'Levels 61 to 80 (about ages 10 to 11)', 'Levels 81 to 100 (about ages 11 to 12)']);
+    assert.equal(s.chosen, 0);
+    assert.deepEqual(s.sliders, [['math', 1, 100, 1], ['words', 1, 100, 1]]);
+    assert.equal(s.steps, 4, 'plus and minus buttons for both subjects');
+    assert.equal(s.typing, 0, 'the parent area has a place to type a level');
+    assert.equal(s.restart, true);
+    assert.match(s.text, /Maths: level in use 1\. Your child sees level 1\./);
+    // The slider sets maths to 40: the next maths question shows "Maths level 40"
+    await page.evaluate(() => { const i = document.querySelector('#learnLevel input[data-sub="math"]'); i.value = '40'; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('change', { bubbles: true })); });
+    s = await learnState(page);
+    assert.deepEqual(s.levels.math, { use: 40, best: 40, fast: false, right: 0, wrong: 0 });
+    assert.match(s.text, /Maths: level in use 40\. Your child sees level 40\./);
+    // Plus and minus move one level
+    await page.evaluate(() => { document.querySelector('#learnLevel [data-sub="words"][data-step="1"]').click(); document.querySelector('#learnLevel [data-sub="words"][data-step="1"]').click(); document.querySelector('#learnLevel [data-sub="words"][data-step="-1"]').click(); });
+    assert.equal((await learnState(page)).levels.words.use, 2);
+    await page.evaluate(() => document.getElementById('parentClose').click());
+    let a = await askAtLevel(page, 'times');
+    assert.equal(a.panel.level, 'Maths level 40');
+    assert.match(a.panel.text, /^What is (2|5|10) × \d+\?$/);
+    await page.evaluate(() => window.gameTest.quizNotNow());
+    // "Levels 81 to 100": both levels come into the band; maths has a two-step sum and words have 7 letters and no picture
+    await openParentArea(page);
+    await page.evaluate(() => document.querySelector('#learnLevel [data-band="5"]').click());
+    s = await learnState(page);
+    assert.equal(s.chosen, 5);
+    assert.deepEqual([s.levels.band, s.levels.math.use, s.levels.words.use, s.levels.words.best], [5, 81, 81, 81]);
+    assert.deepEqual(s.sliders, [['math', 81, 100, 81], ['words', 81, 100, 81]]);
+    await page.evaluate(() => document.getElementById('parentClose').click());
+    a = await askAtLevel(page, 'twoStep');
+    assert.equal(a.panel.level, 'Maths level 81');
+    assert.match(a.panel.text, /^What is \d+ × \d+ [+−] \d+\?$/);
+    await page.evaluate(() => window.gameTest.quizNotNow());
+    a = await askAtLevel(page, 'word');
+    assert.equal(a.panel.level, 'Words level 81');
+    assert.ok(a.q.word.length >= 7, 'a short word at level 81: ' + a.q.word);
+    assert.equal(a.panel.img, null, 'a word of 6 letters or more shows a picture');
+    await page.evaluate(() => window.gameTest.quizNotNow());
+    // "Levels 1 to 20": no word has more than 4 letters
+    await openParentArea(page);
+    await page.evaluate(() => document.querySelector('#learnLevel [data-band="1"]').click());
+    assert.deepEqual(await page.evaluate(() => { const l = window.gameTest.quizLevels; return [l.band, l.math.use, l.words.use]; }), [1, 20, 20]);
+    const longest = await page.evaluate(() => { const g = window.gameTest; let n = 0; for (let i = 0; i < 400; i++) { const q = g.nextQuestion(); if (q.kind === 'word') n = Math.max(n, q.word.length); } return n; });
+    assert.equal(longest, 4);
+    // "Start levels again" asks first; No keeps the levels, Yes sets both to the first level of the band
+    await page.evaluate(() => document.getElementById('learnRestart').click());
+    assert.match((await learnState(page)).text, /Are you sure\?/);
+    await page.evaluate(() => document.getElementById('learnNo').click());
+    assert.equal((await learnState(page)).levels.math.use, 20);
+    await page.evaluate(() => { document.getElementById('learnRestart').click(); document.getElementById('learnYes').click(); });
+    assert.deepEqual((await learnState(page)).levels, { band: 1, math: { use: 1, best: 1, fast: true, right: 0, wrong: 0 }, words: { use: 1, best: 1, fast: true, right: 0, wrong: 0 } });
+    // Auto again, and the choice is in the saved game
+    await page.evaluate(() => document.querySelector('#learnLevel [data-band="0"]').click());
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('kidsgame.slot.0')).levels.band), 0);
+    // Nowhere is the child asked for an age: the only mention of ages on the page is in the parent area
+    assert.equal(await page.evaluate(() => { document.getElementById('parentClose').click(); return /\bages?\b|birthday|school year|how old/i.test(document.body.innerText); }), false);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  }, { saves: [readyGame()], quiz: true }));
+
+for (const [name, device] of [['a phone held upright', { viewport: { width: 360, height: 740 }, hasTouch: true, isMobile: true }], ['a phone held sideways', { viewport: { width: 740, height: 360 }, hasTouch: true, isMobile: true }]])
+  test('learning level on ' + name + ': a 5-letter word shows its picture, a 6-letter word shows none, and an 8-letter word fits the screen', { skip, timeout: 300000 }, () =>
+    withGame(async (page, errors) => {
+      await playing(page);
+      for (const [level, letters] of [[45, 5], [55, 6], [100, 8]]) {
+        await page.evaluate(level => window.gameTest.setQuizLevels({ band: 0, math: { use: 1, best: 1 }, words: { use: level, best: level, fast: false } }), level);
+        let a = null;
+        for (let tries = 0; tries < 12; tries++) {   // (one word in four comes from the row below)
+          a = await askAtLevel(page, 'word');
+          if (a.q.word.length === letters) break;
+          await page.evaluate(() => window.gameTest.quizNotNow());
+        }
+        assert.equal(a.q.word.length, letters);
+        assert.equal(a.panel.level, 'Words level ' + level);
+        if (letters <= 5) { assert.equal(a.panel.img.drawn, true, 'the picture of ' + a.q.word + ' was not drawn'); assert.ok(a.panel.img.w >= 56, 'the picture is too small'); }
+        else assert.equal(a.panel.img, null, a.q.word + ' shows a picture');
+        assert.equal(a.panel.slots.length, letters);
+        for (const [l, r] of [...a.panel.slots, ...a.panel.tiles]) assert.ok(l >= 0 && r <= a.panel.width, 'a letter is off the screen: ' + l + ' to ' + r + ' of ' + a.panel.width);
+        for (const [, , w] of a.panel.tiles) assert.ok(w >= 48, 'a letter tile is smaller than 48 px: ' + w);
+        const box = await page.evaluate(() => { const b = document.querySelector('#quizPanel .qbox').getBoundingClientRect(), n = document.querySelector('#quizPanel .qnot').getBoundingClientRect(); return { fits: b.top >= 0 && b.bottom <= innerHeight + 1, scroll: document.querySelector('#quizPanel .qbox').scrollHeight > document.querySelector('#quizPanel .qbox').clientHeight + 1, notNow: n.height }; });
+        assert.ok(box.fits, 'the question does not fit the screen');
+        // spell it: the long word can be finished with taps alone
+        const r = await spell(page);
+        assert.match(r.msg, /Well done! \+5 gems/);
+        await quizClosed(page);
+      }
+      assert.deepEqual(errors, [], errors.join('\n'));
+    }, { device, saves: [readyGame()], quiz: true }));

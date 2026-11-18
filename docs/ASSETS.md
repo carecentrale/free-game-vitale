@@ -70,3 +70,12 @@ The tests fail if a file has no row, a row has no file, a licence is not allowed
 | sfx/open.mp3 | open | Panel open sound (open_001, Interface Sounds pack) | - | Kenney (kenney.nl) | https://kenney.nl/assets/interface-sounds | CC0 1.0 | https://creativecommons.org/publicdomain/zero/1.0/ | no | 17 Nov 2026 | kenney-interface-sounds-License.txt |
 | sfx/close.mp3 | close | Panel close sound (close_001, Interface Sounds pack) | - | Kenney (kenney.nl) | https://kenney.nl/assets/interface-sounds | CC0 1.0 | https://creativecommons.org/publicdomain/zero/1.0/ | no | 17 Nov 2026 | kenney-interface-sounds-License.txt |
 | music/morning-mood.mp3 | music | "Morning Mood" from Peer Gynt Suite No. 1, Op. 46 | Edvard Grieg | Musopen Symphony Orchestra (Czech National Symphony Orchestra), Musopen Kickstarter project | https://commons.wikimedia.org/wiki/File:Musopen_-_Morning.ogg | Public domain (released by Musopen) | https://commons.wikimedia.org/wiki/File:Musopen_-_Morning.ogg | yes | 17 Nov 2026 | musopen-morning-commons.txt |
+
+## Quiz words and pictures (0.6.72, SPEC-004)
+
+Chosen and licence-checked by the product manager (SPEC-004 version 4, 18 Nov 2026); the owner said yes to both on 18 Nov 2026. `scripts/tests/quiz.test.mjs` fails if a word of 3 to 5 letters has no picture file, if `www/quiz/pics/` holds a file no word uses, or if the ENABLE list is found in `www/`.
+
+| Files | Use | What it is | Maker | Source address | Licence | Licence link | Shipped in the game | Date checked | Licence copy |
+|---|---|---|---|---|---|---|---|---|---|
+| www/quiz/pics/*.svg (124 files, 217,299 bytes) | Picture clues for word questions of 3 to 5 letters | Twemoji 17.0.3, folder assets/svg, files unchanged. The file for each word is named in `QUIZ_WORD_ROWS` in the game file | Twitter, Inc and other contributors (jdecked/twemoji) | https://github.com/jdecked/twemoji | CC BY 4.0 | https://creativecommons.org/licenses/by/4.0/ | yes, with the credit in Settings and on www/terms.html | 18 Nov 2026 | twemoji-LICENSE-GRAPHICS.txt |
+| scripts/tests/data/enable1.txt (1,743,363 bytes, 172,823 words) | The word check in the tests: every quiz word must be in it, and share its letters with no other word in it | ENABLE word list (enable1.txt) | Alan Beale and others | https://github.com/dolph/dictionary (copy used); licence statement: https://sources.debian.org/src/scowl/6-2/r/enable/README | Public domain | https://sources.debian.org/src/scowl/6-2/r/enable/README | no: tests only, never copied into www/ or the app | 18 Nov 2026 | enable-word-list.txt |

@@ -7,7 +7,7 @@
 <meta name="description" content="How to play Adventurers of Drenerics: moving, digging, building, the bag, gems, powers, monsters, magic, saving and playing with friends.">
 <!-- This guide must describe the game as it is. Every new feature or changed rule gets its part here in the same release,
      and guide-version below is set to the game's version (scripts/tests/site-pages.test.mjs checks it). -->
-<meta name="guide-version" content="0.6.71">
+<meta name="guide-version" content="0.6.72">
 <style>
   :root{--bg:#f4f6fb;--card:#fff;--ink:#1d2433;--muted:#5b6475;--line:#e4e7ee;--accent:#3b6fd8;--key:#eef1f8}
   @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0;--key:#262e44}}
@@ -40,7 +40,7 @@
   <nav><a href="/">Home</a><a href="/release-notes.html">Release notes</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="/contact.html">Contact</a></nav>
 
   <h1>How to play</h1>
-  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.71</span>. New things are added here with every version; see the <a href="/release-notes.html">release notes</a> for what changed.</div>
+  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.72</span>. New things are added here with every version; see the <a href="/release-notes.html">release notes</a> for what changed.</div>
 
   <p>Adventurers of Drenerics is a world made of blocks. You dig into it, build with what you dig, collect gems, grow stronger and meet monsters. You can play alone or in the same world as your friends.</p>
   <a class="play" href="/play/">Play now</a>
@@ -250,10 +250,12 @@
   <ul>
     <li>The friend stops two blocks away and waits. It never opens anything by itself.</li>
     <li>Tap or click the friend, or the <strong>?</strong> bubble over its head. One question opens, with a <em>Not now</em> button. The game stands still while the question is open, and there is no timer: take as long as you like.</li>
-    <li>About half the questions are <strong>maths</strong>, with pictures and three big answer buttons. They are easy ones: count the pictures, add or take away up to 10, which has the most, and what comes next in a pattern.</li>
-    <li>The other half are <strong>word scrambles</strong>. A picture shows what the word is, and its letters are mixed up underneath. Tap the letters in the right order to spell the word. Tap a letter you have placed to take it back.</li>
+    <li>About half the questions are <strong>maths</strong>, with pictures and three big answer buttons. They start easy: count the pictures, add or take away up to 10, which has the most, and what comes next in a pattern. Higher levels bring bigger sums, times tables, dividing and number patterns.</li>
+    <li>The other half are <strong>word scrambles</strong>. The letters of a word are mixed up. Tap the letters in the right order to spell the word. Tap a letter you have placed to take it back. Words start with 3 letters and grow to 8.</li>
+    <li><strong>Your levels.</strong> You have a Maths level and a Words level, each from 1 to 100. Answer right the first time and that level goes up. Higher levels bring bigger sums and longer words. Short words come with a picture; from 6 letters on you spell the word with no picture. A wrong answer never takes a level away.</li>
+    <li>The question shows your level at the top, such as <em>Maths level 23</em>. When it rises you see <em>Level up!</em> with the new number. At the start you climb five levels at a time, until your first wrong first answer; after that, one level at a time.</li>
     <li>A right answer gives <strong>5 gems</strong>. Then the friend waves and leaves.</li>
-    <li>A wrong answer takes nothing away. The button wobbles and you can try again. After two wrong tries you get help: a picture with dots for maths, or the first letter put in place for a word. A right answer after a wrong try gives <strong>2 gems</strong>.</li>
+    <li>A wrong answer takes nothing away. The button wobbles and you can try again. After two wrong tries you get help: a picture with dots for the easy maths, one wrong answer taken away for bigger sums, or the first letter put in place for a word. A right answer after a wrong try gives <strong>2 gems</strong>.</li>
     <li><em>Not now</em> closes the question and nothing is lost. The friend waits a little longer, then leaves. Tap it again before it goes to get the same question back.</li>
     <li>A friend leaves by itself after a minute and a half, or when you walk far away. Another one comes later.</li>
     <li>Friends cannot be hit, and monsters leave them alone. You cannot dig the block a friend stands on.</li>
@@ -267,7 +269,7 @@
     <li>The game's version, and <em>What has changed</em> in each version.</li>
     <li><strong>Sounds</strong> and <strong>Music</strong> sliders to make them louder, quieter or silent.</li>
     <li>The <strong>Quiz friends</strong> switch: on at first. Off means no friend comes to ask a question. The choice is kept on this phone, tablet or computer.</li>
-    <li>The music and sound credits.</li>
+    <li>The music, sound and picture credits.</li>
     <li><strong>Quit the game</strong>, at the bottom. The game asks first, then saves and closes. <em>Keep playing</em> takes you back.</li>
   </ul>
   <p>On a computer, <kbd>Esc</kbd> closes the bag or Settings; pressed again, it asks if you want to quit. In the Android app, the phone's Back button does the same.</p>
@@ -281,6 +283,7 @@
     <li>A shared world can only be joined with its 4-letter code. Worlds are never listed publicly, so your child only plays with people who were given the code.</li>
     <li>The game has no advertising.</li>
     <li>Quiz friends ask easy maths questions and words to spell, made by the game itself with no internet. The game keeps a small <strong>quiz friends report</strong> with each saved game: how many questions were shown and how many were answered right, for maths and for words, and the dates of the first and last one. The questions and the answers themselves are never kept. You can turn quiz friends off in Settings.</li>
+    <li><strong>Learning level.</strong> The game never asks your child's age. On Auto the questions follow how your child answers. To keep them in one range, choose a band of levels in the parent area; the ages beside each band are a rough guide. You can also set a level yourself or start the levels again there. The levels are saved with the game. If you have signed in and turned cloud save on, they are kept in your cloud save too.</li>
   </ul>
   <h3>The parent area</h3>
   <p>The parent area is a panel inside the game, kept out of the way so that children do not open it by accident.</p>
@@ -295,6 +298,7 @@
   <table>
     <tr><th>Control</th><th>What it does</th><th>How</th></tr>
     <tr><td>Quiz friends report</td><td>Shows how many maths questions and words your child has seen, got right first time, got right after a retry, or left unfinished, for the saved game that is open</td><td>It is in the parent area, under the cloud save buttons. It stays on the device. If you turn on cloud save, it is saved with the game and also shows on the parent stats page when you sign in there with the same account</td></tr>
+    <tr><td>Learning level</td><td>Keeps the quiz friends' questions in one range of levels, sets the Maths level or the Words level, or starts both again. After two wrong first answers in a row the questions get a little easier, but the number your child sees does not go down</td><td>Under the cloud save buttons. Tap <em>Auto</em> or one of the five bands (Levels 1 to 20, 21 to 40, 41 to 60, 61 to 80, 81 to 100). Use the minus and plus buttons or the slider to set a level. <em>Start levels again</em> asks <em>Are you sure?</em> first</td></tr>
     <tr><td>Parent stats</td><td>Shows the game's stats and what has been played</td><td>Tap <em>Open parent stats</em>. A page opens and asks you to sign in with your email</td></tr>
     <tr><td>Save to the cloud</td><td>Keeps one game safe online, so it can be carried on from another device</td><td>Tap <em>Sign in with Google</em> or <em>Sign in with Facebook</em>. While you are signed in, the game saves to the cloud every 30 seconds</td></tr>
     <tr><td>Save now</td><td>Saves this game to the cloud straight away</td><td>Tap <em>Save now</em>. If the cloud already holds a different game, it asks before replacing it</td></tr>

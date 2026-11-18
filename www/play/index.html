@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.71 (3D)</title>
+<title>Adventurers of Drenerics v0.6.72 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -131,7 +131,14 @@
   #quizPanel .qa{flex:1;min-width:0;min-height:clamp(64px,17vmin,96px);border:3px solid rgba(255,255,255,.35);border-radius:16px;background:#3b6fd8;color:#fff;font-family:inherit;font-size:clamp(28px,8vmin,44px);font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px}
   #quizPanel .qa.wob,#quizPanel .qslots.wob{animation:qwob .45s}
   /* Word scramble (0.6.65): a picture clue, the places for the letters, and the letter tiles to tap */
-  #quizPanel .qclue{font-size:clamp(40px,12vmin,72px);line-height:1.15}
+  #quizPanel .qclue{line-height:0;margin-top:6px}
+  #quizPanel .qclue img{width:clamp(56px,17vmin,96px);height:clamp(56px,17vmin,96px);pointer-events:none}
+  /* Learning level (0.6.72): the level of the question's subject, and long words (6 to 8 letters) that still fit a phone */
+  #quizPanel .qlvl{font-size:clamp(14px,3.6vmin,18px);font-weight:700;color:#ffd54a;margin-bottom:2px}
+  #quizPanel .qslots{--n:5;--t:min(clamp(48px,13vmin,64px),calc((min(560px,100vw) - 64px - (var(--n) - 1)*8px)/var(--n)))}
+  #quizPanel .qslots .qs{width:var(--t);height:var(--t);font-size:calc(var(--t)*.58);padding:0}
+  #quizPanel .qtiles{flex-wrap:wrap}
+  #quizPanel .qa.out{opacity:.25}
   #quizPanel .qslots,#quizPanel .qtiles{display:flex;gap:8px;justify-content:center;margin-top:8px}
   #quizPanel .qs,#quizPanel .qt{width:clamp(48px,13vmin,64px);height:clamp(48px,13vmin,64px);border-radius:12px;font-family:inherit;font-size:clamp(26px,7vmin,38px);font-weight:700;color:#fff;cursor:pointer;padding:0;box-sizing:border-box}
   #quizPanel .qs{background:rgba(255,255,255,.08);border:3px dashed rgba(255,255,255,.45)}
@@ -543,7 +550,7 @@ function saveGame() {
   try {
     localStorage.setItem(slotKey(activeSlot), JSON.stringify({
       v: 1, at: Date.now(), name: playerName, profile, worldId, inv, gear, qb, recent, sel, pw, skills,
-      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(), quiz: quizStats,
+      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(), quiz: quizStats, levels: quizLevels,
       drops: [...drops.values()].map(d => [d.x, d.y, d.z, d.id, d.at])
     }));
   } catch (e) {}
@@ -1461,6 +1468,11 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.72', title: '100 Maths levels and 100 Words levels', items: [
+    'Quiz friends now have 100 Maths levels and 100 Words levels. Answer right and your level goes up, with bigger sums and longer words to spell',
+    'Each question shows your Maths level or your Words level. A wrong answer never takes a level away',
+    'Short words come with a picture. From 6 letters on you spell the word with no picture',
+    'Grown-ups: the parent area has a new Learning level part, to keep the questions in one range of levels, set a level, or start the levels again'] },
   { v: '0.6.71', title: 'Tap the question mark', items: [
     'Tapping the "?" bubble over a quiz friend now opens its question, the same as tapping the friend',
     'A tap outside the bag, Settings or the quit question closes it',
@@ -1699,9 +1711,9 @@ function renderSettings() {
     `<div style="margin-top:14px"><b>&#128266; Sounds</b>${volHtml('sfx')}</div>` +
     `<div style="margin-top:14px"><b>&#127925; Music</b>${volHtml('music')}</div>` +
     // Quiz friends switch (0.6.63): on at first, kept on this device
-    `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#10067; Quiz friends</b><div style="font-size:13px;opacity:.8;margin-top:2px">A friendly character asks one maths question for gems</div></div>` +
+    `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#10067; Quiz friends</b><div style="font-size:13px;opacity:.8;margin-top:2px">A friendly character asks a maths question or a word to spell, for gems</div></div>` +
     `<button id="quizSwitch" style="flex:none;min-height:48px;min-width:96px;border:0;border-radius:12px;font-size:17px;font-weight:600;color:#fff;cursor:pointer;background:${quizOn ? '#2e9e4f' : '#666b80'}">${quizOn ? 'On' : 'Off'}</button></div>` +
-    `<details style="margin-top:14px"><summary style="cursor:pointer;padding:12px 0">Music and sound credits</summary><div id="creditList" style="font-size:13px;opacity:.9">${creditsHtml()}</div></details>` +
+    `<details style="margin-top:14px"><summary style="cursor:pointer;padding:12px 0">Music, sound and picture credits</summary><div id="creditList" style="font-size:13px;opacity:.9">${creditsHtml()}</div><div id="picCredit" style="font-size:13px;opacity:.9;margin-top:8px">Pictures in word questions: Twemoji, copyright Twitter, Inc and other contributors, licensed under CC BY 4.0.</div></details>` +
     `<div style="margin-top:10px"><b>Game version ${esc(VERSION)}</b></div>` +
     // The list of changes is folded away, so the Quit button below is easy to reach
     `<details><summary style="cursor:pointer;padding:12px 0;opacity:.85">What has changed, newest first</summary>` +
@@ -2844,24 +2856,47 @@ function updateDig(dt) {
 
 // ---- Quiz questions (0.6.63, SPEC-003): made at random by this code, which also works out the right answer ----
 // No internet and no AI at play time. Nothing about questions or answers is stored, logged or sent: the last 10
-// questions are remembered only while the game is open, so that none repeats.
+// questions are remembered only while the game is open, so that none repeats. From 0.6.72 (SPEC-004) the questions
+// follow a learning level from 1 to 100 for maths and for words.
 const QUIZ_COUNT_SHAPES = { star: 'stars', heart: 'hearts', gem: 'gems', ball: 'balls', block: 'blocks' };   // pictures to count, and their names
 const QUIZ_PATTERN_SHAPES = ['ball', 'block', 'triangle', 'star'];
-const QUIZ_MATH_KINDS = ['count', 'add', 'take', 'more', 'next'];   // count pictures; add; take away; which is more; what comes next
+const QUIZ_MATH_KINDS = ['count', 'add', 'take', 'more', 'next'];   // levels 1 to 10: count pictures; add; take away; which is more; what comes next
 const QUIZ_KINDS = [...QUIZ_MATH_KINDS, 'word'];   // 'word' is a word scramble: tap the mixed-up letters in the right order (0.6.65)
-const quizSubject = kind => kind === 'word' ? 'words' : 'math';
-// Words to spell, each with a picture as the clue. Short everyday words; none can be rearranged into another common word.
-const QUIZ_WORDS = [
-  ['sun', '\u2600\uFE0F'], ['hen', '\uD83D\uDC14'], ['bee', '\uD83D\uDC1D'], ['fox', '\uD83E\uDD8A'], ['egg', '\uD83E\uDD5A'], ['hat', '\uD83C\uDFA9'],
-  ['cup', '\u2615'], ['bed', '\uD83D\uDECF\uFE0F'], ['bug', '\uD83D\uDC1B'], ['cow', '\uD83D\uDC04'], ['pig', '\uD83D\uDC16'], ['key', '\uD83D\uDD11'], ['box', '\uD83D\uDCE6'],
-  ['frog', '\uD83D\uDC38'], ['fish', '\uD83D\uDC1F'], ['duck', '\uD83E\uDD86'], ['cake', '\uD83C\uDF70'], ['milk', '\uD83E\uDD5B'], ['tree', '\uD83C\uDF33'], ['book', '\uD83D\uDCD6'],
-  ['ball', '\u26BD'], ['boat', '\u26F5'], ['hand', '\u270B'], ['king', '\uD83D\uDC51'], ['drum', '\uD83E\uDD41'], ['corn', '\uD83C\uDF3D'], ['bell', '\uD83D\uDD14'], ['baby', '\uD83D\uDC76'],
-  ['apple', '\uD83C\uDF4E'], ['house', '\uD83C\uDFE0'], ['mouse', '\uD83D\uDC2D'], ['train', '\uD83D\uDE82'], ['truck', '\uD83D\uDE9A'], ['robot', '\uD83E\uDD16'],
-  ['tiger', '\uD83D\uDC2F'], ['panda', '\uD83D\uDC3C'], ['pizza', '\uD83C\uDF55'], ['candy', '\uD83C\uDF6C'], ['piano', '\uD83C\uDFB9'], ['zebra', '\uD83E\uDD93'],
+// Maths by level (0.6.72, SPEC-004): one row for every ten levels. Within a row the numbers grow with the level.
+const QUIZ_MATH_ROWS = [
+  QUIZ_MATH_KINDS,                                  // 1 to 10: as before, with pictures, within 10
+  ['add', 'take', 'skip'],                          // 11 to 20: add and take away within 20; count on in 2s, 5s and 10s
+  ['add', 'take', 'bigger', 'missing'],             // 21 to 30: within 50; the bigger of two numbers; the missing number in a sum
+  ['add', 'take', 'double', 'half', 'times'],       // 31 to 40: within 100; double and half; times 2, 5 and 10
+  ['times'],                                        // 41 to 50: times tables to 10 x 10
+  ['divide', 'missingTimes'],                       // 51 to 60: dividing with no remainder; the missing number in a times sum
+  ['times', 'divide', 'sequence'],                  // 61 to 70: multiply and divide mixed; a sequence with a fixed step
+  ['fraction', 'round'],                            // 71 to 80: a half, third or quarter; round numbers within 1,000
+  ['twoStep', 'longTimes'],                         // 81 to 90: two-step sums; a two-digit number times a one-digit number
+  ['brackets', 'fraction', 'doubling'],             // 91 to 100: brackets; a fifth or a tenth; sequences that double or halve
 ];
+const quizSubject = kind => kind === 'word' ? 'words' : 'math';
+const quizRowOf = level => Math.max(0, Math.min(9, Math.floor((level - 1) / 10)));
+// Words to spell (0.6.72, SPEC-004): one row for every ten levels, 3 letters at the start and 8 at the end. A word of
+// 3 to 5 letters has a picture clue: the name of its Twemoji file in www/quiz/pics/. A word of 6 letters or more has none.
+// Every word is checked by scripts/tests/quiz.test.mjs against the ENABLE word list (which is not part of the game).
+const QUIZ_WORD_ROWS = [
+  'sun:2600 hen:1f414 bee:1f41d fox:1f98a egg:1f95a hat:1f3a9 cup:2615 bed:1f6cf bug:1f41b cow:1f404 pig:1f416 key:1f511 box:1f4e6 pen:1f58a eye:1f441 bow:1f380 gem:1f48e pie:1f967 ice:1f9ca van:1f690 web:1f578 ski:1f3bf elf:1f9dd cry:1f62d red:1f534 log:1fab5 fly:1fab0 hut:1f6d6',
+  'frog:1f438 fish:1f41f duck:1f986 cake:1f370 milk:1f95b tree:1f333 book:1f4d6 ball:26bd boat:26f5 hand:270b king:1f451 drum:1f941 corn:1f33d bell:1f514 baby:1f476 sock:1f9e6 gift:1f381 taxi:1f696 kiwi:1f95d lock:1f512 swim:1f3ca',
+  'soap:1f9fc city:1f3d9 wave:1f44b girl:1f467 zero:30-20e3 four:34-20e3 five:35-20e3 nine:39-20e3 wink:1f609 sick:1f912 cart:1f6d2 dove:1f54a boot:1f97e yoga:1f9d8 walk:1f6b6 clap:1f44f foot:1f9b6 worm:1fab1 wing:1fabd hook:1fa9d',
+  'apple:1f34e house:1f3e0 mouse:1f42d train:1f682 truck:1f69a robot:1f916 tiger:1f42f panda:1f43c pizza:1f355 candy:1f36c piano:1f3b9 zebra:1f993 koala:1f428 skunk:1f9a8 llama:1f999 hippo:1f99b rhino:1f98f chick:1f425 clown:1f921 ghost:1f47b fairy:1f9da beach:1f3d6 onion:1f9c5 salad:1f957 sushi:1f363 curry:1f35b honey:1f36f juice:1f9c3',
+  'chair:1fa91 clock:1f550 watch:231a phone:1f4f1 dress:1f457 shirt:1f455 scarf:1f9e3 glove:1f9e4 brick:1f9f1 tooth:1f9b7 laugh:1f602 happy:1f600 dizzy:1f635 party:1f389 money:1f4b5 movie:1f3ac puppy:1f436 bunny:1f430 eight:38-20e3 black:26ab brown:1f7e4 flute:1fa88 goose:1fabf moose:1face bison:1f9ac wheel:1f6de plant:1fab4',
+  'monkey rabbit turtle lizard dragon kitten shrimp cactus banana cherry tomato potato pepper garlic peanut cookie cheese butter waffle burger noodle bottle rocket guitar violin camera laptop pencil crayon basket hammer wrench magnet island',
+  'trophy ticket puzzle helmet wizard toilet yellow tongue sneeze square muffin window mirror bucket donkey beaver pillow jacket pocket button zipper doctor mother family summer spring autumn number letter bubble puddle jungle people',
+  'dolphin giraffe penguin gorilla raccoon hamster peacock octopus cricket ladybug unicorn rainbow volcano snowman balloon popcorn pancake pretzel avocado coconut pumpkin lettuce cupcake tractor trumpet compass battery lantern',
+  'necktie fishing camping running dancing mermaid stadium toolbox luggage bouquet diamond chicken bicycle blossom blanket cushion morning evening library whisper thunder brother sweater biscuit spinach cabbage firefly',
+  'kangaroo elephant squirrel flamingo hedgehog scorpion mosquito dinosaur mushroom sandwich broccoli cucumber backpack calendar envelope scissors notebook keyboard airplane lollipop dumpling fountain mountain necklace baseball football softball carousel birthday hospital question thinking computer daughter children sunshine snowball starfish goldfish bathroom homework cupboard campfire sailboat firework'
+].map(row => row.split(' ').map(w => w.split(':')));
+// Every word as [word, picture file or null, first level, last level]
+const QUIZ_WORDS = QUIZ_WORD_ROWS.flatMap((row, r) => row.map(([w, pic]) => [w, pic || null, r * 10 + 1, r * 10 + 10]));
 const QUIZ_REMEMBER = 10;                    // no question repeats within this many
-const QUIZ_GEMS_FIRST = 5, QUIZ_GEMS_LATER = 2;   // fixed rewards: right first time, and right after a wrong try
-const QUIZ_HINT_AFTER = 2;                   // wrong tries before the picture hint shows
+const QUIZ_GEMS_FIRST = 5, QUIZ_GEMS_LATER = 2;   // fixed rewards at every level: right first time, and right after a wrong try
+const QUIZ_HINT_AFTER = 2;                   // wrong tries before the hint shows
 const quizRecent = [];                       // the last questions asked, in memory only
 const quizInt = (rnd, lo, hi) => lo + Math.floor(rnd() * (hi - lo + 1));
 const quizPick = (rnd, list) => list[Math.floor(rnd() * list.length)];
@@ -2875,15 +2910,29 @@ function quizNumbers(rnd, right, lo, hi) {
   const list = quizShuffle(rnd, [right, ...quizShuffle(rnd, near).slice(0, 2)]);
   return { list, right: list.indexOf(right) };
 }
-// One question of the given kind. `show` is the picture row, `answers` the three buttons, `right` the place of the
-// right one, `hint` the picture hint shown after two wrong tries, and `key` tells two questions apart.
-function makeQuestion(kind, rnd = Math.random) {
-  if (kind === 'word') {   // word scramble: the letters of a word, mixed up, with a picture as the clue
-    const [w, clue] = quizPick(rnd, QUIZ_WORDS), word = w.toUpperCase();
+// A sum with no pictures (levels 11 and up): the right number and two wrong ones. The wrong ones are the slips a child
+// could make (`slips`), or else numbers close by. The hint after two wrong tries takes one wrong answer away.
+function quizSum(kind, rnd, key, text, right, slips = [], show = []) {
+  const ok = n => Number.isInteger(n) && n >= 0 && n !== right;
+  const pool = [...new Set([...quizShuffle(rnd, slips.filter(ok)), ...quizShuffle(rnd, [right - 1, right + 1, right - 2, right + 2, right + 10, right - 10].filter(ok))])];
+  const list = quizShuffle(rnd, [right, pool[0], pool[1]]);
+  return { kind, key: kind + ':' + key, text, show, answers: list.map(v => ({ label: String(v) })), right: list.indexOf(right), hint: { drop: true } };
+}
+const QUIZ_PARTS = { 2: 'half', 3: 'a third', 4: 'a quarter', 5: 'a fifth', 10: 'a tenth' };
+// One question of the given kind at the given level. `show` is the picture row, `answers` the buttons, `right` the place
+// of the right one, `hint` the hint shown after two wrong tries, and `key` tells two questions apart.
+// For a word, `lo` is the first level the parent allows (the start of the chosen band, or 1).
+function makeQuestion(kind, rnd = Math.random, level = 1, lo = 1) {
+  const row = quizRowOf(level), t = ((Math.max(1, Math.min(100, level)) - 1) % 10) / 9;   // t: 0 at the first level of a row, 1 at its last
+  const grow = (a, b) => Math.round(a + (b - a) * t);
+  if (kind === 'word') {   // word scramble: the letters of a word, mixed up; a picture is the clue for words of 3 to 5 letters
+    // a word from the row of the level; one time in four from the row below, when there is one and the parent allows it
+    const r = row > 0 && (row - 1) * 10 + 1 >= lo && rnd() < 0.25 ? row - 1 : row;
+    const [w, pic] = quizPick(rnd, QUIZ_WORD_ROWS[r]), word = w.toUpperCase();
     let letters = word.split('');
     for (let tries = 0; tries < 50 && letters.join('') === word; tries++) letters = quizShuffle(rnd, word.split(''));
     if (letters.join('') === word) letters.push(letters.shift());   // (cannot happen in practice; makes sure the letters are never in order)
-    return { kind, key: 'word:' + w, text: 'Spell the word', word, clue, letters, hint: { first: word[0] } };
+    return { kind, key: 'word:' + w, text: 'Spell the word', word, clue: pic || null, letters, hint: { first: word[0] } };
   }
   if (kind === 'count') {
     const n = quizInt(rnd, 1, 10), shape = quizPick(rnd, Object.keys(QUIZ_COUNT_SHAPES));
@@ -2891,13 +2940,13 @@ function makeQuestion(kind, rnd = Math.random) {
     return { kind, key: 'count:' + n, text: 'How many ' + QUIZ_COUNT_SHAPES[shape] + '?', show: [{ shape, n }],
       answers: a.list.map(v => ({ label: String(v) })), right: a.right, hint: { dots: [n] } };
   }
-  if (kind === 'add') {
+  if (kind === 'add' && row === 0) {
     const x = quizInt(rnd, 1, 9), y = quizInt(rnd, 1, 10 - x), shape = quizPick(rnd, Object.keys(QUIZ_COUNT_SHAPES));
     const a = quizNumbers(rnd, x + y, 1, 10);
     return { kind, key: 'add:' + x + ':' + y, text: 'What is ' + x + ' + ' + y + '?', show: [{ shape, n: x }, { sign: '+' }, { shape, n: y }],
       answers: a.list.map(v => ({ label: String(v) })), right: a.right, hint: { dots: [x, y] } };
   }
-  if (kind === 'take') {
+  if (kind === 'take' && row === 0) {
     const x = quizInt(rnd, 2, 10), y = quizInt(rnd, 1, x - 1), shape = quizPick(rnd, Object.keys(QUIZ_COUNT_SHAPES));
     const a = quizNumbers(rnd, x - y, 0, 10);
     return { kind, key: 'take:' + x + ':' + y, text: 'What is ' + x + ' − ' + y + '?', show: [{ shape, n: x }],
@@ -2910,21 +2959,148 @@ function makeQuestion(kind, rnd = Math.random) {
     return { kind, key: 'more:' + list.slice().sort((p, q) => p - q).join(':'), text: 'Which has the most?', show: [],
       answers: list.map(v => ({ label: String(v), shape, n: v })), right: list.indexOf(big), hint: { rows: list } };
   }
-  // What comes next in a two-shape pattern: the pattern repeats a short unit (AB, AAB or ABB) at least twice
-  const [a, b, c] = quizShuffle(rnd, QUIZ_PATTERN_SHAPES.slice());
-  const unit = quizPick(rnd, [[a, b], [a, a, b], [a, b, b]]);
-  const shown = unit.length * 2 + quizInt(rnd, 0, unit.length - 1);
-  const seq = Array.from({ length: shown }, (_, i) => unit[i % unit.length]);
-  const next = unit[shown % unit.length];
-  const list = quizShuffle(rnd, [next, next === a ? b : a, c]);
-  return { kind: 'next', key: 'next:' + unit.join(',') + ':' + shown, text: 'What comes next?', show: [{ seq }, { sign: '?' }], unit,
-    answers: list.map(shape => ({ shape })), right: list.indexOf(next), hint: { unit, seq } };
+  if (kind === 'next') {
+    // What comes next in a two-shape pattern: the pattern repeats a short unit (AB, AAB or ABB) at least twice
+    const [a, b, c] = quizShuffle(rnd, QUIZ_PATTERN_SHAPES.slice());
+    const unit = quizPick(rnd, [[a, b], [a, a, b], [a, b, b]]);
+    const shown = unit.length * 2 + quizInt(rnd, 0, unit.length - 1);
+    const seq = Array.from({ length: shown }, (_, i) => unit[i % unit.length]);
+    const next = unit[shown % unit.length];
+    const list = quizShuffle(rnd, [next, next === a ? b : a, c]);
+    return { kind: 'next', key: 'next:' + unit.join(',') + ':' + shown, text: 'What comes next?', show: [{ seq }, { sign: '?' }], unit,
+      answers: list.map(shape => ({ shape })), right: list.indexOf(next), hint: { unit, seq } };
+  }
+  // ---- Levels 11 and up: sums in figures ----
+  if (kind === 'add' || kind === 'take') {   // within 20 (levels 11 to 20), 50 (21 to 30) or 100 (31 to 40)
+    const top = row <= 1 ? grow(12, 20) : row === 2 ? grow(25, 50) : grow(55, 100);
+    const big = quizInt(rnd, Math.ceil(top / 2), top), small = quizInt(rnd, 1, big - 1);
+    return kind === 'add' ? quizSum(kind, rnd, small + ':' + (big - small), 'What is ' + small + ' + ' + (big - small) + '?', big, [big + 10, big - 10])
+      : quizSum(kind, rnd, big + ':' + small, 'What is ' + big + ' − ' + small + '?', big - small, [big - small + 10, big - small - 10]);
+  }
+  if (kind === 'skip' || kind === 'sequence') {   // count on in 2s, 5s and 10s; or a sequence with any fixed step, up or down
+    const step = kind === 'skip' ? quizPick(rnd, [2, 5, 10].slice(0, 1 + Math.round(t * 2))) : quizInt(rnd, 3, grow(5, 12)) * (rnd() < 0.35 ? -1 : 1);
+    const first = kind === 'skip' ? step * quizInt(rnd, 0, 5) : step > 0 ? quizInt(rnd, 1, 20) : quizInt(rnd, 1, 20) - step * 5;
+    const seq = [0, 1, 2, 3].map(i => first + step * i), next = first + step * 4;
+    return quizSum(kind, rnd, first + ':' + step, 'What comes next?', next, [next + step, next - 1, next + 1], [{ text: seq.join(', ') + ',' }, { sign: '?' }]);
+  }
+  if (kind === 'doubling') {   // a sequence that doubles or halves
+    const base = quizInt(rnd, 1, grow(3, 7)), up = rnd() < 0.6;
+    const seq = [0, 1, 2, 3].map(i => base * 2 ** (up ? i : 5 - i)), next = up ? base * 16 : base * 2;
+    return quizSum(kind, rnd, base + ':' + (up ? 'up' : 'down'), 'What comes next?', next, [seq[3] + seq[3] - seq[2], up ? next + base : next + 1, up ? next - 2 : base], [{ text: seq.join(', ') + ',' }, { sign: '?' }]);
+  }
+  if (kind === 'bigger') {   // the bigger of two two-digit numbers: two buttons
+    const x = quizInt(rnd, 10, 99);
+    let y = x;
+    while (y === x || (t < 0.5 && Math.floor(y / 10) === Math.floor(x / 10))) y = quizInt(rnd, 10, 99);   // early on the tens differ
+    return { kind, key: 'bigger:' + Math.min(x, y) + ':' + Math.max(x, y), text: 'Which is bigger?', show: [],
+      answers: [{ label: String(x) }, { label: String(y) }], right: x > y ? 0 : 1, hint: { drop: true } };
+  }
+  if (kind === 'missing') {   // the missing number in a sum within 20
+    const sum = quizInt(rnd, grow(8, 12), grow(12, 20)), x = quizInt(rnd, 1, sum - 1);
+    return quizSum(kind, rnd, x + ':' + sum, 'What is the missing number?', sum - x, [sum + x], [{ text: x + ' + ? = ' + sum }]);
+  }
+  if (kind === 'double') { const n = quizInt(rnd, 2, grow(12, 50)); return quizSum(kind, rnd, n, 'What is double ' + n + '?', n * 2, [n * 2 + 10, n * 2 - 10, n + 2]); }
+  if (kind === 'half') { const n = quizInt(rnd, 1, grow(8, 25)); return quizSum(kind, rnd, n, 'What is half of ' + n * 2 + '?', n, [n * 4, n + 5]); }
+  if (kind === 'times') {   // times 2, 5 and 10 (levels 31 to 40); tables to 10 x 10 (41 to 50); all tables, mixed with dividing (61 to 70)
+    const x = row <= 3 ? quizPick(rnd, [2, 5, 10]) : quizInt(rnd, 2, row >= 6 ? 10 : grow(5, 10)), y = quizInt(rnd, row >= 6 ? 3 : 1, row <= 3 ? grow(5, 10) : 10);
+    return quizSum(kind, rnd, x + ':' + y, 'What is ' + x + ' × ' + y + '?', x * y, [x * y + x, x * y - x, x * y + y, x * y - y, x + y]);
+  }
+  if (kind === 'divide') {   // dividing by 2 to 10 with no remainder
+    const d = quizInt(rnd, 2, row >= 6 ? 10 : grow(5, 10)), n = quizInt(rnd, row >= 6 ? 3 : 1, 10);
+    return quizSum(kind, rnd, d * n + ':' + d, 'What is ' + d * n + ' ÷ ' + d + '?', n, [d]);
+  }
+  if (kind === 'missingTimes') {   // the missing number in a times sum
+    const x = quizInt(rnd, 2, grow(5, 10)), y = quizInt(rnd, 2, 10);
+    return quizSum(kind, rnd, x + ':' + y, 'What is the missing number?', y, [x, x * y - x], [{ text: '? × ' + x + ' = ' + x * y }]);
+  }
+  if (kind === 'fraction') {   // a half, third or quarter of a number (levels 71 to 80); a fifth or a tenth (91 to 100)
+    const d = row >= 9 ? quizPick(rnd, [5, 10]) : quizPick(rnd, [2, 3, 4]), n = quizInt(rnd, 2, row >= 9 ? grow(10, 30) : grow(10, 25));
+    return quizSum(kind, rnd, d + ':' + n, 'What is ' + QUIZ_PARTS[d] + ' of ' + d * n + '?', n, [d, n + d, n * 2]);
+  }
+  if (kind === 'round') {   // add and take away round numbers within 1,000: hundreds first, then tens
+    const u = t < 0.45 ? 100 : 10, top = Math.floor(grow(500, 1000) / u), big = quizInt(rnd, Math.ceil(top / 2), top), small = quizInt(rnd, 1, big - 1);
+    return rnd() < 0.5 ? quizSum(kind, rnd, 'a' + small * u + ':' + (big - small) * u, 'What is ' + small * u + ' + ' + (big - small) * u + '?', big * u, [big * u + u, big * u - u, big * u + 100, big * u - 100])
+      : quizSum(kind, rnd, 't' + big * u + ':' + small * u, 'What is ' + big * u + ' − ' + small * u + '?', (big - small) * u, [(big - small) * u + u, (big - small) * u - u, (big - small) * u + 100, (big - small) * u - 100]);
+  }
+  if (kind === 'twoStep') {   // two-step sums such as 3 × 4 + 5
+    const x = quizInt(rnd, 2, grow(5, 9)), y = quizInt(rnd, 2, grow(5, 9)), z = quizInt(rnd, 1, 9), plus = rnd() < 0.6 || x * y <= z;
+    return quizSum(kind, rnd, x + ':' + y + (plus ? '+' : '-') + z, 'What is ' + x + ' × ' + y + (plus ? ' + ' : ' − ') + z + '?', plus ? x * y + z : x * y - z, [x * (y + z), plus ? x * y - z : x * y + z, x + y + z]);
+  }
+  if (kind === 'longTimes') {   // a two-digit number times a one-digit number
+    const x = quizInt(rnd, 11, grow(19, 60)), y = quizInt(rnd, 2, grow(4, 9));
+    return quizSum(kind, rnd, x + ':' + y, 'What is ' + x + ' × ' + y + '?', x * y, [x * y + 10, x * y - 10, x * y + y, x * y - y, x * y + x]);
+  }
+  // 'brackets': a two-step sum with brackets
+  const x = quizInt(rnd, 2, grow(6, 9)), y = quizInt(rnd, 2, grow(6, 9)), z = quizInt(rnd, 2, grow(5, 9)), form = quizInt(rnd, 0, 2);
+  if (form === 0) return quizSum('brackets', rnd, '0:' + x + ':' + y + ':' + z, 'What is (' + x + ' + ' + y + ') × ' + z + '?', (x + y) * z, [x + y * z, x * z + y, (x + y) * z + z]);
+  if (form === 1) return quizSum('brackets', rnd, '1:' + x + ':' + y + ':' + z, 'What is ' + x + ' × (' + y + ' + ' + z + ')?', x * (y + z), [x * y + z, x + y + z, x * (y + z) + x]);
+  return quizSum('brackets', rnd, '2:' + x + ':' + y + ':' + z, 'What is (' + (x + y) + ' − ' + y + ') × ' + z + '?', x * z, [Math.abs(x + y - y * z), x * z + z, (x + y) * z]);
 }
-// The next question to ask: a random kind, and never one of the last 10
+
+// ---- Learning level (0.6.72, SPEC-004): a maths level and a words level, each from 1 to 100 ----
+// The game never asks an age. Each subject has a level in use (it chooses the questions) and a best level (the number the
+// child sees, which a wrong answer never lowers). The parent can keep both inside a band of 20 levels, set a level, or
+// start again. The levels and the band are kept in the saved game, like the quiz report, and go nowhere else.
+const QUIZ_BANDS = [[1, 100], [1, 20], [21, 40], [41, 60], [61, 80], [81, 100]];   // 0 is Auto: all 100 levels
+const QUIZ_FAST = 5;        // a new player climbs five levels for each right first answer, until the first wrong one
+const QUIZ_DOWN_AFTER = 2;  // wrong first answers in a row before the questions get easier
+const QUIZ_DOWN = 3;        // and by how many levels
+const quizLevelBlank = lo => ({ use: lo, best: lo, fast: true, right: 0, wrong: 0 });
+const quizLevelsBlank = () => ({ band: 0, math: quizLevelBlank(1), words: quizLevelBlank(1) });
+let quizLevels = quizLevelsBlank();
+const quizBand = () => QUIZ_BANDS[quizLevels.band];
+// Reads the levels from a saved game, keeping only whole numbers inside the band
+function quizLevelsFrom(v) {
+  const out = quizLevelsBlank();
+  if (!v || typeof v !== 'object') return out;
+  if (Number.isInteger(v.band) && v.band >= 0 && v.band < QUIZ_BANDS.length) out.band = v.band;
+  const [lo, hi] = QUIZ_BANDS[out.band], lvl = x => Number.isInteger(x) ? Math.max(lo, Math.min(hi, x)) : lo, n = x => Number.isInteger(x) && x >= 0 ? Math.min(x, 1000000) : 0;
+  for (const sub of ['math', 'words']) {
+    const s = v[sub] && typeof v[sub] === 'object' ? v[sub] : {};
+    out[sub] = { use: lvl(s.use), best: Math.max(lvl(s.best), lvl(s.use)), fast: s.fast !== false, right: n(s.right), wrong: n(s.wrong) % QUIZ_DOWN_AFTER };
+    if (!Number.isInteger(s.use)) out[sub].best = out[sub].use;
+  }
+  return out;
+}
+// The first answer to a question, right or wrong. Returns the new level when the number the child sees went up, else 0.
+function quizFirstAnswer(subject, right) {
+  const L = quizLevels[subject], [lo, hi] = quizBand();
+  if (right) {
+    L.wrong = 0; L.right++;
+    L.use = Math.min(hi, L.use + (L.fast ? QUIZ_FAST : 1));
+    if (L.use <= L.best) return 0;
+    L.best = L.use;
+    return L.best;
+  }
+  L.fast = false; L.right = 0; L.wrong++;
+  if (L.wrong >= QUIZ_DOWN_AFTER) { L.wrong = 0; L.use = Math.max(lo, L.use - QUIZ_DOWN); }   // easier questions; the number the child sees stays
+  return 0;
+}
+// The parent chooses Auto (0) or a band (1 to 5): both levels come inside the band
+function quizSetBand(b) {
+  if (!Number.isInteger(b) || b < 0 || b >= QUIZ_BANDS.length) return;
+  quizLevels.band = b;
+  const [lo, hi] = quizBand();
+  for (const sub of ['math', 'words']) { const L = quizLevels[sub]; L.use = Math.max(lo, Math.min(hi, L.use)); L.best = Math.max(L.use, Math.min(hi, L.best)); }
+}
+// The parent sets a level: it becomes the level in use and the level the child sees, and the fast start ends
+function quizSetLevel(subject, n) {
+  const [lo, hi] = quizBand(), L = quizLevels[subject];
+  if (!L || !Number.isFinite(n)) return;
+  L.use = L.best = Math.max(lo, Math.min(hi, Math.round(n)));
+  L.fast = false; L.right = 0; L.wrong = 0;
+}
+// "Start levels again": both subjects go back to the first level of the band (1 on Auto), with the fast start on
+function quizLevelsRestart() {
+  const lo = quizBand()[0];
+  quizLevels.math = quizLevelBlank(lo); quizLevels.words = quizLevelBlank(lo);
+}
+// The next question to ask: half maths and half words, at the level in use of its subject, and never one of the last 10
 function nextQuestion(rnd = Math.random) {
   let q = null;
   for (let tries = 0; tries < 300; tries++) {
-    q = makeQuestion(rnd() < 0.5 ? 'word' : quizPick(rnd, QUIZ_MATH_KINDS), rnd);   // half word scrambles, half maths
+    if (rnd() < 0.5) q = makeQuestion('word', rnd, quizLevels.words.use, quizBand()[0]);
+    else q = makeQuestion(quizPick(rnd, QUIZ_MATH_ROWS[quizRowOf(quizLevels.math.use)]), rnd, quizLevels.math.use);
     if (!quizRecent.includes(q.key)) break;
   }
   quizRecent.push(q.key);
@@ -3178,7 +3354,7 @@ const quizPic = (shape, size) => `<svg viewBox="0 0 24 24" width="${size}" heigh
 const quizRows = (n, draw) => `<span class="qg" style="grid-template-columns:repeat(${Math.max(1, Math.min(5, n))},auto)">${Array.from({ length: n }, (_, i) => draw(i)).join('')}</span>`;
 const quizDots = (n, crossed = 0) => quizRows(n, i => `<span class="qd${i >= n - crossed ? ' x' : ''}"></span>`);
 function quizShowHtml(q) {
-  return q.show.map(s => s.sign ? `<span>${s.sign}</span>` : s.seq ? `<span style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">${s.seq.map(sh => quizPic(sh, 30)).join('')}</span>` : quizRows(s.n, () => quizPic(s.shape, 26))).join('');
+  return q.show.map(s => s.sign ? `<span>${s.sign}</span>` : s.text ? `<span>${esc(s.text)}</span>` : s.seq ? `<span style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">${s.seq.map(sh => quizPic(sh, 30)).join('')}</span>` : quizRows(s.n, () => quizPic(s.shape, 26))).join('');
 }
 function quizHintHtml(q) {
   const h = q.hint;
@@ -3191,17 +3367,21 @@ function quizHintHtml(q) {
   }
   return h.dots.map((n, i) => (i ? '<span>+</span>' : '') + quizDots(n, h.crossed || 0)).join('');
 }
+// The pictures for word questions are Twemoji files shipped with the game (www/quiz/pics/), never the device's own emoji
+const QUIZ_PIC_BASE = new URL('../quiz/pics/', location.href).href;
+const quizLevelLabel = (sub, n) => (sub === 'words' ? 'Words' : 'Maths') + ' level ' + n;
 function openQuiz() {
   if (!friend || quizPanel) return;
   const f = friend;
   if (!f.q) { f.q = nextQuestion(); f.wrong = 0; f.spell = []; f.fixed = 0; quizCount(quizSubject(f.q.kind), 'opened'); }
   if (f.state === 'come') f.state = 'wait';
   paused = true;   // the game stands still while the question is open, so there is no hurry
-  const q = f.q, el = document.createElement('div');
+  const q = f.q, el = document.createElement('div'), sub = quizSubject(q.kind);
   el.id = 'quizPanel';
   el.innerHTML = '<div class="qbox">' +
+    `<div class="qlvl">${quizLevelLabel(sub, quizLevels[sub].best)}</div>` +
     `<div class="qtext">${esc(q.text)}</div>` +
-    (q.kind === 'word' ? `<div class="qclue">${q.clue}</div><div class="qslots"></div><div class="qmsg"></div><div class="qtiles"></div>` :
+    (q.kind === 'word' ? `${q.clue ? `<div class="qclue"><img src="${QUIZ_PIC_BASE}${q.clue}.svg" alt="" draggable="false"></div>` : ''}<div class="qslots" style="--n:${q.letters.length}"></div><div class="qmsg"></div><div class="qtiles"></div>` :
     (q.show.length ? `<div class="qshow">${quizShowHtml(q)}</div>` : '') +
     `<div class="qhint" style="display:none"></div>` +
     `<div class="qmsg"></div>` +
@@ -3229,6 +3409,11 @@ function showQuizHint() {
     renderSpell();
     return;
   }
+  if (q.hint.drop) {   // sums in figures: one wrong answer is taken away
+    const out = quizPanel.querySelector(`.qa[data-a="${q.answers.findIndex((_, i) => i !== q.right)}"]`);
+    out.classList.add('out'); out.disabled = true;
+    return;
+  }
   const h = quizPanel.querySelector('.qhint');
   h.innerHTML = quizHintHtml(q); h.style.display = 'flex';
 }
@@ -3251,6 +3436,7 @@ function quizTile(i) {
   if (f.spell.map(k => q.letters[k]).join('') === q.word) { renderSpell(); quizWin(); return; }
   // Not the word: the letters go back, the places wobble, and nothing is lost
   f.wrong++;
+  if (f.wrong === 1) { quizFirstAnswer('words', false); saveGame(); }
   f.spell = [];
   quizPanel.querySelector('.qmsg').textContent = 'Try again';
   if (f.wrong >= QUIZ_HINT_AFTER) showQuizHint(); else renderSpell();
@@ -3284,6 +3470,7 @@ function answerQuiz(i) {
   if (!btn) return;
   if (i !== f.q.right) {   // wrong: the button wobbles and nothing is lost
     f.wrong++;
+    if (f.wrong === 1) { quizFirstAnswer('math', false); saveGame(); }
     btn.classList.remove('wob'); void btn.offsetWidth; btn.classList.add('wob');
     msg.textContent = 'Try again';
     sfx('tap');
@@ -3298,8 +3485,9 @@ function quizWin() {
   const f = friend, msg = quizPanel.querySelector('.qmsg');
   const gems = f.wrong ? QUIZ_GEMS_LATER : QUIZ_GEMS_FIRST;
   f.done = true;
-  quizCount(quizSubject(f.q.kind), f.wrong ? 'later' : 'first');
-  msg.textContent = 'Well done! +' + gems + ' gems';
+  const sub = quizSubject(f.q.kind), up = f.wrong ? 0 : quizFirstAnswer(sub, true);   // a right first answer moves the level up
+  quizCount(sub, f.wrong ? 'later' : 'first');
+  msg.textContent = 'Well done! +' + gems + ' gems' + (up ? '. Level up! ' + quizLevelLabel(sub, up) : '');
   quizPanel.querySelector('.qstars').innerHTML = Array.from({ length: 14 }, (_, k) => {
     const a = k / 14 * Math.PI * 2;
     return `<svg viewBox="0 0 24 24" width="34" height="34" style="--dx:${Math.round(Math.cos(a) * 190)}px;--dy:${Math.round(Math.sin(a) * 150)}px;animation-delay:${(k % 3) * 0.08}s">${QUIZ_ART.star}</svg>`;
@@ -3308,7 +3496,7 @@ function quizWin() {
   saveGame();
   setTimeout(() => {   // the stars show for a moment, then the friend waves and leaves
     closeQuiz();
-    say('+' + gems + ' gems!', 2000);
+    say(up ? 'Level up! ' + quizLevelLabel(sub, up) + '. +' + gems + ' gems!' : '+' + gems + ' gems!', up ? 3500 : 2000);
     friendLeave();
   }, 1300);
 }
@@ -3536,6 +3724,7 @@ if (saved) {
   if (Number.isFinite(saved.yaw)) camYaw = saved.yaw;
   restoreDrops(saved.drops);
   quizStats = quizStatsFrom(saved.quiz);
+  quizLevels = quizLevelsFrom(saved.levels);
   if (worldLoaded) say('Welcome back, ' + playerName + '!', 2500);
 }
 // Start with some enemies near the player. This runs after the saved position is restored, so they appear where the player is.
@@ -3587,7 +3776,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.71';
+const VERSION = '0.6.72';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -3667,6 +3856,7 @@ setInterval(flushEvents, 10000);
     '<button id="cloudDelete" style="display:none;width:100%;background:transparent;color:#ffb4b4;border:1px solid #855;border-radius:10px;padding:10px;margin-bottom:8px;font-weight:600;cursor:pointer">Delete cloud save</button>' +
     '<button id="cloudOut" style="display:none;width:100%;background:transparent;color:#fff;border:1px solid #556;border-radius:10px;padding:8px;cursor:pointer">Sign out</button>' +
     '</div>' +
+    '<div id="learnLevel" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="quizReport" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="devLog" style="max-height:30vh;overflow:auto;margin-bottom:10px"></div>' +
     '<button id="parentClose" style="background:transparent;color:#fff;border:1px solid #556;border-radius:10px;padding:8px 14px;cursor:pointer">Close</button></div>';
@@ -3680,10 +3870,46 @@ setInterval(flushEvents, 10000);
       document.getElementById('parentLink').href = '/admin.html';
       renderDevLog();
       document.getElementById('quizReport').innerHTML = quizReportHtml(quizStats);
+      renderLearn(false);
       panel.style.display = 'flex';
     }
   });
   document.getElementById('parentClose').addEventListener('click', () => { panel.style.display = 'none'; });
+
+  // ---- Learning level (0.6.72, SPEC-004): the parent chooses Auto or a band, sets a level, or starts the levels again ----
+  // Plus and minus buttons and a slider only: nothing is typed. The ages are a rough guide for the parent; the game never asks one.
+  const LEARN_BANDS = ['Auto', 'Levels 1 to 20 (about ages 6 to 7)', 'Levels 21 to 40 (about ages 7 to 8)', 'Levels 41 to 60 (about ages 9 to 10)', 'Levels 61 to 80 (about ages 10 to 11)', 'Levels 81 to 100 (about ages 11 to 12)'];
+  const learnBtn = 'border:1px solid #556;border-radius:10px;color:#fff;cursor:pointer;font-family:inherit;';
+  function renderLearn(asking) {
+    const L = quizLevels, [lo, hi] = QUIZ_BANDS[L.band];
+    const setter = (sub, name) => { const v = L[sub];
+      return `<div style="margin-top:10px"><div id="learnNow-${sub}" style="font-size:13px"><b>${name}</b>: level in use <b>${v.use}</b>. Your child sees level <b>${v.best}</b>.</div>` +
+        `<div style="display:flex;align-items:center;gap:8px;margin-top:4px"><button data-step="-1" data-sub="${sub}" aria-label="${name} level down" style="${learnBtn}background:#2a3050;width:44px;height:44px;font-size:22px;flex:none">&minus;</button>` +
+        `<input type="range" data-sub="${sub}" min="${lo}" max="${hi}" step="1" value="${v.use}" aria-label="${name} level" style="flex:1;min-width:0;height:44px">` +
+        `<button data-step="1" data-sub="${sub}" aria-label="${name} level up" style="${learnBtn}background:#2a3050;width:44px;height:44px;font-size:22px;flex:none">+</button></div></div>`; };
+    document.getElementById('learnLevel').innerHTML = '<div style="font-size:15px;font-weight:700;margin-bottom:4px">Learning level</div>' +
+      '<div style="font-size:12px;opacity:.75;margin-bottom:8px">Quiz friends ask harder maths and longer words as the level rises, from 1 to 100. On Auto the levels follow how your child answers. The game never asks an age: the ages are a rough guide.</div>' +
+      LEARN_BANDS.map((name, i) => `<button data-band="${i}" aria-pressed="${i === L.band}" style="${learnBtn}display:block;width:100%;text-align:left;padding:9px 10px;margin-bottom:5px;font-size:13px;background:${i === L.band ? '#3b6fd8' : 'transparent'};font-weight:${i === L.band ? 700 : 400}">${i === L.band ? '&#10003; ' : ''}${name}</button>`).join('') +
+      setter('math', 'Maths') + setter('words', 'Words') +
+      (asking ? '<div style="margin-top:12px;font-size:14px;font-weight:700">Are you sure? Both levels start again' + (L.band ? ' at level ' + lo : ' at level 1') + '.</div>' +
+        `<div style="display:flex;gap:8px;margin-top:6px"><button id="learnYes" style="${learnBtn}flex:1;background:#b3402e;padding:10px;font-weight:600">Yes, start again</button><button id="learnNo" style="${learnBtn}flex:1;background:transparent;padding:10px">No</button></div>`
+        : `<button id="learnRestart" style="${learnBtn}width:100%;background:transparent;padding:10px;margin-top:12px;font-weight:600">Start levels again</button>`) +
+      '<div style="font-size:12px;opacity:.75;margin-top:6px">Kept in this saved game. They are in your cloud save if cloud save is on.</div>';
+  }
+  const learnEl = document.getElementById('learnLevel');
+  learnEl.addEventListener('click', e => {
+    const band = e.target.closest('[data-band]'), step = e.target.closest('[data-step]');
+    if (band) quizSetBand(+band.dataset.band);
+    else if (step) quizSetLevel(step.dataset.sub, quizLevels[step.dataset.sub].use + +step.dataset.step);
+    else if (e.target.closest('#learnRestart')) { renderLearn(true); return; }
+    else if (e.target.closest('#learnYes')) quizLevelsRestart();
+    else if (!e.target.closest('#learnNo')) return;
+    saveGame();
+    renderLearn(false);
+  });
+  // The slider: the numbers follow while it is dragged, and the level is set when it is let go
+  learnEl.addEventListener('input', e => { const sub = e.target.dataset && e.target.dataset.sub; if (sub) { quizSetLevel(sub, +e.target.value); saveGame(); const v = quizLevels[sub]; document.getElementById('learnNow-' + sub).innerHTML = `<b>${sub === 'words' ? 'Words' : 'Maths'}</b>: level in use <b>${v.use}</b>. Your child sees level <b>${v.best}</b>.`; } });
+  learnEl.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.sub) renderLearn(false); });
   panel.addEventListener('click', e => { if (e.target === panel) panel.style.display = 'none'; });   // a tap on the dark area around the box closes it too (0.6.71)
 
   // ---- Cloud save: parent signs in with Google or Facebook; kids never see this ----
@@ -3693,7 +3919,7 @@ setInterval(flushEvents, 10000);
   function showSignedIn(session) {
     cloudUser = session ? session.user : null;
     setStatus(cloudUser
-      ? 'Signed in as ' + (cloudUser.email || 'your account') + '. Your free cloud save holds one game, with its quiz friends report. It saves to the cloud every 30 seconds.'
+      ? 'Signed in as ' + (cloudUser.email || 'your account') + '. Your free cloud save holds one game, with its quiz friends report and learning levels. It saves to the cloud every 30 seconds.'
       : 'Not signed in. Sign in to keep this game safe on any device.');
     for (const id of ['cloudSave', 'cloudLoad', 'cloudDelete', 'cloudOut']) $c(id).style.display = cloudUser ? '' : 'none';
     for (const id of ['cloudGoogle', 'cloudFacebook']) $c(id).style.display = cloudUser ? 'none' : '';
@@ -4168,6 +4394,9 @@ window.gameTest = {
   lifeBarCount: () => { let n = 0; scene.traverse(o => { if (o.isSprite && [...lifeBars.values()].some(b => b.sprite === o)) n++; }); return { bars: lifeBars.size, inScene: n }; }, lifeColor,
   HOLD_MS, holdOpensBag,   // holding a quick bar slot opens the bag for it (0.6.68)
   // Word scramble and the quiz report (0.6.65)
+  // Learning level (0.6.72)
+  get quizLevels() { return JSON.parse(JSON.stringify(quizLevels)); }, setQuizLevels: v => { quizLevels = quizLevelsFrom(v); }, quizFirstAnswer, quizSetBand, quizSetLevel, quizLevelsRestart, QUIZ_BANDS, QUIZ_MATH_ROWS, QUIZ_WORD_ROWS,
+  askQuiz: (kind, level) => { if (!friend) return null; friend.q = makeQuestion(kind, Math.random, level, 1); friend.wrong = 0; friend.spell = []; friend.fixed = 0; return { ...friend.q }; },
   quizTile, quizSlot, QUIZ_WORDS, QUIZ_MATH_KINDS, get quizStats() { return JSON.parse(JSON.stringify(quizStats)); }, quizReportHtml, saveGame,
   get quizSpell() { return friend && friend.q && friend.q.kind === 'word' ? { letters: friend.spell.map(i => friend.q.letters[i]).join(''), picked: friend.spell.slice(), fixed: friend.fixed, wrong: friend.wrong } : null; },
   // Quiz Friends (0.6.63)
