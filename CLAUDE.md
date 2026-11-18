@@ -20,6 +20,7 @@ A 3D block-world game for kids and families (dig, build, gems, power levels, ene
 - `build/admin.html` and `www/admin.html`: parent stats page (email code sign-in).
 - `build/prototype-3d-v5.html`, `v6.html`: older versions, kept for rollback.
 - `build/models/`, `www/models/`: optimized GLB models (Quaternius Bestiary: imp.glb, puglin.glb).
+- `www/app-icon/`: the app icon. `icon-512.png` is the Play Store icon; `android-res/` holds the Android sizes, copied into the Android project by the `capacitor:sync:after` step in `package.json` on every `npx cap sync android`. Drawn by `scripts/app-icon.py` (needs Python with Pillow); after changing the drawing, run `python scripts/app-icon.py www/app-icon`. `scripts/tests/app-icon.test.mjs` checks the files.
 - `docs/VERSIONS.md`: version, commit and deployment table, with rollback steps.
 - `CHANGELOG.md`: user-facing changes per version.
 - The Android build and Play Store upload tools are not in this repository (parent's decision, 17 Nov 2026). They live on the build PC in `Desktop\Claude tools for access\drenerics-build\` (see "This PC is the build machine").

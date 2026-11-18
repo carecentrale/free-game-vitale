@@ -11,6 +11,16 @@ Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one versio
 - No change to what data is collected: the pages are plain pages with no scripts
 - Checked: the fast tests; the pages were looked at in a browser in the cloud workspace. Not checked: the parent has not read the guide against the game; a phone or tablet
 
+## Android app icon, 17 Nov 2026 (no change to the game; still 0.6.69)
+Asked for by the parent while preparing the Play Store listing.
+- The Android app has its own icon: a cartoon of the game's character on a pink and purple sunburst. Until now the app carried the plain icon that comes with the app wrapper
+- The same picture is the store icon: `www/app-icon/icon-512.png` (512 x 512)
+- The icon in every size Android needs is in `www/app-icon/android-res/`. A new step in `package.json` (`capacitor:sync:after`) copies it into the Android project every time the build syncs it, so the build tools on the laptop did not need changing
+- The pictures are drawn by `scripts/app-icon.py` (an original drawing, not a capture from the game)
+- No change to the game, to the website's pages or to what data is collected
+- Test added: `scripts/tests/app-icon.test.mjs`
+- Checked: the fast tests; the copy step was run on a throwaway Android project in the cloud workspace and the icon files landed in it. Not checked: the icon in a built app on a phone or tablet
+
 ## 0.6.69: the buttons at the top right no longer overlap
 Asked for by the parent before the push (17 Nov 2026).
 - Fixed: the "Controls: On/Off" button lay on top of the Settings button, on phones, tablets and computers. Its text had grown since the buttons were given fixed places
