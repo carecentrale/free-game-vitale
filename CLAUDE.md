@@ -29,7 +29,7 @@ A 3D block-world game for kids and families (dig, build, gems, power levels, ene
 ## Hosting and backend
 - GitHub: `carecentrale/free-game-vitale`, main branch. Pushes to main auto-deploy to Vercel project `free-game-vitale`, output folder `www`.
 - Live: https://free-game-vitale.vercel.app. Stats: https://free-game-vitale.vercel.app/admin.html
-- Supabase project `rsrmuruskjtnxqmzvmnl`. Tables: worlds, players, game_events, game_errors, cloud_saves. Row-level security is on. Public write access to game tables is an open issue before public launch.
+- Supabase project `rsrmuruskjtnxqmzvmnl`. Tables: worlds, players, game_events, game_errors, cloud_saves (and, once migration 0009 is applied, deletion_requests and deletion_log). Row-level security is on. Public write access to game tables is an open issue before public launch.
 - Supabase client loads on demand from the jsDelivr CDN (version 2.45.4). Three.js 0.160.0 via importmap.
 
 ## How to change the game
@@ -75,6 +75,12 @@ The parent wants Claude to do the build and release work on this PC (Windows lap
 
 ## Requirements come from the product manager's hand-offs
 Requirements come from the Google Drive folder "Adventurers of Drenerics - PM requirements". When Nicola says "build hand-off NNN", read that document in full before changing anything, build exactly what it says, run its acceptance tests, and report anything you built differently and why. Do not build from a hand-off whose status is not "Ready to build". Anything marked "needs parent decision" waits for Nicola's yes.
+
+## Delete my data (0.6.70, SPEC-010)
+- In the game: the block "Delete my data" in the game file (Settings button `settingsDelete`). Three confirmations, then for a signed-in parent an emailed code. On the website: `www/delete-my-data.html`.
+- Online: the server function `supabase/functions/delete-my-data/` (`index.ts` is the plumbing, `logic.mjs` holds the rules and is tested by `scripts/tests/delete-my-data.test.mjs`) and the tables of `docs/migrations/0009_delete_my_data.sql`. The function sends the code through Supabase's own sign-in email: no other email service is used.
+- Anything new the game keeps on a device or online must be added to what Delete my data removes, to its list on screen, to the website page and to the privacy page's "How to delete your data".
+- The site and the store listing never say "Teacher Approved" unless Play Console shows Approved (SPEC-009); the guide's one sentence about the badge is the only mention.
 
 ## Sound and music (0.6.60)
 - Audio files live in `www/audio/sfx/` and `www/audio/music/`. The game learns which files exist from `www/audio/credits.json`, so a file that is not listed is never asked for.
