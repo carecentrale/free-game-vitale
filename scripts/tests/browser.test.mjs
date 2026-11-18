@@ -1433,6 +1433,36 @@ test('a missing or broken audio file causes no error, and the game plays on', { 
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [readyGame()], init: brokenAudio, audioList: FAKE_AUDIO }));
 
+// ---- A tap outside a window closes it (0.6.71) ----
+test('a tap on the world outside the bag, Settings or the quit question closes it and does nothing else; a tap inside keeps it open', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const r = await page.evaluate(() => {
+      const g = window.gameTest, c = document.querySelector('canvas'), out = {};
+      const tap = (el, x, y) => { for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 11, button: 0 })); };
+      const opens = { bag: () => document.getElementById('bagBtn').click(), settings: () => document.getElementById('settingsBtn').click(), quit: () => g.backAction() };
+      const isOpen = { bag: () => g.bagOpen, settings: () => g.settingsOpen, quit: () => g.quitOpen };
+      const box = { bag: 'bag', settings: 'settings', quit: 'quit' };
+      for (const k of Object.keys(opens)) {
+        opens[k]();
+        const opened = isOpen[k]();
+        const el = document.getElementById(box[k]), b = el.getBoundingClientRect();
+        tap(el, b.left + b.width / 2, b.top + 6);
+        const afterInside = isOpen[k]();
+        tap(c, 3, innerHeight - 3);
+        out[k] = { opened, afterInside, afterOutside: isOpen[k](), digging: !!g.digging, fight: !!g.fight };
+      }
+      return out;
+    });
+    for (const [k, v] of Object.entries(r)) {
+      assert.equal(v.opened, true, k + ' did not open');
+      assert.equal(v.afterInside, true, 'a tap inside closed ' + k);
+      assert.equal(v.afterOutside, false, 'a tap outside did not close ' + k);
+      assert.equal(v.digging || v.fight, false, 'the tap that closed ' + k + ' also dug or fought');
+    }
+    assert.deepEqual(errors, []);
+  }, { saves: [readyGame()] }));
+
 // ---- Quiz Friends (0.6.63, SPEC-003) ----
 // Time is played with stepFrames (no waiting): 20 frames of 0.05 s are one second of play.
 // Brings a friend next to the character: no monsters, a new friend, and enough play time for it to walk up
@@ -1460,6 +1490,19 @@ const pressFriend = (page, o = {}) => page.evaluate(o => {
   if (o.drag) ev('pointermove', o.drag);
   ev('pointerup');
   return { held, open: g.quizOpen, fireballs: g.fireballs.length, msg: g.msg };
+}, o);
+// A tap on the "?" bubble over the friend's head (0.6.71); o.miss taps well above the bubble instead
+const tapBubble = (page, o = {}) => page.evaluate(o => {
+  const g = window.gameTest;
+  g.settleCamera();
+  const b = g.friendBubbleScreen();
+  if (!b) return { error: 'the bubble is hidden or behind the camera' };
+  const [fx, fy] = g.friendScreen();
+  const x = b[0], y = o.miss ? b[1] - b[2] * 3 : b[1];
+  const c = document.querySelector('canvas');
+  const ev = t => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 9, button: 0, pointerType: o.touch ? 'touch' : 'mouse' }));
+  ev('pointerdown'); ev('pointerup');
+  return { open: g.quizOpen, awayFromBody: Math.hypot(b[0] - fx, b[1] - fy), bubbleSize: b[2] };
 }, o);
 const panelState = page => page.evaluate(() => {
   const p = document.getElementById('quizPanel');
@@ -1510,6 +1553,22 @@ test('a quiz friend comes as soon as play starts, even with monsters about, with
     assert.equal(s.paused, false);
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [readyGame()], quiz: true }));
+
+test('a tap on the "?" bubble over a quiz friend opens the question, with a finger or the mouse; a tap above the bubble does not', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    for (const [kind, touch] of [['owl', false], ['robot', true]]) {
+      const a = await friendArrives(page, kind, 'add');
+      assert.equal(a.error, undefined, a.error);
+      const miss = await tapBubble(page, { touch, miss: true });
+      assert.equal(miss.error, undefined, miss.error);
+      assert.equal(miss.open, false, 'a tap above the bubble opened the question');
+      const hit = await tapBubble(page, { touch });
+      assert.equal(hit.open, true, 'a tap on the bubble did not open the question (' + kind + ')');
+      await page.evaluate(() => window.gameTest.quizNotNow());
+    }
+    assert.deepEqual(errors, []);
+  }, { saves: [spellGame()], quiz: true }));
 
 test('the friend never opens the question itself; a tap on it opens one question with three answers and "Not now", which changes nothing', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors) => {
