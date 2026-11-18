@@ -2,6 +2,16 @@
 
 Weekly check of the build laptop (LAPTOP-N8LD8GM1): build watcher, recent runs, Play key, git, disk, and ideas to make builds faster and steadier. Newest section first. Recommendations stay listed until marked done.
 
+## 2026-11-17: the build tools left the game folder
+
+Nicola's decision: tools that only help to build the game are not part of the game folder. Moved to `Desktop\Claude tools for access\drenerics-build\` and removed from git: the build watcher, `build-android.ps1`, `upload-play.mjs` and its test, `machine-status.ps1`, `install-build-watcher.ps1`, `remote-build.sh`, all the build `.bat` files, and the folders `build-requests\`, `build-android-work\` and `releases\`. Their last versions in git are in commit efd5f65. File names in the older sections below (`scripts/...`) are the old places.
+
+- The scheduled task "Drenerics build watcher" now starts `drenerics-build\build-watcher.ps1`. The tools find the game at `Desktop\adventurers-of-drenerics-game`.
+- Requests go to `drenerics-build\build-requests\request.txt`.
+- `releases\` holds builds 4 to 10 and one unnamed build of 11 Nov that was loose on the Desktop (`app-release-2026-11-11.aab`). New rule in the build: keep the last 10 builds plus the last build of every month, remove the rest.
+- Deleted from the game folder: `assets-downloads\` (the nature pack zip and its unpacked copy, 20 MB).
+- Checked after the move: the PowerShell files parse; the watcher runs from the new place; `status` and `check` requests. **Not checked: a real build from the new place.** The first one is the test; if it fails, read `build-requests\last.log`.
+
 ## 2026-11-16
 
 **Health: not fully healthy.** The watcher answers requests, but it is still the first version (11 Nov–13 Nov, commit c25e69c), not the one in `scripts/build-watcher.ps1`. That first version cannot restart itself, so the 13 Nov updates never took effect.
@@ -24,12 +34,12 @@ Weekly check of the build laptop (LAPTOP-N8LD8GM1): build watcher, recent runs, 
 1. **Done (16 Nov, build-android.ps1):** Skip `npm ci` when nothing changed: it runs twice per build (game folder and `build-android-work`), plus `npx playwright install`. Keep a stamp of the `package-lock.json` hash and skip when it matches. Saves roughly 1–3 minutes per build. Nothing needed from Nicola.
 2. **Done (5b8d7c4, the watcher keeps the PC awake while it runs):** Keep the laptop awake while a build runs: the watcher could ask Windows not to sleep during a run (SetThreadExecutionState), without changing the 2-hour sleep setting. Avoids a run being cut off or a request waiting until someone wakes the laptop. Nothing needed from Nicola.
 
-## Builds from anywhere (added 17 Nov 2026, not yet tried on the laptop)
+## Builds from anywhere (added 17 Nov 2026; running on the laptop, no request sent through GitHub yet)
 
 The build watcher is a program on the laptop, not Claude. Besides `build-requests\request.txt`, it now looks at GitHub about once a minute:
 
-- **Ask:** `scripts/remote-build.sh quick` from any clone that can push (or `full`, `build`, `check`, `status`). This writes one line, a word and a time, to the branch `build-remote`. Each new line is run once. The first time the watcher sees the branch it only remembers what is there, so an old request never runs.
-- **Result:** the watcher posts one short status (running, then OK or FAILED with test counts and the build number) to the branch `build-status`. Read it with `scripts/remote-build.sh result`. No logs are posted, because the repository is public; the full logs stay in `build-requests\` on the laptop.
+- **Ask:** `remote-build.sh quick` (the script is in the build tools folder and in the project doc `claude/remote-build-trigger-patch.md`, not in the repository) from any clone that can push (or `full`, `build`, `check`, `status`). This writes one line, a word and a time, to the branch `build-remote`. Each new line is run once. The first time the watcher sees the branch it only remembers what is there, so an old request never runs.
+- **Result:** the watcher posts one short status (running, then OK or FAILED with test counts and the build number) to the branch `build-status`. Read it with `remote-build.sh result`. No logs are posted, because the repository is public; the full logs stay in `build-requests\` on the laptop.
 - **Not allowed this way:** `run`, `push`, `restart`, `tidy`. Nothing sent through GitHub can run a script on the laptop other than the project's own build.
 - **Needs:** the laptop on, the parent logged in, internet, and `github-sign-in.bat` done once (for posting the result; the build runs without it).
 - **Turning it off:** delete the branch `build-remote` on GitHub; the watcher then finds nothing to run.

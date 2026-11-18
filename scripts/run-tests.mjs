@@ -1,4 +1,4 @@
-// Runs every test once, then reruns failed browser tests a single time. Used by the build (scripts/build-android.ps1).
+// Runs every test once, then reruns failed browser tests a single time. Used by the build (build-android.ps1 in the build tools folder on the build PC).
 // Why: on the build laptop the browser tests that depend on drawn frames sometimes miss one (a different test each run),
 // while the same test passes on the next try. A real bug fails twice and still stops the build. A test that passes only
 // on the rerun is reported as FLAKY, so it can be made steadier later (the weekly build machine tune-up looks for these).

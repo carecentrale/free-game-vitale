@@ -30,15 +30,17 @@ The GitHub workflow in `.github/workflows/release.yml` builds, signs, and upload
 
 ## Uploading from this PC (no GitHub)
 
-`build-android-upload.bat` gets the latest game from GitHub (`git pull --ff-only`, needs Git for Windows; skip with `-NoUpdate`), then builds and signs the app on the PC (the same as `build-android.bat`), then uploads it to the **internal testing** track with `scripts/upload-play.mjs`. Add `-SkipTests` when the tests have already passed for this version.
+Since 17 Nov 2026 the build files named here are not in the game folder: they are in `Desktop\Claude tools for access\drenerics-build\` on the build PC.
+
+`build-android-upload.bat` gets the latest game from GitHub (`git pull --ff-only`, needs Git for Windows; skip with `-NoUpdate`), then builds and signs the app on the PC (the same as `build-android.bat`), then uploads it to the **internal testing** track with `upload-play.mjs`. Add `-SkipTests` when the tests have already passed for this version.
 
 One-time setup:
 1. In Google Cloud (the project that owns the service account), switch on the **Google Play Android Developer API**.
 2. In Play Console → Users and permissions, invite the service account's email (it ends in `.iam.gserviceaccount.com`) and give it the release permissions for this app.
 3. Download a JSON key for the service account and save it as `Desktop\Claude tools for access\play-service-account.json`. It is a secret: keep it out of the project folder.
-4. Check it: `node scripts/upload-play.mjs --check`. It signs in and opens the app on Google Play without uploading anything, and says in plain words what is wrong if it cannot.
+4. Check it: `check-play-key.bat` (or a `check` request to the build watcher). It signs in and opens the app on Google Play without uploading anything, and says in plain words what is wrong if it cannot.
 
-To upload a file that is already built: `node scripts/upload-play.mjs releases\drenerics-<version>-code<N>.aab`.
+To upload a file that is already built: in the build tools folder, `node upload-play.mjs releases\drenerics-<version>-code<N>.aab`.
 
 ## Important notes
 
