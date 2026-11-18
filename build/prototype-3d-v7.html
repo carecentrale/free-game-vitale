@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.67 (3D)</title>
+<title>Adventurers of Drenerics v0.6.68 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -1208,7 +1208,11 @@ function handTap(i) {
   selectSlot(i);
   if (!handItem(i)) toggleBag(true);
 }
-for (const [id, i] of [['bH1', 0], ['bH2', 1]]) document.getElementById(id).addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); handTap(i); });
+for (const [id, i] of [['bH1', 0], ['bH2', 1]]) {
+  const el = document.getElementById(id);
+  el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); handTap(i); holdStart(i); });   // held: the bag opens for this slot (0.6.68)
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, () => holdEnd());
+}
 // Spell button: one tap casts the fireball where the camera is looking (the same as the F key)
 document.getElementById('bSpell').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (!anyPanelOpen()) fireAt(innerWidth / 2, innerHeight / 2); });
 
@@ -1341,7 +1345,7 @@ function renderBag() {
   bagEl.innerHTML =
     `<div style="display:flex;justify-content:space-between;align-items:center">` +
     `<b>Bag ${invTotal()}/${invCap()}</b><span id="bagClose" style="cursor:pointer;padding:6px">Close &#10005;</span></div>` +
-    `<div style="margin-top:8px;opacity:.85;font-size:14px">Tap an item to put it in quick bar slot ${sel + 1}.</div>` +
+    `<div id="bagSlotNote" style="margin-top:8px;opacity:.85;font-size:14px">Tap an item to put it in quick bar slot ${sel + 1}.</div>` +
     `<div style="margin-top:4px;opacity:.85;font-size:14px">Bag full? Tap Drop to put one on the ground. It stays there for 5 minutes.</div>` +
     `<div class="grid">` +
     (ids.map(id => `<div class="row" data-item="${id}"><span class="sw" style="background-image:url(${itemIcon(id)})"></span>${labelOf(id)}` +
@@ -1363,9 +1367,24 @@ recentEl.addEventListener('click', e => {
   const r = e.target.closest('[data-item]');
   if (r) toQuick(r.dataset.item);
 });
+// Hold a quick bar slot (or a hand button) for half a second: the bag opens with that slot chosen, so an item can be put
+// in it with one more tap (0.6.68). A short press only selects the slot, as before.
+const HOLD_MS = 500;
+let holdTimer = 0, holdDone = false;
+function holdOpensBag(i) {
+  holdDone = true;
+  if (quitOpen || settingsOpen || skillPanel || quizPanel || paused) return;
+  selectSlot(i);
+  toggleBag(true);
+}
+function holdStart(i) { clearTimeout(holdTimer); holdDone = false; holdTimer = setTimeout(() => holdOpensBag(i), HOLD_MS); }
+function holdEnd() { clearTimeout(holdTimer); holdTimer = 0; }
+qbEl.addEventListener('pointerdown', e => { const s = e.target.closest('[data-slot]'); if (s) holdStart(+s.dataset.slot); });
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) qbEl.addEventListener(ev, holdEnd);
 qbEl.addEventListener('click', e => {
   const s = e.target.closest('[data-slot]');
   if (!s) return;
+  if (holdDone) { holdDone = false; return; }   // the press was a hold: the bag is already open for this slot
   sfx('tap');
   selectSlot(+s.dataset.slot);
   if (isPhone()) setPanel(false);   // on a phone, choosing a tool hides the bar again
@@ -1443,6 +1462,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.68', title: 'Hold a quick bar slot to fill it', items: [
+    'Press and hold a quick bar slot for a moment: the bag opens, and the item you tap goes into that slot',
+    'On tablets and phones, holding a hand button does the same for slots 1 and 2'] },
   { v: '0.6.67', title: 'Quiz friends come sooner', items: [
     'A quiz friend comes to say hello as soon as you start playing',
     'After you answer a question right, the next friend comes after about a minute of moving around',
@@ -3538,7 +3560,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.67';
+const VERSION = '0.6.68';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -4116,6 +4138,7 @@ window.gameTest = {
   // Life bars (0.6.64): one entry per monster, in the same order as `enemies` (null if a monster has no bar)
   lifeBars: () => enemies.map(en => { const b = lifeBars.get(en); return b ? { kind: en.kind, hp: b.hp, part: b.part, color: b.color, above: b.sprite.position.y - en.y, dx: b.sprite.position.x - en.x, dz: b.sprite.position.z - en.z, inScene: b.sprite.parent === scene, shown: b.sprite.visible, w: b.sprite.scale.x } : null; }),
   lifeBarCount: () => { let n = 0; scene.traverse(o => { if (o.isSprite && [...lifeBars.values()].some(b => b.sprite === o)) n++; }); return { bars: lifeBars.size, inScene: n }; }, lifeColor,
+  HOLD_MS, holdOpensBag,   // holding a quick bar slot opens the bag for it (0.6.68)
   // Word scramble and the quiz report (0.6.65)
   quizTile, quizSlot, QUIZ_WORDS, QUIZ_MATH_KINDS, get quizStats() { return JSON.parse(JSON.stringify(quizStats)); }, quizReportHtml, saveGame,
   get quizSpell() { return friend && friend.q && friend.q.kind === 'word' ? { letters: friend.spell.map(i => friend.q.letters[i]).join(''), picked: friend.spell.slice(), fixed: friend.fixed, wrong: friend.wrong } : null; },

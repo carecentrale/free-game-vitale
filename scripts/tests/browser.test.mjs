@@ -876,7 +876,12 @@ const TABLET = { viewport: { width: 1024, height: 768 }, hasTouch: true, isMobil
 // The game is running (no wizard or panel) and the character stands on the ground
 const playing = page => page.waitForFunction(() => window.gameTest && !window.gameTest.paused && window.gameProbe().onGround, null, { timeout: 90000 });
 // A finger or mouse press on one control
-const pressOn = (page, sel) => page.evaluate(s => document.querySelector(s).dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 7 })), sel);
+// (a hand button is let go again straight away: held for half a second it would open the bag, 0.6.68)
+const pressOn = (page, sel) => page.evaluate(s => {
+  const el = document.querySelector(s);
+  el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 7 }));
+  if (s === '#bH1' || s === '#bH2') el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 7 }));
+}, sel);
 // A saved game in which the fireball is already learned (no skill choice at the start)
 function spellGame() {
   const g = JSON.parse(phoneGame());
@@ -2012,3 +2017,61 @@ test('the quiz report counts questions seen and right answers for maths and word
     assert.deepEqual(await stats(), st, 'the report was not kept');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [readyGame()], quiz: true }));
+
+// ---- Hold a quick bar slot to fill it (0.6.68) ----
+const slotEvent = (page, sel, type) => page.evaluate(([sel, type]) => document.querySelector(sel).dispatchEvent(new (type === 'click' ? MouseEvent : PointerEvent)(type, { bubbles: true, cancelable: true, pointerId: 11 })), [sel, type]);
+
+test('holding a quick bar slot opens the bag for that slot, and the item tapped goes into it; a short press only selects the slot', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const st = () => page.evaluate(() => ({ bag: window.gameTest.bagOpen, sel: window.gameTest.sel, qb: [...window.gameTest.qb], note: (document.getElementById('bagSlotNote') || {}).textContent || '' }));
+    const before = await st();
+    // A short press and release: the slot is selected, the bag stays closed
+    await slotEvent(page, '#qb [data-slot="3"]', 'pointerdown');
+    await slotEvent(page, '#qb [data-slot="3"]', 'pointerup');
+    await slotEvent(page, '#qb [data-slot="3"]', 'click');
+    await page.waitForTimeout(800);
+    let s = await st();
+    assert.deepEqual([s.bag, s.sel], [false, 3], 'a short press should only select the slot');
+    // Held for more than half a second: the bag opens with that slot chosen
+    await slotEvent(page, '#qb [data-slot="2"]', 'pointerdown');
+    await page.waitForFunction(() => window.gameTest.bagOpen, null, { timeout: 5000 });
+    s = await st();
+    assert.equal(s.sel, 2, 'the held slot is chosen');
+    assert.match(s.note, /quick bar slot 3\./);
+    assert.equal(s.qb[2], null);
+    await slotEvent(page, '#qb [data-slot="2"]', 'pointerup');
+    await slotEvent(page, '#qb [data-slot="2"]', 'click');   // the click that ends the hold does nothing more
+    s = await st();
+    assert.deepEqual([s.bag, s.sel], [true, 2]);
+    // One tap on an item in the bag puts it in that slot
+    await page.evaluate(() => document.querySelector('#bag .row[data-item="dirt"]').click());
+    s = await st();
+    assert.equal(s.qb[2], 'dirt', 'the tapped item did not go into the held slot');
+    assert.deepEqual([s.qb[0], s.qb[1], s.qb[3]], [before.qb[0], before.qb[1], before.qb[3]], 'other slots changed');
+    assert.equal(await page.evaluate(() => window.gameTest.HOLD_MS), 500);
+    // With Settings open, holding does nothing
+    await page.keyboard.press('KeyB');
+    await page.dispatchEvent('#settingsBtn', 'click');
+    await page.evaluate(() => window.gameTest.holdOpensBag(4));
+    s = await st();
+    assert.deepEqual([s.bag, s.sel], [false, 2], 'holding worked with Settings open');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
+test('on a touch screen, holding a hand button opens the bag for its slot; a quick tap only puts the item in the hand', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const st = () => page.evaluate(() => ({ bag: window.gameTest.bagOpen, sel: window.gameTest.sel }));
+    await slotEvent(page, '#bH2', 'pointerdown');
+    await slotEvent(page, '#bH2', 'pointerup');
+    await page.waitForTimeout(800);
+    assert.deepEqual(await st(), { bag: false, sel: 1 }, 'a quick tap opened the bag');
+    await slotEvent(page, '#bH1', 'pointerdown');
+    await page.waitForFunction(() => window.gameTest.bagOpen, null, { timeout: 5000 });
+    assert.deepEqual(await st(), { bag: true, sel: 0 });
+    await slotEvent(page, '#bH1', 'pointerup');
+    await page.evaluate(() => document.querySelector('#bag .row[data-item="dirt"]').click());
+    assert.equal(await page.evaluate(() => window.gameTest.qb[0]), 'dirt', 'the tapped item did not go onto the hand button');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: TABLET, saves: [readyGame()] }));

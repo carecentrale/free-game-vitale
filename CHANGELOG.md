@@ -11,6 +11,15 @@ Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one versio
 - No change to what data is collected: the pages are plain pages with no scripts
 - Checked: the fast tests; the pages were looked at in a browser in the cloud workspace. Not checked: the parent has not read the guide against the game; a phone or tablet
 
+## 0.6.68: hold a quick bar slot to fill it
+Asked for by the parent after playing build 11 (17 Nov 2026).
+- Pressing and holding a quick bar slot for half a second, with a finger or the mouse, opens the bag with that slot chosen. One tap on an item then puts it in the slot. A short press only selects the slot, as before
+- On touch screens, holding a hand button does the same for slots 1 and 2 (a tap still puts the item in the hand first)
+- Holding does nothing while Settings, the quit question, a quiz question or another panel is open
+- No change to what data is collected
+- Tests added (browser.test.mjs): holding a slot, and holding a hand button on a tablet
+- Checked: the syntax check, the fast tests, and the two new browser tests in the cloud workspace's Chrome (smaller-view copy of the game). Not checked: the other browser tests; a real phone or tablet (on a phone the quick bar is hidden until the top-left button is tapped)
+
 ## 0.6.67: quiz friends come sooner
 Asked for by the parent after playing build 11 (17 Nov 2026). It changes SPEC-003's rule of 4 to 7 minutes between friends.
 - The first friend of a visit comes 3 seconds after play starts, so one is there from the beginning. This one does not wait for monsters to be out of the way
