@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.63 (3D)</title>
+<title>Adventurers of Drenerics v0.6.64 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -1435,6 +1435,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.64', title: 'Life bars for monsters', items: [
+    'Every monster has a small life bar over its head. It shows how much health the monster has left',
+    'The bar is green at first, turns yellow as the monster gets weaker, and red when it is nearly defeated'] },
   { v: '0.6.63', title: 'Quiz friends', items: [
     'Now and then a friendly owl, turtle or robot walks up to you with a "?" over its head and waves',
     'Tap it to get one easy maths question with three answers. A right answer gives 5 gems, or 2 gems after a wrong try',
@@ -2168,6 +2171,48 @@ function groundBelow(x, z, y) {
   return false;
 }
 
+// ---- Life bars (0.6.64): a small bar over each monster shows how much health it has left ----
+// Green when it is healthy, yellow below 60%, red below 30%. The bar always faces the screen and goes when the monster is defeated.
+const LIFE_BAR_W = 0.9, LIFE_BAR_H = 0.15;
+const lifeBars = new Map();   // monster -> { sprite, cx, hp, part, color, top }
+const lifeColor = part => part > 0.6 ? '#4cd964' : part > 0.3 ? '#ffd54a' : '#ff5a4a';
+// How high over a monster's feet its bar floats: just above its head
+const lifeTop = kind => { const k = ENEMY_KINDS[kind]; return (k.file ? k.height : k.beast ? 0.95 : 1.45) * k.scale + 0.3; };
+function drawLifeBar(b, en) {
+  const full = ENEMY_KINDS[en.kind].health, cx = b.cx;
+  b.hp = en.hp;
+  b.part = Math.max(0, Math.min(1, en.hp / full));
+  b.color = lifeColor(b.part);
+  cx.clearRect(0, 0, 96, 16);
+  cx.fillStyle = '#10131f'; cx.fillRect(0, 0, 96, 16);              // dark frame
+  cx.fillStyle = '#4a4f63'; cx.fillRect(2, 2, 92, 12);              // empty part
+  cx.fillStyle = b.color; cx.fillRect(2, 2, Math.round(92 * b.part), 12);
+  b.sprite.material.map.needsUpdate = true;
+}
+function updateLifeBars() {
+  for (const [en, b] of lifeBars) {
+    if (enemies.includes(en)) continue;
+    scene.remove(b.sprite);
+    b.sprite.material.map.dispose();
+    b.sprite.material.dispose();
+    lifeBars.delete(en);
+  }
+  for (const en of enemies) {
+    let b = lifeBars.get(en);
+    if (!b) {
+      const c = document.createElement('canvas'); c.width = 96; c.height = 16;
+      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false }));
+      sprite.scale.set(LIFE_BAR_W, LIFE_BAR_H, 1);
+      scene.add(sprite);
+      b = { sprite, cx: c.getContext('2d'), hp: null, part: 1, color: '', top: lifeTop(en.kind) };
+      lifeBars.set(en, b);
+    }
+    if (b.hp !== en.hp) drawLifeBar(b, en);
+    b.sprite.position.set(en.x, en.y + b.top, en.z);
+  }
+}
+
 function updateEnemies(dt) {
   const now = performance.now() / 1000;
   // Remove enemies that fell off the island, left the world, or hang in the air.
@@ -2221,6 +2266,7 @@ function updateEnemies(dt) {
       limbs.arms.forEach((arm, i) => { arm.rotation.x = (i ? -s : s) * 0.5; });
     }
   }
+  updateLifeBars();
   updateCorpses(dt);
 }
 
@@ -3358,7 +3404,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.63';
+const VERSION = '0.6.64';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -3931,6 +3977,9 @@ window.gameTest = {
   audioState: () => ({ started: audioStarted, listed: !!audioList, live: sfxLive.length,
     music: musicEl ? { src: musicEl.src, volume: musicEl.volume, paused: !!musicEl.paused } : null }),
   castFireball, fireAt, enemyAt, viewDir, aimAt: (x, y) => aim({ clientX: x, clientY: y }), setYaw: y => { camYaw = y; }, get sparks() { return sparks; }, get fireballs() { return fireballs; }, get enemies() { return enemies; },
+  // Life bars (0.6.64): one entry per monster, in the same order as `enemies` (null if a monster has no bar)
+  lifeBars: () => enemies.map(en => { const b = lifeBars.get(en); return b ? { kind: en.kind, hp: b.hp, part: b.part, color: b.color, above: b.sprite.position.y - en.y, dx: b.sprite.position.x - en.x, dz: b.sprite.position.z - en.z, inScene: b.sprite.parent === scene, w: b.sprite.scale.x } : null; }),
+  lifeBarCount: () => { let n = 0; scene.traverse(o => { if (o.isSprite && [...lifeBars.values()].some(b => b.sprite === o)) n++; }); return { bars: lifeBars.size, inScene: n }; }, lifeColor,
   // Quiz Friends (0.6.63)
   get quizOn() { return quizOn; }, setQuizOn, makeQuestion, nextQuestion, QUIZ_KINDS, get quizRecent() { return quizRecent.slice(); },
   get friend() { return friend ? { kind: friend.kind, state: friend.state, x: friend.x, y: friend.y, z: friend.z, age: friend.age, wrong: friend.wrong, bubble: friend.group.userData.bubble.visible, wave: friend.group.userData.wave.rotation.z, inScene: friend.group.parent === scene } : null; },

@@ -11,6 +11,16 @@ Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one versio
 - No change to what data is collected: the pages are plain pages with no scripts
 - Checked: the fast tests; the pages were looked at in a browser in the cloud workspace. Not checked: the parent has not read the guide against the game; a phone or tablet
 
+## 0.6.64: life bars for monsters
+Asked for by the parent directly on 17 Nov 2026 (not from a product manager hand-off).
+- Every monster has a small life bar over its head, showing how much of its health is left. It always faces the screen and follows the monster
+- Green above 60% of full health, yellow from 60% down to 30%, red below that. The bar goes when the monster is defeated or leaves
+- The message after a hit ("3 health left") is unchanged
+- Drawn in code; no new files. No change to what data is collected
+- The guide's part 9 (Monsters and fighting) explains the bar; the release notes page is rewritten
+- Tests added: one browser test in `browser.test.mjs` (every monster has one bar above its head, it shrinks and changes colour with each hit, and it goes with the monster)
+- Checked: the syntax check, the fast tests, and the new browser test in the cloud workspace's Chrome (against a copy of the game that draws a smaller area); a screenshot was looked at. Not checked: the other browser tests; a real phone or tablet; the parent has not played it
+
 ## 0.6.63: Quiz Friends (SPEC-003)
 Built from the product manager's SPEC-003 "Quiz Friends", document version 1, approved by the parent on 17 Nov 2026. The document names 0.6.61 as its target; that number was already used, so this is 0.6.63.
 - Now and then a friendly character (an owl, a turtle or a small robot, all original and made in the game's code) appears 7 to 11 blocks from the child with a "?" bubble over its head, waves, walks up and stops two blocks away. It never opens anything by itself

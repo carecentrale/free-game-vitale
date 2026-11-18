@@ -1763,3 +1763,49 @@ for (const [label, device] of [['a phone held sideways', PHONE_WIDE], ['a phone 
       assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
     }, { device, saves: [readyGame()] }));
 }
+
+// ---- Life bars for monsters (0.6.64) ----
+test('every monster has one life bar over its head; it shrinks and turns yellow, then red, as the monster is hit, and goes when the monster is defeated', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const r = await page.evaluate(() => {
+      const g = window.gameTest;
+      g.stepFrames([0.05]);
+      const all = g.lifeBars(), count = g.lifeBarCount(), monsters = g.enemies.length;
+      g.clearEnemies();
+      g.enemyNear('brute', 2, -2);
+      const en = g.enemies[0], full = g.ENEMY_KINDS.brute.health;
+      const look = () => { g.stepFrames([0.05]); return g.lifeBars()[0]; };
+      const fresh = look();
+      const steps = [];
+      for (let hp = full - 1; hp >= 1; hp--) { g.hurtEnemy(en, 1); steps.push(look()); }
+      const before = g.lifeBarCount();
+      g.hurtEnemy(en, 1);   // the last hit defeats it
+      g.stepFrames([0.05]);
+      return { all, count, monsters, full, fresh, steps, before, after: g.lifeBarCount(), left: g.enemies.length,
+        colors: [1, 0.61, 0.6, 0.31, 0.3, 0.05].map(g.lifeColor) };
+    });
+    assert.ok(r.monsters >= 1, 'no monsters to check');
+    assert.equal(r.all.length, r.monsters);
+    for (const b of r.all) {
+      assert.ok(b && b.inScene, 'a monster has no life bar');
+      assert.equal(b.part, 1, 'a fresh monster does not have a full bar');
+      assert.ok(b.above > 0.9 && b.above < 2.6, 'the bar is not just over the head of the ' + b.kind + ': ' + b.above);
+      assert.ok(Math.abs(b.dx) < 1e-6 && Math.abs(b.dz) < 1e-6, 'the bar is not over its monster');
+    }
+    assert.deepEqual(r.count, { bars: r.monsters, inScene: r.monsters }, 'one bar for each monster');
+    assert.equal(r.fresh.part, 1);
+    assert.equal(r.fresh.color, r.colors[0]);
+    r.steps.forEach((b, i) => {
+      const hp = r.full - 1 - i;
+      assert.equal(b.hp, hp);
+      assert.ok(Math.abs(b.part - hp / r.full) < 1e-9, 'the bar does not show ' + hp + ' of ' + r.full);
+    });
+    assert.equal(new Set(r.colors).size, 3, 'three colours');
+    assert.deepEqual(r.colors, [r.colors[0], r.colors[0], r.colors[2], r.colors[2], r.colors[4], r.colors[4]], 'green above 60%, yellow down to 30%, red below');
+    assert.equal(r.steps[r.steps.length - 1].color, r.colors[4], 'a nearly defeated monster has a red bar');
+    assert.deepEqual(r.before, { bars: 1, inScene: 1 });
+    assert.equal(r.left, 0, 'the monster was not defeated');
+    assert.deepEqual(r.after, { bars: 0, inScene: 0 }, 'the bar stayed after the monster was defeated');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
