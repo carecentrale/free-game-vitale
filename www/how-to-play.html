@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How to play: Adventurers of Drenerics</title>
+<meta name="description" content="How to play Adventurers of Drenerics: moving, digging, building, the bag, gems, powers, monsters, magic, saving and playing with friends.">
+<!-- This guide must describe the game as it is. Every new feature or changed rule gets its part here in the same release,
+     and guide-version below is set to the game's version (scripts/tests/site-pages.test.mjs checks it). -->
+<meta name="guide-version" content="0.6.62">
+<style>
+  :root{--bg:#f4f6fb;--card:#fff;--ink:#1d2433;--muted:#5b6475;--line:#e4e7ee;--accent:#3b6fd8;--key:#eef1f8}
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0;--key:#262e44}}
+  :root[data-theme="dark"]{--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0;--key:#262e44}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.6}
+  main{max-width:760px;margin:0 auto;padding:24px 16px 48px;box-sizing:border-box}
+  nav{font-size:14px;margin-bottom:12px}
+  nav a{color:var(--accent);margin-right:14px}
+  h1{font-size:28px;margin:8px 0 4px}
+  h2{font-size:21px;margin:34px 0 8px;padding-top:6px;border-top:1px solid var(--line)}
+  h3{font-size:17px;margin:18px 0 6px}
+  p,li,td,th{font-size:16px}
+  .muted{color:var(--muted);font-size:14px}
+  a{color:var(--accent)}
+  .play{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;font-weight:700;padding:10px 22px;border-radius:12px;margin:10px 0}
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:16px 0}
+  .toc ol{margin:6px 0 0;padding-left:22px;columns:2;column-gap:28px}
+  @media (max-width:520px){.toc ol{columns:1}}
+  .scroll{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;background:var(--card);border:1px solid var(--line);border-radius:10px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:14px;color:var(--muted)}
+  tr:last-child td{border-bottom:0}
+  kbd{background:var(--key);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-family:inherit;font-size:14px;white-space:nowrap}
+  .tip{background:var(--card);border-left:4px solid var(--accent);border-radius:8px;padding:8px 12px;margin:12px 0}
+</style>
+</head>
+<body>
+<main>
+  <nav><a href="/">Home</a><a href="/release-notes.html">Release notes</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="/contact.html">Contact</a></nav>
+
+  <h1>How to play</h1>
+  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.62</span>. New things are added here with every version; see the <a href="/release-notes.html">release notes</a> for what changed.</div>
+
+  <p>Adventurers of Drenerics is a world made of blocks. You dig into it, build with what you dig, collect gems, grow stronger and meet monsters. You can play alone or in the same world as your friends.</p>
+  <a class="play" href="/play/">Play now</a>
+
+  <div class="toc">
+    <strong>In this guide</strong>
+    <ol>
+      <li><a href="#start">Starting a game</a></li>
+      <li><a href="#controls">Controls</a></li>
+      <li><a href="#quickbar">The quick bar and the bag</a></li>
+      <li><a href="#dig">Digging</a></li>
+      <li><a href="#build">Building</a></li>
+      <li><a href="#gems">Gems</a></li>
+      <li><a href="#bagfull">When the bag is full</a></li>
+      <li><a href="#powers">Powers and levels</a></li>
+      <li><a href="#monsters">Monsters and fighting</a></li>
+      <li><a href="#gear">Gear and durability</a></li>
+      <li><a href="#magic">Magic</a></li>
+      <li><a href="#water">Water and swimming</a></li>
+      <li><a href="#world">The world</a></li>
+      <li><a href="#teleport">Teleport to the start</a></li>
+      <li><a href="#saving">Saving your game</a></li>
+      <li><a href="#friends">Playing with friends</a></li>
+      <li><a href="#settings">Settings, sound and quitting</a></li>
+      <li><a href="#grownups">For grown-ups</a></li>
+    </ol>
+  </div>
+
+  <h2 id="start">1. Starting a game</h2>
+  <p>The first time you play, the game asks four short questions:</p>
+  <ol>
+    <li><strong>Who is playing?</strong> Boy or Girl.</li>
+    <li><strong>Pick your people.</strong> Human, Elf or Dwarf.</li>
+    <li><strong>Your name.</strong> The game picks a name for you, so nobody types one. Tap <em>Shuffle name</em> to get another.</li>
+    <li><strong>Your world.</strong> <em>Start a new world</em>, or <em>Join a friend's world</em> with their 4-letter world code.</li>
+  </ol>
+  <p>Then tap <em>Start playing</em>. Every new world is different: its hills, caves and gems are in new places each time.</p>
+  <p>When you come back, the game lists your saved games. Tap <em>Play</em> on one to carry on, or <em>Start a new game</em>.</p>
+
+  <h2 id="controls">2. Controls</h2>
+  <div class="scroll">
+  <table>
+    <tr><th>To do this</th><th>On a computer</th><th>On a tablet or phone</th></tr>
+    <tr><td>Walk</td><td><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or the arrow keys</td><td>Push the thumb stick. A small push walks slowly, a full push goes at full speed</td></tr>
+    <tr><td>Jump</td><td><kbd>Space</kbd></td><td>The JUMP button</td></tr>
+    <tr><td>Turn the view</td><td>Drag sideways with the mouse</td><td>Drag sideways with a finger</td></tr>
+    <tr><td>Zoom in and out</td><td>Mouse wheel</td><td>Pinch with two fingers</td></tr>
+    <tr><td>Choose what is in your hand</td><td><kbd>1</kbd> to <kbd>6</kbd>, or click a quick bar slot</td><td>Tap a quick bar slot or a hand button</td></tr>
+    <tr><td>Dig</td><td>With the pickaxe in hand, hold the mouse button on a block</td><td>With the pickaxe in hand, hold a finger on a block</td></tr>
+    <tr><td>Build</td><td>With a block in hand, click the side or top of a block. Right-click also builds</td><td>With a block in hand, tap the side or top of a block</td></tr>
+    <tr><td>Fight</td><td>With a sword in hand, hold the mouse button on a monster</td><td>Tap a close monster (with a sword on a hand button), or hold on it with the sword in hand</td></tr>
+    <tr><td>Cast the fireball</td><td><kbd>F</kbd>, or right-click with the fireball selected</td><td>The Spell button</td></tr>
+    <tr><td>Open the bag</td><td><kbd>B</kbd>, or the Bag button</td><td>The Bag button</td></tr>
+    <tr><td>Close a panel, or quit</td><td><kbd>Esc</kbd></td><td>Tap outside the panel. On Android, the Back button</td></tr>
+  </table>
+  </div>
+  <p>The <em>Controls</em> button switches the on-screen stick and buttons on or off. On a touch screen they start switched on.</p>
+  <p>You can only dig, build or fight close to you. If the game says "Too far away! Get closer", walk nearer.</p>
+
+  <h2 id="quickbar">3. The quick bar and the bag</h2>
+  <p>The <strong>quick bar</strong> is the row of 6 slots at the bottom. The slot you choose is the item in your hand: the pickaxe digs, a sword fights, a block builds.</p>
+  <p>The <strong>bag</strong> holds everything you own. Open it, then tap an item to put it in the slot you have chosen. The <em>Recent</em> list at the side shows the things you picked up last; tap one to put it in the quick bar.</p>
+  <h3>On tablets and phones</h3>
+  <ul>
+    <li>Two round <strong>hand buttons</strong> above JUMP show quick bar slots 1 and 2. Tap one to hold that item. The one in your hand has a bright ring. Tapping an empty hand button opens the bag so you can fill it.</li>
+    <li>On a phone the quick bar is hidden to leave room. The button at the top left shows the item in your hand; tap it to show the quick bar, and choosing a tool hides it again.</li>
+  </ul>
+
+  <h2 id="dig">4. Digging</h2>
+  <ol>
+    <li>Choose the pickaxe.</li>
+    <li>Hold on a block. A crack grows; when it is complete the block comes out and goes into your bag.</li>
+  </ol>
+  <p>Digging is how you get blocks to build with, and how you find gems. Each block you dig also makes your Digging power grow.</p>
+
+  <h2 id="build">5. Building</h2>
+  <ol>
+    <li>Put a block in a quick bar slot and choose it.</li>
+    <li>Tap or click the side or the top of a block that is already there. Your block goes next to it.</li>
+  </ol>
+  <ul>
+    <li>A drag only turns the view; it does not build.</li>
+    <li>On a computer, a right-click builds with a block from the quick bar even when another item is in your hand.</li>
+    <li>You cannot build on yourself, or on a spot where something is lying on the ground. Walk over the item to pick it up first.</li>
+    <li>When you run out, the game says "No ... left! Dig some first."</li>
+  </ul>
+
+  <h2 id="gems">6. Gems</h2>
+  <p>Gems sparkle inside some blocks. Dig the block to collect the gem. Monsters also give gems when you defeat them: stronger monsters give more.</p>
+
+  <h2 id="bagfull">7. When the bag is full</h2>
+  <p>The bag holds a set number of things, and it grows as your Inventory power goes up (12 things at level 1, and 4 more with each level). The Inventory power grows while you carry a full bag.</p>
+  <ul>
+    <li>If the bag is full, you can still dig. The block falls on the ground as a small spinning cube.</li>
+    <li>To make room, open the bag and tap <strong>Drop</strong> next to a block or a monster part. One of them goes on the ground near you.</li>
+    <li>Walk next to something on the ground to pick it up again, once there is room.</li>
+    <li>Things on the ground disappear after 5 minutes. Up to 40 things can lie on the ground at once.</li>
+    <li>Gems, tools, weapons and spells cannot be dropped.</li>
+  </ul>
+
+  <h2 id="powers">8. Powers and levels</h2>
+  <p>You have five powers. Each one grows when you use it, and the game tells you when one goes up a level. The power meters show how far you are.</p>
+  <div class="scroll">
+  <table>
+    <tr><th>Power</th><th>How it grows</th><th>What it does</th></tr>
+    <tr><td>Digging</td><td>Digging blocks</td><td>You dig faster with each level</td></tr>
+    <tr><td>Building</td><td>Placing blocks</td><td>Shows how much you have built. It changes nothing else yet</td></tr>
+    <tr><td>Inventory</td><td>Carrying a full bag</td><td>A bigger bag: 4 more places with each level</td></tr>
+    <tr><td>Fighting</td><td>Defeating monsters</td><td>Harder and faster sword hits. At level 2 it unlocks magic</td></tr>
+    <tr><td>Magic</td><td>Casting spells</td><td>From level 2, a bigger fireball with a wider burst</td></tr>
+  </table>
+  </div>
+
+  <h2 id="monsters">9. Monsters and fighting</h2>
+  <p>Monsters walk around the land. They never hurt you. Defeat them to earn gems, monster parts and sometimes gear.</p>
+  <ul>
+    <li><strong>With the sword in your hand:</strong> get close and hold on the monster. Each hit takes away some of its health.</li>
+    <li><strong>On a touch screen, with something else in your hand:</strong> tap a close monster. A sword on one of your hand buttons swings once, and your item stays in your hand. If there is no sword there, the game says "Put a sword on a hand button".</li>
+    <li>After a hit, the game shows how much health the monster has left and what it is weak to.</li>
+    <li>A sword hits for your Fighting level, plus the sword's own extra damage. A monster's toughness takes some of that damage off, so tough monsters need a stronger sword or a higher Fighting level.</li>
+    <li>A defeated monster lies on the ground for 5 minutes, then sinks away.</li>
+  </ul>
+  <div class="scroll">
+  <table>
+    <tr><th>Monster</th><th>Power</th><th>Health</th><th>Toughness</th><th>Weak to</th><th>Gems</th><th>Parts it drops</th></tr>
+    <tr><td>Goblin</td><td>1</td><td>3</td><td>0</td><td>Fire</td><td>1</td><td>Goblin Ear, Goblin Skin</td></tr>
+    <tr><td>Imp</td><td>2</td><td>4</td><td>0</td><td>Holy light</td><td>1</td><td>Imp Horn, Imp Tail</td></tr>
+    <tr><td>Spear Imp</td><td>3</td><td>6</td><td>1</td><td>Holy light</td><td>2</td><td>Spear Imp Horn, Spear Shaft</td></tr>
+    <tr><td>Hood Goblin</td><td>3</td><td>6</td><td>1</td><td>Fire</td><td>2</td><td>Hood Cloth, Bone Charm</td></tr>
+    <tr><td>Spike Beast</td><td>3</td><td>8</td><td>3</td><td>Nothing</td><td>2</td><td>Spike Quill, Beast Hide</td></tr>
+    <tr><td>Brute</td><td>4</td><td>9</td><td>2</td><td>Fire</td><td>3</td><td>Brute Tooth, Brute Hide</td></tr>
+  </table>
+  </div>
+  <p class="muted">There is no holy light spell in the game yet. Monster parts stack in the bag; they have no use yet.</p>
+
+  <h2 id="gear">10. Gear and durability</h2>
+  <p>Tools and weapons wear out. A pickaxe loses one point for each block it digs, and a weapon loses one for each hit. At zero it breaks and leaves your bag.</p>
+  <div class="scroll">
+  <table>
+    <tr><th>Gear</th><th>Kind</th><th>Durability</th><th>What it adds</th></tr>
+    <tr><td>Pickaxe</td><td>Tool</td><td>100</td><td>Digs blocks</td></tr>
+    <tr><td>Sword</td><td>Weapon</td><td>60</td><td>No extra damage</td></tr>
+    <tr><td>Wooden Sword</td><td>Weapon</td><td>40</td><td>1 extra damage</td></tr>
+    <tr><td>Iron Sword</td><td>Weapon</td><td>90</td><td>3 extra damage</td></tr>
+    <tr><td>Gold Sword</td><td>Weapon</td><td>120</td><td>5 extra damage</td></tr>
+    <tr><td>Leather Armor</td><td>Armour</td><td>50</td><td>Nothing yet</td></tr>
+    <tr><td>Iron Helmet</td><td>Armour</td><td>80</td><td>Nothing yet</td></tr>
+  </table>
+  </div>
+  <p>Monsters sometimes drop gear. Stronger monsters drop better gear. Armour can be collected, but it does nothing yet.</p>
+
+  <h2 id="magic">11. Magic</h2>
+  <p>When your Fighting power reaches level 2, the game says "Magic unlocked!" and lets you choose your first skill. For now the skill is <strong>Fireball</strong>.</p>
+  <ul>
+    <li><strong>Computer:</strong> press <kbd>F</kbd>, or choose the fireball in the quick bar and right-click where you want it to go.</li>
+    <li><strong>Tablet or phone:</strong> tap the Spell button.</li>
+    <li>The fireball flies to the block or monster you aim at and bursts. Every monster inside the burst is hurt.</li>
+    <li>Monsters that are weak to fire take double damage.</li>
+    <li>A fireball that reaches water fizzles out in a puff of steam and does no damage.</li>
+  </ul>
+
+  <h2 id="water">12. Water and swimming</h2>
+  <ul>
+    <li>Water fills the low places: lakes and the sea, with sand on the shore.</li>
+    <li>In water you move slower and sink slowly. Hold jump to swim up.</li>
+    <li>To climb out, swim to the shore and hold jump while pushing toward the land.</li>
+    <li>You can dig and build under water.</li>
+  </ul>
+
+  <h2 id="world">13. The world</h2>
+  <ul>
+    <li>The land has different regions: desert, savanna, rainforest, grassland, forest, taiga and tundra. Deserts are sand and the tundra is snow.</li>
+    <li>Each region has its own trees and plants, and some have special scenery: cactuses, ice crystals, snowmen and pumpkins. Scenery is decoration; you can walk and dig through it.</li>
+    <li>There are mountains, valleys, canyons and caves to explore.</li>
+    <li>You can play in an area of 4000 by 4000 blocks around the place where you start.</li>
+  </ul>
+
+  <h2 id="teleport">14. Teleport to the start</h2>
+  <p>Lost, or far from home? The purple button at the top right takes you back to the place where you started, safely on top of the land.</p>
+  <ul>
+    <li>The teleport takes 5 minutes to cast. The button counts down, and you can keep playing while you wait.</li>
+    <li>After you use it, it needs 1 hour before it works again.</li>
+  </ul>
+
+  <h2 id="saving">15. Saving your game</h2>
+  <ul>
+    <li>The game saves by itself on the device you play on: your character, bag, quick bar, powers, where you are and what you changed in the world.</li>
+    <li>When you open the game, pick a saved game to carry on, delete one, or start a new one.</li>
+    <li>You can keep up to 100 saved games on one device.</li>
+    <li><em>Start a new game</em> is also at the bottom of the bag. Your other saved games are kept.</li>
+  </ul>
+  <div class="tip">Saved games live on the device and in the browser you used. A different tablet, phone or browser will not show them.</div>
+
+  <h2 id="friends">16. Playing with friends</h2>
+  <ol>
+    <li>One player starts a new world. The game shows a <strong>4-letter world code</strong> when the world begins.</li>
+    <li>Give the code to your friend.</li>
+    <li>Your friend chooses <em>Join a friend's world</em> and types the code.</li>
+  </ol>
+  <p>Everything dug or built in a shared world shows for everyone in it. A world can only be opened with its code; worlds are never listed publicly. Players cannot chat or type messages to each other, and names come from the game's list.</p>
+
+  <h2 id="settings">17. Settings, sound and quitting</h2>
+  <p>The <em>Settings</em> button is at the top right. In Settings you will find:</p>
+  <ul>
+    <li>The game's version, and <em>What has changed</em> in each version.</li>
+    <li><strong>Sounds</strong> and <strong>Music</strong> sliders to make them louder, quieter or silent.</li>
+    <li>The music and sound credits.</li>
+    <li><strong>Quit the game</strong>, at the bottom. The game asks first, then saves and closes. <em>Keep playing</em> takes you back.</li>
+  </ul>
+  <p>On a computer, <kbd>Esc</kbd> closes the bag or Settings; pressed again, it asks if you want to quit. In the Android app, the phone's Back button does the same.</p>
+
+  <h2 id="grownups">18. For grown-ups</h2>
+  <ul>
+    <li>No sign-in is needed to play, and children are never asked to sign in.</li>
+    <li>A parent or guardian can keep one saved game in the cloud, to carry on from another device. Signing in is for grown-ups only.</li>
+    <li>The game has no advertising, and players cannot chat with each other.</li>
+    <li>What the game stores and why is explained on the <a href="/privacy.html">privacy page</a>; the rules of use are on the <a href="/terms.html">terms page</a>.</li>
+    <li>Questions and ideas are welcome through the <a href="/contact.html">contact and suggestion box</a>.</li>
+  </ul>
+
+  <p class="muted">Something in this guide does not match the game? Please tell us through the <a href="/contact.html">suggestion box</a>.</p>
+</main>
+</body>
+</html>

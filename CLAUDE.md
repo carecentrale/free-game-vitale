@@ -16,6 +16,7 @@ A 3D block-world game for kids and families (dig, build, gems, power levels, ene
 - `build/prototype-3d-v7.html`: current game source (single file, module script with Three.js and Supabase).
 - `www/play/index.html`: deployed copy of the game (at /play/). Keep it identical to the current build file.
 - `www/index.html`: home page at the main address. Not the game. Edit it separately.
+- `www/how-to-play.html`: the How to play guide, written by hand. `www/release-notes.html`: the release notes page, written by `scripts/site-pages.mjs` from `GAME_HISTORY` in the game file (never edit it by hand).
 - `build/admin.html` and `www/admin.html`: parent stats page (email code sign-in).
 - `build/prototype-3d-v5.html`, `v6.html`: older versions, kept for rollback.
 - `build/models/`, `www/models/`: optimized GLB models (Quaternius Bestiary: imp.glb, puglin.glb).
@@ -37,6 +38,7 @@ A 3D block-world game for kids and families (dig, build, gems, power levels, ene
 2. Bump `VERSION` in the script and the `<title>` tag.
 3. Copy the build file to `www/play/index.html`.
 4. Add a `CHANGELOG.md` entry and a `docs/VERSIONS.md` row (version, commit hash, deployment).
+   Website, in the same release (parent's rule, 17 Nov 2026): add the version to `GAME_HISTORY` in words a player understands, run `node scripts/site-pages.mjs` (it rewrites `www/release-notes.html`), and add every new feature or changed rule to `www/how-to-play.html`: what it is and how to use it, in the part where a player would look for it. Then set the guide's two version marks (`guide-version` and `guideVersion`) to the new version. `scripts/tests/site-pages.test.mjs` fails until both pages are done. The guide never says how to open the parent area, and neither page links outside the site.
 5. Commit with a clear message. Keep commits local on the parent's computer. Push to `main` (which deploys to Vercel) at most once a day, and only when the parent agrees. Several versions can go out in one push.
 6. Every new feature or rule change gets an automated test in `scripts/tests/` in the same release (browser rules go in `browser.test.mjs` and use `window.gameTest`; world rules go in `terrain.test.mjs`). Add the test before the feature is committed, and run it.
 7. Never claim a feature works in a browser unless the parent has tested it. The sandbox cannot load the CDN, so only syntax checks run there. Say what was checked and what was not.
