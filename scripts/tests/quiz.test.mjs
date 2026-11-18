@@ -1,4 +1,4 @@
-// Quiz Friends (0.6.63, SPEC-003): the rules for the questions, and the privacy rules of the feature.
+// Quiz Friends (0.6.63, SPEC-003; word scrambles and the quiz report, 0.6.65): the rules for the questions, and the privacy rules of the feature.
 // The question code is copied out of the game file at test time, so the tests run the real code. No browser needed.
 // Run from the repository root:  node --test scripts/tests/quiz.test.mjs
 import { test } from 'node:test';
@@ -17,7 +17,7 @@ const end = game.indexOf('// ---- Game loop ----', mid);
 if (start < 0 || mid < 0 || end < 0) throw new Error('quiz code markers not found in the game file');
 const questionCode = game.slice(start, mid), friendCode = game.slice(mid, end);
 
-const Q = vm.runInContext(questionCode + '\n;({ makeQuestion, nextQuestion, QUIZ_KINDS, QUIZ_REMEMBER, QUIZ_GEMS_FIRST, QUIZ_GEMS_LATER, QUIZ_HINT_AFTER, QUIZ_COUNT_SHAPES, QUIZ_PATTERN_SHAPES, quizRecent })',
+const Q = vm.runInContext(questionCode + '\n;({ makeQuestion, nextQuestion, QUIZ_KINDS, QUIZ_REMEMBER, QUIZ_GEMS_FIRST, QUIZ_GEMS_LATER, QUIZ_HINT_AFTER, QUIZ_COUNT_SHAPES, QUIZ_PATTERN_SHAPES, quizRecent, QUIZ_MATH_KINDS, QUIZ_WORDS, quizSubject, quizBlank, quizStatsFrom, quizCount, stats: () => quizStats, setStats: v => { quizStats = v; } })',
   vm.createContext({ Math, Array, Object, String }));
 
 // A steady stream of numbers, so a failing run can be repeated
@@ -35,12 +35,15 @@ function rightAnswer(q) {
   return 's' + q.unit[seq.length % q.unit.length];
 }
 
-test('there are five kinds of question: count, add, take away, which is more, what comes next', () => {
-  assert.deepEqual([...Q.QUIZ_KINDS].sort(), ['add', 'count', 'more', 'next', 'take']);
+test('there are five kinds of maths question (count, add, take away, which is more, what comes next) and the word scramble', () => {
+  assert.deepEqual([...Q.QUIZ_MATH_KINDS].sort(), ['add', 'count', 'more', 'next', 'take']);
+  assert.deepEqual([...Q.QUIZ_KINDS].sort(), ['add', 'count', 'more', 'next', 'take', 'word']);
+  assert.equal(Q.quizSubject('word'), 'words');
+  for (const k of Q.QUIZ_MATH_KINDS) assert.equal(Q.quizSubject(k), 'math');
 });
 
-test('every question has three different answers and exactly one is right', () => {
-  for (const kind of Q.QUIZ_KINDS) {
+test('every maths question has three different answers and exactly one is right', () => {
+  for (const kind of Q.QUIZ_MATH_KINDS) {
     const rnd = stream(kind.length * 7919);
     for (let i = 0; i < 1500; i++) {
       const q = Q.makeQuestion(kind, rnd);
@@ -84,7 +87,7 @@ test('the wrong answers are close to the right one', () => {
 });
 
 test('the right answer is in a random place: left, middle and right all happen for every kind', () => {
-  for (const kind of Q.QUIZ_KINDS) {
+  for (const kind of Q.QUIZ_MATH_KINDS) {
     const rnd = stream(99), places = [0, 0, 0];
     for (let i = 0; i < 600; i++) places[Q.makeQuestion(kind, rnd).right]++;
     for (const n of places) assert.ok(n > 120, kind + ': the right answer is not spread over the three places: ' + places);
@@ -94,7 +97,7 @@ test('the right answer is in a random place: left, middle and right all happen f
 test('the question text is 8 words or fewer, not counting numbers and signs', () => {
   const rnd = stream(5);
   for (let i = 0; i < 2000; i++) {
-    const q = Q.makeQuestion(Q.QUIZ_KINDS[i % 5], rnd);
+    const q = Q.makeQuestion(Q.QUIZ_KINDS[i % 6], rnd);
     const words = q.text.split(/\s+/).filter(w => /[A-Za-z]/.test(w));
     assert.ok(words.length >= 2 && words.length <= 8, 'too many words: ' + q.text);
   }
@@ -114,8 +117,8 @@ test('"what comes next" uses two shapes, shows the pattern at least twice, and o
 test('every question has a picture hint', () => {
   const rnd = stream(3);
   for (let i = 0; i < 500; i++) {
-    const q = Q.makeQuestion(Q.QUIZ_KINDS[i % 5], rnd), h = q.hint;
-    assert.ok(h && (Array.isArray(h.dots) || Array.isArray(h.rows) || Array.isArray(h.unit)), 'no hint: ' + q.key);
+    const q = Q.makeQuestion(Q.QUIZ_KINDS[i % 6], rnd), h = q.hint;
+    assert.ok(h && (Array.isArray(h.dots) || Array.isArray(h.rows) || Array.isArray(h.unit) || h.first === q.word[0]), 'no hint: ' + q.key);
     if (q.kind === 'add') assert.equal(h.dots[0] + h.dots[1], num(q.answers[q.right]));
     if (q.kind === 'take') assert.equal(h.dots[0] - h.crossed, num(q.answers[q.right]));
     if (q.kind === 'count') assert.equal(h.dots[0], num(q.answers[q.right]));
@@ -129,7 +132,10 @@ test('in 2,000 questions in a row, none repeats within the last 10', () => {
     assert.ok(!keys.slice(-Q.QUIZ_REMEMBER).includes(q.key), 'question ' + i + ' repeats within 10: ' + q.key);
     keys.push(q.key);
   }
-  assert.equal(new Set(keys.map(k => k.split(':')[0])).size, 5, 'all five kinds are asked');
+  const kinds = keys.map(k => k.split(':')[0]);
+  assert.equal(new Set(kinds).size, 6, 'all six kinds are asked');
+  const words = kinds.filter(k => k === 'word').length;
+  assert.ok(words > 850 && words < 1150, 'about half the questions are word scrambles: ' + words);
   assert.ok(Q.quizRecent.length <= Q.QUIZ_REMEMBER, 'more than the last 10 questions are remembered');
 });
 
@@ -140,15 +146,15 @@ test('rewards are fixed: 5 gems for a right first answer, 2 after a wrong try, a
   assert.ok(!/Math\.random|rnd\(/.test(friendCode.slice(friendCode.indexOf('function answerQuiz'), friendCode.indexOf('function setQuizOn'))), 'the reward must not be random');
 });
 
-test('nothing about questions or answers is stored, logged or sent; only the on/off switch is kept on the device', () => {
+test('no question or answer is stored, logged or sent; the device keeps only the on/off switch and the counts of the quiz report', () => {
   const all = questionCode + friendCode;
   for (const word of ['logEvent', 'debugLog', 'logError', 'fetch(', 'XMLHttpRequest', 'sendBeacon', 'sb.', 'channel', 'shareBlock', 'sessionStorage', 'cookie', 'indexedDB'])
     assert.ok(!all.includes(word), 'the quiz code uses ' + word);
   const stored = [...all.matchAll(/localStorage\.(\w+)\(([^)]*)\)/g)].map(m => m[1] + ' ' + m[2]);
   assert.deepEqual(stored, ["getItem 'kidsgame.quiz'", "setItem 'kidsgame.quiz', quizOn ? '1' : '0'"]);
-  // the saved game has no quiz fields either
+  // the saved game holds the counts of the quiz report (0.6.65) and nothing else about the quiz
   const save = game.slice(game.indexOf('function saveGame()'), game.indexOf('let worldLoaded'));
-  assert.ok(!/quiz|friend/i.test(save), 'the saved game holds something about the quiz');
+  assert.deepEqual(save.match(/\b\w*(?:quiz|friend)\w*/gi), ['quiz', 'quizStats'], 'the saved game holds more about the quiz than the counts');
   // and a friend is not part of what is sent to a shared world
   const meta = game.slice(game.indexOf('function myMeta()'), game.indexOf('function onPresence()'));
   assert.ok(!/quiz|friend/i.test(meta), 'a friend is sent to the shared world');
@@ -173,4 +179,86 @@ test('the friend rules are as written: 4 to 7 minutes apart, no monster within 1
   assert.match(friendCode, /const FRIEND_STOP = 2;/);
   assert.match(friendCode, /const FRIEND_STAY = 90;/);
   assert.match(friendCode, /const FRIEND_FAR = 40;/);
+});
+
+// ---- Word scramble (0.6.65) ----
+test('a word scramble shows the letters of one word from the list, mixed up, with a picture clue and its first letter as the hint', () => {
+  const rnd = stream(77), seen = new Set();
+  for (let i = 0; i < 3000; i++) {
+    const q = Q.makeQuestion('word', rnd);
+    const entry = Q.QUIZ_WORDS.find(([w]) => w.toUpperCase() === q.word);
+    assert.ok(entry, 'the word is not in the list: ' + q.word);
+    assert.equal(q.clue, entry[1]);
+    assert.equal(q.key, 'word:' + entry[0]);
+    assert.equal(q.text, 'Spell the word');
+    assert.deepEqual([...q.letters].sort(), q.word.split('').sort(), 'the tiles are not the letters of the word');
+    assert.notEqual(q.letters.join(''), q.word, 'the letters are already in order: ' + q.word);
+    assert.equal(q.hint.first, q.word[0]);
+    seen.add(q.word);
+  }
+  assert.equal(seen.size, Q.QUIZ_WORDS.length, 'every word in the list is used');
+});
+
+test('the words are short, simple and different, each with a picture, and enough of them that none repeats within 10', () => {
+  const words = Q.QUIZ_WORDS.map(([w]) => w);
+  assert.ok(words.length >= 30, 'too few words: ' + words.length);
+  assert.equal(new Set(words).size, words.length, 'a word is listed twice');
+  assert.equal(new Set(Q.QUIZ_WORDS.map(([, c]) => c)).size, words.length, 'two words share a picture');
+  for (const [w, clue] of Q.QUIZ_WORDS) {
+    assert.match(w, /^[a-z]{3,5}$/, 'not a short plain word: ' + w);
+    assert.ok(clue && !/[A-Za-z0-9<>&]/.test(clue), 'the clue for ' + w + ' is not a picture');
+  }
+});
+
+// Every way of arranging a word's letters, to check what a child could see or spell on the way
+function arrangements(w) {
+  if (w.length <= 1) return [w];
+  const out = new Set();
+  for (let i = 0; i < w.length; i++) for (const rest of arrangements(w.slice(0, i) + w.slice(i + 1))) out.add(w[i] + rest);
+  return [...out];
+}
+
+test('no word can be rearranged into another word of the list, or into a rude word', () => {
+  const words = Q.QUIZ_WORDS.map(([w]) => w), list = new Set(words);
+  // Other common words: a word whose letters also spell one of these would have two right answers
+  const common = ['act', 'god', 'tab', 'sub', 'low', 'tan', 'nap', 'arc', 'amp', 'ate', 'eat', 'tea', 'top', 'opt', 'net', 'ten', 'owl', 'won', 'now', 'own', 'saw', 'was', 'bat', 'but', 'tub', 'bus', 'dog', 'cat', 'pot', 'mono', 'loin', 'bare', 'hips', 'odor', 'owns', 'sown', 'flea', 'ones', 'grin', 'reap', 'lump', 'palm', 'sent', 'tens', 'nets', 'toga', 'flow', 'fowl', 'carb', 'rats', 'arts', 'tars', 'shore', 'beard', 'panel', 'sneak', 'earth', 'could', 'miles', 'limes', 'slime', 'melon', 'pager'];
+  // Rude words a child must never be shown or be able to spell with the tiles (3 to 5 letters)
+  const rude = ['ass', 'arse', 'bum', 'bums', 'butt', 'poo', 'poop', 'pee', 'wee', 'fart', 'crap', 'damn', 'hell', 'sex', 'sexy', 'tit', 'tits', 'boob', 'dick', 'cock', 'cum', 'fuck', 'shit', 'piss', 'slut', 'whore', 'bitch', 'porn', 'anus', 'penis', 'nazi', 'kill', 'die', 'dead', 'gun', 'drug', 'hate', 'dumb', 'fat', 'ugly', 'idiot', 'wank', 'twat', 'cunt', 'fag', 'homo', 'rape', 'turd', 'puke', 'snot', 'scum', 'jerk', 'suck', 'sucks', 'butts', 'pube', 'nude', 'gay'];
+  for (const w of words) {
+    const all = arrangements(w);
+    for (const a of all) {
+      if (a === w) continue;
+      assert.ok(!list.has(a), w + ' can be rearranged into ' + a);
+      assert.ok(!common.includes(a), w + ' can also spell ' + a);
+    }
+    // any run of the tiles, in any order, must not show a rude word
+    for (const a of all) for (const r of rude) assert.ok(!a.includes(r), 'the letters of ' + w + ' can show ' + r);
+  }
+});
+
+// ---- Quiz report (0.6.65) ----
+test('the quiz report starts empty and counts questions seen, right first time and right after a retry, for maths and for words', () => {
+  Q.setStats(Q.quizBlank());
+  assert.deepEqual(JSON.parse(JSON.stringify(Q.stats())), { math: { opened: 0, first: 0, later: 0 }, words: { opened: 0, first: 0, later: 0 }, since: null, last: null });
+  const day1 = new Date(2026, 10, 17, 9, 0), day2 = new Date(2026, 10, 19, 23, 30);
+  Q.quizCount('math', 'opened', day1); Q.quizCount('math', 'first', day1);
+  Q.quizCount('words', 'opened', day1);
+  Q.quizCount('words', 'opened', day2); Q.quizCount('words', 'later', day2);
+  assert.deepEqual(JSON.parse(JSON.stringify(Q.stats())), { math: { opened: 1, first: 1, later: 0 }, words: { opened: 2, first: 0, later: 1 }, since: '2026-11-17', last: '2026-11-19' });
+});
+
+test('the quiz report read from a saved game keeps only whole numbers and dates', () => {
+  const clean = v => JSON.parse(JSON.stringify(Q.quizStatsFrom(v)));
+  const blank = JSON.parse(JSON.stringify(Q.quizBlank()));
+  for (const bad of [undefined, null, 'x', 7, []]) assert.deepEqual(clean(bad), blank);
+  assert.deepEqual(clean({ math: { opened: 3, first: 2, later: 1, extra: 'How many stars?' }, words: { opened: -1, first: 1.5, later: '2' }, since: '2026-11-17', last: '<b>', answers: ['7'] }),
+    { math: { opened: 3, first: 2, later: 1 }, words: { opened: 0, first: 0, later: 0 }, since: '2026-11-17', last: null });
+});
+
+test('the quiz report holds counts and two dates only: no question, no answer, no name', () => {
+  const report = questionCode.slice(questionCode.indexOf('// ---- Quiz report')).replace(/\/\/.*$/gm, '');
+  assert.deepEqual(Object.keys(Q.quizBlank()).sort(), ['last', 'math', 'since', 'words']);
+  assert.ok(!/q\.text|q\.key|answers|playerName|worldId|pid\b/.test(report), 'the report code touches a question, an answer or a name');
+  // counted in three places only: a question shown, and a right answer
+  assert.equal((game.match(/quizCount\(/g) || []).length, 3);
 });

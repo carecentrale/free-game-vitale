@@ -11,6 +11,19 @@ Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one versio
 - No change to what data is collected: the pages are plain pages with no scripts
 - Checked: the fast tests; the pages were looked at in a browser in the cloud workspace. Not checked: the parent has not read the guide against the game; a phone or tablet
 
+## 0.6.65: word scrambles, and a quiz report for parents
+Asked for by the parent directly on 17 Nov 2026 (not from a product manager hand-off). It changes two things SPEC-003 ruled out: spelling questions, and keeping something about the quiz.
+- Quiz friends now ask a word scramble about half the time. A picture (an emoji from the device's own font, no file) shows what the word is; its letters are mixed up on tiles. The child taps the tiles in order to spell it; a tap on a placed letter takes it back. Tap only, nothing is typed
+- 40 short everyday words of 3 to 5 letters, each with its own picture. A test checks every way of arranging each word's letters: none spells another word of the list, a second common word, or a rude word (two words were dropped by this check)
+- Rewards as for maths: 5 gems first time, 2 after a wrong word. A wrong word takes nothing: the letters go back and "Try again" shows. After two wrong words the first letter is put in place and stays there
+- No word or maths question repeats within the last 10
+- **Quiz report (new data, the parent's decision of 17 Nov 2026):** the game counts, for maths and for words, how many questions were shown, how many were right first time and how many right after a retry, and keeps the dates of the first and the last question. Counts only: no question and no answer is kept
+- The counts are kept with the saved game on the device, and shown in the parent area ("Quiz friends report"). They are sent nowhere by themselves. They are inside the cloud save when a parent has signed in and cloud save is on; the parent stats page then shows the same report to that signed-in parent, read from their own cloud save. No new database table and no change to the access rules
+- The privacy policy page has a new row, "Quiz friends report", and a new date. **The parent should read it before this is released**, and decide whether turning on cloud save is enough of a yes for the report to be sent, or whether a separate tick is wanted
+- Guide: part 17 explains word scrambles; the grown-ups part explains the report
+- Tests: 6 more fast tests in `quiz.test.mjs` (word rules, the arrangement check, the counts) and 2 more browser tests (word scramble; the report counts, is saved, shows in the parent area, and nothing is sent)
+- Checked: the syntax check, the fast tests, and the 13 quiz and life-bar browser tests in the cloud workspace's Chrome (smaller-view copy of the game). Not checked: the report on the parent stats page (it needs a real sign-in and a cloud save); how the picture clues look on a real phone or tablet (they come from the device's emoji font); the other browser tests; the parent has not played it
+
 ## 0.6.64: life bars for monsters
 Asked for by the parent directly on 17 Nov 2026 (not from a product manager hand-off).
 - Every monster has a small life bar over its head, showing how much of its health is left. It always faces the screen and follows the monster

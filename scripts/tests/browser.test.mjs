@@ -1407,15 +1407,17 @@ test('a missing or broken audio file causes no error, and the game plays on', { 
 // ---- Quiz Friends (0.6.63, SPEC-003) ----
 // Time is played with stepFrames (no waiting): 20 frames of 0.05 s are one second of play.
 // Brings a friend next to the character: no monsters, a new friend, and enough play time for it to walk up
-const friendArrives = (page, kind) => page.evaluate(k => {
+// (ask: the kind of question it will ask, for example 'add' or 'word'; left out, the game chooses when the friend is tapped)
+const friendArrives = (page, kind, ask) => page.evaluate(([k, ask]) => {
   const g = window.gameTest;
   g.clearEnemies();
   g.removeFriend();
   if (!g.callFriend(k)) return { error: 'no friend could be placed' };
   const start = g.friend, [px, , pz] = g.pos;
   for (let s = 0; s < 8; s++) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); }
+  if (ask) g.askKind(ask);
   return { start: Math.hypot(start.x - px, start.z - pz), end: Math.hypot(g.friend.x - g.pos[0], g.friend.z - g.pos[2]), friend: g.friend, open: g.quizOpen };
-}, kind);
+}, [kind, ask]);
 // A press and release on the friend, as a finger or the mouse; o.drag moves sideways in between
 const pressFriend = (page, o = {}) => page.evaluate(o => {
   const g = window.gameTest;
@@ -1456,7 +1458,8 @@ test('a quiz friend appears within 7 minutes of play when no monster is close, w
     assert.ok(r.secs >= 235 && r.secs <= 421, 'it appeared after ' + r.secs + ' seconds');
     assert.ok(['owl', 'turtle', 'robot'].includes(r.f.kind));
     assert.ok(r.f.inScene && r.f.bubble, 'the friend and its "?" bubble are shown');
-    assert.ok(r.dist >= 6 && r.dist <= 11.5, 'it appears near the child: ' + r.dist);
+    // (it appears 7 to 11 blocks away; by the time it is looked at here it may have walked for up to a second)
+    assert.ok(r.dist >= 4 && r.dist <= 11.5, 'it appears near the child: ' + r.dist);
     assert.equal(r.second, false, 'only one friend at a time');
     assert.equal(r.open, false);
     // It waves: the arm moves from one moment to the next
@@ -1481,8 +1484,8 @@ test('a quiz friend appears within 7 minutes of play when no monster is close, w
 test('the friend never opens the question itself; a tap on it opens one question with three answers and "Not now", which changes nothing', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors) => {
     await playing(page);
-    for (const [kind, touch] of [['owl', false], ['turtle', true], ['robot', false]]) {
-      const a = await friendArrives(page, kind);
+    for (const [kind, touch, ask] of [['owl', false, 'add'], ['turtle', true, 'more'], ['robot', false, 'next']]) {
+      const a = await friendArrives(page, kind, ask);
       assert.equal(a.error, undefined, a.error);
       assert.equal(a.friend.kind, kind);
       assert.equal(a.open, false, 'the question opened by itself');
@@ -1525,8 +1528,9 @@ test('the friend never opens the question itself; a tap on it opens one question
 test('a right first answer gives 5 gems, a right answer after a wrong try gives 2, a wrong answer takes nothing, and a picture hint shows after two wrong tries', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors) => {
     await playing(page);
+    let turn = 0;
     const open = async () => {
-      const a = await friendArrives(page);
+      const a = await friendArrives(page, undefined, ['count', 'add', 'take', 'more', 'next'][turn++ % 5]);
       assert.equal(a.error, undefined, a.error);
       const t = await pressFriend(page);
       assert.equal(t.open, true);
@@ -1583,13 +1587,13 @@ test('a right first answer gives 5 gems, a right answer after a wrong try gives 
     await clickAnswer(page, (right + 2) % 3);
     await page.evaluate(() => document.querySelector('#quizPanel .qnot').click());
     assert.equal(await gems(page), start);
-    // Nothing about the questions is kept on the device
+    // No question and no answer is kept on the device (the saved game holds the counts of the quiz report only, 0.6.65)
     const kept = await page.evaluate(() => { window.gameTest.stepFrames([0.05]); return Object.keys(localStorage).map(k => k + '=' + localStorage.getItem(k)).join('\n'); });
-    assert.ok(!/quiz|friend|How many|What is|comes next|the most/i.test(kept), 'something about the quiz is stored on the device');
+    assert.ok(!/friend|How many|What is|comes next|the most|"answers"|"right"/i.test(kept), 'a question or an answer is stored on the device');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [readyGame()] }));
 
-test('in 20 questions in a row from friends, each has three answers with one right, and none repeats within 10', { skip, timeout: 240000 }, () =>
+test('in 20 questions in a row from friends, each maths question has three answers with one right, and none repeats within 10', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors) => {
     await playing(page);
     const keys = [];
@@ -1600,11 +1604,17 @@ test('in 20 questions in a row from friends, each has three answers with one rig
         g.openQuiz();
         const q = g.quizQuestion, n = document.querySelectorAll('#quizPanel .qa').length;
         g.quizNotNow();
-        return { key: q.key, right: q.right, n, labels: q.answers.map(a => (a.label || '') + '/' + (a.n ? '' : a.shape || '')) };
+        return { key: q.key, right: q.right, n, word: q.word, letters: q.letters, labels: (q.answers || []).map(a => (a.label || '') + '/' + (a.n ? '' : a.shape || '')) };
       });
-      assert.equal(q.n, 3);
-      assert.equal(new Set(q.labels).size, 3, 'answers are not all different: ' + q.labels);
-      assert.ok(q.right >= 0 && q.right < 3);
+      if (q.word) {   // a word scramble: its own letters, mixed up
+        assert.equal(q.n, 0);
+        assert.deepEqual([...q.letters].sort(), q.word.split('').sort());
+        assert.notEqual(q.letters.join(''), q.word);
+      } else {
+        assert.equal(q.n, 3);
+        assert.equal(new Set(q.labels).size, 3, 'answers are not all different: ' + q.labels);
+        assert.ok(q.right >= 0 && q.right < 3);
+      }
       assert.ok(!keys.slice(-10).includes(q.key), 'question ' + (i + 1) + ' repeats within 10: ' + q.key);
       keys.push(q.key);
     }
@@ -1724,7 +1734,7 @@ for (const [label, device] of [['a phone held sideways', PHONE_WIDE], ['a phone 
   test(`on ${label}, the question panel fits the screen and its buttons are big enough to tap`, { skip, timeout: 240000 }, () =>
     withGame(async (page, errors) => {
       await playing(page);
-      for (const kind of ['count', 'add', 'take', 'more', 'next']) {
+      for (const kind of ['count', 'add', 'take', 'more', 'next', 'word']) {
         for (let n = 0; n < 4; n++) {
           const r = await page.evaluate(kind => {
             const g = window.gameTest;
@@ -1734,16 +1744,17 @@ for (const [label, device] of [['a phone held sideways', PHONE_WIDE], ['a phone 
             const measure = () => {
               const inView = el => { const b = el.getBoundingClientRect(); return b.left >= -0.5 && b.top >= -0.5 && b.right <= innerWidth + 0.5 && b.bottom <= innerHeight + 0.5; };
               const p = document.getElementById('quizPanel'), box = p.querySelector('.qbox');
-              const btns = [...p.querySelectorAll('.qa')], not = p.querySelector('.qnot');
+              const btns = [...p.querySelectorAll('.qa,.qt,.qs')], not = p.querySelector('.qnot'), least = p.querySelector('.qa') ? 60 : 48;
               return { box: inView(box), text: parseFloat(getComputedStyle(p.querySelector('.qtext')).fontSize), textIn: inView(p.querySelector('.qtext')),
-                btnIn: btns.every(inView) && inView(not), small: btns.filter(b => b.getBoundingClientRect().height < 60 || b.getBoundingClientRect().width < 60).length,
+                btnIn: btns.every(inView) && inView(not), small: btns.filter(b => b.getBoundingClientRect().height < least || b.getBoundingClientRect().width < least).length,
                 notH: not.getBoundingClientRect().height, scroll: box.scrollHeight - box.clientHeight, wide: box.scrollWidth - box.clientWidth };
             };
             const first = measure();
             const q = g.quizQuestion;
-            for (const i of [0, 1, 2].filter(i => i !== q.right)) g.answerQuiz(i);   // two wrong tries: the hint shows
+            if (kind === 'word') for (let t = 0; t < 2; t++) q.letters.forEach((_, i) => g.quizTile(i));   // two wrong words (the tiles in the order shown are never the word)
+            else for (const i of [0, 1, 2].filter(i => i !== q.right)) g.answerQuiz(i);   // two wrong tries: the hint shows
             const hinted = measure();
-            const hint = getComputedStyle(document.querySelector('#quizPanel .qhint')).display !== 'none';
+            const hint = kind === 'word' ? g.quizSpell.fixed === 1 && !!document.querySelector('#quizPanel .qs.fix') : getComputedStyle(document.querySelector('#quizPanel .qhint')).display !== 'none';
             g.quizNotNow();
             return { first, hinted, hint, key: q.key };
           }, kind);
@@ -1752,7 +1763,7 @@ for (const [label, device] of [['a phone held sideways', PHONE_WIDE], ['a phone 
           assert.equal(r.first.textIn && r.first.btnIn, true, 'the question or a button is off the screen: ' + where);
           assert.equal(r.first.scroll <= 1 && r.first.wide <= 1, true, 'the panel needs scrolling: ' + where);
           assert.ok(r.first.text >= 22, 'the question text is small: ' + r.first.text);
-          assert.equal(r.first.small, 0, 'an answer button is smaller than 60 points: ' + where);
+          assert.equal(r.first.small, 0, 'an answer button is smaller than 60 points, or a letter smaller than 48: ' + where);
           assert.ok(r.first.notH >= 48, '"Not now" is smaller than 48 points');
           assert.equal(r.hint, true);
           assert.equal(r.hinted.box, true, 'with the hint, the panel is off the screen: ' + where);
@@ -1807,5 +1818,157 @@ test('every monster has one life bar over its head; it shrinks and turns yellow,
     assert.deepEqual(r.before, { bars: 1, inScene: 1 });
     assert.equal(r.left, 0, 'the monster was not defeated');
     assert.deepEqual(r.after, { bars: 0, inScene: 0 }, 'the bar stayed after the monster was defeated');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
+// ---- Word scramble and the quiz report (0.6.65) ----
+// Taps the letter tiles that spell `word` (o.wrong: in an order that does not), skipping letters already in place
+const spell = (page, o = {}) => page.evaluate(o => {
+  const g = window.gameTest, q = g.quizQuestion, placed = g.quizSpell.picked.slice();
+  let order = [];
+  const free = q.letters.map((_, i) => i).filter(i => !placed.includes(i));
+  if (o.wrong) {
+    order = free.slice();
+    const made = () => [...placed, ...order].map(i => q.letters[i]).join('');
+    for (let n = 0; n < 6 && made() === q.word; n++) order.push(order.shift());
+    if (made() === q.word) order.reverse();
+  } else {
+    for (let j = placed.length; j < q.word.length; j++) { const i = free.find(i => q.letters[i] === q.word[j] && !order.includes(i)); order.push(i); }
+  }
+  for (const i of order) document.querySelector(`#quizPanel .qt[data-t="${i}"]`).click();
+  const p = document.getElementById('quizPanel');
+  return { gems: g.inv.gem, msg: p ? p.querySelector('.qmsg').textContent : null, spell: g.quizSpell, stars: p ? p.querySelectorAll('.qstars svg').length : 0,
+    slots: p ? [...p.querySelectorAll('.qs')].map(b => b.textContent).join('|') : null, used: p ? p.querySelectorAll('.qt.used').length : 0, wob: p ? p.querySelectorAll('.qslots.wob').length : 0 };
+}, o);
+
+test('a word scramble shows a picture and mixed-up letter tiles; tapping them in order spells the word for 5 gems, a wrong word takes nothing, and the first letter is given after two wrong tries', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const closed = () => page.waitForFunction(() => !window.gameTest.quizOpen, null, { timeout: 10000 });
+    const open = async () => {
+      const a = await friendArrives(page, undefined, 'word');
+      assert.equal(a.error, undefined, a.error);
+      const t = await pressFriend(page);
+      assert.equal(t.open, true);
+      return page.evaluate(() => {
+        const p = document.getElementById('quizPanel'), q = window.gameTest.quizQuestion;
+        return { word: q.word, letters: q.letters, text: p.querySelector('.qtext').textContent, clue: p.querySelector('.qclue').textContent, slots: p.querySelectorAll('.qs').length,
+          tiles: [...p.querySelectorAll('.qt')].map(b => b.textContent).join(''), answers: p.querySelectorAll('.qa').length, notNow: !!p.querySelector('.qnot'),
+          typing: p.querySelectorAll('input,textarea,select,[contenteditable]').length };
+      });
+    };
+    // The panel: a picture, one place and one tile for each letter, no three-answer buttons, nowhere to type
+    let start = await gems(page), q = await open();
+    assert.equal(q.text, 'Spell the word');
+    assert.ok(q.clue.length > 0, 'no picture clue');
+    assert.equal(q.slots, q.word.length);
+    assert.equal(q.tiles, q.letters.join(''));
+    assert.notEqual(q.tiles, q.word, 'the tiles are already in order');
+    assert.equal(q.answers, 0);
+    assert.equal(q.notNow, true);
+    assert.equal(q.typing, 0, 'there is a place to type');
+    // One tile goes to the first place and is dimmed; a tap on that place takes it back
+    const one = await page.evaluate(() => {
+      const g = window.gameTest;
+      document.querySelector('#quizPanel .qt[data-t="1"]').click();
+      const placed = { spell: g.quizSpell.letters, slot: document.querySelector('#quizPanel .qs[data-s="0"]').textContent, used: document.querySelectorAll('#quizPanel .qt.used').length };
+      document.querySelector('#quizPanel .qt[data-t="1"]').click();   // a used tile does nothing
+      const again = g.quizSpell.letters;
+      document.querySelector('#quizPanel .qs[data-s="0"]').click();
+      return { placed, again, back: g.quizSpell.letters, used: document.querySelectorAll('#quizPanel .qt.used').length };
+    });
+    assert.deepEqual(one.placed, { spell: q.letters[1], slot: q.letters[1], used: 1 });
+    assert.equal(one.again, q.letters[1]);
+    assert.deepEqual([one.back, one.used], ['', 0]);
+    // The right word, first time: stars and 5 gems
+    let r = await spell(page);
+    assert.equal(r.gems, start + 5);
+    assert.match(r.msg, /\+5 gems/);
+    assert.ok(r.stars > 5, 'no stars');
+    assert.equal(r.slots.replaceAll('|', ''), q.word);
+    await closed();
+    assert.equal(await page.evaluate(() => window.gameTest.friend.state), 'leave');
+    // Wrong words: nothing lost, "Try again", the letters go back; after two, the first letter is put in place and stays
+    start = await gems(page); q = await open();
+    r = await spell(page, { wrong: true });
+    assert.equal(r.gems, start, 'a wrong word changed the gems');
+    assert.equal(r.msg, 'Try again');
+    assert.deepEqual([r.spell.letters, r.spell.fixed, r.spell.wrong, r.used, r.wob], ['', 0, 1, 0, 1]);
+    r = await spell(page, { wrong: true });
+    assert.equal(r.gems, start);
+    assert.deepEqual([r.spell.letters, r.spell.fixed, r.spell.wrong, r.used], [q.word[0], 1, 2, 1], 'the first letter was not given after two wrong tries');
+    const fixed = await page.evaluate(() => { document.querySelector('#quizPanel .qs[data-s="0"]').click(); return window.gameTest.quizSpell.letters; });
+    assert.equal(fixed, q.word[0], 'the given letter could be taken away');
+    // "Not now" and back: the same word, with its first letter still in place. Then the right word gives 2 gems
+    await page.evaluate(() => document.querySelector('#quizPanel .qnot').click());
+    assert.equal(await gems(page), start);
+    assert.equal((await pressFriend(page)).open, true);
+    assert.deepEqual(await page.evaluate(() => [window.gameTest.quizQuestion.word, window.gameTest.quizSpell.letters]), [q.word, q.word[0]]);
+    r = await spell(page);
+    assert.equal(r.gems, start + 2);
+    assert.match(r.msg, /\+2 gems/);
+    await closed();
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
+test('the quiz report counts questions seen and right answers for maths and words, is kept with the saved game, and shows in the parent area', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors, requests) => {
+    await playing(page);
+    const closed = () => page.waitForFunction(() => !window.gameTest.quizOpen, null, { timeout: 10000 });
+    const stats = () => page.evaluate(() => window.gameTest.quizStats);
+    const blank = { opened: 0, first: 0, later: 0 };
+    assert.deepEqual(await stats(), { math: blank, words: blank, since: null, last: null });
+    // Friends ask until one maths question and one word have come up (the game chooses); each is counted as seen once
+    const seen = { math: 0, words: 0 };
+    let mathRight = null, guard = 0;
+    while ((!seen.math || !seen.words) && guard++ < 40) {
+      const a = await friendArrives(page);
+      assert.equal(a.error, undefined, a.error);
+      assert.equal((await pressFriend(page)).open, true);
+      const q = await page.evaluate(() => { const q = window.gameTest.quizQuestion; return { word: q.word || null, right: q.right }; });
+      const sub = q.word ? 'words' : 'math';
+      seen[sub]++;
+      await page.evaluate(() => document.querySelector('#quizPanel .qnot').click());
+      // Opening the same question again is not counted twice
+      assert.equal((await pressFriend(page)).open, true);
+      if (sub === 'math' && mathRight === null) {   // answer this one: wrong once, then right
+        mathRight = q.right;
+        await clickAnswer(page, (q.right + 1) % 3);
+        await page.evaluate(i => document.querySelector(`#quizPanel .qa[data-a="${i}"]`).click(), q.right);
+        await closed();
+      } else if (sub === 'words' && seen.words === 1) {   // spell this one right first time
+        await spell(page);
+        await closed();
+      } else await page.evaluate(() => document.querySelector('#quizPanel .qnot').click());
+    }
+    const st = await stats();
+    assert.deepEqual(st.math, { opened: seen.math, first: 0, later: 1 });
+    assert.deepEqual(st.words, { opened: seen.words, first: 1, later: 0 });
+    assert.match(st.since, /^\d{4}-\d{2}-\d{2}$/);
+    assert.equal(st.last, st.since);
+    // Kept with the saved game: only the counts and two dates
+    const kept = await page.evaluate(() => { window.gameTest.saveGame(); return JSON.parse(localStorage.getItem('kidsgame.slot.0')).quiz; });
+    assert.deepEqual(kept, st);
+    const all = await page.evaluate(() => Object.keys(localStorage).map(k => k + '=' + localStorage.getItem(k)).join('\n'));
+    assert.ok(!/How many|What is|comes next|the most|Spell the word|"answers"|"letters"|"word"/.test(all), 'a question or an answer is stored on the device');
+    // Nothing was sent anywhere: every request went to the game's own address or was a library file
+    const out = requests.filter(u => !u.startsWith('http://127.0.0.1') && !/cdn\.jsdelivr\.net/.test(u) && !u.startsWith('data:') && !u.startsWith('blob:'));
+    assert.deepEqual(out, [], 'requests to other places');
+    // The parent area (five taps in the top-left corner) shows the report
+    const report = await page.evaluate(() => {
+      const corner = [...document.body.children].find(d => d.style.width === '70px' && d.style.left === '0px');
+      for (let i = 0; i < 5; i++) corner.click();
+      const t = document.getElementById('quizReportTable');
+      return t ? [...t.querySelectorAll('tr')].map(tr => [...tr.children].map(c => c.textContent)) : null;
+    });
+    assert.ok(report, 'the parent area does not show the quiz report');
+    assert.deepEqual(report[0].slice(1), ['Seen', 'Right first time', 'Right after a retry', 'Not finished']);
+    assert.deepEqual(report[1], ['Maths', String(seen.math), '0', '1', String(seen.math - 1)]);
+    assert.deepEqual(report[2], ['Words', String(seen.words), '1', '0', String(seen.words - 1)]);
+    assert.deepEqual(report[3], ['All', String(seen.math + seen.words), '1', '1', String(seen.math + seen.words - 2)]);
+    // Still there after closing and opening the game
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await playing(page);
+    assert.deepEqual(await stats(), st, 'the report was not kept');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [readyGame()] }));

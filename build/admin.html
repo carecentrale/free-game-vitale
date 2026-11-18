@@ -100,7 +100,35 @@ async function load() {
   renderErrors(er.data);
   renderPlayers(ev.data);
   renderDetail();
+  loadQuizReport().catch(e => { $('quizReport').textContent = 'Report not available: ' + e.message; });
   loadDebugLog();
+}
+
+// ---- Quiz friends report (0.6.65). Read from the signed-in account's own cloud save: the database shows an account
+// nothing but its own save. It holds counts only: how many questions were seen and answered right. Loaded separately,
+// so a problem here cannot break the rest of the dashboard.
+function quizReportHtml(save) {
+  let q = null;
+  try { q = JSON.parse(save).quiz; } catch (e) {}
+  const n = x => Number.isInteger(x) && x >= 0 ? x : 0;
+  const part = k => { const c = (q && q[k]) || {}; return { opened: n(c.opened), first: n(c.first), later: n(c.later) }; };
+  const math = part('math'), words = part('words');
+  const all = { opened: math.opened + words.opened, first: math.first + words.first, later: math.later + words.later };
+  if (!all.opened) return 'No quiz questions yet in the game saved to the cloud.';
+  const day = d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : '-';
+  const pct = c => c.opened ? Math.round((c.first + c.later) / c.opened * 100) + '%' : '-';
+  const row = (name, c) => `<tr><td>${name}</td><td>${c.opened}</td><td>${c.first}</td><td>${c.later}</td><td>${Math.max(0, c.opened - c.first - c.later)}</td><td>${pct(c)}</td></tr>`;
+  return `<table id="quizReportTable"><tr><th></th><th>Seen</th><th>Right first time</th><th>Right after a retry</th><th>Not finished</th><th>Answered right</th></tr>` +
+    row('Maths', math) + row('Words', words) + row('All', all) + `</table>` +
+    `<div class="muted" style="margin-top:6px">First question on ${esc(day(q.since))}, last on ${esc(day(q.last))}. Only these counts are kept, not the questions or the answers. The report is part of the cloud save: deleting the cloud save deletes it here.</div>`;
+}
+async function loadQuizReport() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return;
+  const { data, error } = await sb.from('cloud_saves').select('save,updated_at').eq('user_id', session.user.id).maybeSingle();
+  if (error) { $('quizReport').textContent = 'Report not available: ' + error.message; return; }
+  if (!data || !data.save) { $('quizReport').textContent = 'No cloud save for this account yet. In the game, open the parent area, sign in and press Save now. The report for one device is always in that game\'s parent area.'; return; }
+  $('quizReport').innerHTML = quizReportHtml(data.save) + `<div class="muted">Cloud save last updated ${esc(new Date(data.updated_at).toLocaleString())}.</div>`;
 }
 
 // ---- Enemy debug log. Loaded separately, so a problem here cannot break the rest of the dashboard ----
@@ -280,6 +308,11 @@ load();
       <button class="danger" id="clearErrors">Clear errors</button>
     </div>
     <div id="errors"></div>
+  </div>
+
+  <div class="card">
+    <b>Quiz friends report (your cloud save)</b>
+    <div id="quizReport" class="muted" style="margin-top:8px">Loading...</div>
   </div>
 
   <div class="card">

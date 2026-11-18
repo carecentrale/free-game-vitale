@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.64 (3D)</title>
+<title>Adventurers of Drenerics v0.6.65 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -129,7 +129,15 @@
   #quizPanel .qmsg{min-height:1.3em;margin-top:6px;font-size:clamp(18px,4.5vmin,24px);color:#ffd54a;font-weight:700}
   #quizPanel .qans{display:flex;gap:10px;margin-top:6px}
   #quizPanel .qa{flex:1;min-width:0;min-height:clamp(64px,17vmin,96px);border:3px solid rgba(255,255,255,.35);border-radius:16px;background:#3b6fd8;color:#fff;font-family:inherit;font-size:clamp(28px,8vmin,44px);font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px}
-  #quizPanel .qa.wob{animation:qwob .45s}
+  #quizPanel .qa.wob,#quizPanel .qslots.wob{animation:qwob .45s}
+  /* Word scramble (0.6.65): a picture clue, the places for the letters, and the letter tiles to tap */
+  #quizPanel .qclue{font-size:clamp(40px,12vmin,72px);line-height:1.15}
+  #quizPanel .qslots,#quizPanel .qtiles{display:flex;gap:8px;justify-content:center;margin-top:8px}
+  #quizPanel .qs,#quizPanel .qt{width:clamp(48px,13vmin,64px);height:clamp(48px,13vmin,64px);border-radius:12px;font-family:inherit;font-size:clamp(26px,7vmin,38px);font-weight:700;color:#fff;cursor:pointer;padding:0;box-sizing:border-box}
+  #quizPanel .qs{background:rgba(255,255,255,.08);border:3px dashed rgba(255,255,255,.45)}
+  #quizPanel .qs.fix{border-style:solid;border-color:#ffd54a;color:#ffd54a}
+  #quizPanel .qt{background:#3b6fd8;border:3px solid rgba(255,255,255,.35)}
+  #quizPanel .qt.used{opacity:.2}
   #quizPanel .qa.ok{background:#2e9e4f;border-color:#fff}
   #quizPanel .qnot{margin-top:10px;min-height:48px;min-width:160px;padding:10px 22px;border:2px solid rgba(255,255,255,.35);border-radius:12px;background:transparent;color:#fff;font-family:inherit;font-size:18px;cursor:pointer}
   @keyframes qwob{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px) rotate(-3deg)}40%{transform:translateX(9px) rotate(3deg)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
@@ -536,7 +544,7 @@ function saveGame() {
   try {
     localStorage.setItem(slotKey(activeSlot), JSON.stringify({
       v: 1, at: Date.now(), name: playerName, profile, worldId, inv, gear, qb, recent, sel, pw, skills,
-      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(),
+      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(), quiz: quizStats,
       drops: [...drops.values()].map(d => [d.x, d.y, d.z, d.id, d.at])
     }));
   } catch (e) {}
@@ -1435,6 +1443,12 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.65', title: 'Word scrambles, and a quiz report for parents', items: [
+    'Quiz friends now also ask you to spell a word: a picture shows what it is, and its letters are mixed up',
+    'Tap the letters in the right order. Tap a letter you placed to take it back',
+    'A right word gives 5 gems, or 2 gems after a wrong try. After two wrong tries the first letter is put in place for you',
+    'About half the questions are words and half are maths',
+    'For parents: the parent area shows how many questions were seen and answered right, for maths and for words'] },
   { v: '0.6.64', title: 'Life bars for monsters', items: [
     'Every monster has a small life bar over its head. It shows how much health the monster has left',
     'The bar is green at first, turns yellow as the monster gets weaker, and red when it is nearly defeated'] },
@@ -2788,7 +2802,18 @@ function updateDig(dt) {
 // questions are remembered only while the game is open, so that none repeats.
 const QUIZ_COUNT_SHAPES = { star: 'stars', heart: 'hearts', gem: 'gems', ball: 'balls', block: 'blocks' };   // pictures to count, and their names
 const QUIZ_PATTERN_SHAPES = ['ball', 'block', 'triangle', 'star'];
-const QUIZ_KINDS = ['count', 'add', 'take', 'more', 'next'];   // count pictures; add; take away; which is more; what comes next
+const QUIZ_MATH_KINDS = ['count', 'add', 'take', 'more', 'next'];   // count pictures; add; take away; which is more; what comes next
+const QUIZ_KINDS = [...QUIZ_MATH_KINDS, 'word'];   // 'word' is a word scramble: tap the mixed-up letters in the right order (0.6.65)
+const quizSubject = kind => kind === 'word' ? 'words' : 'math';
+// Words to spell, each with a picture as the clue. Short everyday words; none can be rearranged into another common word.
+const QUIZ_WORDS = [
+  ['sun', '\u2600\uFE0F'], ['hen', '\uD83D\uDC14'], ['bee', '\uD83D\uDC1D'], ['fox', '\uD83E\uDD8A'], ['egg', '\uD83E\uDD5A'], ['hat', '\uD83C\uDFA9'],
+  ['cup', '\u2615'], ['bed', '\uD83D\uDECF\uFE0F'], ['bug', '\uD83D\uDC1B'], ['cow', '\uD83D\uDC04'], ['pig', '\uD83D\uDC16'], ['key', '\uD83D\uDD11'], ['box', '\uD83D\uDCE6'],
+  ['frog', '\uD83D\uDC38'], ['fish', '\uD83D\uDC1F'], ['duck', '\uD83E\uDD86'], ['cake', '\uD83C\uDF70'], ['milk', '\uD83E\uDD5B'], ['tree', '\uD83C\uDF33'], ['book', '\uD83D\uDCD6'],
+  ['ball', '\u26BD'], ['boat', '\u26F5'], ['hand', '\u270B'], ['king', '\uD83D\uDC51'], ['drum', '\uD83E\uDD41'], ['corn', '\uD83C\uDF3D'], ['bell', '\uD83D\uDD14'], ['baby', '\uD83D\uDC76'],
+  ['apple', '\uD83C\uDF4E'], ['house', '\uD83C\uDFE0'], ['mouse', '\uD83D\uDC2D'], ['train', '\uD83D\uDE82'], ['truck', '\uD83D\uDE9A'], ['robot', '\uD83E\uDD16'],
+  ['tiger', '\uD83D\uDC2F'], ['panda', '\uD83D\uDC3C'], ['pizza', '\uD83C\uDF55'], ['candy', '\uD83C\uDF6C'], ['piano', '\uD83C\uDFB9'], ['zebra', '\uD83E\uDD93'],
+];
 const QUIZ_REMEMBER = 10;                    // no question repeats within this many
 const QUIZ_GEMS_FIRST = 5, QUIZ_GEMS_LATER = 2;   // fixed rewards: right first time, and right after a wrong try
 const QUIZ_HINT_AFTER = 2;                   // wrong tries before the picture hint shows
@@ -2808,6 +2833,13 @@ function quizNumbers(rnd, right, lo, hi) {
 // One question of the given kind. `show` is the picture row, `answers` the three buttons, `right` the place of the
 // right one, `hint` the picture hint shown after two wrong tries, and `key` tells two questions apart.
 function makeQuestion(kind, rnd = Math.random) {
+  if (kind === 'word') {   // word scramble: the letters of a word, mixed up, with a picture as the clue
+    const [w, clue] = quizPick(rnd, QUIZ_WORDS), word = w.toUpperCase();
+    let letters = word.split('');
+    for (let tries = 0; tries < 50 && letters.join('') === word; tries++) letters = quizShuffle(rnd, word.split(''));
+    if (letters.join('') === word) letters.push(letters.shift());   // (cannot happen in practice; makes sure the letters are never in order)
+    return { kind, key: 'word:' + w, text: 'Spell the word', word, clue, letters, hint: { first: word[0] } };
+  }
   if (kind === 'count') {
     const n = quizInt(rnd, 1, 10), shape = quizPick(rnd, Object.keys(QUIZ_COUNT_SHAPES));
     const a = quizNumbers(rnd, n, 1, 10);
@@ -2847,12 +2879,33 @@ function makeQuestion(kind, rnd = Math.random) {
 function nextQuestion(rnd = Math.random) {
   let q = null;
   for (let tries = 0; tries < 300; tries++) {
-    q = makeQuestion(quizPick(rnd, QUIZ_KINDS), rnd);
+    q = makeQuestion(rnd() < 0.5 ? 'word' : quizPick(rnd, QUIZ_MATH_KINDS), rnd);   // half word scrambles, half maths
     if (!quizRecent.includes(q.key)) break;
   }
   quizRecent.push(q.key);
   while (quizRecent.length > QUIZ_REMEMBER) quizRecent.shift();
   return q;
+}
+// ---- Quiz report (0.6.65, the parent's decision of 17 Nov 2026): counts only, kept with the saved game ----
+// How many questions the child has seen and how many were answered right, for maths and for words, and the first and
+// last day. The questions and the answers themselves are never kept. The counts go wherever the saved game goes:
+// they stay on the device, and are in the parent's cloud save only if a parent has signed in and turned cloud save on.
+const quizBlank = () => ({ math: { opened: 0, first: 0, later: 0 }, words: { opened: 0, first: 0, later: 0 }, since: null, last: null });
+let quizStats = quizBlank();
+// Reads the counts from a saved game, keeping only whole numbers and dates
+function quizStatsFrom(v) {
+  const out = quizBlank(), n = x => Number.isInteger(x) && x >= 0 ? x : 0, day = d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+  if (!v || typeof v !== 'object') return out;
+  for (const sub of ['math', 'words']) for (const k of ['opened', 'first', 'later']) out[sub][k] = n(v[sub] && v[sub][k]);
+  out.since = day(v.since); out.last = day(v.last);
+  return out;
+}
+// Adds one to a count: what is 'opened' (a question was shown), 'first' (right first time) or 'later' (right after a wrong try)
+function quizCount(subject, what, now = new Date()) {
+  quizStats[subject][what]++;
+  const day = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  if (!quizStats.since) quizStats.since = day;
+  quizStats.last = day;
 }
 
 // ---- Quiz Friends: the characters (0.6.63, SPEC-003) ----
@@ -3032,6 +3085,17 @@ function tapFriend() {
   openQuiz();
 }
 
+// The quiz report as a small table, for the parent area
+function quizReportHtml(st) {
+  const row = (name, c) => `<tr><td style="text-align:left;padding:3px 6px 3px 0">${name}</td><td>${c.opened}</td><td>${c.first}</td><td>${c.later}</td><td>${Math.max(0, c.opened - c.first - c.later)}</td></tr>`;
+  const all = { opened: st.math.opened + st.words.opened, first: st.math.first + st.words.first, later: st.math.later + st.words.later };
+  return '<div style="font-size:15px;font-weight:700;margin-bottom:4px">Quiz friends report</div>' +
+    '<table id="quizReportTable" style="width:100%;border-collapse:collapse;font-size:12px;text-align:center">' +
+    '<tr style="opacity:.75"><th></th><th>Seen</th><th>Right first time</th><th>Right after a retry</th><th>Not finished</th></tr>' +
+    row('Maths', st.math) + row('Words', st.words) + row('<b>All</b>', all) + '</table>' +
+    `<div style="font-size:12px;opacity:.75;margin-top:4px">${st.since ? 'First question on ' + esc(st.since) + ', last on ' + esc(st.last) + '. ' : 'No questions yet. '}For this saved game. Only these counts are kept, not the questions or the answers. They are in your cloud save if cloud save is on.</div>`;
+}
+
 // ---- Quiz Friends: the question panel. Tap only: three big answer buttons and "Not now". No timer and no countdown. ----
 const QUIZ_ART = {
   star: '<polygon points="12,1.5 15.1,8.6 22.8,9.3 17,14.4 18.7,22 12,18 5.3,22 7,14.4 1.2,9.3 8.9,8.6" fill="#ffd54a" stroke="#b8860b"/>',
@@ -3062,31 +3126,75 @@ function quizHintHtml(q) {
 function openQuiz() {
   if (!friend || quizPanel) return;
   const f = friend;
-  if (!f.q) { f.q = nextQuestion(); f.wrong = 0; }
+  if (!f.q) { f.q = nextQuestion(); f.wrong = 0; f.spell = []; f.fixed = 0; quizCount(quizSubject(f.q.kind), 'opened'); }
   if (f.state === 'come') f.state = 'wait';
   paused = true;   // the game stands still while the question is open, so there is no hurry
   const q = f.q, el = document.createElement('div');
   el.id = 'quizPanel';
   el.innerHTML = '<div class="qbox">' +
     `<div class="qtext">${esc(q.text)}</div>` +
+    (q.kind === 'word' ? `<div class="qclue">${q.clue}</div><div class="qslots"></div><div class="qmsg"></div><div class="qtiles"></div>` :
     (q.show.length ? `<div class="qshow">${quizShowHtml(q)}</div>` : '') +
     `<div class="qhint" style="display:none"></div>` +
     `<div class="qmsg"></div>` +
-    `<div class="qans">${q.answers.map((a, i) => `<button class="qa" data-a="${i}">${a.label ? `<span>${esc(a.label)}</span>` : ''}${a.shape && a.n ? `<span style="display:flex;gap:2px;flex-wrap:wrap;justify-content:center">${Array.from({ length: a.n }, () => quizPic(a.shape, 13)).join('')}</span>` : a.shape ? quizPic(a.shape, 48) : ''}</button>`).join('')}</div>` +
+    `<div class="qans">${q.answers.map((a, i) => `<button class="qa" data-a="${i}">${a.label ? `<span>${esc(a.label)}</span>` : ''}${a.shape && a.n ? `<span style="display:flex;gap:2px;flex-wrap:wrap;justify-content:center">${Array.from({ length: a.n }, () => quizPic(a.shape, 13)).join('')}</span>` : a.shape ? quizPic(a.shape, 48) : ''}</button>`).join('')}</div>`) +
     '<button class="qnot">Not now</button><div class="qstars"></div></div>';
   el.addEventListener('click', e => {
-    const b = e.target.closest('.qa');
+    const b = e.target.closest('.qa'), t = e.target.closest('.qt'), sl = e.target.closest('.qs');
     if (b) answerQuiz(+b.dataset.a);
+    else if (t) quizTile(+t.dataset.t);
+    else if (sl) quizSlot(+sl.dataset.s);
     else if (e.target.closest('.qnot')) quizNotNow();
   });
   document.body.appendChild(el);
   quizPanel = el;
   if (f.wrong >= QUIZ_HINT_AFTER) showQuizHint();
+  else if (q.kind === 'word') renderSpell();
   sfx('open');
 }
 function showQuizHint() {
-  const h = quizPanel && quizPanel.querySelector('.qhint');
-  if (h && friend && friend.q) { h.innerHTML = quizHintHtml(friend.q); h.style.display = 'flex'; }
+  if (!quizPanel || !friend || !friend.q) return;
+  const f = friend, q = f.q;
+  if (q.kind === 'word') {   // the hint for a word: its first letter is put in place and stays there
+    f.fixed = 1;
+    f.spell = [q.letters.indexOf(q.hint.first)];
+    renderSpell();
+    return;
+  }
+  const h = quizPanel.querySelector('.qhint');
+  h.innerHTML = quizHintHtml(q); h.style.display = 'flex';
+}
+// Word scramble: the letter tiles to tap, and the places they go to. A used tile is dimmed; a tap on a filled place takes its letter back.
+function renderSpell() {
+  const f = friend, q = f.q;
+  quizPanel.querySelector('.qslots').innerHTML = q.letters.map((_, j) =>
+    `<button class="qs${j < f.fixed ? ' fix' : ''}" data-s="${j}">${f.spell[j] !== undefined ? esc(q.letters[f.spell[j]]) : ''}</button>`).join('');
+  quizPanel.querySelector('.qtiles').innerHTML = q.letters.map((ch, i) =>
+    `<button class="qt${f.spell.includes(i) ? ' used' : ''}" data-t="${i}"${f.spell.includes(i) ? ' disabled' : ''}>${esc(ch)}</button>`).join('');
+}
+function quizTile(i) {
+  const f = friend;
+  if (!quizPanel || !f || !f.q || f.q.kind !== 'word' || f.done) return;
+  const q = f.q;
+  if (!(i >= 0 && i < q.letters.length) || f.spell.includes(i) || f.spell.length >= q.letters.length) return;
+  f.spell.push(i);
+  sfx('tap');
+  if (f.spell.length < q.letters.length) { renderSpell(); return; }
+  if (f.spell.map(k => q.letters[k]).join('') === q.word) { renderSpell(); quizWin(); return; }
+  // Not the word: the letters go back, the places wobble, and nothing is lost
+  f.wrong++;
+  f.spell = [];
+  quizPanel.querySelector('.qmsg').textContent = 'Try again';
+  if (f.wrong >= QUIZ_HINT_AFTER) showQuizHint(); else renderSpell();
+  const slots = quizPanel.querySelector('.qslots');
+  slots.classList.remove('wob'); void slots.offsetWidth; slots.classList.add('wob');
+}
+function quizSlot(j) {
+  const f = friend;
+  if (!quizPanel || !f || !f.q || f.q.kind !== 'word' || f.done || j < f.fixed || j >= f.spell.length) return;
+  f.spell.splice(j, 1);
+  sfx('tap');
+  renderSpell();
 }
 function closeQuiz() {
   if (!quizPanel) return;
@@ -3114,9 +3222,15 @@ function answerQuiz(i) {
     if (f.wrong >= QUIZ_HINT_AFTER) showQuizHint();
     return;
   }
+  btn.classList.add('ok');
+  quizWin();
+}
+// A right answer: stars and the fixed reward, then the friend waves and leaves
+function quizWin() {
+  const f = friend, msg = quizPanel.querySelector('.qmsg');
   const gems = f.wrong ? QUIZ_GEMS_LATER : QUIZ_GEMS_FIRST;
   f.done = true;
-  btn.classList.add('ok');
+  quizCount(quizSubject(f.q.kind), f.wrong ? 'later' : 'first');
   msg.textContent = 'Well done! +' + gems + ' gems';
   quizPanel.querySelector('.qstars').innerHTML = Array.from({ length: 14 }, (_, k) => {
     const a = k / 14 * Math.PI * 2;
@@ -3353,6 +3467,7 @@ if (saved) {
   if (Array.isArray(saved.pos) && saved.pos.length === 3 && !hits(...saved.pos)) [px, py, pz] = saved.pos;
   if (Number.isFinite(saved.yaw)) camYaw = saved.yaw;
   restoreDrops(saved.drops);
+  quizStats = quizStatsFrom(saved.quiz);
   if (worldLoaded) say('Welcome back, ' + playerName + '!', 2500);
 }
 // Start with some enemies near the player. This runs after the saved position is restored, so they appear where the player is.
@@ -3404,7 +3519,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.64';
+const VERSION = '0.6.65';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -3470,7 +3585,7 @@ setInterval(flushEvents, 10000);
   tap.style.cssText = 'position:fixed;left:0;top:0;width:70px;height:70px;z-index:30;';
   const panel = document.createElement('div');
   panel.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:40;';
-  panel.innerHTML = '<div style="background:#1e2236;color:#fff;border-radius:14px;padding:20px;max-width:340px;font-family:system-ui,sans-serif;text-align:center">' +
+  panel.innerHTML = '<div style="background:#1e2236;color:#fff;border-radius:14px;padding:20px;max-width:380px;max-height:92vh;overflow:auto;box-sizing:border-box;font-family:system-ui,sans-serif;text-align:center">' +
     '<div style="font-size:18px;font-weight:700;margin-bottom:8px">Parent area</div>' +
     '<div style="font-size:14px;opacity:.85;margin-bottom:14px">See this game\'s stats and what has been played. You will sign in with your email.</div>' +
     '<a id="parentLink" target="_blank" rel="noopener" style="display:block;background:#3b6fd8;color:#fff;border-radius:10px;padding:12px;text-decoration:none;font-weight:600;margin-bottom:10px">Open parent stats</a>' +
@@ -3484,6 +3599,7 @@ setInterval(flushEvents, 10000);
     '<button id="cloudDelete" style="display:none;width:100%;background:transparent;color:#ffb4b4;border:1px solid #855;border-radius:10px;padding:10px;margin-bottom:8px;font-weight:600;cursor:pointer">Delete cloud save</button>' +
     '<button id="cloudOut" style="display:none;width:100%;background:transparent;color:#fff;border:1px solid #556;border-radius:10px;padding:8px;cursor:pointer">Sign out</button>' +
     '</div>' +
+    '<div id="quizReport" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="devLog" style="max-height:30vh;overflow:auto;margin-bottom:10px"></div>' +
     '<button id="parentClose" style="background:transparent;color:#fff;border:1px solid #556;border-radius:10px;padding:8px 14px;cursor:pointer">Close</button></div>';
   document.body.append(tap, panel);
@@ -3495,6 +3611,7 @@ setInterval(flushEvents, 10000);
       taps = [];
       document.getElementById('parentLink').href = '/admin.html';
       renderDevLog();
+      document.getElementById('quizReport').innerHTML = quizReportHtml(quizStats);
       panel.style.display = 'flex';
     }
   });
@@ -3507,7 +3624,7 @@ setInterval(flushEvents, 10000);
   function showSignedIn(session) {
     cloudUser = session ? session.user : null;
     setStatus(cloudUser
-      ? 'Signed in as ' + (cloudUser.email || 'your account') + '. Your free cloud save holds one game. It saves to the cloud every 30 seconds.'
+      ? 'Signed in as ' + (cloudUser.email || 'your account') + '. Your free cloud save holds one game, with its quiz friends report. It saves to the cloud every 30 seconds.'
       : 'Not signed in. Sign in to keep this game safe on any device.');
     for (const id of ['cloudSave', 'cloudLoad', 'cloudDelete', 'cloudOut']) $c(id).style.display = cloudUser ? '' : 'none';
     for (const id of ['cloudGoogle', 'cloudFacebook']) $c(id).style.display = cloudUser ? 'none' : '';
@@ -3980,6 +4097,9 @@ window.gameTest = {
   // Life bars (0.6.64): one entry per monster, in the same order as `enemies` (null if a monster has no bar)
   lifeBars: () => enemies.map(en => { const b = lifeBars.get(en); return b ? { kind: en.kind, hp: b.hp, part: b.part, color: b.color, above: b.sprite.position.y - en.y, dx: b.sprite.position.x - en.x, dz: b.sprite.position.z - en.z, inScene: b.sprite.parent === scene, w: b.sprite.scale.x } : null; }),
   lifeBarCount: () => { let n = 0; scene.traverse(o => { if (o.isSprite && [...lifeBars.values()].some(b => b.sprite === o)) n++; }); return { bars: lifeBars.size, inScene: n }; }, lifeColor,
+  // Word scramble and the quiz report (0.6.65)
+  quizTile, quizSlot, QUIZ_WORDS, QUIZ_MATH_KINDS, get quizStats() { return JSON.parse(JSON.stringify(quizStats)); }, quizReportHtml, saveGame,
+  get quizSpell() { return friend && friend.q && friend.q.kind === 'word' ? { letters: friend.spell.map(i => friend.q.letters[i]).join(''), picked: friend.spell.slice(), fixed: friend.fixed, wrong: friend.wrong } : null; },
   // Quiz Friends (0.6.63)
   get quizOn() { return quizOn; }, setQuizOn, makeQuestion, nextQuestion, QUIZ_KINDS, get quizRecent() { return quizRecent.slice(); },
   get friend() { return friend ? { kind: friend.kind, state: friend.state, x: friend.x, y: friend.y, z: friend.z, age: friend.age, wrong: friend.wrong, bubble: friend.group.userData.bubble.visible, wave: friend.group.userData.wave.rotation.z, inScene: friend.group.parent === scene } : null; },
@@ -3987,7 +4107,7 @@ window.gameTest = {
   get quizOpen() { return !!quizPanel; }, get quizQuestion() { return friend && friend.q ? { ...friend.q } : null; },
   friendScreen: () => { const v = new THREE.Vector3(friend.x, friend.y + 0.6, friend.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight, v.z < 1]; },
   clearEnemies: () => { for (const en of enemies) scene.remove(en.group); enemies.length = 0; },
-  askKind: kind => { if (friend) { friend.q = makeQuestion(kind); friend.wrong = 0; } },   // gives the friend on screen a question of one kind
+  askKind: kind => { if (friend) { friend.q = makeQuestion(kind); friend.wrong = 0; friend.spell = []; friend.fixed = 0; } },   // gives the friend on screen a question of one kind
   walkAway: blocks => { px += blocks; let y = H - 1; while (y > 0 && !solid(get(Math.floor(px), y, Math.floor(pz)))) y--; py = y + 1.01; vy = 0; },   // puts the character this many blocks to the side, on the ground FRIEND: { GAP: FRIEND_GAP, STOP: FRIEND_STOP, STAY: FRIEND_STAY, FAR: FRIEND_FAR, CLEAR: FRIEND_MONSTER_CLEAR },
   // Where an enemy's middle is on the screen: [x, y] (y from the top), and whether it is in front of the camera
   screenOf: en => { const v = new THREE.Vector3(en.x, en.y + 0.5, en.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight, v.z < 1]; },
