@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.66 (3D)</title>
+<title>Adventurers of Drenerics v0.6.67 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -1443,6 +1443,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.67', title: 'Quiz friends come sooner', items: [
+    'A quiz friend comes to say hello as soon as you start playing',
+    'After you answer a question right, the next friend comes after about a minute of moving around',
+    'If a friend leaves without a right answer, the next one comes 4 to 7 minutes later, as before'] },
   { v: '0.6.66', title: 'Tap to hit, and life bars only on hurt monsters', items: [
     'With the sword in your hand, tap a close monster to hit it once. Before, you had to hold. Holding still keeps hitting',
     'A monster shows its life bar only after it has been hit'] },
@@ -2920,7 +2924,9 @@ function quizCount(subject, what, now = new Date()) {
 // with a "?" over its head and waves. It never opens anything by itself: the child taps it to get one question.
 // One friend at a time, and only on this player's own screen: a friend is never sent to a shared world.
 const FRIEND_KINDS = ['owl', 'turtle', 'robot'];
-const FRIEND_GAP = [240, 420];   // seconds of play until the next friend: 4 to 7 minutes after the last one left
+const FRIEND_GAP = [240, 420];   // seconds of play until the next friend when the last one left without a right answer: 4 to 7 minutes
+const FRIEND_FIRST = 3;          // the first friend of a visit comes this many seconds after play starts (0.6.67)
+const FRIEND_AFTER_SOLVE = 60;   // after a right answer the next friend comes after this many seconds of the child moving about (0.6.67)
 const FRIEND_MONSTER_CLEAR = 10; // no friend appears while a monster is this close (blocks)
 const FRIEND_STOP = 2;           // it stops this many blocks from the child
 const FRIEND_STAY = 90;          // it leaves after this many seconds with no answer (the clock stands still while the question is open)
@@ -2931,7 +2937,9 @@ const friendGap = () => FRIEND_GAP[0] + Math.random() * (FRIEND_GAP[1] - FRIEND_
 let quizOn = true;               // the "Quiz friends" switch in Settings: on at first, kept on this device like the volume levels
 try { quizOn = localStorage.getItem('kidsgame.quiz') !== '0'; } catch (e) {}
 let friend = null;               // the friend on screen, if any
-let friendWait = friendGap();    // seconds of play until the next one
+let friendWait = FRIEND_FIRST;   // seconds of play until the next one
+let friendFirst = true;          // the first friend of a visit is still to come: it comes even if a monster is close, so one is there from the start
+let friendOnMove = false;        // the wait only runs down while the child is moving (after a right answer)
 let quizPanel = null;            // the open question panel, if any
 let pendingFriend = false;       // the press landed on the friend; the question opens if it was a tap, not a drag
 
@@ -3035,8 +3043,10 @@ function removeFriend() {
   if (!friend) return;
   scene.remove(friend.group);
   friend.group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
+  // After a right answer the next friend comes a minute of moving about later; otherwise 4 to 7 minutes of play later
+  friendOnMove = !!friend.done;
+  friendWait = friend.done ? FRIEND_AFTER_SOLVE : friendGap();
   friend = null;
-  friendWait = friendGap();
 }
 function friendLeave() { if (friend && friend.state !== 'leave') { friend.state = 'leave'; friend.leaveT = 0; } }
 // True if the block at (x, y, z) is under the friend or where it stands: it cannot be dug away or built into
@@ -3044,9 +3054,11 @@ const friendOn = (x, y, z) => !!friend && Math.floor(friend.x) === x && Math.flo
 function updateFriend(dt) {
   if (!friend) {
     if (!quizOn) return;
-    friendWait -= dt;
-    // Never while a monster is close or a panel is open: it waits for a calm moment
-    if (friendWait <= 0 && !anyPanelOpen() && !monsterNear(FRIEND_MONSTER_CLEAR) && !spawnFriend()) friendWait = 1;
+    if (!friendOnMove || Math.hypot(vx, vz) > 0.1) friendWait -= dt;
+    // Never while a monster is close or a panel is open: it waits for a calm moment. (The first friend of a visit does not wait for monsters.)
+    if (friendWait <= 0 && !anyPanelOpen() && (friendFirst || !monsterNear(FRIEND_MONSTER_CLEAR))) {
+      if (spawnFriend()) friendFirst = false; else friendWait = 1;
+    }
     return;
   }
   const f = friend, now = performance.now() / 1000;
@@ -3526,7 +3538,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.66';
+const VERSION = '0.6.67';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -4110,12 +4122,12 @@ window.gameTest = {
   // Quiz Friends (0.6.63)
   get quizOn() { return quizOn; }, setQuizOn, makeQuestion, nextQuestion, QUIZ_KINDS, get quizRecent() { return quizRecent.slice(); },
   get friend() { return friend ? { kind: friend.kind, state: friend.state, x: friend.x, y: friend.y, z: friend.z, age: friend.age, wrong: friend.wrong, bubble: friend.group.userData.bubble.visible, wave: friend.group.userData.wave.rotation.z, inScene: friend.group.parent === scene } : null; },
-  get friendWait() { return friendWait; }, setFriendWait: s => { friendWait = s; }, callFriend: kind => spawnFriend(kind), removeFriend, friendOn, tapFriend, openQuiz, answerQuiz, quizNotNow,
+  get friendWait() { return friendWait; }, setFriendWait: s => { friendWait = s; friendOnMove = false; friendFirst = false; }, get friendOnMove() { return friendOnMove; }, callFriend: kind => spawnFriend(kind), removeFriend, friendOn, tapFriend, openQuiz, answerQuiz, quizNotNow,
   get quizOpen() { return !!quizPanel; }, get quizQuestion() { return friend && friend.q ? { ...friend.q } : null; },
   friendScreen: () => { const v = new THREE.Vector3(friend.x, friend.y + 0.6, friend.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight, v.z < 1]; },
   clearEnemies: () => { for (const en of enemies) scene.remove(en.group); enemies.length = 0; },
   askKind: kind => { if (friend) { friend.q = makeQuestion(kind); friend.wrong = 0; friend.spell = []; friend.fixed = 0; } },   // gives the friend on screen a question of one kind
-  walkAway: blocks => { px += blocks; let y = H - 1; while (y > 0 && !solid(get(Math.floor(px), y, Math.floor(pz)))) y--; py = y + 1.01; vy = 0; },   // puts the character this many blocks to the side, on the ground FRIEND: { GAP: FRIEND_GAP, STOP: FRIEND_STOP, STAY: FRIEND_STAY, FAR: FRIEND_FAR, CLEAR: FRIEND_MONSTER_CLEAR },
+  walkAway: blocks => { px += blocks; let y = H - 1; while (y > 0 && !solid(get(Math.floor(px), y, Math.floor(pz)))) y--; py = y + 1.01; vy = 0; },   // puts the character this many blocks to the side, on the ground FRIEND: { GAP: FRIEND_GAP, FIRST: FRIEND_FIRST, AFTER_SOLVE: FRIEND_AFTER_SOLVE, STOP: FRIEND_STOP, STAY: FRIEND_STAY, FAR: FRIEND_FAR, CLEAR: FRIEND_MONSTER_CLEAR },
   // Where an enemy's middle is on the screen: [x, y] (y from the top), and whether it is in front of the camera
   screenOf: en => { const v = new THREE.Vector3(en.x, en.y + 0.5, en.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight, v.z < 1]; },
 };

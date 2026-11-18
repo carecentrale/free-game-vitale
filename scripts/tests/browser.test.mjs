@@ -110,13 +110,16 @@ async function setupPage(page, base, opts = {}) {
   if (opts.audioList) await page.route(/\/audio\/credits\.json$/, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(opts.audioList) }));
   const saves = opts.saves || [savedGame()];
   const choice = opts.choice === undefined ? '0' : opts.choice;
-  await page.addInitScript(({ saves, choice }) => {
+  // opts.quiz: quiz friends are on, as for a real player. In the other tests they are switched off, so that the friend
+  // who now comes at the start (0.6.67) does not stand in the way of a tap or change the message on screen
+  await page.addInitScript(({ saves, choice, quiz }) => {
     if (!sessionStorage.getItem('seeded')) {
+      if (!quiz) localStorage.setItem('kidsgame.quiz', '0');
       saves.forEach((j, i) => localStorage.setItem('kidsgame.slot.' + i, j));
       if (choice !== null) sessionStorage.setItem('kidsgame.choice', choice);
       sessionStorage.setItem('seeded', '1');
     }
-  }, { saves, choice });
+  }, { saves, choice, quiz: !!opts.quiz });
   if (opts.init) await page.addInitScript(opts.init);   // runs before the game, e.g. to stand in for the Android app
   await page.goto(base + '/play/', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof window.gameProbe === 'function', null, { timeout: 60000 });
@@ -1464,19 +1467,20 @@ const panelState = page => page.evaluate(() => {
 const clickAnswer = (page, i) => page.evaluate(i => document.querySelector(`#quizPanel .qa[data-a="${i}"]`).click(), i);
 const gems = page => page.evaluate(() => window.gameTest.inv.gem);
 
-test('a quiz friend appears within 7 minutes of play when no monster is close, with a "?" over its head, waves, and stops two blocks away', { skip, timeout: 240000 }, () =>
+test('a quiz friend comes as soon as play starts, even with monsters about, with a "?" over its head; it waves and stops two blocks away', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors) => {
     await playing(page);
     const r = await page.evaluate(() => {
-      const g = window.gameTest, first = g.friendWait;
+      const g = window.gameTest, first = g.friendWait, monsters = g.enemies.length;
       let secs = 0;
-      while (!g.friend && secs < 430) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); secs++; }
+      while (!g.friend && secs < 30) { g.stepFrames(Array(20).fill(0.05)); secs++; }
       const f = g.friend, [px, , pz] = g.pos;
-      return { first, secs, f, dist: f ? Math.hypot(f.x - px, f.z - pz) : null, msg: g.msg, second: g.callFriend(), open: g.quizOpen };
+      return { first, secs, monsters, f, dist: f ? Math.hypot(f.x - px, f.z - pz) : null, msg: g.msg, second: g.callFriend(), open: g.quizOpen };
     });
-    assert.ok(r.first >= 235 && r.first <= 420, 'the first wait is 4 to 7 minutes: ' + r.first);
-    assert.ok(r.f, 'no friend appeared in 7 minutes of play');
-    assert.ok(r.secs >= 235 && r.secs <= 421, 'it appeared after ' + r.secs + ' seconds');
+    assert.ok(r.first <= 3, 'the first friend is due within 3 seconds of play: ' + r.first);
+    assert.ok(r.monsters >= 1, 'there are monsters about at the start');
+    assert.ok(r.f, 'no friend came at the start');
+    assert.ok(r.secs <= 4, 'it came after ' + r.secs + ' seconds');
     assert.ok(['owl', 'turtle', 'robot'].includes(r.f.kind));
     assert.ok(r.f.inScene && r.f.bubble, 'the friend and its "?" bubble are shown');
     // (it appears 7 to 11 blocks away; by the time it is looked at here it may have walked for up to a second)
@@ -1500,7 +1504,7 @@ test('a quiz friend appears within 7 minutes of play when no monster is close, w
     assert.equal(s.open, false, 'the friend opened the question by itself');
     assert.equal(s.paused, false);
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
-  }, { saves: [readyGame()] }));
+  }, { saves: [readyGame()], quiz: true }));
 
 test('the friend never opens the question itself; a tap on it opens one question with three answers and "Not now", which changes nothing', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors) => {
@@ -1544,7 +1548,7 @@ test('the friend never opens the question itself; a tap on it opens one question
       assert.equal(await gems(page), before);
     }
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
-  }, { saves: [spellGame()] }));
+  }, { saves: [spellGame()], quiz: true }));
 
 test('a right first answer gives 5 gems, a right answer after a wrong try gives 2, a wrong answer takes nothing, and a picture hint shows after two wrong tries', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors) => {
@@ -1577,11 +1581,22 @@ test('a right first answer gives 5 gems, a right answer after a wrong try gives 
     const left = await page.evaluate(() => {
       const g = window.gameTest, state = g.friend.state;
       for (let i = 0; i < 6; i++) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); }
-      return { state, gone: g.friend === null, wait: g.friendWait };
+      const wait = g.friendWait;
+      // Standing still, the minute does not run down; moving about, it does, and the next friend comes
+      for (let i = 0; i < 90; i++) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); }
+      const still = { wait: g.friendWait, friend: !!g.friend };
+      g.setStick(0, -1);
+      let secs = 0;
+      while (!g.friend && secs < 70) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); secs++; }
+      g.setStick(0, 0);
+      return { state, gone: wait !== undefined && still.friend === false, wait, onMove: g.friendOnMove, still, secs, next: !!g.friend };
     });
     assert.equal(left.state, 'leave');
     assert.equal(left.gone, true, 'the friend did not leave');
-    assert.ok(left.wait >= 235 && left.wait <= 420, 'the next friend comes 4 to 7 minutes later: ' + left.wait);
+    assert.equal(left.wait, 60, 'after a right answer the next friend is due after a minute of moving about');
+    assert.deepEqual(left.still, { wait: 60, friend: false }, 'the minute ran down while the child stood still');
+    assert.equal(left.next, true, 'no friend came after a minute of moving about');
+    assert.ok(left.secs >= 58 && left.secs <= 62, 'it came after ' + left.secs + ' seconds of moving');
     // Two wrong tries: nothing lost, "Try again", the button wobbles, then the hint. The right answer then gives 2
     start = await gems(page); right = await open();
     const wrong = [0, 1, 2].filter(i => i !== right);
@@ -1612,7 +1627,7 @@ test('a right first answer gives 5 gems, a right answer after a wrong try gives 
     const kept = await page.evaluate(() => { window.gameTest.stepFrames([0.05]); return Object.keys(localStorage).map(k => k + '=' + localStorage.getItem(k)).join('\n'); });
     assert.ok(!/friend|How many|What is|comes next|the most|"answers"|"right"/i.test(kept), 'a question or an answer is stored on the device');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
-  }, { saves: [readyGame()] }));
+  }, { saves: [readyGame()], quiz: true }));
 
 test('in 20 questions in a row from friends, each maths question has three answers with one right, and none repeats within 10', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors) => {
@@ -1640,7 +1655,7 @@ test('in 20 questions in a row from friends, each maths question has three answe
       keys.push(q.key);
     }
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
-  }, { saves: [readyGame()] }));
+  }, { saves: [readyGame()], quiz: true }));
 
 test('with "Quiz friends" off in Settings no friend appears in 15 minutes of play; the switch is remembered, and on again a friend comes', { skip, timeout: 300000 }, () =>
   withGame(async (page, errors) => {
@@ -1679,7 +1694,7 @@ test('with "Quiz friends" off in Settings no friend appears in 15 minutes of pla
     });
     assert.deepEqual(back, { on: true, friend: true, kept: '1' });
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
-  }, { saves: [readyGame()] }));
+  }, { saves: [readyGame()], quiz: true }));
 
 test('no friend appears while a monster is within 10 blocks or a panel is open; it leaves after 90 seconds or 40 blocks, and cannot be dug under or built into', { skip, timeout: 300000 }, () =>
   withGame(async (page, errors) => {
@@ -1729,8 +1744,9 @@ test('no friend appears while a monster is within 10 blocks or a panel is open; 
       let left = -1;
       for (let s = 8; s < 100 && left < 0; s++) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); msgs.add(g.msg); if (!g.friend || g.friend.state === 'leave') left = s + 1; }
       for (let s = 0; s < 6; s++) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); msgs.add(g.msg); }
-      return { left, gone: g.friend === null, msgs: [...msgs].join(' | '), open: g.quizOpen };
+      return { left, gone: g.friend === null, msgs: [...msgs].join(' | '), open: g.quizOpen, wait: g.friendWait, onMove: g.friendOnMove };
     });
+    assert.ok(stay.wait >= 235 && stay.wait <= 420 && stay.onMove === false, 'after a friend leaves with no right answer, the next comes 4 to 7 minutes of play later: ' + stay.wait);
     assert.ok(stay.left >= 89 && stay.left <= 92, 'it left after ' + stay.left + ' seconds');
     assert.equal(stay.gone, true);
     assert.ok(!/miss|late|gone|left/i.test(stay.msgs), 'a message about a missed friend: ' + stay.msgs);
@@ -1748,7 +1764,7 @@ test('no friend appears while a monster is within 10 blocks or a panel is open; 
     });
     assert.deepEqual(far, { near: 'wait', state: 'leave' });
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
-  }, { saves: [readyGame()] }));
+  }, { saves: [readyGame()], quiz: true }));
 
 const PC = { viewport: { width: 1280, height: 720 } };
 for (const [label, device] of [['a phone held sideways', PHONE_WIDE], ['a phone held upright', PHONE_TALL], ['a tablet', TABLET], ['a PC', PC]]) {
@@ -1793,7 +1809,7 @@ for (const [label, device] of [['a phone held sideways', PHONE_WIDE], ['a phone 
         }
       }
       assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
-    }, { device, saves: [readyGame()] }));
+    }, { device, saves: [readyGame()], quiz: true }));
 }
 
 // ---- Life bars for monsters (0.6.64) ----
@@ -1933,7 +1949,7 @@ test('a word scramble shows a picture and mixed-up letter tiles; tapping them in
     assert.match(r.msg, /\+2 gems/);
     await closed();
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
-  }, { saves: [readyGame()] }));
+  }, { saves: [readyGame()], quiz: true }));
 
 test('the quiz report counts questions seen and right answers for maths and words, is kept with the saved game, and shows in the parent area', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors, requests) => {
@@ -1995,4 +2011,4 @@ test('the quiz report counts questions seen and right answers for maths and word
     await playing(page);
     assert.deepEqual(await stats(), st, 'the report was not kept');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
-  }, { saves: [readyGame()] }));
+  }, { saves: [readyGame()], quiz: true }));

@@ -11,6 +11,17 @@ Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one versio
 - No change to what data is collected: the pages are plain pages with no scripts
 - Checked: the fast tests; the pages were looked at in a browser in the cloud workspace. Not checked: the parent has not read the guide against the game; a phone or tablet
 
+## 0.6.67: quiz friends come sooner
+Asked for by the parent after playing build 11 (17 Nov 2026). It changes SPEC-003's rule of 4 to 7 minutes between friends.
+- The first friend of a visit comes 3 seconds after play starts, so one is there from the beginning. This one does not wait for monsters to be out of the way
+- After a right answer, the next friend comes after 60 seconds in which the child is moving about. Standing still does not run the minute down
+- After a friend leaves with no right answer ("Not now", 90 seconds, or walking away), the next one comes 4 to 7 minutes of play later, as before
+- Still true: one friend at a time; apart from the first, none while a monster is within 10 blocks or a panel is open; the "Quiz friends" switch turns them off
+- **For the parent and the PM: this raises how fast gems can be earned**, from 5 gems every 4 to 7 minutes to 5 gems about every minute and a half for a child who keeps answering right. Gems are planned as something paying families receive
+- No change to what data is collected
+- Tests: the browser tests for the first friend, the wait after a right answer and the wait after an unanswered friend are changed. The other browser tests now start with quiz friends switched off, so the friend at the start does not get in their way
+- Checked: the syntax check, the fast tests, and the quiz friend browser tests in the cloud workspace's Chrome (smaller-view copy of the game). Not checked: the other browser tests; a real phone or tablet
+
 ## 0.6.66: tap to hit, and life bars only on hurt monsters
 Two changes the parent asked for after playing build 11 (17 Nov 2026).
 - With the sword in hand, a tap or click on a monster within reach now hits it once straight away. Before, only holding hit. Holding still keeps hitting at the usual pace. A swing takes 0.3 seconds, so faster taps do not hit again (the same as a sword on a hand button since 0.6.60)

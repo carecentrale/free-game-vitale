@@ -175,6 +175,9 @@ test('there are three friends, an owl, a turtle and a robot, made in code with n
 
 test('the friend rules are as written: 4 to 7 minutes apart, no monster within 10 blocks, stops 2 blocks away, 90 seconds, 40 blocks', () => {
   assert.match(friendCode, /const FRIEND_GAP = \[240, 420\];/);
+  // 0.6.67 (the parent's decision): one from the start, and a minute of moving about after a right answer
+  assert.match(friendCode, /const FRIEND_FIRST = 3;/);
+  assert.match(friendCode, /const FRIEND_AFTER_SOLVE = 60;/);
   assert.match(friendCode, /const FRIEND_MONSTER_CLEAR = 10;/);
   assert.match(friendCode, /const FRIEND_STOP = 2;/);
   assert.match(friendCode, /const FRIEND_STAY = 90;/);
