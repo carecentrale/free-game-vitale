@@ -90,8 +90,11 @@ Requirements come from the Google Drive folder "Adventurers of Drenerics - PM re
 - No downloads are kept in the game folder: once a download has been unpacked into `assets/`, delete it.
 
 ## Branches (added 18 Nov 2026, parent's decision)
-- There is one line of history: `main`. `dev` must always contain everything `main` has, and `main` must always contain everything `dev` has.
-- Create every new branch from `origin/main` (`git checkout -b <name> origin/main`). Never run `git init` or start a new project history in a folder that already has the game.
-- Before any push, check that `origin/main` is an ancestor of the branch being pushed (`git merge-base --is-ancestor origin/main HEAD`). If the check fails, do not push; report it to the parent.
+- One project, one history. Never start a second history for the game (no `git init`, no new orphan branch, no fresh copy of the game in a new folder).
+- `main` holds released versions only. `dev` holds work in progress, and is where new work lands and is tested.
+- `dev` is usually ahead of `main`. A hotfix made on `main` must be merged back into `dev` straight away.
+- Every branch is made from `origin/main` or `origin/dev`, never from an empty start.
+- A release is `dev` merged or fast-forwarded into `main`, after the tests pass.
+- Before any push, check that the branch contains the branch it is merging into (`git merge-base --is-ancestor origin/main HEAD` or `origin/dev`). If the check fails, do not push; report it to the parent.
 - Never force-push, and never delete `main` or `dev`. Pushes are fast-forward only.
 - The parent should protect `main` on GitHub (Settings, Branches): block force pushes and deletion.
