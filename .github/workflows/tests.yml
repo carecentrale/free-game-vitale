@@ -1,17 +1,40 @@
-# Runs the tests on every push and pull request, every 6 hours, and by hand from the Actions tab.
+# Fast tests on every push to main and on pull requests (a minute or two).
+# The long browser tests (about 45 minutes) run only by hand: Actions tab, Tests, Run workflow, tick the box.
+# Changed 18 Nov 2026: the long tests ran on every push to every branch and every 6 hours, and kept failing on GitHub's slow machines.
 # A failing test shows as a red cross on the commit.
 name: Tests
 
 on:
   push:
+    branches: [main]
   pull_request:
-  schedule:
-    - cron: '17 */6 * * *'   # every 6 hours, re-runs the tests on main without a new push
   workflow_dispatch:
+    inputs:
+      browser:
+        description: 'Also run the long browser tests (about 45 minutes)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm run test:quick
+
+  browser:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.browser }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

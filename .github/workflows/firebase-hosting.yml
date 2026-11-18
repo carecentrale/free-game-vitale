@@ -1,4 +1,4 @@
-# Tests, then deploys the www folder to Firebase Hosting (Google Cloud) when main changes.
+# Runs the fast tests, then deploys the www folder to Firebase Hosting (Google Cloud). By hand only since 18 Nov 2026 (Actions tab, Run workflow): on every push it ran the long browser tests for 45 minutes and failed.
 # Needed once, in GitHub → Settings → Secrets and variables → Actions:
 #   Secret:   FIREBASE_SERVICE_ACCOUNT   the service account key JSON for Firebase Hosting
 #   Variable: FIREBASE_PROJECT_ID        the Firebase / Google Cloud project ID
@@ -7,8 +7,8 @@
 name: Deploy to Firebase Hosting
 
 on:
-  push:
-    branches: [main]
+  # no push trigger: run by hand
+
   workflow_dispatch:
 
 permissions:
@@ -23,9 +23,9 @@ jobs:
         with:
           node-version: '20'
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - name: Run all tests
-        run: npm test
+      # long browser tests are not run here: Actions tab, Tests, Run workflow
+      - name: Run the fast tests
+        run: npm run test:quick
 
   deploy:
     needs: test
