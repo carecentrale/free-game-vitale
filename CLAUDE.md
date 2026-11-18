@@ -88,3 +88,10 @@ Requirements come from the Google Drive folder "Adventurers of Drenerics - PM re
 - First step of any session that needs the computer: check which computer and Windows account the chat is linked to. The build machine's account is `15144`. If it does not match, stop and say so. Do not guess paths.
 - Anything new that is part of the game goes inside the game folder. Tools that only help to build or release it go in `Desktop\Claude tools for access\drenerics-build\`, never in the game folder. Either way, write it down here.
 - No downloads are kept in the game folder: once a download has been unpacked into `assets/`, delete it.
+
+## Branches (added 18 Nov 2026, parent's decision)
+- There is one line of history: `main`. `dev` must always contain everything `main` has, and `main` must always contain everything `dev` has.
+- Create every new branch from `origin/main` (`git checkout -b <name> origin/main`). Never run `git init` or start a new project history in a folder that already has the game.
+- Before any push, check that `origin/main` is an ancestor of the branch being pushed (`git merge-base --is-ancestor origin/main HEAD`). If the check fails, do not push; report it to the parent.
+- Never force-push, and never delete `main` or `dev`. Pushes are fast-forward only.
+- The parent should protect `main` on GitHub (Settings, Branches): block force pushes and deletion.
