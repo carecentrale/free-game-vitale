@@ -11,6 +11,15 @@ Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one versio
 - No change to what data is collected: the pages are plain pages with no scripts
 - Checked: the fast tests; the pages were looked at in a browser in the cloud workspace. Not checked: the parent has not read the guide against the game; a phone or tablet
 
+## 0.6.66: tap to hit, and life bars only on hurt monsters
+Two changes the parent asked for after playing build 11 (17 Nov 2026).
+- With the sword in hand, a tap or click on a monster within reach now hits it once straight away. Before, only holding hit. Holding still keeps hitting at the usual pace. A swing takes 0.3 seconds, so faster taps do not hit again (the same as a sword on a hand button since 0.6.60)
+- A monster's life bar now shows only once the monster has been hit. Monsters at full health show no bar
+- Note: tapping quickly now hits faster than holding does (up to about three hits a second, against one hit a second or slower when held)
+- No change to what data is collected
+- Tests changed in `browser.test.mjs`: the sword-in-hand test (a tap hits once, a second tap at once does not, out of reach does not, holding keeps hitting) and the life bar test (hidden until the first hit)
+- Checked: the syntax check, the fast tests, and these two browser tests plus the hand-button tap test in the cloud workspace's Chrome (smaller-view copy of the game). Not checked: the other browser tests; a real phone or tablet
+
 ## 0.6.65: word scrambles, and a quiz report for parents
 Asked for by the parent directly on 17 Nov 2026 (not from a product manager hand-off). It changes two things SPEC-003 ruled out: spelling questions, and keeping something about the quiz.
 - Quiz friends now ask a word scramble about half the time. A picture (an emoji from the device's own font, no file) shows what the word is; its letters are mixed up on tiles. The child taps the tiles in order to spell it; a tap on a placed letter takes it back. Tap only, nothing is typed

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.65 (3D)</title>
+<title>Adventurers of Drenerics v0.6.66 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -1443,6 +1443,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.66', title: 'Tap to hit, and life bars only on hurt monsters', items: [
+    'With the sword in your hand, tap a close monster to hit it once. Before, you had to hold. Holding still keeps hitting',
+    'A monster shows its life bar only after it has been hit'] },
   { v: '0.6.65', title: 'Word scrambles, and a quiz report for parents', items: [
     'Quiz friends now also ask you to spell a word: a picture shows what it is, and its letters are mixed up',
     'Tap the letters in the right order. Tap a letter you placed to take it back',
@@ -2185,7 +2188,7 @@ function groundBelow(x, z, y) {
   return false;
 }
 
-// ---- Life bars (0.6.64): a small bar over each monster shows how much health it has left ----
+// ---- Life bars (0.6.64): a small bar over a monster that has been hit shows how much health it has left ----
 // Green when it is healthy, yellow below 60%, red below 30%. The bar always faces the screen and goes when the monster is defeated.
 const LIFE_BAR_W = 0.9, LIFE_BAR_H = 0.15;
 const lifeBars = new Map();   // monster -> { sprite, cx, hp, part, color, top }
@@ -2223,6 +2226,7 @@ function updateLifeBars() {
       lifeBars.set(en, b);
     }
     if (b.hp !== en.hp) drawLifeBar(b, en);
+    b.sprite.visible = en.hp < ENEMY_KINDS[en.kind].health;   // shown only once the monster has been hit (0.6.66)
     b.sprite.position.set(en.x, en.y + b.top, en.z);
   }
 }
@@ -2734,7 +2738,7 @@ canvas.addEventListener('pointerdown', e => {
   if (!a) return;
   if (a.enemy) {
     if (Math.hypot(a.enemy.x - px, a.enemy.y - py, a.enemy.z - pz) > REACH + 1) { say('Too far away! Get closer.'); return; }
-    // A sword in the hand hits as before (hold to keep hitting). With another item in the hand, a sword on a hand button
+    // A sword in the hand hits on the tap and keeps hitting while held. With another item in the hand, a sword on a hand button
     // (quick bar slot 1 or 2) swings once straight away; the item in the hand stays in the hand (0.6.60).
     const isWeapon = id => !!(id && defOf(id) && defOf(id).kind === 'weapon');
     const borrowed = isWeapon(held()) ? null : ([qb[0], qb[1]].find(isWeapon) || null);
@@ -2746,8 +2750,11 @@ canvas.addEventListener('pointerdown', e => {
       if (enemies.includes(a.enemy) && gearOf(borrowed)) fight = { e: a.enemy, t: 0, id: borrowed };   // holding keeps hitting at the usual pace
       return;
     }
-    sfx('swing');
-    fight = { e: a.enemy, t: 0, id: held() };
+    // A sword in the hand: a tap hits once straight away (0.6.66; before, only holding hit). Holding keeps hitting at the usual pace.
+    // A swing takes a moment, so faster taps do not hit again.
+    const sword = held();
+    if (swingCool <= 0) swingOnce(a.enemy, sword);
+    if (enemies.includes(a.enemy) && gearOf(sword)) fight = { e: a.enemy, t: 0, id: sword };
     return;
   }
   if (a.dist > REACH) { say('Too far away! Get closer.'); return; }
@@ -3519,7 +3526,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.65';
+const VERSION = '0.6.66';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -4095,7 +4102,7 @@ window.gameTest = {
     music: musicEl ? { src: musicEl.src, volume: musicEl.volume, paused: !!musicEl.paused } : null }),
   castFireball, fireAt, enemyAt, viewDir, aimAt: (x, y) => aim({ clientX: x, clientY: y }), setYaw: y => { camYaw = y; }, get sparks() { return sparks; }, get fireballs() { return fireballs; }, get enemies() { return enemies; },
   // Life bars (0.6.64): one entry per monster, in the same order as `enemies` (null if a monster has no bar)
-  lifeBars: () => enemies.map(en => { const b = lifeBars.get(en); return b ? { kind: en.kind, hp: b.hp, part: b.part, color: b.color, above: b.sprite.position.y - en.y, dx: b.sprite.position.x - en.x, dz: b.sprite.position.z - en.z, inScene: b.sprite.parent === scene, w: b.sprite.scale.x } : null; }),
+  lifeBars: () => enemies.map(en => { const b = lifeBars.get(en); return b ? { kind: en.kind, hp: b.hp, part: b.part, color: b.color, above: b.sprite.position.y - en.y, dx: b.sprite.position.x - en.x, dz: b.sprite.position.z - en.z, inScene: b.sprite.parent === scene, shown: b.sprite.visible, w: b.sprite.scale.x } : null; }),
   lifeBarCount: () => { let n = 0; scene.traverse(o => { if (o.isSprite && [...lifeBars.values()].some(b => b.sprite === o)) n++; }); return { bars: lifeBars.size, inScene: n }; }, lifeColor,
   // Word scramble and the quiz report (0.6.65)
   quizTile, quizSlot, QUIZ_WORDS, QUIZ_MATH_KINDS, get quizStats() { return JSON.parse(JSON.stringify(quizStats)); }, quizReportHtml, saveGame,

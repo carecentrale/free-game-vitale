@@ -1197,16 +1197,37 @@ test('the bag has a Drop button for blocks and monster parts: one goes on the gr
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [readyGame()] }));
 
-test('with the sword in hand a monster is hit as before: a quick tap does not hit, holding does', { skip, timeout: 240000 }, () =>
+test('with the sword in hand, a tap on a close monster hits it once straight away, a second tap at once does not, and holding keeps hitting', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors) => {
     await playing(page);
     await page.keyboard.press('Digit2');
-    const a = await tapMonster(page, {});
+    // One tap: one hit and one wear, at the press (0.6.66; before, only holding hit). A second tap straight away does nothing more
+    const a = await tapMonster(page, { again: true });
     assert.equal(a.error, undefined, a.error);
-    assert.equal(a.held.fight, true, 'the press starts the fight');
-    assert.equal(a.after.hp, a.before.hp, 'a quick tap does not hit (as in 0.6.59)');
-    assert.equal(a.after.dur.sword, a.before.dur.sword, 'a quick tap does not wear the sword');
+    assert.ok(a.held.hp < a.before.hp || !a.held.alive, 'the tap did not hit');
+    assert.equal(a.held.dur.sword, a.before.dur.sword - 1, 'one tap wears the sword by one');
+    assert.equal(a.after.hp, a.held.hp, 'a second tap straight away hit again');
+    assert.equal(a.after.dur.sword, a.held.dur.sword);
+    assert.equal(a.after.fight, false, 'letting go stops the fight');
+    assert.equal(a.after.sel, 1, 'the sword stays in hand');
+    assert.ok(a.log.includes('swing'), 'no swing sound');
+    await page.evaluate(() => window.gameTest.stepFrames(Array(10).fill(0.05)));   // the swing is over
+    // Too far away: no hit
+    const far = await page.evaluate(() => {
+      const g = window.gameTest;
+      g.clearEnemies(); g.setYaw(0); g.settleCamera();
+      if (!g.enemyNear('goblin', 0, -11)) return { error: 'no far goblin' };
+      const en = g.enemies[0], [sx, sy] = g.screenOf(en), c = document.querySelector('canvas'), hp = en.hp;
+      const ev = t => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: sx, clientY: sy, pointerId: 5, button: 0 }));
+      ev('pointerdown'); ev('pointerup');
+      return { hit: en.hp < hp };
+    });
+    assert.equal(far.error, undefined, far.error);
+    assert.equal(far.hit, false, 'a monster out of reach was hit');
+    await page.evaluate(() => window.gameTest.stepFrames(Array(10).fill(0.05)));
     const b = await tapMonster(page, { hold: 60, shift: 3 });
+    assert.ok(b.held.hp < b.before.hp || !b.held.alive, 'the press hits');
+    assert.ok(b.heldLong.dur.sword < b.held.dur.sword, 'holding keeps hitting');
     assert.equal(b.error, undefined, b.error);
     assert.ok(b.heldLong.hp < b.before.hp || !b.heldLong.alive, 'holding hits the monster');
     assert.ok(b.heldLong.dur.sword < b.before.dur.sword, 'holding wears the sword');
@@ -1776,7 +1797,7 @@ for (const [label, device] of [['a phone held sideways', PHONE_WIDE], ['a phone 
 }
 
 // ---- Life bars for monsters (0.6.64) ----
-test('every monster has one life bar over its head; it shrinks and turns yellow, then red, as the monster is hit, and goes when the monster is defeated', { skip, timeout: 240000 }, () =>
+test('a monster shows a life bar over its head only once it has been hit; the bar shrinks and turns yellow, then red, and goes when the monster is defeated', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors) => {
     await playing(page);
     const r = await page.evaluate(() => {
@@ -1801,15 +1822,18 @@ test('every monster has one life bar over its head; it shrinks and turns yellow,
     for (const b of r.all) {
       assert.ok(b && b.inScene, 'a monster has no life bar');
       assert.equal(b.part, 1, 'a fresh monster does not have a full bar');
+      assert.equal(b.shown, false, 'a monster that has not been hit shows its life bar');
       assert.ok(b.above > 0.9 && b.above < 2.6, 'the bar is not just over the head of the ' + b.kind + ': ' + b.above);
       assert.ok(Math.abs(b.dx) < 1e-6 && Math.abs(b.dz) < 1e-6, 'the bar is not over its monster');
     }
     assert.deepEqual(r.count, { bars: r.monsters, inScene: r.monsters }, 'one bar for each monster');
     assert.equal(r.fresh.part, 1);
+    assert.equal(r.fresh.shown, false, 'the bar shows before the first hit');
     assert.equal(r.fresh.color, r.colors[0]);
     r.steps.forEach((b, i) => {
       const hp = r.full - 1 - i;
       assert.equal(b.hp, hp);
+      assert.equal(b.shown, true, 'the bar is hidden after a hit');
       assert.ok(Math.abs(b.part - hp / r.full) < 1e-9, 'the bar does not show ' + hp + ' of ' + r.full);
     });
     assert.equal(new Set(r.colors).size, 3, 'three colours');
