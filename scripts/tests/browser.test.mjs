@@ -112,14 +112,16 @@ async function setupPage(page, base, opts = {}) {
   const choice = opts.choice === undefined ? '0' : opts.choice;
   // opts.quiz: quiz friends are on, as for a real player. In the other tests they are switched off, so that the friend
   // who now comes at the start (0.6.67) does not stand in the way of a tap or change the message on screen
-  await page.addInitScript(({ saves, choice, quiz }) => {
+  // opts.vital: Vital the guide comes, as for a new player (0.6.73). In the other tests his tips are switched off.
+  await page.addInitScript(({ saves, choice, quiz, vital }) => {
     if (!sessionStorage.getItem('seeded')) {
       if (!quiz) localStorage.setItem('kidsgame.quiz', '0');
+      if (!vital) localStorage.setItem('kidsgame.vital', JSON.stringify({ on: false }));
       saves.forEach((j, i) => localStorage.setItem('kidsgame.slot.' + i, j));
       if (choice !== null) sessionStorage.setItem('kidsgame.choice', choice);
       sessionStorage.setItem('seeded', '1');
     }
-  }, { saves, choice, quiz: !!opts.quiz });
+  }, { saves, choice, quiz: !!opts.quiz, vital: !!opts.vital });
   if (opts.init) await page.addInitScript(opts.init);   // runs before the game, e.g. to stand in for the Android app
   await page.goto(base + '/play/', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof window.gameProbe === 'function', null, { timeout: 60000 });
@@ -2309,3 +2311,205 @@ for (const [name, device] of [['a phone held upright', { viewport: { width: 360,
       }
       assert.deepEqual(errors, [], errors.join('\n'));
     }, { device, saves: [readyGame()], quiz: true }));
+
+// ---- Vital the elephant, your guide (0.6.73, SPEC-011) ----
+// One second of play, many times over, with no monsters about; o.walk: the character is moving
+const playSeconds = (page, secs, o = {}) => page.evaluate(([secs, o]) => {
+  const g = window.gameTest;
+  // walking: W for a second, then S for a second, so the character keeps moving and stays near where it was
+  const key = (type, code) => dispatchEvent(new KeyboardEvent(type, { code, bubbles: true }));
+  let done = secs;
+  for (let s = 0; s < secs; s++) {
+    if (!o.monsters) g.clearEnemies();
+    if (o.walk) { key('keyup', s % 2 ? 'KeyW' : 'KeyS'); key('keydown', s % 2 ? 'KeyS' : 'KeyW'); }
+    g.stepFrames(Array(20).fill(0.05));
+    if (o.untilFriend && g.friend) { done = s + 1; break; }
+  }
+  if (o.walk) { key('keyup', 'KeyW'); key('keyup', 'KeyS'); g.stepFrames([0.05]); }
+  return done;
+}, [secs, o]);
+const tipState = page => page.evaluate(() => { const g = window.gameTest, p = document.getElementById('tipPanel');
+  return { open: g.tipOpen, text: g.tipText, buttons: p ? [...p.querySelectorAll('button')].map(b => b.textContent) : [], typing: p ? p.querySelectorAll('input,textarea,select,[contenteditable]').length : 0,
+    paused: g.paused, friend: g.friend, vital: g.vital, visit: g.vitalVisit, msg: g.msg, kept: localStorage.getItem('kidsgame.vital') }; });
+const tapTip = (page, cls) => page.evaluate(cls => document.querySelector('#tipPanel .' + cls).click(), cls);
+// Lets Vital walk up, then taps him
+const meetVital = async page => {
+  await page.evaluate(() => { const g = window.gameTest; for (let s = 0; s < 8; s++) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); } });
+  const t = await pressFriend(page);
+  assert.equal(t.error, undefined, t.error);
+  return tipState(page);
+};
+// Vital leaves: a wave, then he walks off and is gone
+const vitalGone = page => page.evaluate(() => { const g = window.gameTest; for (let s = 0; s < 8 && g.friend; s++) g.stepFrames(Array(20).fill(0.05)); return g.friend === null; });
+
+test('Vital comes within 5 seconds for a new player, with "!" and his name; a tap shows the first tip with "OK" and "No more tips"; after OK he leaves, a quiz friend waits 20 seconds, and he is back with the walking tip after 2 minutes of walking', { skip, timeout: 300000 }, () =>
+  withGame(async (page, errors, requests) => {
+    await playing(page);
+    const secs = await playSeconds(page, 6, { monsters: true, untilFriend: true });
+    let s = await tipState(page);
+    assert.ok(secs <= 5, 'Vital did not come within 5 seconds: ' + secs);
+    assert.equal(s.friend && s.friend.kind, 'vital', 'the first to come is not Vital');
+    assert.equal(s.friend.guide, true);
+    assert.equal(s.friend.bubble, true);
+    assert.equal(s.msg, 'Vital is here! Tap him to say hello.');
+    assert.equal(s.open, false, 'the tip opened by itself');
+    s = await meetVital(page);
+    assert.equal(s.open, true, 'a tap on Vital did not open the tip');
+    assert.equal(s.text, 'Hi! I am Vital. I can show you how to play.');
+    assert.deepEqual(s.buttons, ['OK', 'No more tips']);
+    assert.equal(s.typing, 0);
+    assert.equal(s.paused, true, 'the game does not stand still while the tip is open');
+    const sizes = await page.evaluate(() => { const r = c => document.querySelector('#tipPanel .' + c).getBoundingClientRect(); return { ok: r('tok').height, no: r('tno').height, okW: r('tok').width, noW: r('tno').width }; });
+    assert.ok(sizes.ok >= 60 && sizes.no >= 48 && sizes.ok > sizes.no && sizes.okW > sizes.noW, 'OK is not the big button: ' + JSON.stringify(sizes));
+    // (the game's own loop does not run while `paused` is set, so nothing moves while the panel is open)
+    const sent = requests.length;
+    await tapTip(page, 'tok');
+    s = await tipState(page);
+    assert.equal(s.open, false);
+    assert.equal(s.vital.seen, 1, 'the tip was not counted as seen');
+    assert.equal(s.friend.state, 'leave');
+    assert.equal(requests.filter(u => !/\/audio\//.test(u)).length, requests.slice(0, sent).filter(u => !/\/audio\//.test(u)).length, 'a request was made when a tip was shown');
+    assert.equal(await vitalGone(page), true, 'Vital did not leave');
+    // The first quiz friend comes 20 seconds after Vital has left, not sooner
+    assert.equal(await page.evaluate(() => Math.round(window.gameTest.friendWait)), 20);
+    assert.equal(await playSeconds(page, 18, { untilFriend: true }), 18, 'a quiz friend came sooner than 20 seconds after Vital left');
+    await playSeconds(page, 6, { untilFriend: true });
+    s = await tipState(page);
+    assert.ok(s.friend && !s.friend.guide, 'no quiz friend came after Vital left');
+    // No Vital while a quiz friend is on screen, even when his wait is over
+    await page.evaluate(() => window.gameTest.setVitalWait(0));
+    await playSeconds(page, 3, { walk: true });
+    assert.equal((await tipState(page)).friend.guide, false);
+    // Standing still, he does not come back; after 2 minutes of walking he does, with the walking tip in keyboard wording
+    await page.evaluate(() => { window.gameTest.setVitalWait(120); window.gameTest.removeFriend(); window.gameTest.setFriendWait(9999); });
+    await playSeconds(page, 30);
+    assert.equal((await tipState(page)).friend, null, 'Vital came back while the child stood still');
+    const walked = await playSeconds(page, 130, { walk: true, untilFriend: true });
+    assert.ok(walked >= 115 && walked <= 125, 'Vital came back after ' + walked + ' seconds of walking, not about 2 minutes');
+    s = await meetVital(page);
+    assert.equal(s.text, 'Use W A S D to walk. Press Space to jump.');
+    // Esc leaves the tip unseen; he waits 20 seconds more, then leaves
+    await page.keyboard.press('Escape');
+    s = await tipState(page);
+    assert.deepEqual([s.open, s.vital.seen, Math.round(s.friend.age)], [false, 1, 70]);
+    await playSeconds(page, 30);
+    assert.equal((await tipState(page)).friend, null, 'Vital did not leave after the tip was closed');
+    assert.deepEqual(JSON.parse((await tipState(page)).kept), { on: true, seen: 1, ask: false, skip: 0 });
+    const out = requests.filter(u => !u.startsWith('http://127.0.0.1') && !/cdn\.jsdelivr\.net/.test(u) && !u.startsWith('data:') && !u.startsWith('blob:'));
+    assert.deepEqual(out, [], 'requests to other places');
+    assert.deepEqual(errors, [], errors.join('\n'));
+  }, { saves: [readyGame()], quiz: true, vital: true }));
+
+test('after "No more tips" Vital stays away for the rest of the visit and the next two; on the third he asks "Do you want tips?", and "Yes" shows the next unseen tip', { skip, timeout: 300000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    await playSeconds(page, 6, { untilFriend: true });
+    let s = await meetVital(page);
+    assert.equal(s.open, true);
+    await tapTip(page, 'tno');
+    s = await tipState(page);
+    assert.equal(s.msg, 'OK! I will say hello another day.');
+    assert.deepEqual([s.open, s.vital.seen, s.vital.ask, s.vital.skip, s.visit.due], [false, 0, true, 2, false]);
+    await vitalGone(page);
+    await page.evaluate(() => { window.gameTest.setFriendWait(9999); window.gameTest.setVitalWait(0); });
+    await playSeconds(page, 200, { walk: true });
+    assert.equal((await tipState(page)).friend, null, 'Vital came back in the same visit');
+    // The next two visits: he does not come, and the quiz friend comes at 3 seconds as before
+    for (const left of [1, 0]) {
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await playing(page);
+      await playSeconds(page, 6, { untilFriend: true });
+      s = await tipState(page);
+      assert.ok(s.friend && !s.friend.guide, 'Vital came in a visit he should stay away for');
+      assert.deepEqual([s.vital.ask, s.vital.skip], [true, left]);
+    }
+    // The third visit: he asks; closing the question keeps him asking next time; "Yes" shows the first unseen tip
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await playing(page);
+    await playSeconds(page, 6, { untilFriend: true });
+    s = await meetVital(page);
+    assert.equal(s.friend.kind, 'vital');
+    assert.equal(s.text, 'Hi again! Do you want tips?');
+    assert.deepEqual(s.buttons, ['Yes', 'Not now']);
+    await tapTip(page, 'tyes');
+    s = await tipState(page);
+    assert.equal(s.text, 'Hi! I am Vital. I can show you how to play.');
+    assert.deepEqual([s.vital.ask, s.vital.skip], [false, 0]);
+    await tapTip(page, 'tok');
+    assert.equal((await tipState(page)).vital.seen, 1);
+    await vitalGone(page);
+    // "Not now" sends him away for another three visits; with every tip seen he asks, and "Yes" gives one tip again
+    await page.evaluate(() => window.gameTest.setVital({ on: true, seen: 12, ask: true, skip: 0 }));
+    await page.evaluate(() => { window.gameTest.removeFriend(); window.gameTest.setFriendWait(9999); });
+    await playSeconds(page, 6, { untilFriend: true });
+    s = await meetVital(page);
+    assert.equal(s.text, 'Hi again! Do you want tips?');
+    await tapTip(page, 'tyes');
+    s = await tipState(page);
+    assert.ok(await page.evaluate(t => window.gameTest.VITAL_TIPS.some(tip => tip.includes(t)), s.text), 'not one of the twelve tips: ' + s.text);
+    await tapTip(page, 'tok');
+    s = await tipState(page);
+    assert.deepEqual([s.vital.seen, s.vital.ask, s.vital.skip], [12, true, 2]);
+    await vitalGone(page);
+    await page.evaluate(() => window.gameTest.setVital({ on: true, seen: 3, ask: true, skip: 0 }));
+    await playSeconds(page, 6, { untilFriend: true });
+    await meetVital(page);
+    await tapTip(page, 'tnot');
+    s = await tipState(page);
+    assert.deepEqual([s.open, s.vital.seen, s.vital.ask, s.vital.skip, s.visit.due], [false, 3, true, 2, false]);
+    assert.deepEqual(errors, [], errors.join('\n'));
+  }, { saves: [readyGame()], quiz: true, vital: true }));
+
+test('Vital on a phone: touch wording, at most 4 visits from him in one visit, never while a panel is open; he cannot be dug under; with "Tips from Vital" off he never comes, and the switch is remembered', { skip, timeout: 300000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    await page.evaluate(() => window.gameTest.setFriendWait(9999));
+    await playSeconds(page, 6, { untilFriend: true });
+    let s = await meetVital(page);
+    assert.equal(s.text, 'Hi! I am Vital. I can show you how to play.');
+    const fit = await page.evaluate(() => { const b = document.querySelector('#tipPanel .tbox').getBoundingClientRect(); return b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight; });
+    assert.ok(fit, 'the tip does not fit the phone screen');
+    // he stands on a block that cannot be dug or built into
+    assert.equal(await page.evaluate(() => { const g = window.gameTest, f = g.friend; return g.friendOn(Math.floor(f.x), Math.floor(f.y + 0.5) - 1, Math.floor(f.z)); }), true);
+    await tapTip(page, 'tok');
+    await vitalGone(page);
+    const texts = [];
+    for (let i = 0; i < 3; i++) {
+      await page.evaluate(() => window.gameTest.setVitalWait(0));
+      await playSeconds(page, 4, { walk: true, untilFriend: true });
+      s = await meetVital(page);
+      texts.push(s.text);
+      await tapTip(page, 'tok');
+      await vitalGone(page);
+    }
+    assert.deepEqual(texts, ['Push the thumb stick to walk. Tap JUMP to jump.', 'Drag sideways with a finger to turn the view.', 'Choose the pickaxe. Hold a finger on a block to dig it.']);
+    // four visits from him: no fifth in this visit
+    await page.evaluate(() => window.gameTest.setVitalWait(0));
+    await playSeconds(page, 10, { walk: true });
+    s = await tipState(page);
+    assert.deepEqual([s.friend, s.visit.came, s.vital.seen], [null, 4, 4]);
+    // a new visit: not while a monster is within 10 blocks (after the start of the visit), and not while a panel is open
+    await page.evaluate(() => { const g = window.gameTest; g.setVital({ on: true, seen: 4, ask: false, skip: 0 }); g.setFriendWait(9999); });
+    await playSeconds(page, 6, { untilFriend: true });
+    await meetVital(page); await tapTip(page, 'tok'); await vitalGone(page);
+    await page.dispatchEvent('#settingsBtn', 'click');
+    const blocked = await page.evaluate(() => { const g = window.gameTest; g.setVitalWait(0); g.clearEnemies(); for (let s = 0; s < 3; s++) { g.walkAway(0.3); g.stepFrames(Array(20).fill(0.05)); } return g.friend; });
+    assert.equal(blocked, null, 'Vital came while Settings was open');
+    // the Settings switch: on at first; off, he never comes; remembered after closing and reopening
+    assert.equal(await page.evaluate(() => window.gameTest.vitalVisit.wait <= 0), true);
+    assert.equal(await page.evaluate(() => document.getElementById('vitalSwitch').textContent), 'On');
+    await page.dispatchEvent('#vitalSwitch', 'click');
+    assert.equal(await page.evaluate(() => document.getElementById('vitalSwitch').textContent), 'Off');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => window.gameTest.settingsOpen), false, 'Settings did not close');
+    await page.evaluate(() => window.gameTest.setVitalWait(0));
+    await playSeconds(page, 20, { walk: true });
+    assert.equal((await tipState(page)).friend, null, 'Vital came with his tips switched off');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await playing(page);
+    await page.evaluate(() => window.gameTest.setFriendWait(9999));
+    await playSeconds(page, 10, { walk: true });
+    s = await tipState(page);
+    assert.deepEqual([s.friend, s.vital.on, s.vital.seen], [null, false, 5], 'the switch or the tips seen were not remembered');
+    assert.deepEqual(errors, [], errors.join('\n'));
+  }, { device: { viewport: { width: 360, height: 740 }, hasTouch: true, isMobile: true }, saves: [readyGame()], quiz: true, vital: true }));

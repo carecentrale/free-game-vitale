@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.72 (3D)</title>
+<title>Adventurers of Drenerics v0.6.73 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -117,6 +117,14 @@
   #slots button.play{background:#3b6fd8;border-color:#3b6fd8}
   #slots button:disabled{opacity:.4;cursor:default}
   #wizErr{color:#ffab9f;min-height:20px;margin-top:8px;font-size:14px}
+  /* Vital's tip panel (0.6.73): one tip in large letters, a big "OK" and a smaller "No more tips" */
+  #tipPanel{position:fixed;inset:0;background:rgba(10,12,25,.8);display:flex;align-items:center;justify-content:center;z-index:55;padding:8px;box-sizing:border-box}
+  #tipPanel .tbox{background:#1d2440;color:#fff;border-radius:18px;padding:clamp(12px,3vmin,22px);width:min(520px,100%);max-height:100%;overflow:auto;box-sizing:border-box;text-align:center;font-family:system-ui,sans-serif}
+  #tipPanel .tname{font-size:clamp(15px,3.8vmin,19px);font-weight:700;color:#ffd54a}
+  #tipPanel .ttext{font-size:clamp(22px,6vmin,32px);font-weight:700;margin:8px 0 14px;line-height:1.25}
+  #tipPanel button{display:block;margin:0 auto;font-family:inherit;color:#fff;cursor:pointer}
+  #tipPanel .tbig{min-height:clamp(60px,15vmin,84px);width:min(320px,100%);border:3px solid rgba(255,255,255,.35);border-radius:16px;background:#2e9e4f;font-size:clamp(24px,6.5vmin,34px);font-weight:700}
+  #tipPanel .tsmall{margin-top:10px;min-height:48px;min-width:160px;padding:8px 20px;border:2px solid rgba(255,255,255,.35);border-radius:12px;background:transparent;font-size:clamp(15px,4vmin,18px)}
   /* Quiz Friends question panel (0.6.63): large text, three big answer buttons and "Not now"; it fits a phone held either way */
   #quizPanel{position:fixed;inset:0;background:rgba(10,12,25,.8);display:flex;align-items:center;justify-content:center;z-index:55;padding:8px;box-sizing:border-box}
   #quizPanel .qbox{position:relative;background:#1d2440;color:#fff;border-radius:18px;padding:clamp(10px,3vmin,20px);width:min(560px,100%);max-height:100%;overflow:auto;box-sizing:border-box;text-align:center}
@@ -1205,7 +1213,7 @@ bindBtn('bJ', 'J');
 // Hand 1 and Hand 2 are quick bar slots 1 and 2. A tap only puts that item in the hand; the game never moves an item
 // onto a hand button or changes the item in hand by itself. An empty hand button opens the bag with its slot chosen.
 // With the bag, Settings, the quit question or another panel open, the buttons do nothing.
-const anyPanelOpen = () => bagOpen || settingsOpen || quitOpen || !!skillPanel || !!quizPanel || paused;
+const anyPanelOpen = () => bagOpen || settingsOpen || quitOpen || !!skillPanel || !!quizPanel || !!tipPanel || paused;
 // The item a hand button shows. A stack that has run out counts as empty.
 const handItem = i => { const id = qb[i], d = id ? defOf(id) : null; return d && !(ITEMS[id] && d.kind !== 'spell' && !(inv[id] > 0)) ? id : null; };
 function handTap(i) {
@@ -1468,6 +1476,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.73', title: 'Meet Vital the elephant', items: [
+    'Meet Vital the elephant! He walks up with a ! and shows you how to play, one tip at a time. Tap No more tips if you know it all',
+    'Settings has a "Tips from Vital" switch to turn his tips off or on'] },
   { v: '0.6.72', title: '100 Maths levels and 100 Words levels', items: [
     'Quiz friends now have 100 Maths levels and 100 Words levels. Answer right and your level goes up, with bigger sums and longer words to spell',
     'Each question shows your Maths level or your Words level. A wrong answer never takes a level away',
@@ -1713,6 +1724,9 @@ function renderSettings() {
     // Quiz friends switch (0.6.63): on at first, kept on this device
     `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#10067; Quiz friends</b><div style="font-size:13px;opacity:.8;margin-top:2px">A friendly character asks a maths question or a word to spell, for gems</div></div>` +
     `<button id="quizSwitch" style="flex:none;min-height:48px;min-width:96px;border:0;border-radius:12px;font-size:17px;font-weight:600;color:#fff;cursor:pointer;background:${quizOn ? '#2e9e4f' : '#666b80'}">${quizOn ? 'On' : 'Off'}</button></div>` +
+    // Tips from Vital switch (0.6.73): on at first, kept on this device
+    `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#128024; Tips from Vital</b><div style="font-size:13px;opacity:.8;margin-top:2px">Vital the elephant comes around and shows how to play</div></div>` +
+    `<button id="vitalSwitch" style="flex:none;min-height:48px;min-width:96px;border:0;border-radius:12px;font-size:17px;font-weight:600;color:#fff;cursor:pointer;background:${vital.on ? '#2e9e4f' : '#666b80'}">${vital.on ? 'On' : 'Off'}</button></div>` +
     `<details style="margin-top:14px"><summary style="cursor:pointer;padding:12px 0">Music, sound and picture credits</summary><div id="creditList" style="font-size:13px;opacity:.9">${creditsHtml()}</div><div id="picCredit" style="font-size:13px;opacity:.9;margin-top:8px">Pictures in word questions: Twemoji, copyright Twitter, Inc and other contributors, licensed under CC BY 4.0.</div></details>` +
     `<div style="margin-top:10px"><b>Game version ${esc(VERSION)}</b></div>` +
     // The list of changes is folded away, so the Quit button below is easy to reach
@@ -1735,6 +1749,7 @@ settingsEl.addEventListener('click', e => {
   if (e.target.closest('#settingsClose')) toggleSettings(false);
   // Quit the game: Settings closes and the same question as Esc and Back is asked (0.6.60)
   else if (e.target.closest('#settingsQuit')) { toggleSettings(false); toggleQuit(true); }
+  else if (e.target.closest('#vitalSwitch')) { setVitalOn(!vital.on); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
   else if (e.target.closest('#quizSwitch')) { setQuizOn(!quizOn); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
 });
 // Volume sliders: tap a step, or drag along the track
@@ -1787,7 +1802,8 @@ function quitGame() {
 }
 // Esc and the Android Back button: close an open panel first; with nothing open, ask whether to quit
 function backAction() {
-  if (quizPanel) quizNotNow();
+  if (tipPanel) tipClose();
+  else if (quizPanel) quizNotNow();
   else if (quitOpen) toggleQuit(false);
   else if (settingsOpen) toggleSettings(false);
   else if (bagOpen) toggleBag(false);
@@ -2854,6 +2870,144 @@ function updateDig(dt) {
   }
 }
 
+// ---- Vital the elephant, your guide (0.6.73, SPEC-011) ----
+// A small grey elephant, made here in code, comes around and shows a new player how to play, one short tip at a time.
+// He only gives tips: no questions and no gems. The child can say "OK" or "No more tips"; then he stays away and
+// checks in again every third visit. Which tips were seen, that choice, the count of visits and the Settings switch
+// are kept on this device only. Nothing is sent or logged.
+const VITAL_TIPS = [   // [on a tablet or phone, on a computer (left out when it is the same)]
+  ['Hi! I am Vital. I can show you how to play.'],
+  ['Push the thumb stick to walk. Tap JUMP to jump.', 'Use W A S D to walk. Press Space to jump.'],
+  ['Drag sideways with a finger to turn the view.', 'Drag sideways with the mouse to turn the view.'],
+  ['Choose the pickaxe. Hold a finger on a block to dig it.', 'Choose the pickaxe. Hold the mouse button on a block to dig it.'],
+  ['Choose a block. Tap the side or top of another block to build.', 'Choose a block. Click the side or top of another block to build.'],
+  ['Gems sparkle inside some blocks. Dig the block to get the gem.'],
+  ['Tap Bag to see your things. Tap one to put it in your quick bar.', 'Press B to see your things. Click one to put it in your quick bar.'],
+  ['Monsters never hurt you. Choose the sword and tap one to hit it.', 'Monsters never hurt you. Choose the sword and click one to hit it.'],
+  ['A friend with a ? has a question. A right answer gives you gems.'],
+  ['Bag full? Open the bag and tap Drop to make room.', 'Bag full? Open the bag and click Drop to make room.'],
+  ['In water, hold JUMP to swim up.', 'In water, hold Space to swim up.'],
+  ['Lost? Tap the teleport button. After a wait it takes you back to the start.'],
+];
+const VITAL_FIRST = 3;          // at the start of a visit he comes this many seconds after play starts
+const VITAL_GAP = 120;          // then again after this many seconds of the child moving about
+const VITAL_MAX = 4;            // he comes at most this many times in one visit
+const VITAL_SKIP = 2;           // after "No more tips" he stays away for the rest of the visit and this many more visits
+const VITAL_FRIEND_AFTER = 20;  // a quiz friend comes no sooner than this many seconds after Vital has left
+const VITAL_KEY = 'kidsgame.vital';
+// on: the "Tips from Vital" switch. seen: how many tips, in order, were answered with OK. ask: he is away and will
+// ask "Do you want tips?" when he is back. skip: visits still to stay away.
+function vitalFrom(v) {
+  const out = { on: true, seen: 0, ask: false, skip: 0 };
+  if (!v || typeof v !== 'object') return out;
+  out.on = v.on !== false;
+  if (Number.isInteger(v.seen) && v.seen >= 0) out.seen = Math.min(v.seen, VITAL_TIPS.length);
+  out.ask = v.ask === true;
+  if (Number.isInteger(v.skip) && v.skip >= 0) out.skip = Math.min(v.skip, VITAL_SKIP);
+  return out;
+}
+let vital = vitalFrom(null);
+try { vital = vitalFrom(JSON.parse(localStorage.getItem(VITAL_KEY))); } catch (e) {}
+function vitalSave() { try { localStorage.setItem(VITAL_KEY, JSON.stringify(vital)); } catch (e) {} }
+let vitalVisit = null;          // this visit: is he due, how often he came, the wait until he comes next
+let tipPanel = null;            // the open tip panel, if any
+// A visit is one opening of the game in which play starts. A visit he stays away for is counted here.
+function vitalStartVisit() {
+  let due = true;
+  if (vital.ask && vital.skip > 0) { vital.skip--; vitalSave(); due = false; }
+  vitalVisit = { due, came: 0, wait: VITAL_FIRST, first: true };
+}
+// True when he should still come in this visit: tips are on, and a tip is left or it is time to ask again
+const vitalDue = () => vital.on && !!vitalVisit && vitalVisit.due && vitalVisit.came < VITAL_MAX && (vital.ask || vital.seen < VITAL_TIPS.length);
+const vitalTipText = i => { const t = VITAL_TIPS[i]; return isTouch ? t[0] : t[1] || t[0]; };
+// Called when Vital has left: he comes back after two minutes of moving about. If he asked "Do you want tips?" and
+// got no answer, he does not ask again in this visit.
+function vitalLeft() {
+  if (!vitalVisit) return;
+  vitalVisit.first = false;
+  vitalVisit.wait = VITAL_GAP;
+  if (vital.ask) vitalVisit.due = false;
+}
+// The tip panel: one tip in large letters with "OK" and "No more tips", or his question with "Yes" and "Not now".
+// It opens only on a tap on Vital. The game stands still while it is open. No timer and nowhere to type.
+function renderTip() {
+  const f = friend, asking = f.tip === null;
+  tipPanel.innerHTML = '<div class="tbox"><div class="tname">Vital</div>' +
+    `<div class="ttext">${esc(asking ? 'Hi again! Do you want tips?' : vitalTipText(f.tip))}</div>` +
+    (asking ? '<button class="tbig tyes">Yes</button><button class="tsmall tnot">Not now</button>' : '<button class="tbig tok">OK</button><button class="tsmall tno">No more tips</button>') + '</div>';
+}
+function openTip() {
+  if (!friend || !friend.guide || tipPanel) return;
+  const f = friend;
+  if (f.tip === undefined) f.tip = vital.ask ? null : vital.seen;   // null: he asks whether tips are wanted
+  if (f.state === 'come') f.state = 'wait';
+  paused = true;
+  const el = document.createElement('div');
+  el.id = 'tipPanel';
+  el.addEventListener('click', e => {
+    if (e.target.closest('.tok')) tipOk();
+    else if (e.target.closest('.tno')) tipNoMore();
+    else if (e.target.closest('.tyes')) tipYes();
+    else if (e.target.closest('.tnot')) tipNotNow();
+    else if (e.target === el) tipClose();   // a tap outside the box
+  });
+  document.body.appendChild(el);
+  tipPanel = el;
+  renderTip();
+  sfx('open');
+}
+function closeTip() {
+  if (!tipPanel) return;
+  tipPanel.remove();
+  tipPanel = null;
+  paused = false;
+  sfx('close');
+}
+// Closed any other way (Esc, the Back button, a tap outside): the tip stays unseen. He waits 20 seconds more, then leaves.
+function tipClose() {
+  if (!tipPanel) return;
+  closeTip();
+  if (friend && friend.guide) friend.age = Math.max(friend.age, FRIEND_STAY - 20);
+}
+// "OK": the tip counts as seen, and he waves and leaves. After the last tip he checks in every third visit.
+function tipOk() {
+  const f = friend;
+  if (!tipPanel || !f || !f.guide || f.tip === null) return;
+  if (!f.again) vital.seen = Math.max(vital.seen, f.tip + 1);
+  if (f.again || vital.seen >= VITAL_TIPS.length) { vital.ask = true; vital.skip = VITAL_SKIP; vitalVisit.due = false; }
+  vitalSave();
+  closeTip();
+  friendLeave();
+}
+// "No more tips" and "Not now": he leaves, and stays away for the rest of this visit and the next two
+function vitalAway(text) {
+  if (!tipPanel || !friend || !friend.guide) return;
+  vital.ask = true; vital.skip = VITAL_SKIP;
+  if (vitalVisit) vitalVisit.due = false;
+  vitalSave();
+  closeTip();
+  if (text) say(text, 3000);
+  friendLeave();
+}
+const tipNoMore = () => vitalAway('OK! I will say hello another day.');
+const tipNotNow = () => vitalAway('');
+// "Yes" to "Do you want tips?": the tips come back from where they stopped; with every tip seen, one tip again, chosen at random
+function tipYes() {
+  const f = friend;
+  if (!tipPanel || !f || !f.guide || f.tip !== null) return;
+  if (vital.seen < VITAL_TIPS.length) { vital.ask = false; vital.skip = 0; f.tip = vital.seen; }
+  else { f.tip = Math.floor(Math.random() * VITAL_TIPS.length); f.again = true; }
+  vitalSave();
+  renderTip();
+  sfx('tap');
+}
+// The "Tips from Vital" switch in Settings. Off: he leaves at once and never comes.
+function setVitalOn(on) {
+  vital.on = !!on;
+  vitalSave();
+  if (!vital.on && friend && friend.guide) { closeTip(); removeFriend(); }
+}
+
 // ---- Quiz questions (0.6.63, SPEC-003): made at random by this code, which also works out the right answer ----
 // No internet and no AI at play time. Nothing about questions or answers is stored, logged or sent: the last 10
 // questions are remembered only while the game is open, so that none repeats. From 0.6.72 (SPEC-004) the questions
@@ -3190,6 +3344,21 @@ function friendModel(kind) {
     const tail = cone(0.05, 0.16, 0x9bdc76, 0, 0.14, -0.5); tail.rotation.x = -Math.PI / 2;
     const left = pivot(-0.36, 0.16, 0.26); ball(0.12, 0x9bdc76, -0.08, -0.06, 0.02, 1.3, 0.6, 1, left);
     wave = pivot(0.36, 0.2, 0.26); ball(0.12, 0x9bdc76, 0.1, 0, 0.02, 1.4, 0.6, 1, wave);
+  } else if (kind === 'vital') {   // Vital the elephant (0.6.73): an original cartoon elephant in simple shapes
+    const grey = 0xb4bac4, pale = 0xdfe3ea;
+    top = 1.42;
+    ball(0.36, grey, 0, 0.5, -0.06, 1, 0.95, 1.15);                 // rounded body
+    ball(0.33, grey, 0, 1.0, 0.1);                                  // large round head
+    for (const s of [-1, 1]) {
+      ball(0.27, grey, s * 0.43, 1.05, 0.02, 1, 1, 0.2);            // large round ears: grey outside
+      ball(0.2, 0xffffff, s * 0.43, 1.05, 0.075, 1, 1, 0.2);         // and white inside
+      ball(0.045, 0x151515, s * 0.13, 1.09, 0.4);                   // small black eyes
+      for (const z of [0.2, -0.3]) { tube(0.1, 0.26, grey, s * 0.19, 0.13, z); tube(0.11, 0.07, pale, s * 0.19, 0.035, z); }   // four short legs with paler feet
+    }
+    ball(0.06, 0xf28aa5, 0, 0.8, 0.35, 1.3, 0.5, 0.7);              // small pink mouth under the trunk
+    wave = pivot(0, 0.97, 0.38);                                    // the trunk reaches forward, and waves
+    [[0.105, -0.03, 0.06], [0.095, -0.12, 0.15], [0.085, -0.2, 0.25], [0.075, -0.26, 0.36]].forEach(([r, y, z]) => ball(r, grey, 0, y, z, 1, 1, 1, wave));
+    ball(0.075, pale, 0, -0.29, 0.46, 1, 1, 1, wave);               // paler tip
   } else {
     box(0.5, 0.48, 0.36, 0x6fa8dc, 0, 0.52, 0);                     // body
     ball(0.06, 0xffd54a, 0, 0.58, 0.19, 1, 1, 0.5);                 // chest light
@@ -3210,13 +3379,25 @@ function friendModel(kind) {
   cx.fillStyle = '#fff'; cx.strokeStyle = '#1d2440'; cx.lineWidth = 6;
   cx.beginPath(); cx.arc(64, 56, 48, 0, Math.PI * 2); cx.fill(); cx.stroke();
   cx.beginPath(); cx.moveTo(50, 98); cx.lineTo(64, 124); cx.lineTo(78, 98); cx.closePath(); cx.fill();
-  cx.fillStyle = '#3b6fd8'; cx.font = 'bold 76px sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('?', 64, 60);
+  cx.fillStyle = '#3b6fd8'; cx.font = 'bold 76px sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(kind === 'vital' ? '!' : '?', 64, 60);
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   const bubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false }));
   bubble.scale.set(0.7, 0.7, 1);
-  bubble.position.y = top + 0.45;
+  const up = kind === 'vital' ? 0.9 : 0.45;   // Vital's bubble sits above his name
+  bubble.position.y = top + up;
   g.add(bubble);
-  g.userData = { wave, bubble, top, flipper: kind === 'turtle' };
+  if (kind === 'vital') {   // his name over his head, drawn in code: it is fixed and cannot be changed
+    const n = document.createElement('canvas'); n.width = 256; n.height = 96;
+    const nx = n.getContext('2d');
+    nx.fillStyle = 'rgba(20,24,45,.85)'; nx.fillRect(8, 8, 240, 80);
+    nx.fillStyle = '#fff'; nx.font = 'bold 58px sans-serif'; nx.textAlign = 'center'; nx.textBaseline = 'middle'; nx.fillText('Vital', 128, 52);
+    const nt = new THREE.CanvasTexture(n); nt.colorSpace = THREE.SRGBColorSpace;
+    const name = new THREE.Sprite(new THREE.SpriteMaterial({ map: nt, depthWrite: false }));
+    name.scale.set(0.9, 0.34, 1);
+    name.position.y = top + 0.28;
+    g.add(name);
+  }
+  g.userData = { wave, bubble, top, up, flipper: kind === 'turtle', trunk: kind === 'vital' };
   return g;
 }
 
@@ -3239,12 +3420,12 @@ function spawnFriend(forceKind) {
     let y = friendFloor(x, z, py);
     if (y === null && tries >= 20) { y = H - 1; while (y > 1 && get(Math.floor(x), y - 1, Math.floor(z)) === T.AIR) y--; }   // the child is underground: come to the surface above
     if (y === null || !solid(get(Math.floor(x), y - 1, Math.floor(z)))) continue;   // dry ground only
-    const kind = FRIEND_KINDS.includes(forceKind) ? forceKind : pick(FRIEND_KINDS);
+    const kind = forceKind === 'vital' || FRIEND_KINDS.includes(forceKind) ? forceKind : pick(FRIEND_KINDS);
     const group = friendModel(kind);
     group.position.set(x, y, z);
     scene.add(group);
-    friend = { kind, group, x, y, z, state: 'come', age: 0, leaveT: 0, q: null, wrong: 0 };
-    say('A friend is here! Tap it to say hello.', 3000);
+    friend = { kind, group, x, y, z, state: 'come', age: 0, leaveT: 0, q: null, wrong: 0, guide: kind === 'vital' };
+    say(friend.guide ? 'Vital is here! Tap him to say hello.' : 'A friend is here! Tap it to say hello.', 3000);
     return true;
   }
   return false;
@@ -3253,6 +3434,12 @@ function removeFriend() {
   if (!friend) return;
   scene.remove(friend.group);
   friend.group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
+  if (friend.guide) {   // Vital has left: the quiz friends' own wait goes on, and none comes sooner than 20 seconds from now
+    friend = null;
+    friendWait = friendFirst ? VITAL_FRIEND_AFTER : Math.max(friendWait, VITAL_FRIEND_AFTER);
+    vitalLeft();
+    return;
+  }
   // After a right answer the next friend comes a minute of moving about later; otherwise 4 to 7 minutes of play later
   friendOnMove = !!friend.done;
   friendWait = friend.done ? FRIEND_AFTER_SOLVE : friendGap();
@@ -3263,6 +3450,16 @@ function friendLeave() { if (friend && friend.state !== 'leave') { friend.state 
 const friendOn = (x, y, z) => !!friend && Math.floor(friend.x) === x && Math.floor(friend.z) === z && y >= Math.floor(friend.y + 0.5) - 1 && y <= Math.floor(friend.y + 0.5) + 1;
 function updateFriend(dt) {
   if (!friend) {
+    // Vital the guide (0.6.73): at the start of a visit he comes before the first quiz friend; later, after two minutes of moving about
+    if (!vitalVisit) vitalStartVisit();
+    if (vitalDue()) {
+      if (vitalVisit.first || Math.hypot(vx, vz) > 0.1) vitalVisit.wait -= dt;
+      if (vitalVisit.wait <= 0 && !anyPanelOpen() && (vitalVisit.first || !monsterNear(FRIEND_MONSTER_CLEAR))) {
+        if (spawnFriend('vital')) { vitalVisit.came++; return; }
+        vitalVisit.wait = 1;
+      }
+      if (vitalVisit.first) return;
+    }
     if (!quizOn) return;
     if (!friendOnMove || Math.hypot(vx, vz) > 0.1) friendWait -= dt;
     // Never while a monster is close or a panel is open: it waits for a calm moment. (The first friend of a visit does not wait for monsters.)
@@ -3293,10 +3490,11 @@ function updateFriend(dt) {
   g.rotation.y = Math.atan2(away ? -dx : dx, away ? -dz : dz);
   g.scale.setScalar(f.state === 'leave' ? Math.max(0.05, Math.min(1, FRIEND_LEAVE_TIME - f.leaveT)) : 1);   // it shrinks away in its last second
   const w = Math.sin(now * 7);
-  if (u.flipper) u.wave.rotation.z = away ? 0 : 0.55 + w * 0.45;
+  if (u.trunk) u.wave.rotation.x = away ? 0 : -0.85 + w * 0.4;      // the trunk is up and waving
+  else if (u.flipper) u.wave.rotation.z = away ? 0 : 0.55 + w * 0.45;
   else u.wave.rotation.z = away ? 0.25 : 2.3 + w * 0.5;             // the arm or wing is up and waving
   u.bubble.visible = f.state !== 'leave';
-  u.bubble.position.y = u.top + 0.45 + Math.sin(now * 3) * 0.05;
+  u.bubble.position.y = u.top + u.up + Math.sin(now * 3) * 0.05;
 }
 // The friend under the screen point (x, y), or null. Counts anywhere inside its outline on screen, like a monster.
 function friendAt(x, y) {
@@ -3326,7 +3524,7 @@ function friendBubblePoint() {
 function tapFriend() {
   if (!friend || friend.state === 'leave' || anyPanelOpen()) return;
   if (Math.hypot(friend.x - px, friend.z - pz) > FRIEND_REACH) { say('Walk closer to your friend.', 2000); return; }
-  openQuiz();
+  if (friend.guide) openTip(); else openQuiz();
 }
 
 // The quiz report as a small table, for the parent area
@@ -3371,7 +3569,7 @@ function quizHintHtml(q) {
 const QUIZ_PIC_BASE = new URL('../quiz/pics/', location.href).href;
 const quizLevelLabel = (sub, n) => (sub === 'words' ? 'Words' : 'Maths') + ' level ' + n;
 function openQuiz() {
-  if (!friend || quizPanel) return;
+  if (!friend || friend.guide || quizPanel) return;
   const f = friend;
   if (!f.q) { f.q = nextQuestion(); f.wrong = 0; f.spell = []; f.fixed = 0; quizCount(quizSubject(f.q.kind), 'opened'); }
   if (f.state === 'come') f.state = 'wait';
@@ -3504,7 +3702,7 @@ function quizWin() {
 function setQuizOn(on) {
   quizOn = !!on;
   try { localStorage.setItem('kidsgame.quiz', quizOn ? '1' : '0'); } catch (e) {}
-  if (!quizOn && friend) { closeQuiz(); removeFriend(); }
+  if (!quizOn && friend && !friend.guide) { closeQuiz(); removeFriend(); }
 }
 
 // ---- Game loop ----
@@ -3776,7 +3974,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.72';
+const VERSION = '0.6.73';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -4394,6 +4592,11 @@ window.gameTest = {
   lifeBarCount: () => { let n = 0; scene.traverse(o => { if (o.isSprite && [...lifeBars.values()].some(b => b.sprite === o)) n++; }); return { bars: lifeBars.size, inScene: n }; }, lifeColor,
   HOLD_MS, holdOpensBag,   // holding a quick bar slot opens the bag for it (0.6.68)
   // Word scramble and the quiz report (0.6.65)
+  // Vital the guide (0.6.73)
+  get vital() { return { ...vital }; }, get vitalVisit() { return vitalVisit ? { ...vitalVisit } : null; }, VITAL_TIPS, vitalFrom, vitalTipText, setVitalOn, openTip, tipClose,
+  setVital: v => { vital = vitalFrom(v); vitalSave(); vitalStartVisit(); },   // sets what the device remembers, and starts a visit with it
+  setVitalWait: s => { if (!vitalVisit) vitalStartVisit(); vitalVisit.wait = s; }, callVital: () => spawnFriend('vital'),
+  get tipOpen() { return !!tipPanel; }, get tipText() { return tipPanel ? tipPanel.querySelector('.ttext').textContent : null; },
   // Learning level (0.6.72)
   get quizLevels() { return JSON.parse(JSON.stringify(quizLevels)); }, setQuizLevels: v => { quizLevels = quizLevelsFrom(v); }, quizFirstAnswer, quizSetBand, quizSetLevel, quizLevelsRestart, QUIZ_BANDS, QUIZ_MATH_ROWS, QUIZ_WORD_ROWS,
   askQuiz: (kind, level) => { if (!friend) return null; friend.q = makeQuestion(kind, Math.random, level, 1); friend.wrong = 0; friend.spell = []; friend.fixed = 0; return { ...friend.q }; },
@@ -4401,7 +4604,7 @@ window.gameTest = {
   get quizSpell() { return friend && friend.q && friend.q.kind === 'word' ? { letters: friend.spell.map(i => friend.q.letters[i]).join(''), picked: friend.spell.slice(), fixed: friend.fixed, wrong: friend.wrong } : null; },
   // Quiz Friends (0.6.63)
   get quizOn() { return quizOn; }, setQuizOn, makeQuestion, nextQuestion, QUIZ_KINDS, get quizRecent() { return quizRecent.slice(); },
-  get friend() { return friend ? { kind: friend.kind, state: friend.state, x: friend.x, y: friend.y, z: friend.z, age: friend.age, wrong: friend.wrong, bubble: friend.group.userData.bubble.visible, wave: friend.group.userData.wave.rotation.z, inScene: friend.group.parent === scene } : null; },
+  get friend() { return friend ? { guide: !!friend.guide, kind: friend.kind, state: friend.state, x: friend.x, y: friend.y, z: friend.z, age: friend.age, wrong: friend.wrong, bubble: friend.group.userData.bubble.visible, wave: friend.group.userData.wave.rotation.z, inScene: friend.group.parent === scene } : null; },
   get friendWait() { return friendWait; }, setFriendWait: s => { friendWait = s; friendOnMove = false; friendFirst = false; }, get friendOnMove() { return friendOnMove; }, callFriend: kind => spawnFriend(kind), removeFriend, friendOn, tapFriend, openQuiz, answerQuiz, quizNotNow,
   get quizOpen() { return !!quizPanel; }, get quizQuestion() { return friend && friend.q ? { ...friend.q } : null; },
   friendBubbleScreen: () => { const b = friendBubblePoint(); return b ? [b.x, b.y, b.r] : null; },

@@ -11,6 +11,25 @@ Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one versio
 - No change to what data is collected: the pages are plain pages with no scripts
 - Checked: the fast tests; the pages were looked at in a browser in the cloud workspace. Not checked: the parent has not read the guide against the game; a phone or tablet
 
+## 0.6.73: Vital the elephant, your guide (SPEC-011 version 2)
+Built from the PM document "SPEC-011: Vital the elephant, your guide, version 2". The document was still a draft with two open questions; Nicola answered both in the build chat on 18 Nov 2026 ("1. Correct 2. Yes") and asked for it to be built.
+- A small grey elephant named **Vital** comes about 3 seconds after play starts, with a "!" bubble and his name over his head, waves his trunk and walks up. The message reads "Vital is here! Tap him to say hello."
+- A tap on him or on his bubble opens one tip in large letters with a big **OK** and a smaller **No more tips**. The game stands still while it is open. He never opens it himself
+- Twelve tips, in order, in touch wording on a tablet or phone and in keyboard and mouse wording on a computer. A tip counts as seen only after OK
+- After OK he waves and leaves, and comes back with the next tip after 2 minutes of the child moving about. He comes at most 4 times in one visit
+- After "No more tips" he says "OK! I will say hello another day." and stays away for the rest of that visit and the next two. On the third he asks "Hi again! Do you want tips?" with **Yes** and **Not now**. Yes brings the tips back where they stopped; Not now sends him away again the same way. With every tip seen he checks in the same way, and Yes gives one tip again, chosen at random
+- No tap for 90 seconds: he leaves and the tip stays unseen. Esc, the Android Back button or a tap outside the panel: the tip stays unseen and he leaves 20 seconds later
+- When Vital comes at the start of a visit, the first quiz friend comes 20 seconds after he has left, not at 3 seconds. When he is not due, the quiz friend comes at 3 seconds as before. Vital and a quiz friend are never on screen together
+- He gives tips only: no questions, no gems. Like a quiz friend he cannot be hit, monsters ignore him, the block he stands on cannot be dug or built into, and he is seen only on the child's own screen
+- Made in the game's code from simple shapes: no model, picture or photo file. The owner's photo of the toy stays in the private Drive folder
+- Settings: a **Tips from Vital** switch, on at first
+- **Data (flagged in the spec):** which tips were seen, the "No more tips" choice, the count of visits to stay away and the switch are kept on the device (`kidsgame.vital`). Not in the saved game, not in the cloud save, nothing sent or logged. **The privacy page does not mention this yet: it is the parent's decision whether it needs a line** (the page already says the Quiz friends switch is kept on the device)
+- Built differently from the spec: (1) at the start of a visit Vital comes even if a monster is within 10 blocks, like the first quiz friend, because the game starts with monsters nearby and the spec also wants him within 5 seconds; later in the visit he waits for a calm moment as written; (2) "at most 4 tips in one visit" is counted as 4 comings, so a child who ignores him is not visited more than 4 times; (3) if "Do you want tips?" gets no answer, he asks again on the next visit rather than later in the same one
+- Tips checked against the game: W A S D, Space, B for the bag, Drop in the bag, JUMP, the teleport button, "monsters never hurt you" (as the guide says). Not checked against play: the drag-to-look and swimming tips
+- Tests added: scripts/tests/vital.test.mjs (the twelve tips, the numbers, what the device remembers, nothing sent, tap only, made in code, tips only); browser.test.mjs (three tests: a new player's first meeting and his return, "No more tips" across four visits, a phone and the Settings switch). In the other browser tests his tips are switched off
+- Guide: new part 2, "Vital, your guide" (the later parts move up one number); the Settings part; the quiz friends part
+- Checked: the syntax check; the fast tests; the three new browser tests and the quiz friend browser tests, in the cloud workspace's Chrome on a smaller-view copy of the game; screenshots of Vital and his panel on a phone-sized view. Not run: the other browser tests. Not checked: a real phone, tablet or PC
+
 ## 0.6.72: learning level, 100 Maths levels and 100 Words levels (SPEC-004 version 4)
 Built from the PM document "SPEC-004: Learning level, version 4: 100 levels" (approved by Nicola, 18 Nov 2026).
 - Quiz friends now follow a **Maths level** and a **Words level**, each from 1 to 100 and separate. The question shows the level ("Maths level 23"). A right first answer moves that level up, with "Level up!" and the new number
