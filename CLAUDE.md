@@ -29,7 +29,7 @@ A 3D block-world game for kids and families (dig, build, gems, power levels, ene
 ## Hosting and backend
 - GitHub: `carecentrale/free-game-vitale`, main branch. Pushes to main auto-deploy to Vercel project `free-game-vitale`, output folder `www`.
 - Live: https://free-game-vitale.vercel.app. Stats: https://free-game-vitale.vercel.app/admin.html
-- Supabase project `rsrmuruskjtnxqmzvmnl`. Tables: worlds, players, game_events, game_errors, cloud_saves (and, once migration 0009 is applied, deletion_requests and deletion_log). Row-level security is on. Public write access to game tables is an open issue before public launch.
+- Supabase project `rsrmuruskjtnxqmzvmnl`. Tables: worlds, players, game_events, game_errors, cloud_saves, deletion_requests and deletion_log (the last two since 18 Nov 2026, used only by the server function `delete-my-data`). Row-level security is on. Public write access to game tables is an open issue before public launch.
 - Supabase client loads on demand from the jsDelivr CDN (version 2.45.4). Three.js 0.160.0 via importmap.
 
 ## How to change the game
