@@ -3,11 +3,11 @@
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
 ## Website, 17 Nov 2026: How to play guide and release notes (no change to the game)
-- New page `/how-to-play.html`: a guide to every function of the game in 18 parts (starting, controls, quick bar and bag, digging, building, gems, a full bag, powers, monsters, gear, magic, water, the world, teleport, saving, friends, settings, grown-ups). Facts were taken from the game's code at 0.6.62
+- New page `/how-to-play.html`: a guide to every function of the game in 18 parts (starting, controls, quick bar and bag, digging, building, gems, a full bag, powers, monsters, gear, magic, water, the world, teleport, saving, friends, settings, parental controls). Facts were taken from the game's code at 0.6.62
 - New page `/release-notes.html`: what changed in each version, newest first. It is written by `scripts/site-pages.mjs` from the same list the game shows in Settings, so the two cannot differ
 - The home page links to both
 - Rule for every later version: the guide and the release notes are updated in the same release (CLAUDE.md, "How to change the game"); `scripts/tests/site-pages.test.mjs` fails otherwise
-- The guide does not say how to open the parent area, so a child does not learn it there. Neither page links outside the site
+- The guide's last part is for grown-ups: the parental controls, how to open the parent area and what each control does (the parent's decision, 17 Nov 2026). Neither page links outside the site
 - No change to what data is collected: the pages are plain pages with no scripts
 - Checked: the fast tests; the pages were looked at in a browser in the cloud workspace. Not checked: the parent has not read the guide against the game; a phone or tablet
 
