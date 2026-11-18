@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.62 (3D)</title>
+<title>Adventurers of Drenerics v0.6.63 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -117,6 +117,25 @@
   #slots button.play{background:#3b6fd8;border-color:#3b6fd8}
   #slots button:disabled{opacity:.4;cursor:default}
   #wizErr{color:#ffab9f;min-height:20px;margin-top:8px;font-size:14px}
+  /* Quiz Friends question panel (0.6.63): large text, three big answer buttons and "Not now"; it fits a phone held either way */
+  #quizPanel{position:fixed;inset:0;background:rgba(10,12,25,.8);display:flex;align-items:center;justify-content:center;z-index:55;padding:8px;box-sizing:border-box}
+  #quizPanel .qbox{position:relative;background:#1d2440;color:#fff;border-radius:18px;padding:clamp(10px,3vmin,20px);width:min(560px,100%);max-height:100%;overflow:auto;box-sizing:border-box;text-align:center}
+  #quizPanel .qtext{font-size:clamp(22px,6vmin,34px);font-weight:700}
+  #quizPanel .qshow,#quizPanel .qhint{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:clamp(24px,6vmin,36px);font-weight:700}
+  #quizPanel .qhint{background:rgba(255,255,255,.1);border-radius:12px;padding:8px}
+  .qg{display:inline-grid;gap:3px;vertical-align:middle}
+  .qd{width:18px;height:18px;border-radius:50%;background:#fff;display:block;box-sizing:border-box}
+  .qd.x{background:transparent;border:2px dashed rgba(255,255,255,.55)}
+  #quizPanel .qmsg{min-height:1.3em;margin-top:6px;font-size:clamp(18px,4.5vmin,24px);color:#ffd54a;font-weight:700}
+  #quizPanel .qans{display:flex;gap:10px;margin-top:6px}
+  #quizPanel .qa{flex:1;min-width:0;min-height:clamp(64px,17vmin,96px);border:3px solid rgba(255,255,255,.35);border-radius:16px;background:#3b6fd8;color:#fff;font-family:inherit;font-size:clamp(28px,8vmin,44px);font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px}
+  #quizPanel .qa.wob{animation:qwob .45s}
+  #quizPanel .qa.ok{background:#2e9e4f;border-color:#fff}
+  #quizPanel .qnot{margin-top:10px;min-height:48px;min-width:160px;padding:10px 22px;border:2px solid rgba(255,255,255,.35);border-radius:12px;background:transparent;color:#fff;font-family:inherit;font-size:18px;cursor:pointer}
+  @keyframes qwob{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px) rotate(-3deg)}40%{transform:translateX(9px) rotate(3deg)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+  #quizPanel .qstars{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+  #quizPanel .qstars svg{position:absolute;left:50%;top:50%;opacity:0;animation:qstar 1.1s ease-out forwards}
+  @keyframes qstar{0%{transform:translate(-50%,-50%) scale(.2);opacity:1}100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1.3) rotate(180deg);opacity:0}}
 </style>
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}
@@ -1172,7 +1191,7 @@ bindBtn('bJ', 'J');
 // Hand 1 and Hand 2 are quick bar slots 1 and 2. A tap only puts that item in the hand; the game never moves an item
 // onto a hand button or changes the item in hand by itself. An empty hand button opens the bag with its slot chosen.
 // With the bag, Settings, the quit question or another panel open, the buttons do nothing.
-const anyPanelOpen = () => bagOpen || settingsOpen || quitOpen || !!skillPanel || paused;
+const anyPanelOpen = () => bagOpen || settingsOpen || quitOpen || !!skillPanel || !!quizPanel || paused;
 // The item a hand button shows. A stack that has run out counts as empty.
 const handItem = i => { const id = qb[i], d = id ? defOf(id) : null; return d && !(ITEMS[id] && d.kind !== 'spell' && !(inv[id] > 0)) ? id : null; };
 function handTap(i) {
@@ -1416,6 +1435,12 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.63', title: 'Quiz friends', items: [
+    'Now and then a friendly owl, turtle or robot walks up to you with a "?" over its head and waves',
+    'Tap it to get one easy maths question with three answers. A right answer gives 5 gems, or 2 gems after a wrong try',
+    'A wrong answer takes nothing away: try again, and after two tries a picture helps you',
+    'There is no timer. Tap "Not now" if you want to keep playing',
+    'Settings has a "Quiz friends" switch to turn them off or on'] },
   { v: '0.6.62', title: 'Building on phones, and room in a full bag', items: [
     'Bag full? Open the bag and tap Drop next to a block or a monster part. One goes on the ground nearby, where you can pick it up again for 5 minutes. Gems, tools and weapons cannot be dropped',
     'With a block in your hand, tap the side or top of a block to build there. Before, a tap only tried to dig, so touch screens could not build'] },
@@ -1622,6 +1647,9 @@ function renderSettings() {
     `<b style="font-size:20px">Settings</b><button id="settingsClose" style="cursor:pointer;min-height:48px;min-width:110px;padding:10px 18px;background:#3b6fd8;color:#fff;border:0;border-radius:12px;font-size:18px;font-weight:600">Close &#10005;</button></div>` +
     `<div style="margin-top:14px"><b>&#128266; Sounds</b>${volHtml('sfx')}</div>` +
     `<div style="margin-top:14px"><b>&#127925; Music</b>${volHtml('music')}</div>` +
+    // Quiz friends switch (0.6.63): on at first, kept on this device
+    `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#10067; Quiz friends</b><div style="font-size:13px;opacity:.8;margin-top:2px">A friendly character asks one maths question for gems</div></div>` +
+    `<button id="quizSwitch" style="flex:none;min-height:48px;min-width:96px;border:0;border-radius:12px;font-size:17px;font-weight:600;color:#fff;cursor:pointer;background:${quizOn ? '#2e9e4f' : '#666b80'}">${quizOn ? 'On' : 'Off'}</button></div>` +
     `<details style="margin-top:14px"><summary style="cursor:pointer;padding:12px 0">Music and sound credits</summary><div id="creditList" style="font-size:13px;opacity:.9">${creditsHtml()}</div></details>` +
     `<div style="margin-top:10px"><b>Game version ${esc(VERSION)}</b></div>` +
     // The list of changes is folded away, so the Quit button below is easy to reach
@@ -1644,6 +1672,7 @@ settingsEl.addEventListener('click', e => {
   if (e.target.closest('#settingsClose')) toggleSettings(false);
   // Quit the game: Settings closes and the same question as Esc and Back is asked (0.6.60)
   else if (e.target.closest('#settingsQuit')) { toggleSettings(false); toggleQuit(true); }
+  else if (e.target.closest('#quizSwitch')) { setQuizOn(!quizOn); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
 });
 // Volume sliders: tap a step, or drag along the track
 {
@@ -1695,7 +1724,8 @@ function quitGame() {
 }
 // Esc and the Android Back button: close an open panel first; with nothing open, ask whether to quit
 function backAction() {
-  if (quitOpen) toggleQuit(false);
+  if (quizPanel) quizNotNow();
+  else if (quitOpen) toggleQuit(false);
   else if (settingsOpen) toggleSettings(false);
   else if (bagOpen) toggleBag(false);
   else toggleQuit(true);
@@ -1715,6 +1745,7 @@ addEventListener('pointerdown', e => {
 function digCell(x, y, z) {
   const t = get(x, y, z);
   if (!solid(t)) return false;
+  if (friendOn(x, y, z)) return false;   // a quiz friend cannot be dug under
   const full = invTotal() >= invCap();
   if (full && drops.size >= MAX_DROPS) { say('Too many things on the ground. Pick some up first.', 2500); return false; }
   setBlock(x, y, z, T.AIR);
@@ -1825,6 +1856,7 @@ function placeCell(x, y, z, forceId) {
   }
   if (solid(get(x, y, z))) return; // never build over an existing block (water can be built into)
   if (drops.has(x + ',' + y + ',' + z)) { say('Something is on the ground there. Walk over it to pick it up.', 2000); return; }
+  if (friendOn(x, y, z)) { say('Your friend is standing there.', 2000); return; }
   if (!inv[id]) { say('No ' + item.name + ' left! Dig some first.'); return; }
   if (x < px + HW && x + 1 > px - HW && y < py + HH && y + 1 > py && z < pz + HW && z + 1 > pz - HW) {
     say("Can't build on yourself!");
@@ -2634,6 +2666,9 @@ canvas.addEventListener('pointerdown', e => {
   if (touches.size > 1) return; // two fingers = pinch
   press = { id: e.pointerId, x: e.clientX, lastX: e.clientX, moved: false };
   pendingPlace = null;
+  // A press on a quiz friend never digs, builds, fights or casts: if it was a tap, the question opens on release (0.6.63)
+  pendingFriend = !!friendAt(e.clientX, e.clientY);
+  if (pendingFriend) return;
   if (defOf(held()) && defOf(held()).kind === 'spell') { pendingCast = { x: e.clientX, y: e.clientY }; return; }
   const a = aim(e);
   if (!a) return;
@@ -2664,6 +2699,7 @@ canvas.addEventListener('pointerdown', e => {
     pendingPlace = a.place; // build on release, so a drag does not build
   } else if (solid(get(dx, dy, dz))) {
     if (tplOf(held()) !== 'pick') { say('Select the pickaxe in the quick bar (1-6) to dig.', 2000); return; }
+    if (friendOn(dx, dy, dz)) { say('Your friend is standing there.', 2000); return; }
     digging = { x: dx, y: dy, z: dz, t: 0 };
     armSwing = 0;
   } else {
@@ -2673,6 +2709,8 @@ canvas.addEventListener('pointerdown', e => {
 canvas.addEventListener('pointerup', e => {
   if (press && press.id === e.pointerId && !press.moved && pendingPlace) placeCell(...pendingPlace);
   if (press && press.id === e.pointerId && !press.moved && pendingCast) fireAt(pendingCast.x, pendingCast.y);
+  if (press && press.id === e.pointerId && !press.moved && pendingFriend) tapFriend();
+  pendingFriend = false;
   pendingPlace = null;
   pendingCast = null;
   press = null;
@@ -2697,6 +2735,360 @@ function updateDig(dt) {
     crack.visible = false;
     if (!done) press = null;
   }
+}
+
+// ---- Quiz questions (0.6.63, SPEC-003): made at random by this code, which also works out the right answer ----
+// No internet and no AI at play time. Nothing about questions or answers is stored, logged or sent: the last 10
+// questions are remembered only while the game is open, so that none repeats.
+const QUIZ_COUNT_SHAPES = { star: 'stars', heart: 'hearts', gem: 'gems', ball: 'balls', block: 'blocks' };   // pictures to count, and their names
+const QUIZ_PATTERN_SHAPES = ['ball', 'block', 'triangle', 'star'];
+const QUIZ_KINDS = ['count', 'add', 'take', 'more', 'next'];   // count pictures; add; take away; which is more; what comes next
+const QUIZ_REMEMBER = 10;                    // no question repeats within this many
+const QUIZ_GEMS_FIRST = 5, QUIZ_GEMS_LATER = 2;   // fixed rewards: right first time, and right after a wrong try
+const QUIZ_HINT_AFTER = 2;                   // wrong tries before the picture hint shows
+const quizRecent = [];                       // the last questions asked, in memory only
+const quizInt = (rnd, lo, hi) => lo + Math.floor(rnd() * (hi - lo + 1));
+const quizPick = (rnd, list) => list[Math.floor(rnd() * list.length)];
+function quizShuffle(rnd, list) {
+  for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+  return list;
+}
+// Three different numbers in a random order: the right one and two wrong ones close to it (1 or 2 away), all from lo to hi
+function quizNumbers(rnd, right, lo, hi) {
+  const near = [right - 2, right - 1, right + 1, right + 2].filter(n => n >= lo && n <= hi);
+  const list = quizShuffle(rnd, [right, ...quizShuffle(rnd, near).slice(0, 2)]);
+  return { list, right: list.indexOf(right) };
+}
+// One question of the given kind. `show` is the picture row, `answers` the three buttons, `right` the place of the
+// right one, `hint` the picture hint shown after two wrong tries, and `key` tells two questions apart.
+function makeQuestion(kind, rnd = Math.random) {
+  if (kind === 'count') {
+    const n = quizInt(rnd, 1, 10), shape = quizPick(rnd, Object.keys(QUIZ_COUNT_SHAPES));
+    const a = quizNumbers(rnd, n, 1, 10);
+    return { kind, key: 'count:' + n, text: 'How many ' + QUIZ_COUNT_SHAPES[shape] + '?', show: [{ shape, n }],
+      answers: a.list.map(v => ({ label: String(v) })), right: a.right, hint: { dots: [n] } };
+  }
+  if (kind === 'add') {
+    const x = quizInt(rnd, 1, 9), y = quizInt(rnd, 1, 10 - x), shape = quizPick(rnd, Object.keys(QUIZ_COUNT_SHAPES));
+    const a = quizNumbers(rnd, x + y, 1, 10);
+    return { kind, key: 'add:' + x + ':' + y, text: 'What is ' + x + ' + ' + y + '?', show: [{ shape, n: x }, { sign: '+' }, { shape, n: y }],
+      answers: a.list.map(v => ({ label: String(v) })), right: a.right, hint: { dots: [x, y] } };
+  }
+  if (kind === 'take') {
+    const x = quizInt(rnd, 2, 10), y = quizInt(rnd, 1, x - 1), shape = quizPick(rnd, Object.keys(QUIZ_COUNT_SHAPES));
+    const a = quizNumbers(rnd, x - y, 0, 10);
+    return { kind, key: 'take:' + x + ':' + y, text: 'What is ' + x + ' − ' + y + '?', show: [{ shape, n: x }],
+      answers: a.list.map(v => ({ label: String(v) })), right: a.right, hint: { dots: [x], crossed: y } };
+  }
+  if (kind === 'more') {
+    const big = quizInt(rnd, 3, 10), shape = quizPick(rnd, Object.keys(QUIZ_COUNT_SHAPES));
+    const less = quizShuffle(rnd, [big - 1, big - 2, big - 3].filter(n => n >= 1)).slice(0, 2);
+    const list = quizShuffle(rnd, [big, ...less]);
+    return { kind, key: 'more:' + list.slice().sort((p, q) => p - q).join(':'), text: 'Which has the most?', show: [],
+      answers: list.map(v => ({ label: String(v), shape, n: v })), right: list.indexOf(big), hint: { rows: list } };
+  }
+  // What comes next in a two-shape pattern: the pattern repeats a short unit (AB, AAB or ABB) at least twice
+  const [a, b, c] = quizShuffle(rnd, QUIZ_PATTERN_SHAPES.slice());
+  const unit = quizPick(rnd, [[a, b], [a, a, b], [a, b, b]]);
+  const shown = unit.length * 2 + quizInt(rnd, 0, unit.length - 1);
+  const seq = Array.from({ length: shown }, (_, i) => unit[i % unit.length]);
+  const next = unit[shown % unit.length];
+  const list = quizShuffle(rnd, [next, next === a ? b : a, c]);
+  return { kind: 'next', key: 'next:' + unit.join(',') + ':' + shown, text: 'What comes next?', show: [{ seq }, { sign: '?' }], unit,
+    answers: list.map(shape => ({ shape })), right: list.indexOf(next), hint: { unit, seq } };
+}
+// The next question to ask: a random kind, and never one of the last 10
+function nextQuestion(rnd = Math.random) {
+  let q = null;
+  for (let tries = 0; tries < 300; tries++) {
+    q = makeQuestion(quizPick(rnd, QUIZ_KINDS), rnd);
+    if (!quizRecent.includes(q.key)) break;
+  }
+  quizRecent.push(q.key);
+  while (quizRecent.length > QUIZ_REMEMBER) quizRecent.shift();
+  return q;
+}
+
+// ---- Quiz Friends: the characters (0.6.63, SPEC-003) ----
+// Now and then a friendly character (an owl, a turtle or a small robot, all made here in code) walks up to the child
+// with a "?" over its head and waves. It never opens anything by itself: the child taps it to get one question.
+// One friend at a time, and only on this player's own screen: a friend is never sent to a shared world.
+const FRIEND_KINDS = ['owl', 'turtle', 'robot'];
+const FRIEND_GAP = [240, 420];   // seconds of play until the next friend: 4 to 7 minutes after the last one left
+const FRIEND_MONSTER_CLEAR = 10; // no friend appears while a monster is this close (blocks)
+const FRIEND_STOP = 2;           // it stops this many blocks from the child
+const FRIEND_STAY = 90;          // it leaves after this many seconds with no answer (the clock stands still while the question is open)
+const FRIEND_FAR = 40;           // it leaves when the child is further away than this
+const FRIEND_REACH = 10;         // a tap opens the question from this close
+const FRIEND_SPEED = 2.6, FRIEND_LEAVE_TIME = 4;
+const friendGap = () => FRIEND_GAP[0] + Math.random() * (FRIEND_GAP[1] - FRIEND_GAP[0]);
+let quizOn = true;               // the "Quiz friends" switch in Settings: on at first, kept on this device like the volume levels
+try { quizOn = localStorage.getItem('kidsgame.quiz') !== '0'; } catch (e) {}
+let friend = null;               // the friend on screen, if any
+let friendWait = friendGap();    // seconds of play until the next one
+let quizPanel = null;            // the open question panel, if any
+let pendingFriend = false;       // the press landed on the friend; the question opens if it was a tap, not a drag
+
+function friendModel(kind) {
+  const g = new THREE.Group();
+  const mt = (c, rough = 0.6) => new THREE.MeshStandardMaterial({ color: c, roughness: rough, metalness: 0.05 });
+  const add = (geo, c, x, y, z, to = g) => { const m = new THREE.Mesh(geo, mt(c)); m.position.set(x, y, z); to.add(m); return m; };
+  const ball = (r, c, x, y, z, sx = 1, sy = 1, sz = 1, to = g) => { const m = add(new THREE.SphereGeometry(r, 20, 14), c, x, y, z, to); m.scale.set(sx, sy, sz); return m; };
+  const box = (w, h, d, c, x, y, z, to = g) => add(new THREE.BoxGeometry(w, h, d), c, x, y, z, to);
+  const tube = (r, h, c, x, y, z, to = g) => add(new THREE.CylinderGeometry(r, r, h, 14), c, x, y, z, to);
+  const cone = (r, h, c, x, y, z, to = g) => add(new THREE.ConeGeometry(r, h, 14), c, x, y, z, to);
+  const eye = (x, y, z, r, c = 0xffffff) => { ball(r, c, x, y, z); ball(r * 0.5, 0x151515, x, y, z + r * 0.62); };
+  // The arm, wing or flipper that waves hangs from a pivot at the shoulder
+  const pivot = (x, y, z) => { const p = new THREE.Group(); p.position.set(x, y, z); g.add(p); return p; };
+  let top = 1.3, wave;
+  if (kind === 'owl') {
+    ball(0.34, 0x8a5a33, 0, 0.42, 0, 1, 1.2, 1);                    // body
+    ball(0.25, 0xe9d2a6, 0, 0.38, 0.17, 1, 1.15, 0.6);              // pale belly
+    ball(0.3, 0x9a6a3f, 0, 0.94, 0);                                // head
+    for (const s of [-1, 1]) {
+      eye(s * 0.12, 0.97, 0.24, 0.1);
+      const tuft = cone(0.07, 0.18, 0x6f4526, s * 0.18, 1.22, 0); tuft.rotation.z = -s * 0.35;
+      ball(0.07, 0xf2a53a, s * 0.12, 0.05, 0.1, 1, 0.6, 1.4);       // feet
+    }
+    const beak = cone(0.05, 0.13, 0xf2a53a, 0, 0.86, 0.31); beak.rotation.x = Math.PI / 2;
+    const left = pivot(-0.3, 0.7, 0); ball(0.2, 0x6f4526, 0, -0.2, 0, 0.4, 1, 0.75, left); left.rotation.z = -0.25;
+    wave = pivot(0.3, 0.7, 0); ball(0.2, 0x6f4526, 0, -0.2, 0, 0.4, 1, 0.75, wave);
+  } else if (kind === 'turtle') {
+    top = 0.95;
+    const shell = add(new THREE.SphereGeometry(0.44, 22, 12, 0, Math.PI * 2, 0, Math.PI / 2), 0x3f9a4d, 0, 0.2, 0); shell.scale.y = 0.85;
+    tube(0.46, 0.09, 0x2f7a3b, 0, 0.2, 0);                          // rim of the shell
+    for (const [x, z] of [[0, 0], [-0.2, 0.12], [0.2, 0.12], [-0.12, -0.2], [0.14, -0.2]]) ball(0.09, 0x2f7a3b, x, 0.2 + Math.sqrt(Math.max(0, 0.17 - x * x - z * z)) * 0.85, z, 1, 0.35, 1);
+    ball(0.18, 0x9bdc76, 0, 0.36, 0.52);                            // head
+    for (const s of [-1, 1]) {
+      eye(s * 0.085, 0.42, 0.65, 0.055);
+      ball(0.12, 0x9bdc76, s * 0.34, 0.09, -0.26, 1, 0.6, 1.3);     // back legs
+    }
+    const tail = cone(0.05, 0.16, 0x9bdc76, 0, 0.14, -0.5); tail.rotation.x = -Math.PI / 2;
+    const left = pivot(-0.36, 0.16, 0.26); ball(0.12, 0x9bdc76, -0.08, -0.06, 0.02, 1.3, 0.6, 1, left);
+    wave = pivot(0.36, 0.2, 0.26); ball(0.12, 0x9bdc76, 0.1, 0, 0.02, 1.4, 0.6, 1, wave);
+  } else {
+    box(0.5, 0.48, 0.36, 0x6fa8dc, 0, 0.52, 0);                     // body
+    ball(0.06, 0xffd54a, 0, 0.58, 0.19, 1, 1, 0.5);                 // chest light
+    box(0.44, 0.34, 0.34, 0xa9cdee, 0, 0.99, 0);                    // head
+    for (const s of [-1, 1]) {
+      eye(s * 0.1, 1.02, 0.17, 0.065, 0x7df9ff);
+      box(0.15, 0.26, 0.18, 0x4f7fb0, s * 0.13, 0.14, 0);           // legs
+    }
+    box(0.16, 0.03, 0.02, 0x23405f, 0, 0.9, 0.175);                 // mouth
+    tube(0.015, 0.16, 0x4f7fb0, 0, 1.24, 0); ball(0.05, 0xff6b6b, 0, 1.34, 0);   // antenna
+    top = 1.45;
+    const left = pivot(-0.31, 0.7, 0); tube(0.05, 0.32, 0x4f7fb0, 0, -0.16, 0, left); ball(0.07, 0xa9cdee, 0, -0.34, 0, 1, 1, 1, left);
+    wave = pivot(0.31, 0.7, 0); tube(0.05, 0.32, 0x4f7fb0, 0, -0.16, 0, wave); ball(0.07, 0xa9cdee, 0, -0.34, 0, 1, 1, 1, wave);
+  }
+  // The "?" bubble over its head, drawn in code
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const cx = c.getContext('2d');
+  cx.fillStyle = '#fff'; cx.strokeStyle = '#1d2440'; cx.lineWidth = 6;
+  cx.beginPath(); cx.arc(64, 56, 48, 0, Math.PI * 2); cx.fill(); cx.stroke();
+  cx.beginPath(); cx.moveTo(50, 98); cx.lineTo(64, 124); cx.lineTo(78, 98); cx.closePath(); cx.fill();
+  cx.fillStyle = '#3b6fd8'; cx.font = 'bold 76px sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('?', 64, 60);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const bubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false }));
+  bubble.scale.set(0.7, 0.7, 1);
+  bubble.position.y = top + 0.45;
+  g.add(bubble);
+  g.userData = { wave, bubble, top, flipper: kind === 'turtle' };
+  return g;
+}
+
+// The floor a friend stands on in column (x, z), near height yRef: the top of the ground or of the water. null if there is none close.
+function friendFloor(x, z, yRef) {
+  const cx = Math.floor(x), cz = Math.floor(z), open = t => t === T.AIR;
+  for (let y = Math.min(H - 2, Math.floor(yRef) + 3); y >= Math.max(1, Math.floor(yRef) - 8); y--) {
+    if (!open(get(cx, y - 1, cz)) && open(get(cx, y, cz)) && open(get(cx, y + 1, cz))) return y;
+  }
+  return null;
+}
+const monsterNear = r => enemies.some(en => Math.hypot(en.x - px, en.z - pz) <= r);
+// Puts a friend on the ground 7 to 11 blocks from the child. Returns false if no good spot was found (it tries again a second later).
+function spawnFriend(forceKind) {
+  if (friend) return false;
+  for (let tries = 0; tries < 40; tries++) {
+    const a = Math.random() * Math.PI * 2, d = 7 + Math.random() * 4;
+    const x = px + Math.sin(a) * d, z = pz + Math.cos(a) * d;
+    if (!inPlay(x, z)) continue;
+    let y = friendFloor(x, z, py);
+    if (y === null && tries >= 20) { y = H - 1; while (y > 1 && get(Math.floor(x), y - 1, Math.floor(z)) === T.AIR) y--; }   // the child is underground: come to the surface above
+    if (y === null || !solid(get(Math.floor(x), y - 1, Math.floor(z)))) continue;   // dry ground only
+    const kind = FRIEND_KINDS.includes(forceKind) ? forceKind : pick(FRIEND_KINDS);
+    const group = friendModel(kind);
+    group.position.set(x, y, z);
+    scene.add(group);
+    friend = { kind, group, x, y, z, state: 'come', age: 0, leaveT: 0, q: null, wrong: 0 };
+    say('A friend is here! Tap it to say hello.', 3000);
+    return true;
+  }
+  return false;
+}
+function removeFriend() {
+  if (!friend) return;
+  scene.remove(friend.group);
+  friend.group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
+  friend = null;
+  friendWait = friendGap();
+}
+function friendLeave() { if (friend && friend.state !== 'leave') { friend.state = 'leave'; friend.leaveT = 0; } }
+// True if the block at (x, y, z) is under the friend or where it stands: it cannot be dug away or built into
+const friendOn = (x, y, z) => !!friend && Math.floor(friend.x) === x && Math.floor(friend.z) === z && y >= Math.floor(friend.y + 0.5) - 1 && y <= Math.floor(friend.y + 0.5) + 1;
+function updateFriend(dt) {
+  if (!friend) {
+    if (!quizOn) return;
+    friendWait -= dt;
+    // Never while a monster is close or a panel is open: it waits for a calm moment
+    if (friendWait <= 0 && !anyPanelOpen() && !monsterNear(FRIEND_MONSTER_CLEAR) && !spawnFriend()) friendWait = 1;
+    return;
+  }
+  const f = friend, now = performance.now() / 1000;
+  const dx = px - f.x, dz = pz - f.z, dist = Math.hypot(dx, dz) || 0.001;
+  if (f.state !== 'leave') {
+    f.age += dt;
+    if (f.age >= FRIEND_STAY || dist > FRIEND_FAR) friendLeave();
+  }
+  let moving = false;
+  if (f.state === 'come') {
+    if (dist <= FRIEND_STOP + 0.01) f.state = 'wait';   // (the small margin: the last step lands on two blocks only to within rounding)
+    else { const step = Math.min(FRIEND_SPEED * dt, dist - FRIEND_STOP); f.x += dx / dist * step; f.z += dz / dist * step; moving = true; }
+  } else if (f.state === 'leave') {
+    f.leaveT += dt;
+    if (f.leaveT >= FRIEND_LEAVE_TIME) { removeFriend(); return; }
+    if (f.leaveT > 1) { f.x -= dx / dist * FRIEND_SPEED * dt; f.z -= dz / dist * FRIEND_SPEED * dt; moving = true; }   // one last wave, then it walks away
+  }
+  const floor = friendFloor(f.x, f.z, f.y);
+  if (floor !== null) f.y += (floor - f.y) * Math.min(1, dt * 10);
+  const g = f.group, u = g.userData, away = f.state === 'leave' && f.leaveT > 1;
+  g.position.set(f.x, f.y + (moving ? Math.abs(Math.sin(now * 9)) * 0.08 : 0), f.z);
+  g.rotation.y = Math.atan2(away ? -dx : dx, away ? -dz : dz);
+  g.scale.setScalar(f.state === 'leave' ? Math.max(0.05, Math.min(1, FRIEND_LEAVE_TIME - f.leaveT)) : 1);   // it shrinks away in its last second
+  const w = Math.sin(now * 7);
+  if (u.flipper) u.wave.rotation.z = away ? 0 : 0.55 + w * 0.45;
+  else u.wave.rotation.z = away ? 0.25 : 2.3 + w * 0.5;             // the arm or wing is up and waving
+  u.bubble.visible = f.state !== 'leave';
+  u.bubble.position.y = u.top + 0.45 + Math.sin(now * 3) * 0.05;
+}
+// The friend under the screen point (x, y), or null. Counts anywhere inside its outline on screen, like a monster.
+function friendAt(x, y) {
+  if (!friend || friend.state === 'leave') return null;
+  const mid = new THREE.Vector3(friend.x, friend.y + 0.6, friend.z);
+  const c = mid.clone().project(camera);
+  if (c.z >= 1) return null;
+  const sx = (c.x + 1) / 2 * innerWidth, sy = (1 - c.y) / 2 * innerHeight;
+  const r = Math.max(44, 0.9 * (innerHeight / 2 / Math.tan(camera.fov * Math.PI / 360)) / camera.position.distanceTo(mid));
+  return Math.hypot(x - sx, y - sy) <= r ? friend : null;
+}
+function tapFriend() {
+  if (!friend || friend.state === 'leave' || anyPanelOpen()) return;
+  if (Math.hypot(friend.x - px, friend.z - pz) > FRIEND_REACH) { say('Walk closer to your friend.', 2000); return; }
+  openQuiz();
+}
+
+// ---- Quiz Friends: the question panel. Tap only: three big answer buttons and "Not now". No timer and no countdown. ----
+const QUIZ_ART = {
+  star: '<polygon points="12,1.5 15.1,8.6 22.8,9.3 17,14.4 18.7,22 12,18 5.3,22 7,14.4 1.2,9.3 8.9,8.6" fill="#ffd54a" stroke="#b8860b"/>',
+  heart: '<path d="M12 21C3 14 1.5 9.5 4 6C6.5 2.8 10.5 3.6 12 7C13.5 3.6 17.5 2.8 20 6C22.5 9.5 21 14 12 21Z" fill="#ff6b81" stroke="#b03050"/>',
+  gem: '<polygon points="12,2 21,9 12,22 3,9" fill="#29d3ff" stroke="#0f7fa0"/><path d="M3 9H21" stroke="#0f7fa0"/>',
+  ball: '<circle cx="12" cy="12" r="9.5" fill="#ff9f43" stroke="#b5651d"/>',
+  block: '<rect x="3" y="3" width="18" height="18" rx="3" fill="#6bd46b" stroke="#2e7d32"/>',
+  triangle: '<polygon points="12,2.5 22,21 2,21" fill="#b388ff" stroke="#5e35b1"/>',
+};
+const quizPic = (shape, size) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" style="flex:none;display:block">${QUIZ_ART[shape]}</svg>`;
+// n things in rows of five. `draw(i)` makes each one.
+const quizRows = (n, draw) => `<span class="qg" style="grid-template-columns:repeat(${Math.max(1, Math.min(5, n))},auto)">${Array.from({ length: n }, (_, i) => draw(i)).join('')}</span>`;
+const quizDots = (n, crossed = 0) => quizRows(n, i => `<span class="qd${i >= n - crossed ? ' x' : ''}"></span>`);
+function quizShowHtml(q) {
+  return q.show.map(s => s.sign ? `<span>${s.sign}</span>` : s.seq ? `<span style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center">${s.seq.map(sh => quizPic(sh, 30)).join('')}</span>` : quizRows(s.n, () => quizPic(s.shape, 26))).join('');
+}
+function quizHintHtml(q) {
+  const h = q.hint;
+  if (h.rows) return `<span style="display:grid;grid-template-columns:auto auto;gap:4px 10px;align-items:center;text-align:left;font-size:20px">${h.rows.map(n => `<span>${n}</span><span style="display:flex;gap:3px">${Array.from({ length: n }, () => '<span class="qd"></span>').join('')}</span>`).join('')}</span>`;
+  if (h.unit) {   // the pattern again, split into its repeating groups
+    const groups = [];
+    for (let i = 0; i <= h.seq.length; i += h.unit.length) groups.push(h.seq.slice(i, i + h.unit.length));
+    return groups.filter((gr, i) => gr.length || i === groups.length - 1).map(gr =>
+      `<span style="display:flex;gap:2px;padding:3px 5px;border:2px dashed rgba(255,255,255,.5);border-radius:8px">${gr.map(sh => quizPic(sh, 22)).join('')}${gr.length < h.unit.length ? '<span style="width:22px;text-align:center;font-size:20px">?</span>' : ''}</span>`).join('');
+  }
+  return h.dots.map((n, i) => (i ? '<span>+</span>' : '') + quizDots(n, h.crossed || 0)).join('');
+}
+function openQuiz() {
+  if (!friend || quizPanel) return;
+  const f = friend;
+  if (!f.q) { f.q = nextQuestion(); f.wrong = 0; }
+  if (f.state === 'come') f.state = 'wait';
+  paused = true;   // the game stands still while the question is open, so there is no hurry
+  const q = f.q, el = document.createElement('div');
+  el.id = 'quizPanel';
+  el.innerHTML = '<div class="qbox">' +
+    `<div class="qtext">${esc(q.text)}</div>` +
+    (q.show.length ? `<div class="qshow">${quizShowHtml(q)}</div>` : '') +
+    `<div class="qhint" style="display:none"></div>` +
+    `<div class="qmsg"></div>` +
+    `<div class="qans">${q.answers.map((a, i) => `<button class="qa" data-a="${i}">${a.label ? `<span>${esc(a.label)}</span>` : ''}${a.shape && a.n ? `<span style="display:flex;gap:2px;flex-wrap:wrap;justify-content:center">${Array.from({ length: a.n }, () => quizPic(a.shape, 13)).join('')}</span>` : a.shape ? quizPic(a.shape, 48) : ''}</button>`).join('')}</div>` +
+    '<button class="qnot">Not now</button><div class="qstars"></div></div>';
+  el.addEventListener('click', e => {
+    const b = e.target.closest('.qa');
+    if (b) answerQuiz(+b.dataset.a);
+    else if (e.target.closest('.qnot')) quizNotNow();
+  });
+  document.body.appendChild(el);
+  quizPanel = el;
+  if (f.wrong >= QUIZ_HINT_AFTER) showQuizHint();
+  sfx('open');
+}
+function showQuizHint() {
+  const h = quizPanel && quizPanel.querySelector('.qhint');
+  if (h && friend && friend.q) { h.innerHTML = quizHintHtml(friend.q); h.style.display = 'flex'; }
+}
+function closeQuiz() {
+  if (!quizPanel) return;
+  quizPanel.remove();
+  quizPanel = null;
+  paused = false;
+  sfx('close');
+}
+// "Not now" (also Esc and the Back button): the panel closes and nothing is lost. The friend waits a little, then leaves.
+function quizNotNow() {
+  if (!quizPanel || (friend && friend.done)) return;
+  closeQuiz();
+  if (friend) friend.age = FRIEND_STAY - 20;
+}
+function answerQuiz(i) {
+  const f = friend;
+  if (!quizPanel || !f || !f.q || f.done) return;
+  const btn = quizPanel.querySelector(`.qa[data-a="${i}"]`), msg = quizPanel.querySelector('.qmsg');
+  if (!btn) return;
+  if (i !== f.q.right) {   // wrong: the button wobbles and nothing is lost
+    f.wrong++;
+    btn.classList.remove('wob'); void btn.offsetWidth; btn.classList.add('wob');
+    msg.textContent = 'Try again';
+    sfx('tap');
+    if (f.wrong >= QUIZ_HINT_AFTER) showQuizHint();
+    return;
+  }
+  const gems = f.wrong ? QUIZ_GEMS_LATER : QUIZ_GEMS_FIRST;
+  f.done = true;
+  btn.classList.add('ok');
+  msg.textContent = 'Well done! +' + gems + ' gems';
+  quizPanel.querySelector('.qstars').innerHTML = Array.from({ length: 14 }, (_, k) => {
+    const a = k / 14 * Math.PI * 2;
+    return `<svg viewBox="0 0 24 24" width="34" height="34" style="--dx:${Math.round(Math.cos(a) * 190)}px;--dy:${Math.round(Math.sin(a) * 150)}px;animation-delay:${(k % 3) * 0.08}s">${QUIZ_ART.star}</svg>`;
+  }).join('');
+  addItem('gem', gems);
+  saveGame();
+  setTimeout(() => {   // the stars show for a moment, then the friend waves and leaves
+    closeQuiz();
+    say('+' + gems + ' gems!', 2000);
+    friendLeave();
+  }, 1300);
+}
+// The "Quiz friends" switch in Settings. Off: the friend on screen leaves at once and no new one appears.
+function setQuizOn(on) {
+  quizOn = !!on;
+  try { localStorage.setItem('kidsgame.quiz', quizOn ? '1' : '0'); } catch (e) {}
+  if (!quizOn && friend) { closeQuiz(); removeFriend(); }
 }
 
 // ---- Game loop ----
@@ -2792,6 +3184,7 @@ function update(dt) {
   updateEnemies(dt);
   updateTeleport(dt);
   updateSpawns(dt);
+  updateFriend(dt);
   updateDrops(performance.now() / 1000);
 
   const moving = sx || sz;
@@ -2965,7 +3358,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.62';
+const VERSION = '0.6.63';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -3538,6 +3931,15 @@ window.gameTest = {
   audioState: () => ({ started: audioStarted, listed: !!audioList, live: sfxLive.length,
     music: musicEl ? { src: musicEl.src, volume: musicEl.volume, paused: !!musicEl.paused } : null }),
   castFireball, fireAt, enemyAt, viewDir, aimAt: (x, y) => aim({ clientX: x, clientY: y }), setYaw: y => { camYaw = y; }, get sparks() { return sparks; }, get fireballs() { return fireballs; }, get enemies() { return enemies; },
+  // Quiz Friends (0.6.63)
+  get quizOn() { return quizOn; }, setQuizOn, makeQuestion, nextQuestion, QUIZ_KINDS, get quizRecent() { return quizRecent.slice(); },
+  get friend() { return friend ? { kind: friend.kind, state: friend.state, x: friend.x, y: friend.y, z: friend.z, age: friend.age, wrong: friend.wrong, bubble: friend.group.userData.bubble.visible, wave: friend.group.userData.wave.rotation.z, inScene: friend.group.parent === scene } : null; },
+  get friendWait() { return friendWait; }, setFriendWait: s => { friendWait = s; }, callFriend: kind => spawnFriend(kind), removeFriend, friendOn, tapFriend, openQuiz, answerQuiz, quizNotNow,
+  get quizOpen() { return !!quizPanel; }, get quizQuestion() { return friend && friend.q ? { ...friend.q } : null; },
+  friendScreen: () => { const v = new THREE.Vector3(friend.x, friend.y + 0.6, friend.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight, v.z < 1]; },
+  clearEnemies: () => { for (const en of enemies) scene.remove(en.group); enemies.length = 0; },
+  askKind: kind => { if (friend) { friend.q = makeQuestion(kind); friend.wrong = 0; } },   // gives the friend on screen a question of one kind
+  walkAway: blocks => { px += blocks; let y = H - 1; while (y > 0 && !solid(get(Math.floor(px), y, Math.floor(pz)))) y--; py = y + 1.01; vy = 0; },   // puts the character this many blocks to the side, on the ground FRIEND: { GAP: FRIEND_GAP, STOP: FRIEND_STOP, STAY: FRIEND_STAY, FAR: FRIEND_FAR, CLEAR: FRIEND_MONSTER_CLEAR },
   // Where an enemy's middle is on the screen: [x, y] (y from the top), and whether it is in front of the camera
   screenOf: en => { const v = new THREE.Vector3(en.x, en.y + 0.5, en.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight, v.z < 1]; },
 };

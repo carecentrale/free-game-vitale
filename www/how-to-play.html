@@ -7,7 +7,7 @@
 <meta name="description" content="How to play Adventurers of Drenerics: moving, digging, building, the bag, gems, powers, monsters, magic, saving and playing with friends.">
 <!-- This guide must describe the game as it is. Every new feature or changed rule gets its part here in the same release,
      and guide-version below is set to the game's version (scripts/tests/site-pages.test.mjs checks it). -->
-<meta name="guide-version" content="0.6.62">
+<meta name="guide-version" content="0.6.63">
 <style>
   :root{--bg:#f4f6fb;--card:#fff;--ink:#1d2433;--muted:#5b6475;--line:#e4e7ee;--accent:#3b6fd8;--key:#eef1f8}
   @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0;--key:#262e44}}
@@ -40,7 +40,7 @@
   <nav><a href="/">Home</a><a href="/release-notes.html">Release notes</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="/contact.html">Contact</a></nav>
 
   <h1>How to play</h1>
-  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.62</span>. New things are added here with every version; see the <a href="/release-notes.html">release notes</a> for what changed.</div>
+  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.63</span>. New things are added here with every version; see the <a href="/release-notes.html">release notes</a> for what changed.</div>
 
   <p>Adventurers of Drenerics is a world made of blocks. You dig into it, build with what you dig, collect gems, grow stronger and meet monsters. You can play alone or in the same world as your friends.</p>
   <a class="play" href="/play/">Play now</a>
@@ -64,6 +64,7 @@
       <li><a href="#teleport">Teleport to the start</a></li>
       <li><a href="#saving">Saving your game</a></li>
       <li><a href="#friends">Playing with friends</a></li>
+      <li><a href="#quiz">Quiz friends</a></li>
       <li><a href="#settings">Settings, sound and quitting</a></li>
       <li><a href="#grownups">For grown-ups: parental controls</a></li>
     </ol>
@@ -129,7 +130,7 @@
   </ul>
 
   <h2 id="gems">6. Gems</h2>
-  <p>Gems sparkle inside some blocks. Dig the block to collect the gem. Monsters also give gems when you defeat them: stronger monsters give more.</p>
+  <p>Gems sparkle inside some blocks. Dig the block to collect the gem. Monsters also give gems when you defeat them: stronger monsters give more. You can also earn gems by answering a question from a <a href="#quiz">quiz friend</a>.</p>
 
   <h2 id="bagfull">7. When the bag is full</h2>
   <p>The bag holds a set number of things, and it grows as your Inventory power goes up (12 things at level 1, and 4 more with each level). The Inventory power grows while you carry a full bag.</p>
@@ -242,17 +243,33 @@
   </ol>
   <p>Everything dug or built in a shared world shows for everyone in it. A world can only be opened with its code; worlds are never listed publicly. Players cannot chat or type messages to each other, and names come from the game's list.</p>
 
-  <h2 id="settings">17. Settings, sound and quitting</h2>
+  <h2 id="quiz">17. Quiz friends</h2>
+  <p>Now and then a friendly character walks up to you with a <strong>?</strong> over its head and waves. There are three: an owl, a turtle and a small robot. A friend comes every 4 to 7 minutes of play, when no monster is close.</p>
+  <ul>
+    <li>The friend stops two blocks away and waits. It never opens anything by itself.</li>
+    <li>Tap or click the friend. One maths question opens, with pictures, three big answer buttons and a <em>Not now</em> button. The game stands still while the question is open, and there is no timer: take as long as you like.</li>
+    <li>The questions are easy ones: count the pictures, add or take away up to 10, which has the most, and what comes next in a pattern.</li>
+    <li>A right answer gives <strong>5 gems</strong>. Then the friend waves and leaves.</li>
+    <li>A wrong answer takes nothing away. The button wobbles and you can try again. After two wrong tries, a picture with dots helps you. A right answer after a wrong try gives <strong>2 gems</strong>.</li>
+    <li><em>Not now</em> closes the question and nothing is lost. The friend waits a little longer, then leaves. Tap it again before it goes to get the same question back.</li>
+    <li>A friend leaves by itself after a minute and a half, or when you walk far away. Another one comes later.</li>
+    <li>Friends cannot be hit, and monsters leave them alone. You cannot dig the block a friend stands on.</li>
+    <li>When you play with others, each player has their own friend, seen only on their own screen.</li>
+    <li>To turn quiz friends off or on, use the <strong>Quiz friends</strong> switch in <a href="#settings">Settings</a>.</li>
+  </ul>
+
+  <h2 id="settings">18. Settings, sound and quitting</h2>
   <p>The <em>Settings</em> button is at the top right. In Settings you will find:</p>
   <ul>
     <li>The game's version, and <em>What has changed</em> in each version.</li>
     <li><strong>Sounds</strong> and <strong>Music</strong> sliders to make them louder, quieter or silent.</li>
+    <li>The <strong>Quiz friends</strong> switch: on at first. Off means no friend comes to ask a question. The choice is kept on this phone, tablet or computer.</li>
     <li>The music and sound credits.</li>
     <li><strong>Quit the game</strong>, at the bottom. The game asks first, then saves and closes. <em>Keep playing</em> takes you back.</li>
   </ul>
   <p>On a computer, <kbd>Esc</kbd> closes the bag or Settings; pressed again, it asks if you want to quit. In the Android app, the phone's Back button does the same.</p>
 
-  <h2 id="grownups">18. For grown-ups: parental controls</h2>
+  <h2 id="grownups">19. For grown-ups: parental controls</h2>
   <p>This part is for parents and guardians.</p>
   <h3>What is built in for every child</h3>
   <ul>
@@ -260,6 +277,7 @@
     <li>Players cannot chat or type messages to each other. Names are picked from the game's list.</li>
     <li>A shared world can only be joined with its 4-letter code. Worlds are never listed publicly, so your child only plays with people who were given the code.</li>
     <li>The game has no advertising.</li>
+    <li>Quiz friends ask easy maths questions made by the game itself, with no internet. Nothing about the questions or your child's answers is kept, logged or sent anywhere. Only the on or off choice is kept on the device. You can turn them off in Settings.</li>
   </ul>
   <h3>The parent area</h3>
   <p>The parent area is a panel inside the game, kept out of the way so that children do not open it by accident.</p>

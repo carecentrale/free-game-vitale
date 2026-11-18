@@ -1403,3 +1403,363 @@ test('a missing or broken audio file causes no error, and the game plays on', { 
     assert.ok(r.version, 'the game is still running');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [readyGame()], init: brokenAudio, audioList: FAKE_AUDIO }));
+
+// ---- Quiz Friends (0.6.63, SPEC-003) ----
+// Time is played with stepFrames (no waiting): 20 frames of 0.05 s are one second of play.
+// Brings a friend next to the character: no monsters, a new friend, and enough play time for it to walk up
+const friendArrives = (page, kind) => page.evaluate(k => {
+  const g = window.gameTest;
+  g.clearEnemies();
+  g.removeFriend();
+  if (!g.callFriend(k)) return { error: 'no friend could be placed' };
+  const start = g.friend, [px, , pz] = g.pos;
+  for (let s = 0; s < 8; s++) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); }
+  return { start: Math.hypot(start.x - px, start.z - pz), end: Math.hypot(g.friend.x - g.pos[0], g.friend.z - g.pos[2]), friend: g.friend, open: g.quizOpen };
+}, kind);
+// A press and release on the friend, as a finger or the mouse; o.drag moves sideways in between
+const pressFriend = (page, o = {}) => page.evaluate(o => {
+  const g = window.gameTest;
+  g.settleCamera();
+  const [x, y, front] = g.friendScreen();
+  if (!front) return { error: 'the friend is behind the camera' };
+  const c = document.querySelector('canvas');
+  const ev = (t, dx = 0) => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: x + dx, clientY: y, pointerId: 9, button: 0, pointerType: o.touch ? 'touch' : 'mouse' }));
+  ev('pointerdown');
+  const held = { digging: !!g.digging, fight: !!g.fight };
+  if (o.drag) ev('pointermove', o.drag);
+  ev('pointerup');
+  return { held, open: g.quizOpen, fireballs: g.fireballs.length, msg: g.msg };
+}, o);
+const panelState = page => page.evaluate(() => {
+  const p = document.getElementById('quizPanel');
+  if (!p) return null;
+  const hint = p.querySelector('.qhint');
+  return { text: p.querySelector('.qtext').textContent, answers: p.querySelectorAll('.qa').length, notNow: p.querySelector('.qnot').textContent,
+    msg: p.querySelector('.qmsg').textContent, hint: getComputedStyle(hint).display !== 'none' && hint.innerHTML.length > 0,
+    typing: p.querySelectorAll('input,textarea,select,[contenteditable]').length, wobble: p.querySelectorAll('.qa.wob').length };
+});
+const clickAnswer = (page, i) => page.evaluate(i => document.querySelector(`#quizPanel .qa[data-a="${i}"]`).click(), i);
+const gems = page => page.evaluate(() => window.gameTest.inv.gem);
+
+test('a quiz friend appears within 7 minutes of play when no monster is close, with a "?" over its head, waves, and stops two blocks away', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const r = await page.evaluate(() => {
+      const g = window.gameTest, first = g.friendWait;
+      let secs = 0;
+      while (!g.friend && secs < 430) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); secs++; }
+      const f = g.friend, [px, , pz] = g.pos;
+      return { first, secs, f, dist: f ? Math.hypot(f.x - px, f.z - pz) : null, msg: g.msg, second: g.callFriend(), open: g.quizOpen };
+    });
+    assert.ok(r.first >= 235 && r.first <= 420, 'the first wait is 4 to 7 minutes: ' + r.first);
+    assert.ok(r.f, 'no friend appeared in 7 minutes of play');
+    assert.ok(r.secs >= 235 && r.secs <= 421, 'it appeared after ' + r.secs + ' seconds');
+    assert.ok(['owl', 'turtle', 'robot'].includes(r.f.kind));
+    assert.ok(r.f.inScene && r.f.bubble, 'the friend and its "?" bubble are shown');
+    assert.ok(r.dist >= 6 && r.dist <= 11.5, 'it appears near the child: ' + r.dist);
+    assert.equal(r.second, false, 'only one friend at a time');
+    assert.equal(r.open, false);
+    // It waves: the arm moves from one moment to the next
+    const w1 = r.f.wave;
+    await page.waitForTimeout(350);
+    const w2 = await page.evaluate(() => { const g = window.gameTest; g.stepFrames([0.016]); return g.friend.wave; });
+    assert.notEqual(w1, w2, 'the friend does not wave');
+    // It walks up, stops two blocks away, and stays there without opening anything
+    const s = await page.evaluate(() => {
+      const g = window.gameTest;
+      for (let i = 0; i < 20; i++) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); }
+      const f = g.friend, [px, , pz] = g.pos;
+      return { state: f.state, dist: Math.hypot(f.x - px, f.z - pz), open: g.quizOpen, paused: g.paused };
+    });
+    assert.equal(s.state, 'wait');
+    assert.ok(Math.abs(s.dist - 2) < 0.06, 'it stops two blocks away: ' + s.dist);
+    assert.equal(s.open, false, 'the friend opened the question by itself');
+    assert.equal(s.paused, false);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
+test('the friend never opens the question itself; a tap on it opens one question with three answers and "Not now", which changes nothing', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    for (const [kind, touch] of [['owl', false], ['turtle', true], ['robot', false]]) {
+      const a = await friendArrives(page, kind);
+      assert.equal(a.error, undefined, a.error);
+      assert.equal(a.friend.kind, kind);
+      assert.equal(a.open, false, 'the question opened by itself');
+      const before = await gems(page);
+      // A drag across the friend turns the view and opens nothing
+      const d = await pressFriend(page, { drag: 40, touch });
+      assert.equal(d.error, undefined, d.error);
+      assert.equal(d.open, false, 'a drag opened the question');
+      // A tap opens it. The press does not dig, fight or cast
+      const t = await pressFriend(page, { touch });
+      assert.deepEqual(t.held, { digging: false, fight: false });
+      assert.equal(t.open, true, kind + ': a tap did not open the question');
+      assert.equal(t.fireballs, 0);
+      const p = await panelState(page);
+      assert.ok(p.text.length > 5, 'the question has text');
+      assert.equal(p.answers, 3);
+      assert.equal(p.notNow, 'Not now');
+      assert.equal(p.typing, 0, 'there is a place to type');
+      assert.equal(p.hint, false);
+      assert.equal(await page.evaluate(() => window.gameTest.paused), true, 'the game stands still while the question is open');
+      const key = await page.evaluate(() => window.gameTest.quizQuestion.key);
+      // Not now: closed, nothing lost, the friend still waits
+      await page.evaluate(() => document.querySelector('#quizPanel .qnot').click());
+      assert.equal(await panelState(page), null);
+      assert.equal(await gems(page), before);
+      assert.equal(await page.evaluate(() => window.gameTest.paused), false);
+      assert.equal(await page.evaluate(() => window.gameTest.friend.state), 'wait');
+      // A second tap shows the same question; Esc closes it like "Not now"
+      const t2 = await pressFriend(page, { touch });
+      assert.equal(t2.open, true);
+      assert.equal(await page.evaluate(() => window.gameTest.quizQuestion.key), key, 'a new question was made');
+      await page.keyboard.press('Escape');
+      assert.equal(await panelState(page), null, 'Esc did not close the question');
+      assert.equal(await page.evaluate(() => window.gameTest.quitOpen), false, 'Esc also asked about quitting');
+      assert.equal(await gems(page), before);
+    }
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [spellGame()] }));
+
+test('a right first answer gives 5 gems, a right answer after a wrong try gives 2, a wrong answer takes nothing, and a picture hint shows after two wrong tries', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const open = async () => {
+      const a = await friendArrives(page);
+      assert.equal(a.error, undefined, a.error);
+      const t = await pressFriend(page);
+      assert.equal(t.open, true);
+      return page.evaluate(() => window.gameTest.quizQuestion.right);
+    };
+    const closed = () => page.waitForFunction(() => !window.gameTest.quizOpen, null, { timeout: 10000 });
+    // Right first time: stars, 5 gems, then the friend leaves
+    let start = await gems(page), right = await open();
+    // (read in the same step as the tap: the panel closes by itself a moment later)
+    const won = await page.evaluate(i => {
+      const btn = document.querySelector(`#quizPanel .qa[data-a="${i}"]`);
+      btn.click();
+      const out = { gems: window.gameTest.inv.gem, msg: document.querySelector('#quizPanel .qmsg').textContent, stars: document.querySelectorAll('#quizPanel .qstars svg').length };
+      btn.click();   // a second tap on the right answer gives nothing more
+      return out;
+    }, right);
+    assert.equal(won.gems, start + 5);
+    assert.match(won.msg, /\+5 gems/);
+    assert.ok(won.stars > 5, 'no stars');
+    let p;
+    await closed();
+    assert.equal(await gems(page), start + 5);
+    const left = await page.evaluate(() => {
+      const g = window.gameTest, state = g.friend.state;
+      for (let i = 0; i < 6; i++) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); }
+      return { state, gone: g.friend === null, wait: g.friendWait };
+    });
+    assert.equal(left.state, 'leave');
+    assert.equal(left.gone, true, 'the friend did not leave');
+    assert.ok(left.wait >= 235 && left.wait <= 420, 'the next friend comes 4 to 7 minutes later: ' + left.wait);
+    // Two wrong tries: nothing lost, "Try again", the button wobbles, then the hint. The right answer then gives 2
+    start = await gems(page); right = await open();
+    const wrong = [0, 1, 2].filter(i => i !== right);
+    await clickAnswer(page, wrong[0]);
+    p = await panelState(page);
+    assert.equal(await gems(page), start, 'a wrong answer changed the gems');
+    assert.equal(p.msg, 'Try again');
+    assert.equal(p.wobble, 1);
+    assert.equal(p.hint, false, 'the hint showed after one wrong try');
+    await clickAnswer(page, wrong[1]);
+    p = await panelState(page);
+    assert.equal(p.hint, true, 'no picture hint after two wrong tries');
+    assert.equal(await gems(page), start);
+    await clickAnswer(page, right);
+    assert.equal(await gems(page), start + 2);
+    await closed();
+    // One wrong try, then right: 2 gems. One wrong try, then "Not now": nothing changes
+    start = await gems(page); right = await open();
+    await clickAnswer(page, (right + 1) % 3);
+    await clickAnswer(page, right);
+    assert.equal(await gems(page), start + 2);
+    await closed();
+    start = await gems(page); right = await open();
+    await clickAnswer(page, (right + 2) % 3);
+    await page.evaluate(() => document.querySelector('#quizPanel .qnot').click());
+    assert.equal(await gems(page), start);
+    // Nothing about the questions is kept on the device
+    const kept = await page.evaluate(() => { window.gameTest.stepFrames([0.05]); return Object.keys(localStorage).map(k => k + '=' + localStorage.getItem(k)).join('\n'); });
+    assert.ok(!/quiz|friend|How many|What is|comes next|the most/i.test(kept), 'something about the quiz is stored on the device');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
+test('in 20 questions in a row from friends, each has three answers with one right, and none repeats within 10', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const keys = [];
+    for (let i = 0; i < 20; i++) {
+      const q = await page.evaluate(() => {
+        const g = window.gameTest;
+        g.clearEnemies(); g.removeFriend(); g.callFriend();
+        g.openQuiz();
+        const q = g.quizQuestion, n = document.querySelectorAll('#quizPanel .qa').length;
+        g.quizNotNow();
+        return { key: q.key, right: q.right, n, labels: q.answers.map(a => (a.label || '') + '/' + (a.n ? '' : a.shape || '')) };
+      });
+      assert.equal(q.n, 3);
+      assert.equal(new Set(q.labels).size, 3, 'answers are not all different: ' + q.labels);
+      assert.ok(q.right >= 0 && q.right < 3);
+      assert.ok(!keys.slice(-10).includes(q.key), 'question ' + (i + 1) + ' repeats within 10: ' + q.key);
+      keys.push(q.key);
+    }
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
+test('with "Quiz friends" off in Settings no friend appears in 15 minutes of play; the switch is remembered, and on again a friend comes', { skip, timeout: 300000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    assert.equal(await page.evaluate(() => window.gameTest.quizOn), true, 'quiz friends are on at first');
+    const a = await friendArrives(page);
+    assert.equal(a.error, undefined, a.error);
+    await page.dispatchEvent('#settingsBtn', 'click');
+    assert.equal(await page.evaluate(() => document.getElementById('quizSwitch').textContent), 'On');
+    const size = await page.evaluate(() => { const b = document.getElementById('quizSwitch').getBoundingClientRect(); return Math.min(b.width, b.height); });
+    assert.ok(size >= 48, 'the switch is too small to tap: ' + size);
+    await page.dispatchEvent('#quizSwitch', 'click');
+    assert.equal(await page.evaluate(() => document.getElementById('quizSwitch').textContent), 'Off');
+    assert.deepEqual(await page.evaluate(() => ({ on: window.gameTest.quizOn, friend: window.gameTest.friend, kept: localStorage.getItem('kidsgame.quiz') })), { on: false, friend: null, kept: '0' });
+    await page.dispatchEvent('#settingsClose', 'click');
+    const none = await page.evaluate(() => {
+      const g = window.gameTest;
+      g.setFriendWait(0);
+      let seen = false;
+      for (let s = 0; s < 900 && !seen; s++) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); seen = !!g.friend; }
+      return seen;
+    });
+    assert.equal(none, false, 'a friend appeared with the switch off');
+    // Still off after closing and opening the game
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await playing(page);
+    assert.equal(await page.evaluate(() => window.gameTest.quizOn), false, 'the switch was not remembered');
+    await page.dispatchEvent('#settingsBtn', 'click');
+    await page.dispatchEvent('#quizSwitch', 'click');
+    await page.dispatchEvent('#settingsClose', 'click');
+    const back = await page.evaluate(() => {
+      const g = window.gameTest;
+      let secs = 0;
+      while (!g.friend && secs < 430) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); secs++; }
+      return { on: g.quizOn, friend: !!g.friend, kept: localStorage.getItem('kidsgame.quiz') };
+    });
+    assert.deepEqual(back, { on: true, friend: true, kept: '1' });
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
+test('no friend appears while a monster is within 10 blocks or a panel is open; it leaves after 90 seconds or 40 blocks, and cannot be dug under or built into', { skip, timeout: 300000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    // A monster 4 blocks away: no friend, however long the wait is over
+    const m = await page.evaluate(() => {
+      const g = window.gameTest;
+      g.clearEnemies(); g.removeFriend(); g.setFriendWait(0);
+      let seen = false, placed = true;
+      for (let s = 0; s < 20 && !seen; s++) { g.clearEnemies(); placed = g.enemyNear('goblin', 3, 3) && placed; g.stepFrames(Array(20).fill(0.05)); seen = !!g.friend; }
+      return { seen, placed };
+    });
+    assert.equal(m.placed, true);
+    assert.equal(m.seen, false, 'a friend appeared with a monster close');
+    // The bag is open: no friend. Bag closed and no monster: it comes
+    await page.keyboard.press('KeyB');
+    const b = await page.evaluate(() => {
+      const g = window.gameTest;
+      let seen = false;
+      for (let s = 0; s < 20 && !seen; s++) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); seen = !!g.friend; }
+      return { seen, bag: g.bagOpen };
+    });
+    assert.deepEqual(b, { seen: false, bag: true }, 'a friend appeared with the bag open');
+    await page.keyboard.press('KeyB');
+    const c = await page.evaluate(() => {
+      const g = window.gameTest;
+      for (let s = 0; s < 5 && !g.friend; s++) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); }
+      return !!g.friend;
+    });
+    assert.equal(c, true, 'no friend came once the bag was closed and no monster was close');
+    // It cannot be dug under or built into, and it is not a monster
+    const a = await friendArrives(page);
+    assert.equal(a.error, undefined, a.error);
+    const d = await page.evaluate(() => {
+      const g = window.gameTest, f = g.friend;
+      const x = Math.floor(f.x), z = Math.floor(f.z), y = Math.round(f.y) - 1;
+      const under = g.isSolid(g.blockAt(x, y, z));
+      g.inv.dirt = 5;
+      const dug = g.digCell(x, y, z);
+      g.placeCell(x, y + 1, z, 'dirt');
+      return { under, dug, still: g.isSolid(g.blockAt(x, y, z)), built: g.isSolid(g.blockAt(x, y + 1, z)), dirt: g.inv.dirt, monsters: g.enemies.length, on: g.friendOn(x, y, z) };
+    });
+    assert.deepEqual(d, { under: true, dug: false, still: true, built: false, dirt: 5, monsters: 0, on: true });
+    // 90 seconds with no answer: it leaves, with no "you missed it" message
+    const stay = await page.evaluate(() => {
+      const g = window.gameTest, msgs = new Set();
+      let left = -1;
+      for (let s = 8; s < 100 && left < 0; s++) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); msgs.add(g.msg); if (!g.friend || g.friend.state === 'leave') left = s + 1; }
+      for (let s = 0; s < 6; s++) { g.clearEnemies(); g.stepFrames(Array(20).fill(0.05)); msgs.add(g.msg); }
+      return { left, gone: g.friend === null, msgs: [...msgs].join(' | '), open: g.quizOpen };
+    });
+    assert.ok(stay.left >= 89 && stay.left <= 92, 'it left after ' + stay.left + ' seconds');
+    assert.equal(stay.gone, true);
+    assert.ok(!/miss|late|gone|left/i.test(stay.msgs), 'a message about a missed friend: ' + stay.msgs);
+    // More than 40 blocks away: it leaves
+    const a2 = await friendArrives(page);
+    assert.equal(a2.error, undefined, a2.error);
+    const far = await page.evaluate(() => {
+      const g = window.gameTest;
+      g.walkAway(38);
+      g.stepFrames([0.05]);
+      const near = g.friend && g.friend.state;
+      g.walkAway(5);
+      g.stepFrames([0.05]);
+      return { near, state: g.friend && g.friend.state };
+    });
+    assert.deepEqual(far, { near: 'wait', state: 'leave' });
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
+const PC = { viewport: { width: 1280, height: 720 } };
+for (const [label, device] of [['a phone held sideways', PHONE_WIDE], ['a phone held upright', PHONE_TALL], ['a tablet', TABLET], ['a PC', PC]]) {
+  test(`on ${label}, the question panel fits the screen and its buttons are big enough to tap`, { skip, timeout: 240000 }, () =>
+    withGame(async (page, errors) => {
+      await playing(page);
+      for (const kind of ['count', 'add', 'take', 'more', 'next']) {
+        for (let n = 0; n < 4; n++) {
+          const r = await page.evaluate(kind => {
+            const g = window.gameTest;
+            g.clearEnemies(); g.removeFriend(); g.callFriend();
+            g.askKind(kind);
+            g.openQuiz();
+            const measure = () => {
+              const inView = el => { const b = el.getBoundingClientRect(); return b.left >= -0.5 && b.top >= -0.5 && b.right <= innerWidth + 0.5 && b.bottom <= innerHeight + 0.5; };
+              const p = document.getElementById('quizPanel'), box = p.querySelector('.qbox');
+              const btns = [...p.querySelectorAll('.qa')], not = p.querySelector('.qnot');
+              return { box: inView(box), text: parseFloat(getComputedStyle(p.querySelector('.qtext')).fontSize), textIn: inView(p.querySelector('.qtext')),
+                btnIn: btns.every(inView) && inView(not), small: btns.filter(b => b.getBoundingClientRect().height < 60 || b.getBoundingClientRect().width < 60).length,
+                notH: not.getBoundingClientRect().height, scroll: box.scrollHeight - box.clientHeight, wide: box.scrollWidth - box.clientWidth };
+            };
+            const first = measure();
+            const q = g.quizQuestion;
+            for (const i of [0, 1, 2].filter(i => i !== q.right)) g.answerQuiz(i);   // two wrong tries: the hint shows
+            const hinted = measure();
+            const hint = getComputedStyle(document.querySelector('#quizPanel .qhint')).display !== 'none';
+            g.quizNotNow();
+            return { first, hinted, hint, key: q.key };
+          }, kind);
+          const where = label + ', ' + r.key;
+          assert.equal(r.first.box, true, 'the panel is off the screen: ' + where);
+          assert.equal(r.first.textIn && r.first.btnIn, true, 'the question or a button is off the screen: ' + where);
+          assert.equal(r.first.scroll <= 1 && r.first.wide <= 1, true, 'the panel needs scrolling: ' + where);
+          assert.ok(r.first.text >= 22, 'the question text is small: ' + r.first.text);
+          assert.equal(r.first.small, 0, 'an answer button is smaller than 60 points: ' + where);
+          assert.ok(r.first.notH >= 48, '"Not now" is smaller than 48 points');
+          assert.equal(r.hint, true);
+          assert.equal(r.hinted.box, true, 'with the hint, the panel is off the screen: ' + where);
+          assert.equal(r.hinted.btnIn && r.hinted.scroll <= 1, true, 'with the hint, a button is off the screen: ' + where);
+          assert.equal(r.hinted.small, 0);
+        }
+      }
+      assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+    }, { device, saves: [readyGame()] }));
+}

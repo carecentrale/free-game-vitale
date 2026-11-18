@@ -11,6 +11,24 @@ Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one versio
 - No change to what data is collected: the pages are plain pages with no scripts
 - Checked: the fast tests; the pages were looked at in a browser in the cloud workspace. Not checked: the parent has not read the guide against the game; a phone or tablet
 
+## 0.6.63: Quiz Friends (SPEC-003)
+Built from the product manager's SPEC-003 "Quiz Friends", document version 1, approved by the parent on 17 Nov 2026. The document names 0.6.61 as its target; that number was already used, so this is 0.6.63.
+- Now and then a friendly character (an owl, a turtle or a small robot, all original and made in the game's code) appears 7 to 11 blocks from the child with a "?" bubble over its head, waves, walks up and stops two blocks away. It never opens anything by itself
+- A tap or click on the friend opens one question: large text with pictures, three big answer buttons and "Not now". The game stands still while the question is open. There is no timer and no countdown
+- Questions are made at random by the game's code, which also works out the right answer (no internet, no AI): count pictures up to 10, add and take away within 10, which has the most, what comes next in a two-shape pattern. Three different answers, one right, the wrong ones 1 to 3 away, the right one in a random place, text of 8 words or fewer, and no question repeats within the last 10
+- Right first time: stars and 5 gems, then the friend waves and leaves. Wrong: the button wobbles and "Try again" shows; nothing is lost. After two wrong tries a picture hint with dots appears. Right after a wrong try: 2 gems. Rewards are fixed
+- "Not now" (also Esc and the Android Back button): the panel closes with no change; the friend waits 20 seconds more, then leaves. Tapping it again shows the same question
+- One friend at a time. A new one comes 4 to 7 minutes of play after the last one left (the first one of a visit too), never while a monster is within 10 blocks or a panel is open. It leaves after 90 seconds with no answer or when the child is more than 40 blocks away, with no message
+- Friends are not monsters: they cannot be hit or pushed, monsters ignore them, and the block a friend stands on cannot be dug or built into ("Your friend is standing there")
+- In a shared world each player has their own friend, seen only on their own screen: a friend is never sent to other players
+- Settings has a "Quiz friends" switch, on at first, kept on the device like the volume levels. Off removes the friend on screen and no new one comes
+- No change to what data is collected. Nothing about questions or answers is stored, logged or sent; the last 10 questions are remembered only while the game is open. The only thing kept is the on/off switch (`kidsgame.quiz` on the device)
+- Uses sounds already in the game (open, close, tap, gem). No new files and no outside assets
+- Website: the guide has a new part 17, "Quiz friends", a line in Settings and a line for grown-ups; the release notes page is rewritten
+- Built differently from the document, or where it is silent: the question "which is more" reads "Which has the most?" because there are three groups; the answer buttons for it show the number with that many pictures; a friend must be within 10 blocks for a tap to open the question ("Walk closer to your friend" otherwise); a short message says "A friend is here! Tap it to say hello." when one appears; a friend walks over any ground and stands on top of water
+- Tests added: `scripts/tests/quiz.test.mjs` (14 fast tests of the question rules and the privacy rules) and 9 browser tests in `browser.test.mjs` (the seven "Done when" points, on a phone held both ways, a tablet and a PC)
+- Checked: the syntax check, the fast tests, and the 9 new browser tests in the cloud workspace's Chrome (against a copy of the game that draws a smaller area, because that browser is slow). Not checked: the other browser tests; a real phone or tablet; real sound; the parent and his son have not played it
+
 ## 0.6.62: building works on phones and tablets, and a full bag can be emptied
 Two problems reported from play on a phone.
 - Fixed: on a touch screen you could not build. A tap on a block always tried to dig, and said "Select the pickaxe" when another item was in hand; only a right-click built, and a touch screen has none
