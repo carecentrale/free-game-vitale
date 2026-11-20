@@ -3169,3 +3169,42 @@ test('SPEC-016 F and G: a new world has caves and castles; light dims in a cave 
     assert.ok(dimmed, 'the light fades in the room');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { device: PC, saves: [gen2Game()] }));
+
+// ---- Castle life and travelling merchants (0.6.77) ----
+test('a merchant trades: monster parts and blocks for gems, gems for gear; not enough gems or a full bag is refused; Back closes it', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const r = await page.evaluate(() => {
+      const g = window.gameTest, out = {};
+      const sword = g.BUYS.find(b => b.gear === 'iron_sword'), stone = g.BUYS.find(b => b.get && b.get[0] === 'castle_stone');
+      g.setInv('gem', 20); g.setInv('goblin_ear', 3); g.setInv('dirt', 8);
+      out.open = g.openTradeWith([{ parts: true }, g.SELLS[0], sword, stone]);
+      const panel = document.getElementById('tradePanel');
+      out.rows = panel.querySelectorAll('.trow').length;
+      out.typing = panel.querySelectorAll('input,textarea,select,[contenteditable],a').length;
+      out.sellParts = g.doTrade(0); out.afterParts = [g.inv.gem, g.inv.goblin_ear];
+      out.sellDirt = g.doTrade(1); out.afterDirt = [g.inv.gem, g.inv.dirt];
+      out.buySword = g.doTrade(2); out.afterSword = [g.inv.gem, g.gearList.includes('iron_sword')];
+      out.again = g.doTrade(2); out.msg = document.querySelector('#tradePanel .qmsg').textContent;
+      g.setInv('gem', 5); g.setInv('stone', 200);
+      out.full = g.doTrade(3); out.fullMsg = document.querySelector('#tradePanel .qmsg').textContent;
+      g.setInv('stone', 0);
+      g.backAction();
+      out.closed = !g.tradeOpen && !document.getElementById('tradePanel') && !g.paused;
+      out.offers = [1, 2, 3].map(n => g.merchantOffers(n).length);
+      out.gearOffer = [1, 2, 3, 4, 5].every(n => g.merchantOffers(n).some(o => o.gear));
+      return out;
+    });
+    assert.equal(r.open, true);
+    assert.equal(r.rows, 4);
+    assert.equal(r.typing, 0, 'no typing and no links in the trade panel');
+    assert.equal(r.sellParts, true); assert.deepEqual(r.afterParts, [23, 0]);
+    assert.equal(r.sellDirt, true); assert.deepEqual(r.afterDirt, [24, 0]);
+    assert.equal(r.buySword, true); assert.deepEqual(r.afterSword, [9, true]);
+    assert.equal(r.again, false); assert.match(r.msg, /gems/);
+    assert.equal(r.full, false); assert.match(r.fullMsg, /bag is full/i);
+    assert.equal(r.closed, true);
+    assert.deepEqual(r.offers, [6, 6, 6]);
+    assert.equal(r.gearOffer, true, 'every merchant sells at least one piece of gear');
+    assert.deepEqual(errors, []);
+  }, { saves: [readyGame()] }));

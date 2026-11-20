@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.76 (3D)</title>
+<title>Adventurers of Drenerics v0.6.77 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -170,6 +170,19 @@
   #quizPanel .qt.used{opacity:.2}
   #quizPanel .qa.ok{background:#2e9e4f;border-color:#fff}
   /* Hint, Another question and Not now (0.6.75): three small buttons in one row under the answers, each at least 48 px tall */
+  #tradePanel{position:fixed;inset:0;background:rgba(10,12,25,.8);display:flex;align-items:center;justify-content:center;z-index:55;padding:8px;box-sizing:border-box}
+  #tradePanel .qbox{position:relative;background:#1d2440;color:#fff;border-radius:18px;padding:clamp(10px,3vmin,20px);width:min(560px,100%);max-height:100%;overflow:auto;box-sizing:border-box;text-align:center}
+  #tradePanel .qtext{font-size:clamp(22px,6vmin,32px);font-weight:700}
+  #tradePanel .tgems{margin:4px 0 6px;color:#ffd54a;font-weight:700;font-size:clamp(14px,3.8vmin,18px)}
+  #tradePanel .trow{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border-radius:12px;padding:6px 8px;margin-top:6px;text-align:left}
+  #tradePanel .tside{flex:1;display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;font-size:clamp(13px,3.6vmin,17px)}
+  #tradePanel .ti{width:28px;height:28px;flex:none;background-size:cover;image-rendering:pixelated;border-radius:4px}
+  #tradePanel .tarrow{font-size:20px;opacity:.8}
+  #tradePanel .tbuy{flex:none;min-width:72px;min-height:44px;border:0;border-radius:12px;background:#3b9a4a;color:#fff;font-family:inherit;font-size:16px;font-weight:700;cursor:pointer}
+  #tradePanel .tbuy.off{background:#555;opacity:.6}
+  #tradePanel .qmsg{min-height:1.3em;margin-top:8px;font-size:clamp(16px,4.2vmin,20px);color:#ffd54a;font-weight:700}
+  #tradePanel .qrow{display:flex;justify-content:center;margin-top:10px}
+  #tradePanel .qnot{min-height:48px;min-width:140px;padding:10px 22px;border:2px solid rgba(255,255,255,.35);border-radius:12px;background:transparent;color:#fff;font-family:inherit;font-size:18px;cursor:pointer}
   #quizPanel .qrow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
   #quizPanel .qrow button{flex:0 1 auto;margin-top:0;min-width:0;min-height:48px;padding:8px 12px;font-size:clamp(14px,4vmin,18px);border:2px solid rgba(255,255,255,.35);border-radius:12px;background:transparent;color:#fff;font-family:inherit;cursor:pointer}
   #quizPanel .qrow button:disabled{opacity:.3;cursor:default}
@@ -686,7 +699,7 @@ function siteHeights(x0, z0, w, d, m = 10) {
 function makeCastle(kind, sx, sz, W, D, lo, hi, num, front) {
   const R = (n) => hash3(num, n, 77, seed + CASTLE_SALT);
   const floorY = Math.round((lo + hi) / 2) + 1;   // the walking level: halfway between the lowest and highest ground (higher land is cut away, gaps are filled with stone)
-  const c = { kind, sx, sz, W, D, floorY, front, num, apron: Math.max(APRON, Math.ceil((hi - lo) / 2) + 3) };
+  const c = { kind, sx, sz, W, D, floorY, front, num, lo, apron: Math.max(APRON, Math.ceil((hi - lo) / 2) + 3) };   // lo (0.6.77): for the far view's hill only, no block depends on it
   // The structure seen from the front: a along the front, b from the front (0) to the back. The front faces the start point.
   const swap = front === 'x-' || front === 'x+';
   c.A = swap ? D : W; c.B = swap ? W : D;
@@ -1009,10 +1022,155 @@ function setBlock(x, y, z, t) {
   writeBlock(x, y, z, t);
   dirty = true;
 }
+// ---- Castle life and travelling merchants (0.6.77) ----
+// Worked out from each castle's plan and the seed alone. Nothing here changes the land: the stalls, wells and people in the
+// courtyards and the merchants' hover carts are drawn on top of it, so worlds with castles get them too and nothing new is saved.
+// From the castle's own frame (a, b) to the middle of that cell in the world: [x, z]. Fractions work too.
+function cellToWorld(c, a, b) {
+  switch (c.front) {
+    case 'z-': return [c.sx + a + 0.5, c.sz + b + 0.5];
+    case 'z+': return [c.sx + c.W - 1 - a + 0.5, c.sz + c.D - 1 - b + 0.5];
+    case 'x-': return [c.sx + c.W - 1 - b + 0.5, c.sz + a + 0.5];
+    default: return [c.sx + b + 0.5, c.sz + c.D - 1 - a + 0.5];
+  }
+}
+// The turn (radians, about the up axis) that makes a thing's front (+z) face the castle's gate side (toward b = 0)
+function frontTurn(c) {
+  const [x0, z0] = cellToWorld(c, 0, 1), [x1, z1] = cellToWorld(c, 0, 0);
+  return Math.atan2(x1 - x0, z1 - z0);
+}
+const LIFE_KINDS = ['stall', 'stall', 'stall', 'barrels', 'crates', 'hay', 'stall', 'cart'];
+// Places in a courtyard for the castle's life: each is a 5 x 5 patch of courtyard floor with 4 blocks of open air above it,
+// clear of the path from the gate to the keep's door, the stairs, the towers and the walls. The first is the well (the
+// place nearest the middle). A tower house has no courtyard. [{ a, b, kind, n }] in the castle's own frame.
+function courtyardSpots(c) {
+  if (c.spots) return c.spots;
+  const out = [];
+  c.spots = out;
+  if (c.kind === 'tower') return out;
+  const K = c.keep, mid = c.A / 2, R = n => hash3(c.num, n, 91, seed + CASTLE_SALT);
+  const lane = (a, b) => (b < K.b0 + 1 && Math.abs(a + 0.5 - mid) <= 4.5) || (b >= K.b0 - 6 && b < K.b0 && Math.abs(a + 0.5 - (K.a0 + K.a1) / 2) <= 4.5);
+  const memo = new Uint8Array(c.A * c.B);   // 0: not worked out yet, 1: open, 2: not open
+  const open = (a, b) => {
+    if (a < 0 || b < 0 || a >= c.A || b >= c.B || lane(a, b)) return false;
+    const i = b * c.A + a;
+    if (!memo[i]) {
+      const near = c.towers.filter(tw => Math.abs(a + 0.5 - tw.a) <= tw.R + 1.5 && Math.abs(b + 0.5 - tw.b) <= tw.R + 1.5);
+      let ok = structBlock(c, a, b, -1, near) === T.CSTONE;
+      for (let ry = 0; ry < 4 && ok; ry++) { const t = structBlock(c, a, b, ry, near); ok = t === undefined || t === T.AIR; }
+      memo[i] = ok ? 1 : 2;
+    }
+    return memo[i] === 1;
+  };
+  const cand = [];
+  for (let b = 6; b < c.B - 6; b += 3) for (let a = 6; a < c.A - 6; a += 3) {
+    let ok = true;
+    for (let i = -2; i <= 2 && ok; i++) for (let j = -2; j <= 2 && ok; j++) ok = open(a + i, b + j);
+    if (ok) cand.push({ a, b, d: Math.hypot(a - mid, b - c.B / 2), r: hash3(a, b, c.num, seed + 977) });
+  }
+  if (!cand.length) return out;
+  const far = s => out.every(o => Math.max(Math.abs(o.a - s.a), Math.abs(o.b - s.b)) >= 6);
+  cand.sort((p, q) => p.d - q.d);
+  out.push({ a: cand[0].a, b: cand[0].b, kind: 'well', n: 0 });
+  const most = c.kind === 'great' ? 16 : 6;
+  cand.sort((p, q) => p.r - q.r);
+  for (const s of cand) {
+    if (out.length > most) break;
+    if (!far(s)) continue;
+    out.push({ a: s.a, b: s.b, kind: LIFE_KINDS[Math.floor(R(out.length) * LIFE_KINDS.length)], n: out.length });
+  }
+  return out;
+}
+// The place just outside a castle's gate, past its slope and moat, where a merchant's cart stops: [x, z]
+const gateStop = c => cellToWorld(c, c.A / 2 - 0.5, -(c.margin + 3));
+const castleMid = c => [c.sx + c.W / 2, c.sz + c.D / 2];
+const castleId = c => c.sx + ',' + c.sz;
+// True if the line from p to q passes through the box [x0, x1] x [z0, z1]
+function segHitsBox(p, q, x0, z0, x1, z1) {
+  let t0 = 0, t1 = 1;
+  const dx = q[0] - p[0], dz = q[1] - p[1];
+  for (const [d, lo, hi, s] of [[dx, x0, x1, p[0]], [dz, z0, z1, p[1]]]) {
+    if (Math.abs(d) < 1e-9) { if (s <= lo || s >= hi) return false; continue; }
+    let a = (lo - s) / d, b = (hi - s) / d;
+    if (a > b) [a, b] = [b, a];
+    t0 = Math.max(t0, a); t1 = Math.min(t1, b);
+    if (t0 >= t1) return false;
+  }
+  return true;
+}
+// The way from p to q around the castles in the list: a list of points after p, ending with q. Each castle in the way (with
+// its slope and moat, and 2 blocks more) is gone round by one or two of its corners, 3 blocks further out.
+function wayRound(p, q, castles, depth = 0) {
+  const box = c => [c.fx0 - 2, c.fz0 - 2, c.fx1 + 2, c.fz1 + 2];
+  const hit = castles.find(c => segHitsBox(p, q, ...box(c)));
+  if (!hit || depth > 8) return [q];
+  const [x0, z0, x1, z1] = box(hit), B = [x0, z0, x1, z1];
+  const K = [[x0 - 3, z0 - 3], [x1 + 3, z0 - 3], [x1 + 3, z1 + 3], [x0 - 3, z1 + 3]];   // round the box in order
+  const clear = (u, v) => !segHitsBox(u, v, ...B);
+  const len = pts => { let n = 0, u = p; for (const v of pts) { n += Math.hypot(v[0] - u[0], v[1] - u[1]); u = v; } return n; };
+  let best = null;
+  for (let i = 0; i < 4; i++) {
+    if (!clear(p, K[i])) continue;
+    if (clear(K[i], q) && (!best || len([K[i], q]) < len([...best, q]))) best = [K[i]];
+    for (const j of [(i + 1) % 4, (i + 3) % 4]) if (clear(K[j], q) && (!best || len([K[i], K[j], q]) < len([...best, q]))) best = [K[i], K[j]];
+  }
+  if (!best) return [q];
+  const out = [];
+  let u = p;
+  for (const v of [...best, q]) { out.push(...wayRound(u, v, castles.filter(c => c !== hit), depth + 1)); u = v; }
+  return out;
+}
+// Merchants' roads: each castle trades with its nearest neighbour castle (up to a little over two castle spacings away).
+// The roads of the castles within r blocks of (x, z): [{ key, from, to, pts }], pts from the first gate to the second.
+const roadCache = new Map();
+function merchantRoads(x, z, r) {
+  const out = [], seenKey = new Set();
+  for (const c of castlesIn(Math.floor(x - r), Math.floor(z - r), Math.ceil(x + r), Math.ceil(z + r))) {
+    const [mx, mz] = castleMid(c), reach = castleGap * 2.2;
+    let best = null, bd = Infinity;
+    for (const o of castlesIn(Math.floor(mx - reach), Math.floor(mz - reach), Math.ceil(mx + reach), Math.ceil(mz + reach))) {
+      if (o === c) continue;
+      const [ox, oz] = castleMid(o), d = Math.hypot(ox - mx, oz - mz);
+      if (d < bd || (d === bd && castleId(o) < castleId(best))) { bd = d; best = o; }
+    }
+    if (!best || bd > reach) continue;
+    const [p, q] = castleId(c) < castleId(best) ? [c, best] : [best, c];
+    const key = castleId(p) + '>' + castleId(q);
+    if (seenKey.has(key)) continue;
+    seenKey.add(key);
+    let road = roadCache.get(key);
+    if (!road) {
+      const a = gateStop(p), b = gateStop(q);
+      const lo = [Math.min(a[0], b[0]) - 300, Math.min(a[1], b[1]) - 300], hi = [Math.max(a[0], b[0]) + 300, Math.max(a[1], b[1]) + 300];
+      const others = castlesIn(Math.floor(lo[0]), Math.floor(lo[1]), Math.ceil(hi[0]), Math.ceil(hi[1]));
+      // the cart leaves each gate straight out first, then goes round any castle on the way
+      const outA = cellToWorld(p, p.A / 2 - 0.5, -(p.margin + 8)), outB = cellToWorld(q, q.A / 2 - 0.5, -(q.margin + 8));
+      road = { key, from: p, to: q, pts: [a, outA, ...wayRound(outA, outB, others), b] };
+      roadCache.set(key, road);
+    }
+    out.push(road);
+  }
+  return out;
+}
+// The length of a road, and the point and heading (radians) at distance s along it
+function roadLength(road) {
+  if (road.len === undefined) { road.len = 0; for (let i = 1; i < road.pts.length; i++) road.len += Math.hypot(road.pts[i][0] - road.pts[i - 1][0], road.pts[i][1] - road.pts[i - 1][1]); }
+  return road.len;
+}
+function roadPoint(road, s) {
+  let left = Math.max(0, s);
+  for (let i = 1; i < road.pts.length; i++) {
+    const [ax, az] = road.pts[i - 1], [bx, bz] = road.pts[i], d = Math.hypot(bx - ax, bz - az);
+    if (left <= d || i === road.pts.length - 1) { const f = d ? Math.min(1, left / d) : 0; return { x: ax + (bx - ax) * f, z: az + (bz - az) * f, dir: Math.atan2(bx - ax, bz - az) }; }
+    left -= d;
+  }
+  const [x, z] = road.pts[0];
+  return { x, z, dir: 0 };
+}
 // g: the land-maker (2 for new worlds); gap: the castle spacing recorded in the world
 function initWorld(s, g = GEN_NOW, gap = castleGapNext) {
   seed = s; gen = g; castleGap = gapOk(gap) ? gap : CASTLE_GAP_DEFAULT;
-  chunks.clear(); edited.clear(); touched.clear(); mouthCache.clear(); castleCache.clear(); startTower = undefined; viewReset = true;
+  chunks.clear(); edited.clear(); touched.clear(); mouthCache.clear(); castleCache.clear(); roadCache.clear(); startTower = undefined; viewReset = true;
 }
 
 // Save and share format: the seed plus every chunk that players have changed
@@ -1785,7 +1943,8 @@ bindBtn('bJ', 'J');
 // onto a hand button or changes the item in hand by itself. An empty hand button opens the bag with its slot chosen.
 // With the bag, Settings, the quit question or another panel open, the buttons do nothing.
 let powersOpen = false;
-const anyPanelOpen = () => bagOpen || settingsOpen || quitOpen || powersOpen || !!skillPanel || !!quizPanel || !!tipPanel || paused;
+let tradePanel = null, pendingMerchant = null;   // a merchant's open trades; the merchant a press landed on (0.6.77)
+const anyPanelOpen = () => bagOpen || settingsOpen || quitOpen || powersOpen || !!skillPanel || !!quizPanel || !!tipPanel || !!tradePanel || paused;
 // The item a hand button shows. A stack that has run out counts as empty.
 const handItem = i => { const id = qb[i], d = id ? defOf(id) : null; return d && !(ITEMS[id] && d.kind !== 'spell' && !(inv[id] > 0)) ? id : null; };
 function handTap(i) {
@@ -2088,6 +2247,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.77', title: 'Busy castles and travelling merchants', items: [
+    'Castles seen from far away no longer look cut off or floating: they stand on their hill all the way until you arrive',
+    'Castle courtyards are busy now: market stalls with their keepers, a well, barrels, crates, hay carts, banners and lanterns, and villagers walking about',
+    'Merchants ride hover carts from castle to castle. Walk up to one and it stops: tap the cart to trade. Sell monster parts and blocks for gems, and buy gear and castle blocks with gems'] },
   { v: '0.6.76', title: 'First-person view, caves and castles', items: [
     'New View button: see the world through your character\'s eyes, and look up and down. Indoors, the camera now stays close so you can always see',
     'Caves! Find a cave mouth in the hills and walk in to explore tunnels, big rooms and pools. New worlds have them',
@@ -2428,6 +2591,7 @@ function quitGame() {
 function backAction() {
   if (tipPanel) tipClose();
   else if (quizPanel) quizNotNow();
+  else if (tradePanel) closeTrade();
   else if (quitOpen) toggleQuit(false);
   else if (powersOpen) togglePowers(false);
   else if (settingsOpen) toggleSettings(false);
@@ -3475,6 +3639,9 @@ canvas.addEventListener('pointerdown', e => {
   // A press on a quiz friend never digs, builds, fights or casts: if it was a tap, the question opens on release (0.6.63)
   pendingFriend = !!friendAt(e.clientX, e.clientY);
   if (pendingFriend) return;
+  // A press on a merchant's cart never digs or fights: if it was a tap, the trades open on release (0.6.77)
+  pendingMerchant = merchantAt(e.clientX, e.clientY);
+  if (pendingMerchant) return;
   // The Spell button is lit: this tap only casts. It does not dig, build or hit (0.6.74)
   if (spellArmed) { pendingCast = { x: e.clientX, y: e.clientY }; return; }
   if (defOf(held()) && defOf(held()).kind === 'spell') { pendingCast = { x: e.clientX, y: e.clientY }; return; }
@@ -3526,7 +3693,9 @@ canvas.addEventListener('pointerup', e => {
   }
   if (spellArmed && press && press.id === e.pointerId && press.moved) spellArmedAt = performance.now();   // a drag turns the camera, casts nothing and leaves the button lit
   if (press && press.id === e.pointerId && !press.moved && pendingFriend) { tapFriend(); if (spellArmed) armSpell(false); }
+  if (press && press.id === e.pointerId && !press.moved && pendingMerchant) { tapMerchant(pendingMerchant); if (spellArmed) armSpell(false); }
   pendingFriend = false;
+  pendingMerchant = null;
   pendingPlace = null;
   pendingCast = null;
   press = null;
@@ -4770,6 +4939,7 @@ function makeOutline(c) {
     g.add(m);
   };
   const K = c.keep;
+  g.add(outlineHill(c));   // (0.6.77) the castle stands on its hill, never in the air
   box(K.a0, K.b0, K.a1, K.b1, -1, K.h);
   if (c.kind !== 'tower') {
     box(0, 0, c.A, 3, -1, c.wallH + 1); box(0, c.B - 3, c.A, c.B, -1, c.wallH + 1);
@@ -4787,10 +4957,10 @@ function makeOutline(c) {
   return g;
 }
 function updateOutlines(dt) {
+  setDrawnClip();   // (0.6.77) the outline is cut at the edge of the drawn land, every frame
   outlineT -= dt;
   if (outlineT > 0) return;
   outlineT = 1;
-  const near = VIEW * CS - 8;   // inside this the real blocks are drawn
   const keep = new Set(castlesIn(Math.floor(px) - OUTLINE_FAR, Math.floor(pz) - OUTLINE_FAR, Math.floor(px) + OUTLINE_FAR, Math.floor(pz) + OUTLINE_FAR));
   for (const [c, g] of outlines) if (!keep.has(c)) { scene.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); outlines.delete(c); }
   for (const c of keep) {
@@ -4799,8 +4969,449 @@ function updateOutlines(dt) {
     let g = outlines.get(c);
     if (d > OUTLINE_FAR) { if (g) g.visible = false; continue; }
     if (!g) { g = makeOutline(c); outlines.set(c, g); scene.add(g); }
-    g.visible = d > near;
+    g.visible = true;   // (0.6.77) the part inside the drawn land is cut away by drawnClip, so nothing shows twice
   }
+}
+// ---- The far view stays steady (0.6.77) ----
+// Before, a castle's outline was hidden as soon as its nearest edge came within the drawn land, though most of a big castle was
+// still past it: the far part vanished, and the land under the castle was not drawn, so it looked cut off and floating.
+// Now each outline is cut at the edge of the drawn land instead (four clipping planes): inside the drawn land the real blocks
+// show, past it the outline does. Each outline also stands on a plain hill that reaches down below the land around it.
+renderer.localClippingEnabled = true;
+const drawnClip = [new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0), new THREE.Plane(new THREE.Vector3(1, 0, 0), 0),
+  new THREE.Plane(new THREE.Vector3(0, 0, -1), 0), new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)];
+// The drawn land: the chunks within VIEW of the player's chunk. A point inside all four planes is cut away.
+function setDrawnClip() {
+  const pcx = Math.floor(px / CS), pcz = Math.floor(pz / CS);
+  drawnClip[0].constant = (pcx - VIEW) * CS; drawnClip[1].constant = -(pcx + VIEW + 1) * CS;
+  drawnClip[2].constant = (pcz - VIEW) * CS; drawnClip[3].constant = -(pcz + VIEW + 1) * CS;
+}
+for (const m of [outlineMat, ...Object.values(outlineRoof)]) { m.clippingPlanes = drawnClip; m.clipIntersection = true; }
+const HILL_COLOR = { [T.GRASS]: 0x5fa83c, [T.SAND]: 0xd9c27a, [T.SNOW]: 0xeef4f8 };
+const hillMats = {};
+const hillMat = top => hillMats[top] || (hillMats[top] = Object.assign(new THREE.MeshLambertMaterial({ color: HILL_COLOR[top] || HILL_COLOR[T.GRASS] }), { clippingPlanes: drawnClip, clipIntersection: true }));
+// The hill under an outline: from the castle's floor down to below the lowest land around it, as wide as its slope at the foot
+function outlineHill(c) {
+  const top = c.floorY - 1, bottom = Math.min(c.lo !== undefined ? c.lo : top - 8, WATER_Y - 1) - 4;
+  const geo = new THREE.CylinderGeometry(1, 1 + 2 * (c.margin || APRON) / Math.min(c.W, c.D), top - bottom, 4, 1);
+  geo.rotateY(Math.PI / 4);
+  const [gx, gz] = gateStop(c);
+  const m = new THREE.Mesh(geo, hillMat(BIOMES[biomeIndexAt(Math.floor(gx), Math.floor(gz))].top));
+  m.scale.set(c.W / Math.SQRT2, 1, c.D / Math.SQRT2);
+  m.position.set(c.sx + c.W / 2, (top + bottom) / 2, c.sz + c.D / 2);
+  return m;
+}
+
+// ---- Shapes joined by colour (0.6.77) ----
+// The stalls, wells and carts are made of many small shapes. Each colour's shapes are joined into one mesh, so a whole
+// courtyard is drawn with a few meshes.
+const lifeMats = new Map();
+function lifeMat(col, glow = false) {
+  const k = col + (glow ? 'g' : '');
+  if (!lifeMats.has(k)) { const m = glow ? new THREE.MeshBasicMaterial({ color: col }) : new THREE.MeshLambertMaterial({ color: col }); m.userData.shared = true; lifeMats.set(k, m); }
+  return lifeMats.get(k);
+}
+function shapeBin() {
+  const bins = new Map(), m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), sc = new THREE.Vector3(), pos = new THREE.Vector3();
+  let turn = 0, ox = 0, oy = 0, oz = 0;
+  return {
+    // Shapes added after this are placed around (x, y, z) and turned by t (their own +z faces that way)
+    at(x, y, z, t = 0) { ox = x; oy = y; oz = z; turn = t; return this; },
+    add(geo, col, lx, ly, lz, ry = 0, sx = 1, sy = 1, sz = 1, rx = 0, rz = 0, glow = false) {
+      const c = Math.cos(turn), s = Math.sin(turn);
+      m.compose(pos.set(ox + lx * c + lz * s, oy + ly, oz - lx * s + lz * c), q.setFromEuler(e.set(rx, turn + ry, rz, 'YXZ')), sc.set(sx, sy, sz));
+      const g = (geo.index ? geo.toNonIndexed() : geo.clone()).applyMatrix4(m);
+      geo.dispose();
+      const k = col + (glow ? 'g' : '');
+      if (!bins.has(k)) bins.set(k, { col, glow, list: [] });
+      bins.get(k).list.push(g);
+      return this;
+    },
+    box(w, h, d, col, lx, ly, lz, ry = 0, rx = 0, rz = 0) { return this.add(new THREE.BoxGeometry(w, h, d), col, lx, ly, lz, ry, 1, 1, 1, rx, rz); },
+    cyl(r, h, col, lx, ly, lz, rx = 0, rz = 0, n = 10, glow = false) { return this.add(new THREE.CylinderGeometry(r, r, h, n), col, lx, ly, lz, 0, 1, 1, 1, rx, rz, glow); },
+    ball(r, col, lx, ly, lz, sy = 1, glow = false) { return this.add(new THREE.SphereGeometry(r, 10, 8), col, lx, ly, lz, 0, 1, sy, 1, 0, 0, glow); },
+    // One mesh per colour
+    meshes() {
+      const out = [];
+      for (const { col, glow, list } of bins.values()) {
+        let n = 0; for (const g of list) n += g.attributes.position.count;
+        const P = new Float32Array(n * 3), N = new Float32Array(n * 3);
+        let o = 0;
+        for (const g of list) { P.set(g.attributes.position.array, o); N.set(g.attributes.normal.array, o); o += g.attributes.position.array.length; g.dispose(); }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(P, 3));
+        geo.setAttribute('normal', new THREE.BufferAttribute(N, 3));
+        geo.computeBoundingSphere();
+        out.push(new THREE.Mesh(geo, lifeMat(col, glow)));
+      }
+      bins.clear();
+      return out;
+    },
+  };
+}
+// Takes a group off the screen and frees its own shapes (shared materials are kept)
+function dropGroup(g) { scene.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && !o.material.userData.shared) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); }
+
+// ---- People of the castles (0.6.77): original, simple shapes ----
+const PEOPLE_SKIN = [0xf1c39a, 0xd9a77e, 0xa8714a, 0x7a4e2d];
+const PEOPLE_CLOTH = [0x3a7bd5, 0xc0504d, 0x4f9a4a, 0x8e5cb5, 0xd98c2b, 0x2f8f8f, 0x9a6b3f];
+const PEOPLE_HAT = [0xd9b45a, 0x6b3f22, 0x2e3a5a, 0x7a2f3a];
+// A villager standing (or sitting) with arms and legs that can swing. r: a number from 0 to 1 that picks the colours.
+function personModel(r, sitting = false) {
+  const g = new THREE.Group(), pk = (list, n) => list[Math.floor(hash3(Math.floor(r * 1e6), n, 5, 31) * list.length)];
+  const skin = pk(PEOPLE_SKIN, 1), cloth = pk(PEOPLE_CLOTH, 2), hat = pk(PEOPLE_HAT, 3), legs = 0x4a3b2e;
+  const mesh = (geo, col, x, y, z, to = g) => { const m = new THREE.Mesh(geo, lifeMat(col)); m.position.set(x, y, z); to.add(m); return m; };
+  const pivot = (x, y, z) => { const p = new THREE.Group(); p.position.set(x, y, z); g.add(p); return p; };
+  mesh(new THREE.CylinderGeometry(0.22, 0.3, 0.75, 10), cloth, 0, 1.02, 0);           // tunic
+  mesh(new THREE.CylinderGeometry(0.29, 0.29, 0.07, 10), 0x5a3a20, 0, 0.82, 0);       // belt
+  mesh(new THREE.SphereGeometry(0.22, 14, 10), skin, 0, 1.6, 0);                      // head
+  for (const s of [-1, 1]) mesh(new THREE.SphereGeometry(0.035, 8, 6), 0x1a1a1a, s * 0.08, 1.63, 0.2);   // eyes
+  const style = Math.floor(hash3(Math.floor(r * 1e6), 4, 5, 31) * 3);
+  if (style === 0) { mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 14), hat, 0, 1.76, 0); mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.2, 12), hat, 0, 1.86, 0); }   // a wide straw hat
+  else if (style === 1) mesh(new THREE.SphereGeometry(0.235, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), hat, 0, 1.62, -0.01);   // a cap
+  else { const h = mesh(new THREE.ConeGeometry(0.25, 0.45, 12), cloth, 0, 1.9, -0.02); h.rotation.x = -0.25; }   // a pointed hood
+  const armL = pivot(-0.3, 1.32, 0), armR = pivot(0.3, 1.32, 0);
+  for (const a of [armL, armR]) { mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.55, 8), cloth, 0, -0.27, 0, a); mesh(new THREE.SphereGeometry(0.075, 8, 6), skin, 0, -0.58, 0, a); }
+  const legL = pivot(-0.12, 0.66, 0), legR = pivot(0.12, 0.66, 0);
+  for (const l of [legL, legR]) { mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.62, 8), legs, 0, -0.31, 0, l); mesh(new THREE.BoxGeometry(0.16, 0.08, 0.26), 0x3b2a1e, 0, -0.62, 0.04, l); }
+  if (sitting) legL.rotation.x = legR.rotation.x = -Math.PI / 2;
+  g.userData = { armL, armR, legL, legR, sitting };
+  return g;
+}
+// Swings a villager's arms and legs (walking) or sways it a little (standing); ph: its own step phase
+function posePerson(p, walking, ph) {
+  const u = p.userData, s = Math.sin(ph);
+  if (!u.sitting) { u.legL.rotation.x = walking ? s * 0.6 : 0; u.legR.rotation.x = walking ? -s * 0.6 : 0; }
+  u.armL.rotation.x = walking ? -s * 0.5 : Math.sin(ph * 0.3) * 0.08;
+  u.armR.rotation.x = walking ? s * 0.5 : -Math.sin(ph * 0.3) * 0.08;
+}
+
+// ---- Life in the castles (0.6.77) ----
+// Courtyards have market stalls with their keepers, a well, barrels, crates, hay and hand carts, and a few villagers walk
+// between them; banners hang beside the keep's door and lanterns by the gate. All of it comes from the castle's plan
+// (courtyardSpots), is made when the castle comes near and dropped when it is far. Nothing is saved or sent. A spot where
+// a player has dug or built is left empty. The people and things are not solid: the character walks through them.
+const AWNING = [[0xc0392b, 0xf4ecd8], [0x2e6fb5, 0xf4ecd8], [0x3f8f4a, 0xf2d34a], [0x8e44ad, 0xf4ecd8], [0xd35400, 0xf9e79f]];
+const GOODS = [0xd94b3d, 0xf2a53a, 0x7cc243, 0xe8d18a, 0x9b59b6, 0x2e86c1, 0xf5f0e6];
+const lifeGroups = new Map();   // castle -> { group, people, y }
+let lifeT = 0;
+const LIFE_NEAR = VIEW * CS + 24, LIFE_FAR = VIEW * CS + 120;
+function spotFree(x, y, z) {
+  const X = Math.floor(x), Z = Math.floor(z);
+  return solid(get(X, y - 1, Z)) && get(X, y, Z) === T.AIR && get(X, y + 1, Z) === T.AIR && get(X, y + 2, Z) === T.AIR;
+}
+function makeLife(c) {
+  const bin = shapeBin(), group = new THREE.Group(), people = [], y = c.floorY, turn = frontTurn(c), H2 = Math.PI / 2;
+  const R = n => hash3(c.num, n, 123, seed + CASTLE_SALT);
+  const places = [];
+  for (const s of courtyardSpots(c)) {
+    const [x, z] = cellToWorld(c, s.a, s.b);
+    if (!spotFree(x, y, z)) continue;
+    const t = turn + (s.kind === 'stall' ? 0 : Math.floor(R(40 + s.n) * 4) * H2), r = R(60 + s.n);
+    places.push([x, z]);
+    bin.at(x, y, z, t);
+    if (s.kind === 'well') {
+      bin.add(new THREE.CylinderGeometry(1.1, 1.2, 0.9, 14, 1, true), 0x8d8d8d, 0, 0.45, 0);
+      bin.cyl(1.25, 0.15, 0x7a7a7a, 0, 0.92, 0, 0, 0, 14).cyl(0.95, 0.05, 0x2f6fb0, 0, 0.6, 0, 0, 0, 14);
+      for (const sx of [-1, 1]) bin.box(0.18, 2.3, 0.18, 0x6b4423, sx * 1.15, 1.15, 0);
+      bin.box(2.6, 0.12, 1.1, 0xb5452f, 0, 2.45, -0.38, 0, -0.55).box(2.6, 0.12, 1.1, 0xb5452f, 0, 2.45, 0.38, 0, 0.55);
+      bin.cyl(0.06, 2.3, 0x5a3a20, 0, 2.0, 0, 0, H2, 8).cyl(0.18, 0.3, 0x8b5a2b, 0.3, 1.5, 0);
+    } else if (s.kind === 'stall') {
+      const [c1, c2] = AWNING[Math.floor(r * AWNING.length)];
+      bin.box(2.8, 1.0, 0.9, 0x8b5a2b, 0, 0.5, 0.55).box(3.0, 0.1, 1.1, 0xa0703f, 0, 1.05, 0.55);   // the counter
+      for (const [sx, sz] of [[-1.4, 1.0], [1.4, 1.0], [-1.4, -0.9], [1.4, -0.9]]) bin.box(0.14, sz > 0 ? 2.3 : 2.7, 0.14, 0x6b4423, sx, sz > 0 ? 1.15 : 1.35, sz);
+      for (let i = 0; i < 6; i++) bin.box(3.2 / 6, 0.08, 2.4, i % 2 ? c2 : c1, -1.6 + 3.2 / 12 + i * 3.2 / 6, 2.55, 0.05, 0, 0.17);   // the striped awning
+      for (let i = 0; i < 5; i++) {
+        const gx = -1.1 + i * 0.55, col = GOODS[Math.floor(hash3(c.num, s.n, i, 7) * GOODS.length)];
+        if (i % 2) bin.box(0.36, 0.22, 0.3, col, gx, 1.21, 0.55); else { bin.ball(0.12, col, gx - 0.08, 1.22, 0.5); bin.ball(0.12, col, gx + 0.1, 1.22, 0.62); bin.ball(0.12, col, gx, 1.36, 0.56); }
+      }
+      const keeper = personModel(r);
+      keeper.position.set(x - Math.sin(t) * 0.3, y, z - Math.cos(t) * 0.3);
+      keeper.rotation.y = t;
+      group.add(keeper);
+      people.push({ p: keeper, ph: r * 10, still: true });
+    } else if (s.kind === 'barrels') {
+      for (const [bx, bz, up] of [[-0.5, 0, 0], [0.5, 0.1, 0], [0, 0.05, 1]]) {
+        bin.cyl(0.42, 0.9, 0x8b5a2b, bx, 0.45 + up * 0.9, bz, 0, 0, 12);
+        for (const hy of [0.15, 0.75]) bin.cyl(0.44, 0.06, 0x3b2a1e, bx, hy + up * 0.9, bz, 0, 0, 12);
+      }
+    } else if (s.kind === 'crates') {
+      bin.box(0.9, 0.9, 0.9, 0xb8864b, -0.5, 0.45, 0).box(0.9, 0.9, 0.9, 0xa8763b, 0.5, 0.45, 0.15, 0.3).box(0.8, 0.8, 0.8, 0xc49455, -0.2, 1.3, 0.05, 0.6);
+      for (const sx of [-0.5, 0.5]) bin.box(0.95, 0.1, 0.95, 0x6b4423, sx, 0.9, sx > 0 ? 0.15 : 0, sx > 0 ? 0.3 : 0);
+    } else if (s.kind === 'hay') {
+      bin.box(1.4, 0.7, 0.9, 0xe2c25a, -0.4, 0.35, 0).box(1.4, 0.7, 0.9, 0xd6b54c, 0.5, 0.35, 0.3, 0.4).box(1.3, 0.7, 0.9, 0xe8ca66, 0, 1.05, 0.1, 0.2);
+    } else {   // a hand cart full of pumpkins
+      bin.box(1.8, 0.35, 1.1, 0x9b6b3a, 0, 0.75, 0);
+      for (const sz of [-0.55, 0.55]) bin.box(1.8, 0.35, 0.08, 0x8b5a2b, 0, 1.05, sz);
+      for (const sz of [-0.62, 0.62]) bin.cyl(0.42, 0.1, 0x3b2a1e, -0.2, 0.42, sz, H2, 0, 12);
+      for (const sz of [-0.4, 0.4]) bin.box(1.2, 0.08, 0.08, 0x6b4423, 1.4, 0.8, sz, 0, 0, -0.3);
+      for (let i = 0; i < 4; i++) bin.ball(0.24, 0xe67e22, -0.5 + (i % 2) * 0.55, 1.05, i < 2 ? -0.22 : 0.22, 0.8);
+    }
+  }
+  // Banners beside the keep's door, and lanterns either side of the gate (inside)
+  const K = c.keep, km = (K.a0 + K.a1) / 2, bcol = [0xc0392b, 0x2e6fb5, 0x3f8f4a, 0x8e44ad][Math.floor(R(1) * 4)];
+  for (const s of c.kind === 'tower' ? [-2.5, 2.5] : [-4, 4]) {
+    const [x, z] = cellToWorld(c, km + s - 0.5, K.b0 - 0.62);
+    bin.at(x, y, z, turn).box(1.3, 2.4, 0.06, bcol, 0, 4.2, 0).box(1.4, 0.12, 0.12, 0x6b4423, 0, 5.45, 0).box(0.5, 0.5, 0.07, 0xf2c94c, 0, 4.4, 0.01, 0, 0, Math.PI / 4);
+  }
+  if (c.kind !== 'tower') for (const s of [-3.5, 3.5]) {
+    const [x, z] = cellToWorld(c, c.A / 2 + s - 0.5, 4.5);
+    if (!spotFree(x, y, z)) continue;
+    bin.at(x, y, z, turn).box(0.14, 2.2, 0.14, 0x3b2a1e, 0, 1.1, 0).box(0.36, 0.36, 0.36, 0x2b2b2b, 0, 2.35, 0);
+    bin.add(new THREE.BoxGeometry(0.26, 0.26, 0.26), 0xffd56b, 0, 2.35, 0, 0, 1, 1, 1, 0, 0, true);
+  }
+  for (const m of bin.meshes()) group.add(m);
+  // Villagers who walk from place to place in the courtyard
+  const walkers = c.kind === 'great' ? 5 : c.kind === 'castle' ? 2 : 0;
+  for (let i = 0; i < walkers && places.length >= 2; i++) {
+    const p = personModel(R(200 + i)), [x, z] = places[i % places.length];
+    p.position.set(x + 1.6, y, z + 1.6);
+    group.add(p);
+    people.push({ p, ph: i, x: x + 1.6, z: z + 1.6, goal: null, rest: 1 + i * 2, places });
+  }
+  scene.add(group);
+  return { group, people, y };
+}
+// A villager can walk straight from (x0, z0) to (x1, z1): open floor all the way, nothing in the way
+function lifeWayClear(x0, z0, x1, z1, y) {
+  const n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) * 2);
+  for (let i = 0; i <= n; i++) { const f = i / n; if (!spotFree(x0 + (x1 - x0) * f, y, z0 + (z1 - z0) * f)) return false; }
+  return true;
+}
+function updateCastleLife(dt) {
+  lifeT -= dt;
+  if (lifeT <= 0) {
+    lifeT = 0.5;
+    for (const [c, L] of lifeGroups) {
+      const d = Math.hypot(Math.max(c.sx - px, 0, px - (c.sx + c.W)), Math.max(c.sz - pz, 0, pz - (c.sz + c.D)));
+      if (d > LIFE_FAR) { dropGroup(L.group); lifeGroups.delete(c); }
+    }
+    const near = castlesIn(Math.floor(px - LIFE_NEAR), Math.floor(pz - LIFE_NEAR), Math.ceil(px + LIFE_NEAR), Math.ceil(pz + LIFE_NEAR));
+    for (const c of near) if (!lifeGroups.has(c)) { lifeGroups.set(c, makeLife(c)); break; }   // one castle at a time, so the game does not stop
+  }
+  for (const L of lifeGroups.values()) for (const v of L.people) {
+    v.ph += dt * (v.still ? 1 : 7);
+    if (v.still) { posePerson(v.p, false, v.ph); continue; }
+    if (paused) continue;
+    if (!v.goal) {
+      v.rest -= dt;
+      posePerson(v.p, false, v.ph);
+      if (v.rest > 0) continue;
+      const [gx, gz] = v.places[Math.floor(Math.random() * v.places.length)], tx = gx + (Math.random() < 0.5 ? -1.8 : 1.8), tz = gz + (Math.random() < 0.5 ? -1.8 : 1.8);
+      if (lifeWayClear(v.x, v.z, tx, tz, L.y)) v.goal = [tx, tz]; else v.rest = 1;
+      continue;
+    }
+    const dx = v.goal[0] - v.x, dz = v.goal[1] - v.z, d = Math.hypot(dx, dz);
+    if (d < 0.1) { v.goal = null; v.rest = 3 + Math.random() * 5; continue; }
+    const step = Math.min(d, 1.4 * dt);
+    v.x += dx / d * step; v.z += dz / d * step;
+    v.p.position.set(v.x, L.y, v.z);
+    v.p.rotation.y = Math.atan2(dx, dz);
+    posePerson(v.p, true, v.ph);
+  }
+}
+
+// ---- Travelling merchants (0.6.77) ----
+// Each castle trades with its nearest neighbour castle. A merchant rides a hover cart along the road between their gates,
+// waits at each gate for a while, then goes back. The cart floats about a block over the land and water. When the child
+// comes close it stops, and a tap opens the merchant's trades (gems for blocks and gear, monster parts and blocks for gems).
+// The carts are worked out on this device only: other players see their own. Nothing new is saved or sent.
+const MERCH_SPEED = 5, MERCH_WAIT = 15, MERCH_STOP = 7, MERCH_GO = 11, MERCH_REACH = 9, MERCH_ROADS = 700;
+const merchants = new Map();   // road key -> merchant
+let merchT = 0;
+function merchantCart(seedN) {
+  const g = new THREE.Group(), bin = shapeBin().at(0, 0, 0, 0), H2 = Math.PI / 2;
+  const [c1, c2] = AWNING[Math.floor(hash3(seedN, 1, 2, 3) * AWNING.length)];
+  bin.box(2.0, 0.55, 3.2, 0x9b6b3a, 0, 0.55, 0).box(2.1, 0.12, 3.3, 0xc9a23a, 0, 0.86, 0).box(2.1, 0.12, 3.3, 0xc9a23a, 0, 0.26, 0);   // the wooden body with brass trim
+  bin.add(new THREE.CylinderGeometry(1.0, 1.0, 0.55, 16, 1, false, -Math.PI / 2, Math.PI), 0x9b6b3a, 0, 0.55, 1.6, 0, 1, 1, 0.7);    // the rounded front
+  bin.box(1.6, 0.5, 0.25, 0x7a5230, 0, 1.15, 0.15);                                                                                    // the seat back
+  for (const sx of [-1, 1]) { bin.cyl(0.32, 2.8, 0x55606e, sx * 1.05, 0.2, -0.1, H2, 0, 12); bin.cyl(0.34, 0.2, 0xc9a23a, sx * 1.05, 0.2, 1.3, H2, 0, 12); }   // hover pods
+  for (const [sx, sz] of [[-0.95, -1.5], [0.95, -1.5], [-0.95, 0.4], [0.95, 0.4]]) bin.box(0.1, 1.7, 0.1, 0x6b4423, sx, 1.65, sz);   // canopy posts
+  for (let i = 0; i < 5; i++) bin.box(2.2, 0.08, 2.3 / 5, i % 2 ? c2 : c1, 0, 2.55, -1.5 + 2.3 / 10 + i * 2.3 / 5);                   // the striped canopy
+  bin.box(0.8, 0.7, 0.7, 0xb8864b, -0.45, 1.2, -1.05).box(0.7, 0.6, 0.6, 0xa8763b, 0.45, 1.15, -1.1, 0.3).box(0.6, 0.5, 0.6, 0xc49455, 0.3, 1.7, -1.0);   // crates of goods
+  bin.ball(0.32, 0xe8d18a, -0.4, 1.75, -0.6, 0.8).ball(0.2, 0xd94b3d, 0.55, 1.05, -0.4).ball(0.2, 0x7cc243, 0.2, 1.05, -0.5);
+  for (const m of bin.meshes()) g.add(m);
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0x7df9ff, transparent: true, opacity: 0.8 });
+  for (const sx of [-1, 1]) for (const sz of [-1.1, 0.9]) { const d = new THREE.Mesh(new THREE.CircleGeometry(0.28, 14), glowMat); d.rotation.x = H2; d.position.set(sx * 1.05, -0.13, sz); g.add(d); }
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(1.7, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.22, depthWrite: false }));
+  shadow.rotation.x = -H2;
+  g.add(shadow);
+  const rider = personModel(hash3(seedN, 9, 9, 9), true);
+  rider.position.set(0, 0.3, 0.55);
+  rider.scale.setScalar(0.9);
+  g.add(rider);
+  // The "trade" bubble over the merchant: a gem drawn in code
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+  const cx = cv.getContext('2d');
+  cx.fillStyle = '#fff'; cx.strokeStyle = '#1d2440'; cx.lineWidth = 6;
+  cx.beginPath(); cx.arc(64, 56, 48, 0, Math.PI * 2); cx.fill(); cx.stroke();
+  cx.beginPath(); cx.moveTo(50, 98); cx.lineTo(64, 124); cx.lineTo(78, 98); cx.closePath(); cx.fill();
+  cx.fillStyle = '#29d3ff'; cx.strokeStyle = '#0b6f8f'; cx.lineWidth = 4;
+  cx.beginPath(); cx.moveTo(64, 26); cx.lineTo(92, 50); cx.lineTo(64, 88); cx.lineTo(36, 50); cx.closePath(); cx.fill(); cx.stroke();
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const bubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false }));
+  bubble.scale.set(0.9, 0.9, 1); bubble.position.set(0, 3.4, 0.55); bubble.visible = false;
+  g.add(bubble);
+  g.userData = { glowMat, shadow, rider, bubble };
+  return g;
+}
+// The top of the land or water under (x, z): the height a cart floats above
+function landTop(x, z) {
+  const X = Math.floor(x), Z = Math.floor(z);
+  let y = H - 1;
+  while (y > 0 && get(X, y, Z) === T.AIR) y--;
+  return y + 1;
+}
+const chunkDrawn = (x, z) => chunkMeshes.has(ckey(Math.floor(x / CS), Math.floor(z / CS)));
+const tradeMerchant = () => tradePanel ? tradePanel.m : null;
+function updateMerchants(dt) {
+  merchT -= dt;
+  if (merchT <= 0) {
+    merchT = 2;
+    const roads = merchantRoads(px, pz, MERCH_ROADS), keep = new Set(roads.map(r => r.key));
+    for (const [k, m] of merchants) if (!keep.has(k) && m !== tradeMerchant()) { dropGroup(m.group); merchants.delete(k); }
+    for (const road of roads) if (!merchants.has(road.key)) {
+      const n = Math.floor(hash3(road.from.num, road.to.num, 3, seed) * 1e6), group = merchantCart(n);
+      group.visible = false;
+      scene.add(group);
+      merchants.set(road.key, { road, n, group, s: Math.random() * roadLength(road), dir: Math.random() < 0.5 ? 1 : -1, wait: 0, y: null, yaw: null, stopped: false, offers: merchantOffers(n) });
+    }
+  }
+  const now = performance.now() / 1000;
+  for (const m of merchants.values()) {
+    const L = roadLength(m.road), here = roadPoint(m.road, m.s), dist = Math.hypot(here.x - px, here.z - pz);
+    const shown = chunkDrawn(here.x, here.z);
+    m.stopped = shown && (m === tradeMerchant() || dist < MERCH_STOP || (m.stopped && dist < MERCH_GO));
+    if (!paused && !m.stopped) {
+      if (m.wait > 0) m.wait -= dt;
+      else {
+        m.s += m.dir * MERCH_SPEED * dt;
+        if (m.s >= L) { m.s = L; m.dir = -1; m.wait = MERCH_WAIT; }
+        else if (m.s <= 0) { m.s = 0; m.dir = 1; m.wait = MERCH_WAIT; }
+      }
+    }
+    const g = m.group, u = g.userData;
+    g.visible = shown;
+    if (!shown) { m.y = null; continue; }
+    const p = roadPoint(m.road, m.s), ground = landTop(p.x, p.z) + 1.0;
+    m.y = m.y === null ? ground : m.y + (Math.max(ground, m.y - 6 * dt) - m.y) * Math.min(1, dt * 5);   // rises over a bump, sinks gently
+    const yaw = m.dir > 0 ? p.dir : p.dir + Math.PI;
+    if (m.yaw === null) m.yaw = yaw; else m.yaw += angDiff(yaw, m.yaw) * Math.min(1, dt * 3);
+    if (m.stopped) m.yaw += angDiff(Math.atan2(px - p.x, pz - p.z), m.yaw) * Math.min(1, dt * 2);   // stopped: it turns toward the child
+    g.position.set(p.x, m.y + Math.sin(now * 2 + m.n) * 0.08, p.z);
+    g.rotation.y = m.yaw;
+    u.shadow.position.y = ground - 1.0 - m.y + 0.06;
+    u.glowMat.opacity = 0.6 + 0.3 * Math.sin(now * 6 + m.n);
+    u.bubble.visible = m.stopped && dist < MERCH_GO;
+    u.bubble.position.y = 3.4 + Math.sin(now * 3) * 0.06;
+    posePerson(u.rider, false, now * 2 + m.n);
+    if (m.stopped && dist < MERCH_STOP && !m.greeted) { m.greeted = true; say('A merchant! Tap the cart to trade.', 2500); }
+    if (dist > 30) m.greeted = false;
+  }
+}
+// The merchant whose cart is under the screen point (x, y), or null
+function merchantAt(x, y) {
+  for (const m of merchants.values()) {
+    if (!m.group.visible) continue;
+    const mid = m.group.position.clone(); mid.y += 1.2;
+    const c = mid.clone().project(camera);
+    if (c.z >= 1) continue;
+    const sx = (c.x + 1) / 2 * innerWidth, sy = (1 - c.y) / 2 * innerHeight;
+    const r = Math.max(44, 2.0 * (innerHeight / 2 / Math.tan(camera.fov * Math.PI / 360)) / camera.position.distanceTo(mid));
+    if (Math.hypot(x - sx, y - sy) <= r) return m;
+  }
+  return null;
+}
+
+// ---- Trading with a merchant (0.6.77) ----
+// Gems only: no real money, nothing bought outside the game. Every merchant buys monster parts and some blocks, and sells
+// four things picked for it from the list below. A trade that would overfill the bag is refused.
+const MONSTER_PARTS = Object.keys(ITEMS).filter(k => ITEMS[k].kind === 'part');
+const SELLS = [{ give: [['dirt', 8]], get: ['gem', 1] }, { give: [['stone', 6]], get: ['gem', 1] }, { give: [['castle_stone', 6]], get: ['gem', 1] }];
+const BUYS = [
+  { give: [['gem', 3]], get: ['castle_stone', 10] }, { give: [['gem', 2]], get: ['roof_tile', 6] }, { give: [['gem', 2]], get: ['roof_tile_blue', 6] },
+  { give: [['gem', 2]], get: ['wood_floor', 8] }, { give: [['gem', 4]], gear: 'pick' }, { give: [['gem', 5]], gear: 'wood_sword' },
+  { give: [['gem', 8]], gear: 'leather_armor' }, { give: [['gem', 15]], gear: 'iron_sword' }, { give: [['gem', 15]], gear: 'iron_helmet' },
+  { give: [['gem', 30]], gear: 'gold_sword' },
+];
+function merchantOffers(n) {
+  const out = [{ parts: true }, SELLS[Math.floor(hash3(n, 1, 7, 7) * SELLS.length)]];
+  const gearList = BUYS.filter(b => b.gear), all = BUYS.slice();
+  const first = gearList[Math.floor(hash3(n, 2, 7, 7) * gearList.length)];   // always at least one piece of gear
+  out.push(first);
+  all.splice(all.indexOf(first), 1);
+  for (let i = 0; out.length < 6 && all.length; i++) out.push(all.splice(Math.floor(hash3(n, 3 + i, 7, 7) * all.length), 1)[0]);
+  return out;
+}
+const partsHeld = () => MONSTER_PARTS.reduce((a, k) => a + (inv[k] || 0), 0);
+// What a trade takes and gives: { give: [[id, n]], get: [id, n] or null, gear: template or null, room: change in the bag count }
+function tradeTerms(o) {
+  if (o.parts) { const n = partsHeld(); return { give: MONSTER_PARTS.filter(k => inv[k] > 0).map(k => [k, inv[k]]), get: ['gem', n], gear: null, room: 0, none: n === 0 }; }
+  const out = o.give.reduce((a, [, n]) => a + n, 0), inn = o.gear ? 1 : o.get[1];
+  return { give: o.give, get: o.gear ? null : o.get, gear: o.gear || null, room: inn - out, none: false };
+}
+// '' if the trade can be made now, otherwise why not
+function tradeCan(o) {
+  const t = tradeTerms(o);
+  if (t.none) return 'You have no monster parts yet.';
+  for (const [id, n] of t.give) if ((inv[id] || 0) < n) return id === 'gem' ? 'Not enough gems yet.' : 'You need ' + n + ' ' + ITEMS[id].name + '.';
+  if (t.room > 0 && invTotal() + t.room > invCap()) return 'Your bag is full. Drop something first.';
+  return '';
+}
+function doTrade(i) {
+  if (!tradePanel) return false;
+  const o = tradePanel.m.offers[i];
+  if (!o) return false;
+  const why = tradeCan(o);
+  if (why) { renderTrade(why); sfx('tap'); return false; }
+  const t = tradeTerms(o);
+  for (const [id, n] of t.give) inv[id] -= n;
+  if (t.gear) addGear(t.gear); else addItem(t.get[0], t.get[1]);
+  renderUI();
+  renderTrade(o.parts ? 'Thank you! +' + t.get[1] + ' gem' + (t.get[1] > 1 ? 's' : '') + '.' : 'Thank you! Here you are.');
+  return true;
+}
+function tradeRowHtml(o, i) {
+  const t = tradeTerms(o), pic = id => `<span class="ti" style="background-image:url(${itemIcon(id)})"></span>`;
+  const left = o.parts ? `${pic(MONSTER_PARTS.find(k => inv[k] > 0) || 'goblin_ear')}<span>All monster parts (${partsHeld()})</span>` : t.give.map(([id, n]) => `${pic(id)}<span>${n} ${esc(ITEMS[id].name)}</span>`).join('');
+  const right = o.parts ? `${pic('gem')}<span>1 Gem each</span>` : t.gear ? `${pic(t.gear)}<span>${esc(GEAR[t.gear].name)}</span>` : `${pic(t.get[0])}<span>${t.get[1]} ${esc(ITEMS[t.get[0]].name)}</span>`;
+  return `<div class="trow"><div class="tside">${left}</div><span class="tarrow">&#10140;</span><div class="tside">${right}</div><button class="tbuy${tradeCan(o) ? ' off' : ''}" data-t="${i}">Trade</button></div>`;
+}
+function renderTrade(note = '') {
+  if (!tradePanel) return;
+  const m = tradePanel.m;
+  tradePanel.el.innerHTML = '<div class="qbox"><div class="qtext">Merchant</div>' +
+    `<div class="tgems">You have ${inv.gem || 0} gem${inv.gem === 1 ? '' : 's'} &nbsp; Bag ${invTotal()}/${invCap()}</div>` +
+    `<div class="tlist">${m.offers.map(tradeRowHtml).join('')}</div><div class="qmsg">${esc(note)}</div>` +
+    '<div class="qrow"><button class="qnot">Bye!</button></div></div>';
+}
+function openTrade(m) {
+  if (tradePanel || anyPanelOpen()) return;
+  const el = document.createElement('div');
+  el.id = 'tradePanel';
+  el.addEventListener('click', e => {
+    const b = e.target.closest('.tbuy');
+    if (b) doTrade(+b.dataset.t);
+    else if (e.target.closest('.qnot')) closeTrade();
+  });
+  document.body.appendChild(el);
+  tradePanel = { m, el };
+  paused = true;   // the game stands still while the trades are open, as with a quiz question
+  renderTrade('Hello, traveller! What would you like?');
+  sfx('open');
+}
+function closeTrade() {
+  if (!tradePanel) return;
+  tradePanel.el.remove();
+  tradePanel = null;
+  paused = false;
+  sfx('close');
+}
+function tapMerchant(m) {
+  if (!m || anyPanelOpen()) return;
+  const p = m.group.position;
+  if (Math.hypot(p.x - px, p.z - pz) > MERCH_REACH) { say('Walk closer to the merchant.', 2000); return; }
+  openTrade(m);
 }
 function frame(now) {
   perfTick(now);
@@ -4813,6 +5424,7 @@ function frame(now) {
   updateSky(dt);
   updateCaveLight(dt);
   updateOutlines(dt);
+  try { updateCastleLife(dt); updateMerchants(dt); } catch (e) { logError(e, 'castle life'); }
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
@@ -4888,7 +5500,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.76';
+const VERSION = '0.6.77';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -5547,6 +6159,11 @@ window.gameTest = {
   get quizOn() { return quizOn; }, setQuizOn, makeQuestion, nextQuestion, QUIZ_KINDS, get quizRecent() { return quizRecent.slice(); },
   get friend() { return friend ? { guide: !!friend.guide, kind: friend.kind, state: friend.state, x: friend.x, y: friend.y, z: friend.z, age: friend.age, wrong: friend.wrong, bubble: friend.group.userData.bubble.visible, wave: friend.group.userData.wave.rotation.z, inScene: friend.group.parent === scene } : null; },
   get friendWait() { return friendWait; }, setFriendWait: s => { friendWait = s; friendOnMove = false; friendFirst = false; }, get friendOnMove() { return friendOnMove; }, callFriend: kind => spawnFriend(kind), removeFriend, friendOn, tapFriend, openQuiz, answerQuiz, quizNotNow,
+  // Castle life and travelling merchants (0.6.77)
+  castleLife: () => ({ castles: lifeGroups.size, people: [...lifeGroups.values()].reduce((a, L) => a + L.people.length, 0), merchants: merchants.size }),
+  merchantOffers, openTradeWith: offers => { openTrade({ offers, group: new THREE.Group() }); return !!tradePanel; }, doTrade, closeTrade, get tradeOpen() { return !!tradePanel; },
+  setInv: (id, n) => { inv[id] = n; renderUI(); }, get gearList() { return gear.map(g => g.t); }, get outlineClip() { return drawnClip.map(p => p.constant); },
+  BUYS, SELLS,
   get quizOpen() { return !!quizPanel; }, get quizQuestion() { return friend && friend.q ? { ...friend.q } : null; },
   friendBubbleScreen: () => { const b = friendBubblePoint(); return b ? [b.x, b.y, b.r] : null; },
   friendScreen: () => { const v = new THREE.Vector3(friend.x, friend.y + 0.6, friend.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight, v.z < 1]; },
