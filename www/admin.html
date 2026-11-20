@@ -102,7 +102,23 @@ async function load() {
   renderDetail();
   loadQuizReport().catch(e => { $('quizReport').textContent = 'Report not available: ' + e.message; });
   loadDebugLog();
+  loadCastleGap();
 }
+
+// ---- Castle spacing (0.6.76, SPEC-016 part G): a game setting everyone can read and only the owner can change ----
+async function loadCastleGap() {
+  const { data, error } = await sb.from('game_settings').select('value').eq('key', 'castle_gap').maybeSingle();
+  if (error) { $('gapMsg').textContent = 'Not available yet: ' + error.message; return; }
+  $('castleGap').value = data ? data.value : 500;
+}
+$('saveGap').addEventListener('click', async () => {
+  const v = Math.round(Number($('castleGap').value));
+  if (!(v >= 250 && v <= 2000)) { $('gapMsg').textContent = 'Choose a number from 250 to 2000.'; return; }
+  const { data, error } = await sb.from('game_settings').update({ value: v, updated_at: new Date().toISOString() }).eq('key', 'castle_gap').select('value');
+  if (error) { $('gapMsg').textContent = 'Not saved: ' + error.message; return; }
+  if (!data || !data.length) { $('gapMsg').textContent = 'Not saved: only the owner\'s account can change this.'; return; }
+  $('gapMsg').textContent = 'Saved: one castle about every ' + data[0].value + ' blocks, in worlds started from now on.';
+});
 
 // ---- Quiz friends report (0.6.65). Read from the signed-in account's own cloud save: the database shows an account
 // nothing but its own save. It holds counts only: how many questions were seen and answered right. Loaded separately,
@@ -321,6 +337,18 @@ load();
       <button class="danger" id="deleteCloud">Delete cloud save</button>
     </div>
     <div class="muted" id="cloudNote">Deletes the game saved to the cloud for the account you are signed in with. The game on each device is not changed. Automatic cloud saves stay off until a game presses Save now.</div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <b>Castle spacing (owner only)</b>
+      <span class="row">
+        <input id="castleGap" type="number" min="250" max="2000" step="50" style="max-width:110px">
+        <button class="secondary" id="saveGap">Save</button>
+      </span>
+    </div>
+    <div class="muted">One castle about every X blocks, from 250 to 2000 (it starts at 500). A change affects only worlds started afterwards; worlds already started keep their castles where they are. Only the owner's account can change it. It holds nothing about any player.</div>
+    <div id="gapMsg" class="muted" style="margin-top:6px"></div>
   </div>
 
   <div class="card">

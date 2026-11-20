@@ -7,7 +7,7 @@
 <meta name="description" content="How to play Adventurers of Drenerics: moving, digging, building, the bag, gems, powers, monsters, magic, saving and playing with friends.">
 <!-- This guide must describe the game as it is. Every new feature or changed rule gets its part here in the same release,
      and guide-version below is set to the game's version (scripts/tests/site-pages.test.mjs checks it). -->
-<meta name="guide-version" content="0.6.75">
+<meta name="guide-version" content="0.6.76">
 <style>
   :root{--bg:#f4f6fb;--card:#fff;--ink:#1d2433;--muted:#5b6475;--line:#e4e7ee;--accent:#3b6fd8;--key:#eef1f8}
   @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0;--key:#262e44}}
@@ -40,7 +40,7 @@
   <nav><a href="/">Home</a><a href="/release-notes.html">Release notes</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="/contact.html">Contact</a></nav>
 
   <h1>How to play</h1>
-  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.75</span>. New things are added here with every version; see the <a href="/release-notes.html">release notes</a> for what changed.</div>
+  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.76</span>. New things are added here with every version; see the <a href="/release-notes.html">release notes</a> for what changed.</div>
 
   <p>Adventurers of Drenerics is a world made of blocks. You dig into it, build with what you dig, collect gems, grow stronger and meet monsters. You can play alone or in the same world as your friends.</p>
   <a class="play" href="/play/">Play now</a>
@@ -80,6 +80,12 @@
     <li><strong>Your world.</strong> <em>Start a new world</em>, or <em>Join a friend's world</em> with their 4-letter world code.</li>
   </ol>
   <p>Then tap <em>Start playing</em>. Every new world is different: its hills, caves and gems are in new places each time.</p>
+  <h3>What you need to play</h3>
+  <ul>
+    <li><strong>Android app:</strong> Android 7.0 or newer.</li>
+    <li><strong>In a browser:</strong> a recent Chrome, Edge, Firefox or Safari, on a tablet, phone or computer.</li>
+    <li>On older or slower devices the game may run slowly.</li>
+  </ul>
   <p>When you come back, the game lists your saved games. Tap <em>Play</em> on one to carry on, or <em>Start a new game</em>.</p>
 
   <h2 id="vital">2. Vital, your guide</h2>
@@ -100,6 +106,8 @@
     <tr><td>Walk</td><td><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or the arrow keys</td><td>Push the thumb stick. A small push walks slowly, a full push goes at full speed</td></tr>
     <tr><td>Jump</td><td><kbd>Space</kbd></td><td>The JUMP button</td></tr>
     <tr><td>Turn the view</td><td>Drag sideways with the mouse</td><td>Drag sideways with a finger</td></tr>
+    <tr><td>Look up and down</td><td>Drag up or down</td><td>Drag a finger up or down</td></tr>
+    <tr><td>Change view</td><td><kbd>V</kbd>, or the View button (the eye at the top right)</td><td>The View button (the eye at the top right)</td></tr>
     <tr><td>Zoom in and out</td><td>Mouse wheel</td><td>Pinch with two fingers</td></tr>
     <tr><td>Choose what is in your hand</td><td><kbd>1</kbd> to <kbd>6</kbd>, or click a quick bar slot</td><td>Tap a quick bar slot or a hand button</td></tr>
     <tr><td>Dig</td><td>Hold the mouse button on a block. The pickaxe is the fastest way. You can also dig by hand, with any tool or an empty hand; it is slower, and hard blocks like stone take the longest</td><td>Hold a finger on a block. The pickaxe is the fastest way. You can also dig by hand, with any tool or an empty hand; it is slower, and hard blocks like stone take the longest</td></tr>
@@ -111,6 +119,7 @@
     <tr><td>Close a panel, or quit</td><td><kbd>Esc</kbd></td><td>Tap outside the panel. On Android, the Back button</td></tr>
   </table>
   </div>
+  <p>There are two views. One is from behind your character. The other is through your character's eyes, which is best in caves and rooms. Through the eyes you see the item in your hand at the bottom right. The game remembers the view you used last. Indoors, the view from behind moves in close so you can always see your character.</p>
   <p>The <em>Controls</em> button switches the on-screen stick and buttons on or off. On a touch screen they start switched on.</p>
   <p>You can only dig, build or fight close to you: 7 blocks for digging and building, 2 blocks for a sword. If the game says "Too far away! Get closer", walk nearer.</p>
 
@@ -237,6 +246,16 @@
     <li>Each region has its own trees and plants, and some have special scenery: cactuses, ice crystals, snowmen and pumpkins. Scenery is decoration; you can walk and dig through it.</li>
     <li>There are mountains, valleys, canyons and caves to explore.</li>
     <li>You can play in an area of 4000 by 4000 blocks around the place where you start.</li>
+  </ul>
+  <h3>Caves</h3>
+  <p>Look for dark openings in the hills. They are cave mouths. Walk in and follow the tunnels to big rooms with stone spikes, pools and gems in the walls. It is dim under ground but never black. Lost? Tap Teleport to go back to the start. Tip: the view through your character's eyes is best in a cave.</p>
+  <h3>Castles</h3>
+  <p>Castles stand here and there across the land. Some are small towers, some are huge. Walk in through the gate, climb the towers, walk along the top of the wall, and look for the treasure room high in the main building: its gems are yours to dig. Castle blocks can be dug and used for your own buildings.</p>
+  <ul>
+    <li>A tower house always stands a short walk from where you start a new world. Big castles can be seen from far away.</li>
+    <li>Inside, stairs go round and round up the towers. Rooms are dim, but windows let the light in.</li>
+    <li>Castle blocks: castle stone, wood floor and roof tiles in red or blue. Castle stone is as hard as stone to dig by hand.</li>
+    <li>Caves and castles are in worlds started from version 0.6.76 on. Worlds you started before stay exactly as they are.</li>
   </ul>
 
   <h2 id="teleport">15. Teleport to the start</h2>

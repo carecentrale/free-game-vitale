@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.75 (3D)</title>
+<title>Adventurers of Drenerics v0.6.76 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -16,6 +16,11 @@
   /* Powers button (0.6.74): a star, beside Settings. At least 44 px tall. Opens the Powers panel */
   #powersBtn{flex:none;min-width:44px;height:44px;box-sizing:border-box;padding:0 10px;background:rgba(0,0,0,.4);color:#fff;border-radius:8px;font-size:14px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;gap:5px}
   #powersBtn .star{color:#ffd54a;font-size:22px;line-height:1}
+  /* View button (0.6.76): an eye, beside Settings. Switches between the view from behind and through the character's eyes */
+  #viewBtn{flex:none;min-width:44px;height:44px;box-sizing:border-box;padding:0 8px;background:rgba(0,0,0,.4);color:#fff;border-radius:8px;font-size:14px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;gap:5px}
+  #viewBtn svg{width:24px;height:24px;display:block}
+  #viewBtn.eyes{background:rgba(59,111,216,.75)}
+  #perfBox{position:fixed;left:50%;bottom:2px;transform:translateX(-50%);background:rgba(0,0,0,.55);color:#9cff6b;font:12px monospace;padding:2px 6px;border-radius:6px;pointer-events:none;z-index:60;display:none}
   #powers{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(380px,90vw);max-height:90vh;overflow:auto;background:rgba(20,20,35,.96);color:#fff;border-radius:16px;padding:16px;display:none;z-index:30;box-sizing:border-box;font-size:20px;line-height:1.3}
   #powers .pname{font-size:22px;font-weight:700;color:#ffd54a;margin-bottom:8px}
   #powers .bar{width:100%;height:16px;margin:4px 0 12px;border-radius:6px;overflow:hidden}
@@ -64,7 +69,7 @@
     .slot{width:calc((100vw - 60px) / 6);max-width:70px;height:52px;font-size:10px;border-width:2px}
     .slot .n{font-size:9px}
     #recent{width:130px;font-size:12px}
-    #powersBtn .pl{display:none}
+    #powersBtn .pl,#viewBtn .pl{display:none}
     #recent .row{font-size:12px;padding:4px 6px}
     .title{font-size:12px}
   }
@@ -94,8 +99,9 @@
   body.phone #topbar{gap:6px;right:8px}
   body.phone #bagBtn{top:44px;right:8px}
   body.phone #teleBtn{width:30px;height:30px;font-size:15px}
-  body.phone #powersBtn .pl{display:none}
-  body.phone #hudBtn{max-width:calc(100vw - 250px)}
+  body.phone #powersBtn .pl,body.phone #viewBtn .pl{display:none}
+  body.phone #toggle{max-width:72px;overflow:hidden;text-overflow:ellipsis}
+  body.phone #hudBtn{max-width:calc(100vw - 300px);min-width:40px}
   body.phone #msg{font-size:15px;top:104px;white-space:normal;text-align:center;width:70vw}   /* under the name, bag and world lines, not on top of them (0.6.69) */
   #wiz{position:fixed;inset:0;background:rgba(10,12,25,.85);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;box-sizing:border-box}
   #wiz.hide{display:none}
@@ -183,13 +189,14 @@
 <div id="hudBtn"></div>
 <div id="quit"><div style="font-weight:700;font-size:19px">Quit the game?</div><div style="margin-top:6px;opacity:.85;font-size:14px">Your game is saved first.</div><button id="quitYes">Save and quit</button><button id="quitNo">Keep playing</button></div>
 <!-- The buttons at the top right sit in one row, so they can never lie on top of each other whatever their text or the screen size (0.6.69) -->
-<div id="topbar"><div id="teleBtn" title="Teleport to the start">&#10022;</div><div id="powersBtn" role="button" aria-label="Powers" title="Powers"><span class="star">&#9733;</span><span class="pl">Powers</span></div><div id="settingsBtn">Settings</div><div id="toggle">Controls</div></div>
+<div id="topbar"><div id="teleBtn" title="Teleport to the start">&#10022;</div><div id="powersBtn" role="button" aria-label="Powers" title="Powers"><span class="star">&#9733;</span><span class="pl">Powers</span></div><div id="settingsBtn">Settings</div><div id="viewBtn" role="button" aria-label="Change view" title="Change view (V)"><svg viewBox="0 0 24 24"><path d="M1.5 12C4.5 6.5 8 4.5 12 4.5S19.5 6.5 22.5 12C19.5 17.5 16 19.5 12 19.5S4.5 17.5 1.5 12Z" fill="#fff"/><circle cx="12" cy="12" r="4.2" fill="#3b6fd8"/><circle cx="12" cy="12" r="1.9" fill="#111"/></svg><span class="pl">View</span></div><div id="toggle">Controls</div></div>
 <div id="bagBtn">Bag (B)</div>
 <div id="recent"></div>
 <div id="qb"></div>
 <div id="bag"></div>
 <div id="settings"></div>
 <div id="powers"></div>
+<div id="perfBox"></div>
 <div id="slots" class="hide"><div class="box"><div id="slotsBody"></div></div></div>
 <div id="wiz" class="hide"><div class="box"><div id="wizBody"></div><div id="wizErr"></div><div class="nav"><button id="wizBack" class="secondary">Back</button><button id="wizNext">Next</button></div></div></div>
 <div id="pad">
@@ -228,7 +235,7 @@ const PMIN = CENTER - PLAY, PMAX = CENTER + PLAY;
 const inPlay = (x, z) => x >= PMIN && x < PMAX && z >= PMIN && z < PMAX;
 const WATER_Y = 9;                        // low places fill with water (lakes and sea) up to this height
 const H = 96, SURF = 12, CS = 16;        // height in blocks, average ground level, chunk size in blocks
-const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4, WATER: 5, SAND: 6, SNOW: 7 };
+const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4, WATER: 5, SAND: 6, SNOW: 7, CSTONE: 8, ROOF: 9, WOOD: 10, ROOFB: 11 };   // 8 to 11: castle blocks (0.6.76)
 // Blocks that stop the player and enemies. Water does not: you can wade and sink into it.
 const solid = t => t !== T.AIR && t !== T.WATER;
 
@@ -243,6 +250,11 @@ const BAR = { dig: '#ffb347', build: '#66ccff', inv: '#9cff6b', fight: '#ff6b6b'
 const ITEMS = {
   dirt:  { name: 'Dirt',    kind: 'block',  color: 0x8d5524, block: T.DIRT },
   stone: { name: 'Stone',   kind: 'block',  color: 0x7a7a7a, block: T.STONE },
+  // Castle blocks (0.6.76): dug from castles, and built with like any other block
+  castle_stone: { name: 'Castle Stone', kind: 'block', color: 0xc9c3b6, block: T.CSTONE },
+  roof_tile:    { name: 'Roof Tile',    kind: 'block', color: 0xb5452f, block: T.ROOF },
+  roof_tile_blue: { name: 'Blue Roof Tile', kind: 'block', color: 0x5b6f8f, block: T.ROOFB },
+  wood_floor:   { name: 'Wood Floor',   kind: 'block', color: 0xa0703f, block: T.WOOD },
   gem:   { name: 'Gem',     kind: 'gem',    color: 0x29d3ff },
   fireball: { name: 'Fireball', kind: 'spell', color: 0xff7a1a },
   goblin_ear:    { name: 'Goblin Ear',     kind: 'part', color: 0x7fd65a },
@@ -430,6 +442,7 @@ function biomeIndexAt(x, z) {
 // What scenery sits on the surface block at (x, y, z), or null. y is the surface block's height.
 function decorAt(x, y, z) {
   if (y < WATER_Y || Math.hypot(x - CENTER, z - CENTER) < DECOR_CLEAR) return null;
+  if (gen >= 2 && castleCovers(x, z, 3)) return null;   // no trees in or against a castle
   const shares = BIOMES[biomeIndexAt(x, z)].shares;
   const r = hash3(x, y, z, seed + 31);
   let acc = 0;
@@ -440,12 +453,512 @@ function decorAt(x, y, z) {
   return null;
 }
 
-// Builds one chunk: grass on top, dirt, stone, then caves and gems
+// ======== Land-maker version 2 (0.6.76, SPEC-016 parts F and G): caves to walk into, and castles ========
+// Everything below comes from the seed (and, for castles, the world's castle spacing) alone: nothing new is saved, and
+// every device in a shared world makes the same caves and castles. A world records which land-maker made it (`gen`):
+// worlds started before 0.6.76 have no record and keep land-maker 1, so their land never changes.
+const GEN_NOW = 2;
+let gen = 1;                       // the land-maker of the world being played
+const CASTLE_GAP_DEFAULT = 500, CASTLE_GAP_MIN = 250, CASTLE_GAP_MAX = 2000;
+let castleGap = CASTLE_GAP_DEFAULT; // castle spacing X of the world being played (recorded in the world)
+let castleGapNext = CASTLE_GAP_DEFAULT;   // the spacing a new world gets: the last one read from the server (set by the game)
+const gapOk = g => Number.isInteger(g) && g >= CASTLE_GAP_MIN && g <= CASTLE_GAP_MAX;
+
+// ---- Caves (part F) ----
+// Winding tunnels where two smooth 3D noise fields are both near their middle (two curved sheets crossing), and big
+// rooms where a third, slower field is high. The noise is worked out on a coarse grid (every 4 blocks) and blended,
+// so a chunk is not much slower to make. Plus cave mouths: one possible mouth in each square of MOUTH_CELL blocks,
+// a sloped tunnel from the surface down to a big room, so every mouth can be walked into and out of.
+const CAVE_STEP = 4, CAVE_TUNNEL = 0.035, CAVE_ROOM = 0.8, POOL_Y = 3, MOUTH_CELL = 112, MOUTH_CLEAR = 30;
+function caveFields(x, y, z) {
+  return [noise3(x / 22, y / 14, z / 22, seed + 1201), noise3(x / 22, y / 14, z / 22, seed + 1301), noise3(x / 34, y / 11, z / 34, seed + 1401)];
+}
+const mouthCache = new Map();
+const isWet = (x, z) => groundY(x, z) < WATER_Y;
+// No cave within 2 blocks of a lake or the sea
+function nearWater(x, z) {
+  for (let dx = -2; dx <= 2; dx += 2) for (let dz = -2; dz <= 2; dz += 2) if (isWet(x + dx, z + dz)) return true;
+  return false;
+}
+// The cave mouth in one square of the grid, or null. Planned once: the walking line (each step's floor height) and the room.
+function mouthInCell(gx, gz) {
+  const key = gx * 100003 + gz;
+  if (mouthCache.has(key)) return mouthCache.get(key);
+  let best = null;
+  if (gen >= 2 && hash3(gx, 11, gz, seed + 1501) < 0.85) {
+    const ox = CENTER + gx * MOUTH_CELL, oz = CENTER + gz * MOUTH_CELL;
+    for (let k = 0; k < 8; k++) {   // eight possible spots; hillsides are preferred
+      const x = ox + 20 + Math.floor(hash3(gx, k, gz, seed + 1511) * (MOUTH_CELL - 40));
+      const z = oz + 20 + Math.floor(hash3(gx, k, gz, seed + 1521) * (MOUTH_CELL - 40));
+      if (!inPlay(x - 50, z - 50) || !inPlay(x + 50, z + 50) || Math.hypot(x - CENTER, z - CENTER) < MOUTH_CLEAR + 50) continue;
+      const top = groundY(x, z);
+      if (top < WATER_Y + 1 || nearWater(x, z)) continue;
+      // the steepest way up from here: the tunnel goes into the hill
+      let up = 0, dir = 0;
+      for (let a = 0; a < 8; a++) {
+        const ang = a * Math.PI / 4, rise = groundY(Math.round(x + Math.cos(ang) * 4), Math.round(z + Math.sin(ang) * 4)) - top;
+        if (rise > up) { up = rise; dir = ang; }
+      }
+      if (up < 2) dir = Math.floor(hash3(gx, k, gz, seed + 1531) * 8) * Math.PI / 4;   // flat ground: a hole with a slope down
+      if (!best || up > best.up) best = { x, z, top, up, dir };
+    }
+  }
+  const m = best ? planMouth(best, gx, gz) : null;
+  mouthCache.set(key, m);
+  return m;
+}
+function planMouth(b, gx, gz) {
+  const dx = Math.cos(b.dir), dz = Math.sin(b.dir);
+  const y0 = b.top + 1, yT = Math.max(2, y0 - 8);   // the walking level at the mouth, and at the bottom
+  const steps = [];
+  let i = 0, y = y0;
+  for (; y > yT; i++) { steps.push([Math.round(b.x + dx * i), Math.round(b.z + dz * i), y]); if (i % 2 === 1) y--; }
+  for (let j = 0; j < 4; j++, i++) steps.push([Math.round(b.x + dx * i), Math.round(b.z + dz * i), yT]);
+  const r = 6 + Math.floor(hash3(gx, 21, gz, seed + 1541) * 3);
+  const room = { x: b.x + dx * (i + r - 1), z: b.z + dz * (i + r - 1), y: yT, r, h: 5 + Math.floor(hash3(gx, 22, gz, seed + 1551) * 2) };
+  // The whole cave keeps 2 blocks from water, stays in the playable land and away from castles
+  const cols = [...steps.map(s => [s[0], s[1]])];
+  for (let a = 0; a < 16; a++) cols.push([Math.round(room.x + Math.cos(a * Math.PI / 8) * r), Math.round(room.z + Math.sin(a * Math.PI / 8) * r)]);
+  cols.push([Math.round(room.x), Math.round(room.z)]);
+  for (const [x, z] of cols) {
+    if (!inPlay(x - 3, z - 3) || !inPlay(x + 3, z + 3) || nearWater(x, z)) return null;
+    if (Math.hypot(x - CENTER, z - CENTER) < MOUTH_CLEAR) return null;
+    if (castleCovers(x, z, 8)) return null;
+  }
+  // The room's roof stays at least 2 blocks under the land above (it never opens to the sky by accident)
+  let low = H;
+  for (let a = 0; a < 8; a++) low = Math.min(low, groundY(Math.round(room.x + Math.cos(a * Math.PI / 4) * r * 0.7), Math.round(room.z + Math.sin(a * Math.PI / 4) * r * 0.7)));
+  low = Math.min(low, groundY(Math.round(room.x), Math.round(room.z)));
+  room.h = Math.max(3, Math.min(room.h, low - 2 - yT));
+  return {
+    x: b.x, z: b.z, steps, room, gx, gz,
+    hole: hash3(gx, 23, gz, seed + 1561) < 0.35 && low - yT >= 6,   // a hole in the roof with the sky above
+    pool: hash3(gx, 24, gz, seed + 1571) < 0.45,                    // a still pool on the far side of the room
+    minX: Math.min(b.x, room.x) - r - 2, maxX: Math.max(b.x, room.x) + r + 2, minZ: Math.min(b.z, room.z) - r - 2, maxZ: Math.max(b.z, room.z) + r + 2,
+  };
+}
+// Cave mouths whose cave reaches the chunk
+function mouthsForChunk(cx, cz) {
+  const out = [], x0 = cx * CS, z0 = cz * CS;
+  const g0x = Math.floor((x0 - CENTER) / MOUTH_CELL), g0z = Math.floor((z0 - CENTER) / MOUTH_CELL);
+  for (let gx = g0x - 1; gx <= g0x + 1; gx++) for (let gz = g0z - 1; gz <= g0z + 1; gz++) {
+    const m = mouthInCell(gx, gz);
+    if (m && m.maxX >= x0 && m.minX < x0 + CS && m.maxZ >= z0 && m.minZ < z0 + CS) out.push(m);
+  }
+  return out;
+}
+// Carves the caves into a chunk made by land-maker 2. tops: ground height of each column. room: marks cave-room cells
+function carveCaves(cx, cz, data, tops, room, castles) {
+  const x0 = cx * CS, z0 = cz * CS;
+  let maxTop = 0;
+  for (let i = 0; i < CS * CS; i++) maxTop = Math.max(maxTop, tops[i]);
+  // No cave near water: the lowest water-side ground within 2 blocks of each column (or H when none)
+  const wetCap = new Int16Array(CS * CS).fill(H);
+  for (let lx = -2; lx < CS + 2; lx++) for (let lz = -2; lz < CS + 2; lz++) {
+    const t = (lx >= 0 && lx < CS && lz >= 0 && lz < CS) ? tops[lz * CS + lx] : groundY(x0 + lx, z0 + lz);
+    if (t >= WATER_Y) continue;
+    for (let ax = Math.max(0, lx - 2); ax <= Math.min(CS - 1, lx + 2); ax++) for (let az = Math.max(0, lz - 2); az <= Math.min(CS - 1, lz + 2); az++) wetCap[az * CS + ax] = Math.min(wetCap[az * CS + ax], t - 3);
+  }
+  // Noise caves, from a coarse grid
+  const NX = CS / CAVE_STEP + 1, NY = Math.ceil((maxTop + 1) / CAVE_STEP) + 1;
+  const grid = [new Float32Array(NX * NX * NY), new Float32Array(NX * NX * NY), new Float32Array(NX * NX * NY)];
+  for (let gy = 0; gy < NY; gy++) for (let gz = 0; gz < NX; gz++) for (let gx = 0; gx < NX; gx++) {
+    const f = caveFields(x0 + gx * CAVE_STEP, gy * CAVE_STEP, z0 + gz * CAVE_STEP), gi = (gy * NX + gz) * NX + gx;
+    grid[0][gi] = f[0]; grid[1][gi] = f[1]; grid[2][gi] = f[2];
+  }
+  const lerpField = (g, lx, y, lz) => {
+    const fx = lx / CAVE_STEP, fy = y / CAVE_STEP, fz = lz / CAVE_STEP;
+    const ix = Math.min(NX - 2, Math.floor(fx)), iy = Math.min(NY - 2, Math.floor(fy)), iz = Math.min(NX - 2, Math.floor(fz));
+    const u = fx - ix, v = fy - iy, w = fz - iz, at = (a, b, c) => g[((iy + b) * NX + iz + c) * NX + ix + a];
+    const a0 = at(0, 0, 0) + (at(1, 0, 0) - at(0, 0, 0)) * u, a1 = at(0, 0, 1) + (at(1, 0, 1) - at(0, 0, 1)) * u;
+    const b0 = at(0, 1, 0) + (at(1, 1, 0) - at(0, 1, 0)) * u, b1 = at(0, 1, 1) + (at(1, 1, 1) - at(0, 1, 1)) * u;
+    const c0 = a0 + (a1 - a0) * w, c1 = b0 + (b1 - b0) * w;
+    return c0 + (c1 - c0) * v;
+  };
+  for (let lz = 0; lz < CS; lz++) for (let lx = 0; lx < CS; lx++) {
+    const col = lz * CS + lx, x = x0 + lx, z = z0 + lz;
+    if (castles.length && castles.some(c => x >= c.fx0 && x < c.fx1 && z >= c.fz0 && z < c.fz1)) continue;   // no caves under castles
+    const yMax = Math.min(tops[col] - 4, wetCap[col] - 1, H - 5);
+    for (let y = 2; y <= yMax; y++) {
+      const a = lerpField(grid[0], lx, y, lz) - 0.5, b = lerpField(grid[1], lx, y, lz) - 0.5, c = lerpField(grid[2], lx, y, lz);
+      const big = c > CAVE_ROOM + Math.max(0, (y - 14) * 0.01);   // rooms are rarer high up
+      if (big || (Math.abs(a) < CAVE_TUNNEL && Math.abs(b) < CAVE_TUNNEL)) {
+        const i = cellIndex(lx, y, lz);
+        data[i] = T.AIR;
+        if (big) room[i] = 1;
+      }
+    }
+  }
+  // Mouths: per column, the walking height of the tunnel (the highest step over it) and the room
+  for (const m of mouthsForChunk(cx, cz)) {
+    const walk = new Int16Array(CS * CS).fill(-1);
+    for (const [sx, sz, sy] of m.steps) for (let ox = -1; ox <= 1; ox++) for (let oz = -1; oz <= 1; oz++) {
+      const lx = sx + ox - x0, lz = sz + oz - z0;
+      if (lx < 0 || lx >= CS || lz < 0 || lz >= CS) continue;
+      walk[lz * CS + lx] = Math.max(walk[lz * CS + lx], sy);
+    }
+    const R = m.room;
+    for (let lz = 0; lz < CS; lz++) for (let lx = 0; lx < CS; lx++) {
+      const col = lz * CS + lx, x = x0 + lx, z = z0 + lz;
+      const d = Math.hypot(x + 0.5 - R.x, z + 0.5 - R.z) / R.r;
+      if (d < 1) {   // the room: a flat floor and a domed roof
+        const top = R.y + Math.max(2, Math.round(R.h * Math.sqrt(1 - d * d)));
+        for (let y = R.y; y <= top; y++) { const i = cellIndex(lx, y, lz); data[i] = T.AIR; room[i] = 1; }
+        const fl = cellIndex(lx, R.y - 1, lz);
+        // a still pool, filled when the cave is made: one block deep on the far side of the room
+        const far = Math.hypot(x + 0.5 - (R.x + (R.x - m.x) / Math.hypot(R.x - m.x, R.z - m.z) * R.r * 0.45), z + 0.5 - (R.z + (R.z - m.z) / Math.hypot(R.x - m.x, R.z - m.z) * R.r * 0.45)) < R.r * 0.4;
+        if (m.pool && far) { data[fl] = T.WATER; data[cellIndex(lx, R.y - 2, lz)] = T.STONE; }
+        else data[fl] = T.STONE;
+        if (m.hole && Math.abs(x + 0.5 - R.x) < 1.1 && Math.abs(z + 0.5 - R.z) < 1.1) for (let y = top; y < H; y++) data[cellIndex(lx, y, lz)] = T.AIR;   // the roof hole
+      }
+      const w = walk[col];
+      if (w < 0) continue;
+      for (let y = w; y <= w + 2 && y < H; y++) data[cellIndex(lx, y, lz)] = T.AIR;
+      if (w - 1 >= 0 && !solid(data[cellIndex(lx, w - 1, lz)])) data[cellIndex(lx, w - 1, lz)] = T.STONE;   // a floor all the way
+    }
+    // Stone spikes in the room, on the roof and the floor, kept away from the way in so it is never blocked
+    for (let lz = 0; lz < CS; lz++) for (let lx = 0; lx < CS; lx++) {
+      const x = x0 + lx, z = z0 + lz;
+      if (Math.hypot(x + 0.5 - R.x, z + 0.5 - R.z) > R.r - 1 || walk[lz * CS + lx] >= 0) continue;
+      const h = hash3(x, 7, z, seed + 1601);
+      if (h < 0.09) {   // hanging from the roof: 1 to 3 blocks, leaving at least 3 blocks of air above the floor
+        let y = R.y + R.h + 1;
+        while (y > R.y && !solid(data[cellIndex(lx, y, lz)])) y--;
+        while (y > R.y && solid(data[cellIndex(lx, y, lz)])) y--;
+        for (let n = 0; n < 1 + Math.floor(hash3(x, 8, z, seed + 1611) * 3) && y >= R.y + 3; n++, y--) data[cellIndex(lx, y, lz)] = T.STONE;
+      } else if (h > 0.96 && Math.hypot(x + 0.5 - R.x, z + 0.5 - R.z) > 2) {   // standing on the floor: 1 or 2 blocks
+        for (let n = 0; n < 1 + Math.floor(hash3(x, 9, z, seed + 1621) * 2); n++) { const i = cellIndex(lx, R.y + n, lz); if (data[i] === T.AIR) data[i] = T.STONE; }
+      }
+    }
+  }
+  // Spikes in the noise rooms, still pools in their lowest parts, and gems in the walls of every room
+  for (let lz = 0; lz < CS; lz++) for (let lx = 0; lx < CS; lx++) {
+    const x = x0 + lx, z = z0 + lz;
+    for (let y = 2; y < Math.min(H - 2, tops[lz * CS + lx]); y++) {
+      const i = cellIndex(lx, y, lz);
+      if (!room[i] || data[i] !== T.AIR) continue;
+      const below = data[cellIndex(lx, y - 1, lz)], above = data[cellIndex(lx, y + 1, lz)];
+      if (y <= POOL_Y && (solid(below) || below === T.WATER)) { data[i] = T.WATER; continue; }
+      if (solid(above) && hash3(x, y, z, seed + 1631) < 0.06 && data[cellIndex(lx, y - 3, lz)] === T.AIR) data[i] = T.STONE;
+      else if (solid(below) && hash3(x, y, z, seed + 1641) < 0.03 && data[cellIndex(lx, y + 2, lz)] === T.AIR) data[i] = T.STONE;
+    }
+  }
+  for (let lz = 1; lz < CS - 1; lz++) for (let lx = 1; lx < CS - 1; lx++) for (let y = 2; y < Math.min(H - 2, tops[lz * CS + lx]); y++) {
+    const i = cellIndex(lx, y, lz);
+    if (data[i] !== T.STONE) continue;
+    const open = room[i + 1] || room[i - 1] || room[i + CS] || room[i - CS] || room[i + CS * CS] || room[i - CS * CS];
+    if (open && hash3(x0 + lx, y, z0 + lz, seed + 1651) < 0.07) data[i] = T.GEM;
+  }
+}
+
+// ---- Castles (part G) ----
+// Placed on a grid of square cells, castleGap blocks wide. For each cell a number made from the seed, the cell and a fixed
+// salt decides whether it has a castle, which size, and where in the cell it stands (kept away from the cell's edges, so
+// two castles never touch). Any chunk can work out the castles near it, so the answer is the same everywhere.
+// A castle is built by rule: one function says which block is at each place in it (castleBlock).
+const CASTLE_SALT = 2101, CASTLE_CLEAR = 100, CASTLE_TOP = 92, APRON = 6;
+const CASTLE_SIZES = {
+  tower: { W: 24, D: 24 },     // a tower house, about 20 high
+  castle: { W: 64, D: 64 },    // walls, corner towers about 32 high, a keep
+  great: { W: 250, D: 160 },   // long walls, many towers, a main building up to 80 high
+};
+// How much more uneven than 6 blocks a site may be: bigger castles need more room, so they may stand on bumpier land
+// (the slope around them is made wider to match, so it stays one block up or down per block)
+const CASTLE_UNEVEN = { tower: 6, castle: 12, great: 20 };
+const castleCache = new Map();
+let startTower;   // the tower house near the start point (worked out once per world)
+// Ground over a footprint and the land around it (m blocks), on a grid of about 12 blocks: [lowest, highest, wet share].
+// Water counts as ground at water level (around a castle it becomes a shore). wet: the share of the footprint under water.
+function siteHeights(x0, z0, w, d, m = 10) {
+  let lo = H, hi = 0, wet = 0, inner = 0;
+  const nx = Math.ceil((w + 2 * m) / 12), nz = Math.ceil((d + 2 * m) / 12);
+  for (let i = 0; i <= nx; i++) for (let j = 0; j <= nz; j++) {
+    const x = Math.round(x0 - m + i * (w + 2 * m - 1) / nx), z = Math.round(z0 - m + j * (d + 2 * m - 1) / nz);
+    let h = groundY(x, z);
+    const inside = x >= x0 && x < x0 + w && z >= z0 && z < z0 + d;
+    if (inside) inner++;
+    if (h < WATER_Y) { h = WATER_Y - 1; if (inside) wet++; }
+    lo = Math.min(lo, h); hi = Math.max(hi, h);
+  }
+  return [lo, hi, inner ? wet / inner : 0];
+}
+// Makes the plan of one castle: its size, place, height, towers, keep and gate. h: the castle's own number generator.
+function makeCastle(kind, sx, sz, W, D, lo, hi, num, front) {
+  const R = (n) => hash3(num, n, 77, seed + CASTLE_SALT);
+  const floorY = Math.round((lo + hi) / 2) + 1;   // the walking level: halfway between the lowest and highest ground (higher land is cut away, gaps are filled with stone)
+  const c = { kind, sx, sz, W, D, floorY, front, num, apron: Math.max(APRON, Math.ceil((hi - lo) / 2) + 3) };
+  // The structure seen from the front: a along the front, b from the front (0) to the back. The front faces the start point.
+  const swap = front === 'x-' || front === 'x+';
+  c.A = swap ? D : W; c.B = swap ? W : D;
+  c.roof = R(1) < 0.5 ? T.ROOF : T.ROOFB;
+  c.round = R(2) < 0.7;
+  c.moat = kind !== 'tower' && hi - lo <= 2;
+  const room = CASTLE_TOP - floorY;
+  if (kind === 'tower') {
+    c.keep = { a0: 0, b0: 0, a1: c.A, b1: c.B, h: Math.min(20, room) };
+    c.towers = []; c.wallH = 0;
+  } else {
+    const great = kind === 'great';
+    c.wallH = great ? 14 : 10;
+    const tr = great ? 7 : 5, th = Math.min(great ? 40 : 32, room - (tr + 3));
+    const t = (a, b) => ({ a, b, R: tr, h: th, round: c.round });
+    // Towers stand inside the castle's outline, at the corners and along the walls
+    c.towers = [t(tr, tr), t(c.A - tr, tr), t(tr, c.B - tr), t(c.A - tr, c.B - tr)];
+    if (great) {
+      for (const f of [1 / 3, 2 / 3]) c.towers.push(t(Math.round(c.A * f), c.B - tr));   // the back wall
+      c.towers.push(t(tr, Math.round(c.B / 2)), t(c.A - tr, Math.round(c.B / 2)));        // the side walls
+      for (const f of [0.22, 0.78]) c.towers.push(t(Math.round(c.A * f), tr));          // the front wall, either side of the gate
+    } else if (R(3) < 0.5) c.towers.push(t(Math.round(c.A / 2), c.B - tr));
+    const kw = great ? 40 : 20, kd = great ? 30 : 16;
+    const shift = Math.round((R(4) - 0.5) * (c.A - kw - 2 * tr - 12));        // the keep is not always in the middle
+    const ka0 = Math.round((c.A - kw) / 2) + shift, kb1 = c.B - (great ? 12 : 9);
+    c.keep = { a0: ka0, b0: kb1 - kd, a1: ka0 + kw, b1: kb1, h: great ? Math.max(30, Math.min(79, room - 1)) : Math.min(26, room - 1) };
+    // Stairs from the courtyard to the top of the side and back walls
+    c.stairs = [{ side: 'left', p0: 2 * tr + 3 }, { side: 'right', p0: 2 * tr + 3 }, { side: 'back', p0: 2 * tr + 3 }];
+  }
+  // The keep's floors (every 6 blocks; the last is the treasure room) and its stair tower in the middle
+  const K = c.keep;
+  // a tower never stands against the keep (its door must open onto the courtyard)
+  c.towers = c.towers.filter(tw => tw.a + tw.R + 3 <= K.a0 || tw.a - tw.R - 3 >= K.a1 || tw.b + tw.R + 3 <= K.b0 || tw.b - tw.R - 3 >= K.b1);
+  K.floors = [];
+  for (let L = 6; L + 6 <= K.h - 1; L += 6) K.floors.push(L);
+  K.top = K.floors.length ? K.floors[K.floors.length - 1] : 0;
+  K.stair = { a: (K.a0 + K.a1) / 2, b: (K.b0 + K.b1) / 2, R: 5, round: true, keep: true, top: K.top, doors: [0, ...K.floors] };
+  for (const tw of c.towers) { tw.top = tw.h - 6; tw.doors = [0]; }
+  c.height = Math.max(K.h + 1, ...c.towers.map(tw => tw.h + tw.R + 3), c.wallH + 6);
+  return c.height + floorY <= CASTLE_TOP + 1 && K.floors.length ? c : null;
+}
+// Which side of a footprint faces the start point
+function frontFacing(sx, sz, W, D) {
+  const dx = CENTER - (sx + W / 2), dz = CENTER - (sz + D / 2);
+  return Math.abs(dx) > Math.abs(dz) ? (dx < 0 ? 'x-' : 'x+') : (dz < 0 ? 'z-' : 'z+');
+}
+// Footprint with its apron (and moat), in world blocks: [x0, x1) x [z0, z1)
+function footprint(c) {
+  const m = c.apron + (c.moat ? 4 : 0);
+  c.margin = m; c.fx0 = c.sx - m; c.fz0 = c.sz - m; c.fx1 = c.sx + c.W + m; c.fz1 = c.sz + c.D + m;
+  return c;
+}
+function castleInCell(gx, gz) {
+  const key = gx * 100003 + gz;
+  if (castleCache.has(key)) return castleCache.get(key);
+  let c = null;
+  const X = castleGap, num = Math.floor(hash3(gx, 3, gz, seed + CASTLE_SALT) * 1e9);
+  if (gen >= 2 && hash3(gx, 1, gz, seed + CASTLE_SALT) < 0.85) {
+    const r = hash3(gx, 2, gz, seed + CASTLE_SALT);
+    let kind = r < 0.4 ? 'tower' : r < 0.75 ? 'castle' : 'great';
+    const fits = k => Math.max(CASTLE_SIZES[k].W, CASTLE_SIZES[k].D) + 2 * (APRON + 4 + Math.ceil(CASTLE_UNEVEN[k] / 2)) + 16 <= X;
+    while (kind !== 'tower' && !fits(kind)) kind = kind === 'great' ? 'castle' : 'tower';
+    const turn = hash3(gx, 4, gz, seed + CASTLE_SALT) < 0.5;
+    const W = turn ? CASTLE_SIZES[kind].D : CASTLE_SIZES[kind].W, D = turn ? CASTLE_SIZES[kind].W : CASTLE_SIZES[kind].D;
+    const edge = APRON + 4 + Math.ceil(CASTLE_UNEVEN[kind] / 2) + 8;   // kept away from the cell's edges
+    for (let attempt = 0; attempt < 3 && !c; attempt++) {
+      const sx = CENTER + gx * X + edge + Math.floor(hash3(gx, 10 + attempt, gz, seed + CASTLE_SALT) * Math.max(1, X - W - 2 * edge));
+      const sz = CENTER + gz * X + edge + Math.floor(hash3(gx, 20 + attempt, gz, seed + CASTLE_SALT) * Math.max(1, X - D - 2 * edge));
+      if (!inPlay(sx - edge, sz - edge) || !inPlay(sx + W + edge, sz + D + edge)) continue;
+      // no castle within 100 blocks of the start point
+      const nx = Math.max(sx - APRON, Math.min(CENTER, sx + W + APRON)), nz = Math.max(sz - APRON, Math.min(CENTER, sz + D + APRON));
+      if (Math.hypot(nx - CENTER, nz - CENTER) < CASTLE_CLEAR) continue;
+      // a castle never stands in water: at most a quarter of its ground may be lake shallows, which are filled with stone
+      const hs = siteHeights(sx, sz, W, D, APRON);
+      if (hs[2] > 0.25 || hs[1] - hs[0] > 6 + CASTLE_UNEVEN[kind]) continue;
+      c = makeCastle(kind, sx, sz, W, D, hs[0], hs[1], num + attempt, frontFacing(sx, sz, W, D));
+    }
+    if (c) {
+      footprint(c);
+      const st = towerNearStart();   // never on top of the tower house near the start
+      if (st && c.fx0 < st.fx1 + 16 && c.fx1 > st.fx0 - 16 && c.fz0 < st.fz1 + 16 && c.fz1 > st.fz0 - 16) c = null;
+    }
+  }
+  castleCache.set(key, c);
+  return c;
+}
+// One tower house always stands between 100 and 200 blocks from the start, so every child finds a castle on the first day
+function towerNearStart() {
+  if (startTower !== undefined) return startTower;
+  startTower = null;
+  if (gen < 2) return null;
+  let best = null;
+  for (let k = 0; k < 24; k++) {
+    const ang = (hash3(k, 5, 9, seed + CASTLE_SALT) + k / 24) * Math.PI * 2, dist = 125 + (k % 3) * 20;
+    const sx = Math.round(CENTER + Math.cos(ang) * dist) - 12, sz = Math.round(CENTER + Math.sin(ang) * dist) - 12;
+    const hs = siteHeights(sx, sz, 24, 24, APRON);
+    if (hs[2] > 0) continue;
+    if (!best || hs[1] - hs[0] < best.hs[1] - best.hs[0]) best = { sx, sz, hs };
+    if (hs[1] - hs[0] <= 2) break;
+  }
+  if (best) {
+    const c = makeCastle('tower', best.sx, best.sz, 24, 24, best.hs[0], best.hs[1], Math.floor(hash3(1, 6, 1, seed + CASTLE_SALT) * 1e9), frontFacing(best.sx, best.sz, 24, 24));
+    if (c) startTower = footprint(c);
+  }
+  return startTower;
+}
+// The castles whose footprint (with margin m) overlaps the box [x0, x1) x [z0, z1)
+function castlesIn(x0, z0, x1, z1, m = 0) {
+  if (gen < 2) return [];
+  const out = [], X = castleGap, reach = CASTLE_SIZES.great.W + 2 * (APRON + 4 + CASTLE_UNEVEN.great);
+  const gx0 = Math.floor((x0 - reach - CENTER) / X), gx1 = Math.floor((x1 + reach - CENTER) / X);
+  const gz0 = Math.floor((z0 - reach - CENTER) / X), gz1 = Math.floor((z1 + reach - CENTER) / X);
+  const hit = c => c && c.fx0 - m < x1 && c.fx1 + m > x0 && c.fz0 - m < z1 && c.fz1 + m > z0;
+  for (let gx = gx0; gx <= gx1; gx++) for (let gz = gz0; gz <= gz1; gz++) { const c = castleInCell(gx, gz); if (hit(c)) out.push(c); }
+  const st = towerNearStart();
+  if (hit(st)) out.push(st);
+  return out;
+}
+const castleCovers = (x, z, m = 0) => castlesIn(x, z, x + 1, z + 1, m).length > 0;
+
+// ---- What a castle is made of, block by block (all in the castle's own frame: a along the front, b toward the back) ----
+const angDiff = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d < -Math.PI) d += Math.PI * 2; if (d > Math.PI) d -= Math.PI * 2; return d; };
+// Steps per turn of a spiral stair: about one block up for each block walked along its outer edge
+const stairTurn = tw => Math.max(12, Math.round(2 * Math.PI * (tw.R - 2)));
+// The height the spiral reaches at angle frac (0..1 from the door), first turn
+const stairH = (tw, frac) => Math.floor(stairTurn(tw) * frac);
+// The angle (0..1 from the door) where the spiral reaches level L
+const stairFracAt = (tw, L) => (L % stairTurn(tw)) / stairTurn(tw);
+// A tower: walls, a spiral stair round a middle pillar, a room at the top with windows, a pointed roof.
+// In a keep the stair has doors at each floor, and its top is the keep's top floor. Returns undefined when the place is not in the tower.
+function towerBlock(c, tw, a, b, ry) {
+  const dx = a + 0.5 - tw.a, dz = b + 0.5 - tw.b;
+  const d = tw.round ? Math.hypot(dx, dz) : Math.max(Math.abs(dx), Math.abs(dz));
+  const door = tw.door !== undefined ? tw.door : (tw.door = Math.atan2(c.B / 2 - tw.b, c.A / 2 - tw.a));   // the door faces the courtyard
+  if (tw.keep) tw.door = -Math.PI / 2;   // a keep's stair opens toward the keep's front door
+  const ang = Math.atan2(dz, dx);
+  if (!tw.keep && ry >= tw.h) {   // the pointed roof
+    const coneH = tw.R + 3, rr = (tw.R + 1) * (1 - (ry - tw.h) / coneH);
+    return d <= rr ? c.roof : undefined;
+  }
+  if (d > tw.R) return undefined;
+  if (tw.keep && ry >= tw.top) return undefined;   // the keep's top floor (the treasure room) is above the stair
+  if (ry < -1) return T.STONE;
+  if (ry === -1) return T.CSTONE;
+  const K = stairTurn(tw);
+  if (d > tw.R - 1) {   // the wall: a door at each landing and windows in the top room
+    for (const L of tw.doors) {
+      const da = Math.abs(angDiff(ang, tw.door + stairFracAt(tw, L) * Math.PI * 2));
+      if (ry >= L && ry <= L + 2 && da < 1.1 / tw.R) return T.AIR;
+    }
+    if (!tw.keep && ry >= tw.top + 1 && ry <= tw.top + 2) for (let w = 0; w < 4; w++) if (Math.abs(angDiff(ang, tw.door + Math.PI / 4 + w * Math.PI / 2)) < 0.6 / tw.R) return T.AIR;
+    return T.CSTONE;
+  }
+  if (!tw.keep && ry >= tw.h - 1) return T.CSTONE;               // the top room's ceiling
+  if (!tw.keep && ry >= tw.top) return T.AIR;                    // the top room
+  const frac = ((ang - tw.door) / (Math.PI * 2) % 1 + 1) % 1;
+  const h0 = stairH(tw, frac);
+  const last = h0 + Math.floor((tw.top - 1 - h0) / K) * K;      // the highest step in this column below the top level
+  if (ry === tw.top - 1) return d <= 1.6 || last < tw.top - 3 ? T.WOOD : T.AIR;   // the top floor, open where the stair comes up
+  if (d <= 1.6) return T.CSTONE;                                 // the middle pillar
+  return (ry + 1 - h0) % K === 0 && ry + 1 < tw.top ? T.CSTONE : T.AIR;   // a step (its top is the walking level ry + 1)
+}
+function keepBlock(c, K, a, b, ry) {
+  if (a < K.a0 || a >= K.a1 || b < K.b0 || b >= K.b1) return undefined;
+  const edge = Math.min(a - K.a0, K.a1 - 1 - a, b - K.b0, K.b1 - 1 - b);
+  if (ry >= K.h) return ry === K.h && edge === 0 && (a + b) % 2 === 0 ? T.CSTONE : undefined;   // battlements on the roof
+  if (ry === K.h - 1) return T.CSTONE;                                                       // the roof
+  const s = towerBlock(c, K.stair, a, b, ry);
+  if (s !== undefined) return s;
+  if (ry < -1) return T.STONE;
+  if (ry === -1) return T.CSTONE;
+  if (edge < 2) {   // the walls: a door 2 wide facing the gate, windows on every floor
+    const mid = (K.a0 + K.a1) / 2;
+    if (b < K.b0 + 2 && ry <= 2 && Math.abs(a + 0.5 - mid) <= 1) return T.AIR;
+    const along = (b === K.b0 || b === K.b1 - 1 || b === K.b0 + 1 || b === K.b1 - 2) ? a : b;
+    for (const L of [0, ...K.floors]) if ((ry === L + 1 || ry === L + 2) && along % 4 === 2 && edge === 0) return T.AIR;
+    if ((ry === K.top + 1 || ry === K.top + 2) && along % 4 === 2) return T.AIR;
+    return T.CSTONE;
+  }
+  if (K.floors.includes(ry + 1)) return T.WOOD;                  // the floors
+  // the treasure room on the top floor: gem blocks in its four corners
+  if (ry >= K.top && ry <= K.top + 1 && (Math.min(a - K.a0, K.a1 - 1 - a) <= 3) && (Math.min(b - K.b0, K.b1 - 1 - b) <= 3)) return T.GEM;
+  return T.AIR;
+}
+// The block at a place inside the structure (walls' outer edge), ry counted from the walking level. undefined: courtyard air.
+function structBlock(c, a, b, ry, towers = c.towers) {
+  for (const tw of towers) { const t = towerBlock(c, tw, a, b, ry); if (t !== undefined) return t; }
+  const k = keepBlock(c, c.keep, a, b, ry);
+  if (k !== undefined) return k;
+  if (ry < -1) return T.STONE;
+  if (ry === -1) return T.CSTONE;
+  if (c.kind === 'tower') return T.AIR;
+  // the walls: 3 thick, a walk on top behind battlements, the gate in the middle of the front with a gatehouse
+  const da = Math.min(a, c.A - 1 - a), db = Math.min(b, c.B - 1 - b), wall = Math.min(da, db);
+  const mid = c.A / 2;
+  if (b < 3 && Math.abs(a + 0.5 - mid) <= 1.5 && ry <= 3) return T.AIR;                       // the gate: 3 wide, 4 high
+  const gh = b < 4 && Math.abs(a + 0.5 - mid) > 1.5 && Math.abs(a + 0.5 - mid) <= 5.5;        // the gatehouse beside the gate
+  if (gh) return ry < c.wallH + 5 ? T.CSTONE : ry === c.wallH + 5 && a % 2 === 0 && b === 0 ? T.CSTONE : T.AIR;
+  if (wall < 3) {
+    if (ry < c.wallH) return T.CSTONE;
+    const outer = wall === 0, along = da === wall ? b : a;
+    if (ry === c.wallH) return outer ? T.CSTONE : T.AIR;
+    if (ry === c.wallH + 1) return outer && along % 2 === 0 ? T.CSTONE : T.AIR;
+    return T.AIR;
+  }
+  // stairs from the courtyard up to the wall walk: 2 wide, one block up for each block along
+  for (const st of c.stairs || []) {
+    const along = st.side === 'back' ? a : b, off = st.side === 'left' ? a : st.side === 'right' ? c.A - 1 - a : c.B - 1 - b;
+    if (off >= 3 && off <= 4 && along >= st.p0 && along < st.p0 + c.wallH - 1) return ry < along - st.p0 + 1 ? T.CSTONE : T.AIR;
+  }
+  return T.AIR;
+}
+// From world (x, z) to the castle's own frame (a, b)
+function toFrame(c, x, z) {
+  const u = x - c.sx, v = z - c.sz;
+  switch (c.front) {
+    case 'z-': return [u, v];
+    case 'z+': return [c.W - 1 - u, c.D - 1 - v];
+    case 'x-': return [v, c.W - 1 - u];
+    default: return [c.D - 1 - v, u];
+  }
+}
+// Builds the castles into a chunk. Inside the walls the land is levelled; the apron around them slopes back to the land,
+// so the gate can always be walked to. Castles on flat sites have a moat with a bridge to the gate.
+function buildCastles(cx, cz, data, tops, castles) {
+  const x0 = cx * CS, z0 = cz * CS;
+  for (const c of castles) {
+    for (let lz = 0; lz < CS; lz++) for (let lx = 0; lx < CS; lx++) {
+      const x = x0 + lx, z = z0 + lz;
+      if (x < c.fx0 || x >= c.fx1 || z < c.fz0 || z >= c.fz1) continue;
+      const top = tops[lz * CS + lx], fy = c.floorY;
+      const out = Math.max(c.sx - x, x - (c.sx + c.W - 1), c.sz - z, z - (c.sz + c.D - 1), 0);   // blocks outside the walls
+      if (out > 0) {
+        if (c.moat && out <= 3) {   // the moat: 2 deep, with a stone bottom, and the bridge in front of the gate
+          const [a] = toFrame(c, Math.max(c.sx, Math.min(c.sx + c.W - 1, x)), Math.max(c.sz, Math.min(c.sz + c.D - 1, z)));
+          const [, b] = toFrame(c, x, z);
+          const bridge = b < 0 && Math.abs(a + 0.5 - c.A / 2) <= 1.5;
+          for (let y = Math.min(top, fy - 4) + 1; y < fy - 3; y++) data[cellIndex(lx, y, lz)] = T.STONE;
+          data[cellIndex(lx, fy - 3, lz)] = T.STONE;
+          data[cellIndex(lx, fy - 2, lz)] = bridge ? T.STONE : T.WATER;
+          data[cellIndex(lx, fy - 1, lz)] = bridge ? T.WOOD : T.WATER;
+          for (let y = fy; y < H; y++) data[cellIndex(lx, y, lz)] = T.AIR;
+          continue;
+        }
+        const apron = out - (c.moat ? 4 : 0);   // the slope back to the land: at most one block up or down per block
+        const wet = top < WATER_Y;   // over water the slope ends at water level, as a sandy shore
+        const s = Math.round(fy + ((wet ? WATER_Y - 1 : top) + 1 - fy) * Math.min(1, apron / c.apron));
+        const cap = wet ? T.SAND : data[cellIndex(lx, top, lz)];
+        for (let y = top + 1; y < s; y++) data[cellIndex(lx, y, lz)] = T.DIRT;
+        if (s - 1 !== top || !solid(cap)) data[cellIndex(lx, s - 1, lz)] = cap === T.SAND || cap === T.SNOW || cap === T.GRASS ? cap : T.GRASS;
+        for (let y = s; y < H; y++) data[cellIndex(lx, y, lz)] = T.AIR;
+        continue;
+      }
+      const [a, b] = toFrame(c, x, z);
+      const near = c.towers.filter(tw => Math.abs(a + 0.5 - tw.a) <= tw.R + 1.5 && Math.abs(b + 0.5 - tw.b) <= tw.R + 1.5);   // only the towers over this column
+      for (let y = Math.min(top + 1, fy - 1); y < Math.min(H, fy + c.height + 1); y++) {
+        const t = structBlock(c, a, b, y - fy, near);
+        data[cellIndex(lx, y, lz)] = t === undefined ? T.AIR : t;
+      }
+      for (let y = fy + c.height + 1; y < H; y++) data[cellIndex(lx, y, lz)] = T.AIR;
+    }
+  }
+}
+
+// Builds one chunk: grass on top, dirt, stone, then caves and gems. Land-maker 2 also carves big caves and builds castles.
 function makeChunk(cx, cz) {
   const data = new Uint8Array(CHUNK_LEN);
+  const tops = new Int16Array(CS * CS);
   for (let lx = 0; lx < CS; lx++) for (let lz = 0; lz < CS; lz++) {
     const x = cx * CS + lx, z = cz * CS + lz;
     const top = groundY(x, z);
+    tops[lz * CS + lx] = top;
     const B = BIOMES[biomeIndexAt(x, z)];   // once per column
     for (let y = 0; y <= top; y++) {
       let t = y === top ? (top < WATER_Y ? T.SAND : B.top) : (y >= top - 2 ? (top < WATER_Y ? T.DIRT : B.under) : T.STONE);
@@ -456,6 +969,11 @@ function makeChunk(cx, cz) {
       data[cellIndex(lx, y, lz)] = t;
     }
     for (let y = top + 1; y < WATER_Y; y++) data[cellIndex(lx, y, lz)] = T.WATER;   // water above low ground
+  }
+  if (gen >= 2) {
+    const castles = castlesIn(cx * CS, cz * CS, cx * CS + CS, cz * CS + CS);
+    carveCaves(cx, cz, data, tops, new Uint8Array(CHUNK_LEN), castles);
+    buildCastles(cx, cz, data, tops, castles);
   }
   return data;
 }
@@ -491,16 +1009,22 @@ function setBlock(x, y, z, t) {
   writeBlock(x, y, z, t);
   dirty = true;
 }
-function initWorld(s) { seed = s; chunks.clear(); edited.clear(); touched.clear(); viewReset = true; }
+// g: the land-maker (2 for new worlds); gap: the castle spacing recorded in the world
+function initWorld(s, g = GEN_NOW, gap = castleGapNext) {
+  seed = s; gen = g; castleGap = gapOk(gap) ? gap : CASTLE_GAP_DEFAULT;
+  chunks.clear(); edited.clear(); touched.clear(); mouthCache.clear(); castleCache.clear(); startTower = undefined; viewReset = true;
+}
 
 // Save and share format: the seed plus every chunk that players have changed
 function encodeWorld() {
   const edits = [];
   for (const k of edited) { const c = chunks.get(k); edits.push([c.cx, c.cz, bytesToB64(c.data)]); }
-  return { v: 2, seed, edits };
+  // A world made by land-maker 2 records it and its castle spacing; older worlds are written as before
+  return gen >= 2 ? { v: 2, seed, gen, castleGap, edits } : { v: 2, seed, edits };
 }
 function applyWorld(w) {
-  initWorld(w.seed);
+  // A world with no land-maker record was made before 0.6.76: it keeps land-maker 1, with no new caves or castles
+  initWorld(w.seed, w.gen === 2 ? 2 : 1, w.castleGap);
   for (const [cx, cz, b64] of w.edits) {
     let data = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
     if (data.length !== CHUNK_LEN && data.length < CHUNK_LEN && data.length % (CS * CS) === 0) {
@@ -519,7 +1043,7 @@ const OLD_SIZE = 40;
 function applyOld(b64, s) {
   const bytes = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
   if (bytes.length !== OLD_SIZE * H * OLD_SIZE) return false;
-  initWorld(s);
+  initWorld(s, 1);
   for (let x = 0; x < OLD_SIZE; x++) for (let z = 0; z < OLD_SIZE; z++) for (let y = 0; y < H; y++) {
     writeBlock(CENTER + x, y, CENTER + z, bytes[(y * OLD_SIZE + z) * OLD_SIZE + x]);
   }
@@ -591,6 +1115,8 @@ else if (saved && typeof saved.world === 'string') {
     saved.drops = (saved.drops || []).map(r => Array.isArray(r) && r.length >= 4 ? [r[0] + CENTER, r[1], r[2] + CENTER, r[3], ...(r.length === 5 ? [r[4]] : [])] : r);
   }
 }
+// Castle spacing X for a new world: the last value read from the server (or 500). Read again below once the game is open.
+try { const g = Number(localStorage.getItem('kidsgame.castleGap')); if (gapOk(g)) castleGapNext = g; } catch (e) {}
 if (!worldLoaded) initWorld(Math.floor(Math.random() * 999999) + 1);
 let worldSource = !worldLoaded ? 'new' : (saved.world.v === 2 ? 'save' : 'old save');
 
@@ -646,6 +1172,26 @@ const texGem = makeTex((g, S) => {
 });
 
 const texSand = makeTex((g, S) => noise(g, S, 0xd9c27a, 0.07));
+// Castle blocks (0.6.76), drawn in code like the others: light stone bricks, roof tiles in two colours, wood planks
+const texCastle = makeTex((g, S) => {
+  noise(g, S, 0xc9c3b6, 0.06);
+  g.fillStyle = shade(0x9a9488, 0);
+  for (const y of [0, 8]) g.fillRect(0, y, S, 1);
+  for (const [x, y] of [[0, 1], [8, 9]]) g.fillRect(x, y, 1, 7);
+});
+const roofTex = base => makeTex((g, S) => {
+  noise(g, S, base, 0.08);
+  g.fillStyle = shade(base, -40);
+  for (const y of [3, 7, 11, 15]) g.fillRect(0, y, S, 1);
+  for (let y = 0; y < S; y += 4) for (let x = (y / 4) % 2 ? 2 : 6; x < S; x += 8) g.fillRect(x, y, 1, 3);
+});
+const texRoof = roofTex(0xb5452f), texRoofB = roofTex(0x5b6f8f);
+const texWood = makeTex((g, S) => {
+  noise(g, S, 0xa0703f, 0.07);
+  g.fillStyle = shade(0x6e4a26, 0);
+  for (const y of [4, 9, 14]) g.fillRect(0, y, S, 1);
+  for (const [x, y] of [[5, 0], [12, 5], [3, 10]]) g.fillRect(x, y, 1, 4);
+});
 const texSnow = makeTex((g, S) => noise(g, S, 0xeef4f8, 0.05));
 const mapMat = map => new THREE.MeshLambertMaterial({ map });
 const waterMat = new THREE.MeshLambertMaterial({ color: 0x2f7fd0, transparent: true, opacity: 0.6 });
@@ -658,6 +1204,10 @@ const blockMats = {
   [T.SAND]: Array(6).fill(0).map(() => mapMat(texSand)),
   [T.SNOW]: Array(6).fill(0).map(() => mapMat(texSnow)),
   [T.WATER]: Array(6).fill(waterMat),
+  [T.CSTONE]: Array(6).fill(0).map(() => mapMat(texCastle)),
+  [T.ROOF]: Array(6).fill(0).map(() => mapMat(texRoof)),
+  [T.ROOFB]: Array(6).fill(0).map(() => mapMat(texRoofB)),
+  [T.WOOD]: Array(6).fill(0).map(() => mapMat(texWood)),
 };
 
 // ---- Three.js scene ----
@@ -668,8 +1218,9 @@ document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
-scene.add(new THREE.HemisphereLight(0xbfe6ff, 0x5a4a3a, 0.9));
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 700);   // far: castle outlines are seen up to 500 blocks away (0.6.76)
+const hemi = new THREE.HemisphereLight(0xbfe6ff, 0x5a4a3a, 0.9);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff4e0, 0.9);
 sun.position.set(30, 50, 20);
 scene.add(sun);
@@ -745,7 +1296,7 @@ const VIEW = 8;                                   // chunks drawn in each direct
 const BUILD_MS = 8;                               // time per frame spent making new chunk meshes
 const blockGeo = new THREE.BoxGeometry(1, 1, 1);
 const m4 = new THREE.Matrix4();
-const drawTypes = [T.GRASS, T.DIRT, T.STONE, T.GEM, T.SAND, T.WATER, T.SNOW];
+const drawTypes = [T.GRASS, T.DIRT, T.STONE, T.GEM, T.SAND, T.WATER, T.SNOW, T.CSTONE, T.ROOF, T.ROOFB, T.WOOD];
 const worldGroup = new THREE.Group();
 scene.add(worldGroup);
 const chunkMeshes = new Map();   // ckey -> { cx, cz, list: [InstancedMesh], count }
@@ -999,6 +1550,7 @@ armR.add(heldCube);
 avatar.add(legL, legR, armL, armR);
 scene.add(avatar);
 
+var handViewOn = false;   // set once the first-person hand exists (0.6.76)
 let swordShown = false;   // true while a sword from a hand button is swung although another item is in the hand (0.6.60)
 // Show the right things in the hands for the selected quick bar item
 function updateHand() {
@@ -1009,6 +1561,7 @@ function updateHand() {
   swordGroup.visible = kind === 'weapon' || swordShown;
   heldCube.visible = kind === 'block' || kind === 'gem' || kind === 'spell';
   if (heldCube.visible) heldCube.material.color.setHex(d.color);
+  if (handViewOn) updateHandView();
 }
 
 // The top of the land near the middle of the world. Searches a small area only, so it stays fast in a huge world.
@@ -1186,6 +1739,7 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (/^Digit[1-6]$/.test(e.code)) selectSlot(+e.code.slice(5) - 1);
   if (e.code === 'KeyB') toggleBag();
+  if (e.code === 'KeyV' && !e.repeat) setView(viewMode === 'eyes' ? 'back' : 'eyes');
   // F casts toward the mouse pointer (0.6.74; before, straight ahead). Before the mouse has moved, the middle of the screen is used.
   if (e.code === 'KeyF' && !anyPanelOpen()) { const m = mouseAt || { x: innerWidth / 2, y: innerHeight / 2 }; fireAt(m.x, m.y); }
   if (e.code === 'Escape') backAction();
@@ -1297,7 +1851,7 @@ const invCap = () => 8 + pw.inv.lvl * 4;
 const digTime = () => 1.0 * Math.pow(0.92, pw.dig.lvl - 1);
 // Digging by hand (0.6.74): without the pickaxe in hand every block can still be dug, more slowly the harder it is.
 // Sand, snow, dirt and grass take 2 times as long as with the pickaxe, stone 4 times, gems 6 times.
-const handSlow = t => t === T.STONE ? 4 : t === T.GEM ? 6 : 2;
+const handSlow = t => t === T.STONE || t === T.CSTONE ? 4 : t === T.GEM ? 6 : 2;   // castle stone is as hard as stone
 const digSlow = t => tplOf(held()) === 'pick' ? 1 : handSlow(t);
 let handDigTold = false;   // "Digging by hand is slow" is said once in a visit
 const fightTime = () => 1.0 * Math.pow(0.92, pw.fight.lvl - 1);
@@ -1534,6 +2088,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.76', title: 'First-person view, caves and castles', items: [
+    'New View button: see the world through your character\'s eyes, and look up and down. Indoors, the camera now stays close so you can always see',
+    'Caves! Find a cave mouth in the hills and walk in to explore tunnels, big rooms and pools. New worlds have them',
+    'Castles! Find one, walk through the gate, climb the towers and look for the treasure room. New worlds have them'] },
   { v: '0.6.75', title: 'Hint and Another question', items: [
     'Quiz friends have two new buttons: Hint gives you a clue, and Another question swaps it for a different one',
     'For parents: the quiz friends report also counts how many hints and swaps were used'] },
@@ -1916,6 +2474,8 @@ addEventListener('pointerdown', e => {
 }, true);
 { const app = appPlugin(); if (app) { try { app.addListener('backButton', backAction); } catch (e) { /* older app without the plugin: Back works as before */ } } }
 
+// Castle blocks go into the bag as themselves (0.6.76)
+const BLOCK_ITEM = { [T.CSTONE]: 'castle_stone', [T.ROOF]: 'roof_tile', [T.ROOFB]: 'roof_tile_blue', [T.WOOD]: 'wood_floor' };
 // Finish digging the block at (x,y,z). If the bag is full, the block is dropped on the ground to pick up later.
 function digCell(x, y, z) {
   const t = get(x, y, z);
@@ -1925,7 +2485,7 @@ function digCell(x, y, z) {
   if (full && drops.size >= MAX_DROPS) { say('Too many things on the ground. Pick some up first.', 2500); return false; }
   setBlock(x, y, z, T.AIR);
   shareBlock(x, y, z, T.AIR);
-  const id = (t === T.GRASS || t === T.DIRT || t === T.SAND || t === T.SNOW) ? 'dirt' : (t === T.STONE ? 'stone' : 'gem');
+  const id = (t === T.GRASS || t === T.DIRT || t === T.SAND || t === T.SNOW) ? 'dirt' : t === T.STONE ? 'stone' : BLOCK_ITEM[t] || 'gem';
   if (full) {
     addDrop(x, y, z, id);
     say(ITEMS[id].name + ' dropped on the ground. Bag is full: open the bag and tap Drop to make room.', 3500);
@@ -2811,6 +3371,15 @@ const ray = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
 let digging = null; // {x, y, z, t}
 let camYaw = 0;      // camera angle around the character
+// Looking up and down (0.6.76): one angle for both views. Negative looks down. The view from behind starts as before,
+// looking down at the character; it stops at 80 degrees each way.
+const PITCH_MAX = 80 * Math.PI / 180, PITCH_BACK = -Math.atan2(4, 9);
+let camPitch = PITCH_BACK;
+// The view (0.6.76): 'back' (from behind the character) or 'eyes' (through the character's eyes). Kept on this device
+// only, like the on-screen controls choice: not in the saved game, not in the cloud save, never sent.
+const VIEW_KEY = 'kidsgame.view';
+let viewMode = 'back';
+try { if (localStorage.getItem(VIEW_KEY) === 'eyes') viewMode = 'eyes'; } catch (e) {}
 let headTarget = 0, headYaw = 0;
 let press = null;        // {id, x, lastX, moved}
 let pendingPlace = null; // cell to build in, used only if the press was a tap
@@ -2853,9 +3422,13 @@ canvas.addEventListener('pointermove', e => {
   if (!touches.has(e.pointerId)) return;
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (press && press.id === e.pointerId && touches.size === 1) {
-    if (!press.moved && Math.abs(e.clientX - press.x) > 8) { press.moved = true; digging = null; fight = null; }
-    if (press.moved) camYaw -= (e.clientX - press.lastX) * 0.01;
+    if (!press.moved && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) { press.moved = true; digging = null; fight = null; }
+    if (press.moved) {
+      camYaw -= (e.clientX - press.lastX) * 0.01;
+      camPitch = Math.max(-PITCH_MAX, Math.min(PITCH_MAX, camPitch - (e.clientY - press.lastY) * 0.008));   // drag up looks up (0.6.76)
+    }
     press.lastX = e.clientX;
+    press.lastY = e.clientY;
   }
   if (touches.size === 2) {
     const [a, b] = [...touches.values()];
@@ -2897,7 +3470,7 @@ canvas.addEventListener('pointerdown', e => {
     return;
   }
   if (touches.size > 1) return; // two fingers = pinch
-  press = { id: e.pointerId, x: e.clientX, lastX: e.clientX, moved: false };
+  press = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY, moved: false };
   pendingPlace = null;
   // A press on a quiz friend never digs, builds, fights or casts: if it was a tap, the question opens on release (0.6.63)
   pendingFriend = !!friendAt(e.clientX, e.clientY);
@@ -3901,6 +4474,87 @@ function followStep(cam, goalBefore, goal, dt) {
 }
 const camGoal = new THREE.Vector3(), camGoalBefore = new THREE.Vector3();
 let camGoalSet = false;
+const EYE = 1.5;   // eye height above the feet, for the view through the character's eyes
+// The view from behind: the camera's spot for the given yaw and look angle, before walls are allowed for
+function backGoal(out) {
+  const d = Math.hypot(9, 4) * zoom, c = Math.cos(camPitch);
+  return out.set(px + Math.sin(camYaw) * c * d, py + 1 - Math.sin(camPitch) * d, pz + Math.cos(camYaw) * c * d);
+}
+// Is a point clear of blocks? A small box around it is checked, so the camera never sits right against a face.
+function camClear(x, y, z) {
+  const r = 0.2;
+  for (const ox of [-r, r]) for (const oy of [-r, r]) for (const oz of [-r, r]) if (solid(get(Math.floor(x + ox), Math.floor(y + oy), Math.floor(z + oz)))) return false;
+  return true;
+}
+// How far the camera can be from the character's head toward (dx, dy, dz) (a unit vector) before a block is in the way.
+// The block reader is used, so no new data is needed (0.6.76).
+function camRoom(hx, hy, hz, dx, dy, dz, want) {
+  let ok = 0;
+  for (let t = 0.1; t <= want; t += 0.1) { if (!camClear(hx + dx * t, hy + dy * t, hz + dz * t)) return Math.max(0.15, ok - 0.15); ok = t; }
+  return want;
+}
+const camHead = new THREE.Vector3(), camDir = new THREE.Vector3();
+// Puts the camera for this frame. 'eyes': at the character's eyes, looking along the yaw and look angle. 'back': behind
+// and above as before, following smoothly, and moved in closer when a wall or roof is between it and the character.
+// No bobbing and no shake in either view. snap: no smoothing (a change of view, the start, the tests).
+function placeCamera(dt, snap = false) {
+  const cp = camera.position;
+  if (viewMode === 'eyes') {
+    const c = Math.cos(camPitch);
+    cp.set(px, py + EYE, pz);
+    camera.lookAt(px - Math.sin(camYaw) * c, py + EYE + Math.sin(camPitch), pz - Math.cos(camYaw) * c);
+    camGoalSet = false;
+    return;
+  }
+  backGoal(camGoal);
+  if (!camGoalSet || snap) { camGoalBefore.copy(camGoal); cp.copy(camGoal); camGoalSet = true; }
+  else cp.set(followStep(cp.x, camGoalBefore.x, camGoal.x, dt), followStep(cp.y, camGoalBefore.y, camGoal.y, dt), followStep(cp.z, camGoalBefore.z, camGoal.z, dt));
+  camGoalBefore.copy(camGoal);
+  // A wall or roof in the way: the camera comes in along the line to the head and stops just before the first block
+  camHead.set(px, py + 1.2, pz);
+  camDir.copy(cp).sub(camHead);
+  const want = camDir.length();
+  if (want > 0.01) {
+    camDir.multiplyScalar(1 / want);
+    const room = camRoom(camHead.x, camHead.y, camHead.z, camDir.x, camDir.y, camDir.z, want);
+    if (room < want) cp.copy(camHead).addScaledVector(camDir, room);
+  }
+  camera.lookAt(px, py + 1, pz);
+}
+// The held item seen through the character's eyes: at the bottom right of the screen (0.6.76)
+const handView = new THREE.Group();
+{
+  const hv = (w, h, d, c, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: c })); m.position.set(x, y, z); return m; };
+  const pick = new THREE.Group(); pick.add(hv(0.05, 0.42, 0.05, 0x8b5a2b, 0, 0, 0), hv(0.28, 0.06, 0.06, 0x9e9e9e, 0, 0.2, 0)); pick.name = 'pick';
+  const sword = new THREE.Group(); sword.add(hv(0.045, 0.46, 0.03, 0xdfe6ee, 0, 0.08, 0), hv(0.18, 0.04, 0.05, 0x8b5a2b, 0, -0.15, 0)); sword.name = 'sword';
+  const cube = hv(0.2, 0.2, 0.2, 0xffffff, 0, 0, 0); cube.name = 'held';
+  handView.add(pick, sword, cube);
+  handView.position.set(0.42, -0.34, -0.75);
+  handView.rotation.set(0.15, -0.35, 0.1);
+  handView.visible = false;
+  camera.add(handView);
+  scene.add(camera);
+  handViewOn = true;
+}
+function updateHandView() {
+  const id = held(), d = id ? defOf(id) : null, kind = d ? d.kind : null;
+  handView.visible = viewMode === 'eyes';
+  handView.getObjectByName('pick').visible = tplOf(id) === 'pick';
+  handView.getObjectByName('sword').visible = kind === 'weapon';
+  const cube = handView.getObjectByName('held');
+  cube.visible = kind === 'block' || kind === 'gem' || kind === 'spell';
+  if (cube.visible) cube.material.color.setHex(d.color);
+}
+// Changes the view at once (well under half a second). The choice is remembered on this device only.
+function setView(mode, remember = true) {
+  viewMode = mode === 'eyes' ? 'eyes' : 'back';
+  avatar.visible = viewMode !== 'eyes';   // through the eyes the child does not see their own body
+  document.getElementById('viewBtn').classList.toggle('eyes', viewMode === 'eyes');
+  if (remember) { try { localStorage.setItem(VIEW_KEY, viewMode); } catch (e) {} }
+  updateHandView();
+  placeCamera(0, true);
+}
+document.getElementById('viewBtn').addEventListener('click', () => { if (!anyPanelOpen()) { sfx('tap'); setView(viewMode === 'eyes' ? 'back' : 'eyes'); } });
 
 function update(dt) {
   const k = c => !!keys[c];
@@ -4002,14 +4656,7 @@ function update(dt) {
   avatar.position.set(px, py, pz);
   avatar.scale.set(1 + sq, 1 - sq, 1 + sq);
 
-  // Camera follows from behind, turned by camYaw, and zoomed by zoom
-  const camX = px + Math.sin(camYaw) * 9 * zoom, camZ = pz + Math.cos(camYaw) * 9 * zoom;
-  camGoal.set(camX, py + 5 * zoom, camZ);
-  if (!camGoalSet) { camGoalBefore.copy(camGoal); camGoalSet = true; }
-  const cp = camera.position;
-  cp.set(followStep(cp.x, camGoalBefore.x, camGoal.x, dt), followStep(cp.y, camGoalBefore.y, camGoal.y, dt), followStep(cp.z, camGoalBefore.z, camGoal.z, dt));
-  camGoalBefore.copy(camGoal);
-  camera.lookAt(px, py + 1, pz);
+  placeCamera(dt);
 
   const head = get(Math.floor(px), Math.floor(py + HH), Math.floor(pz));
   const under = solid(head);
@@ -4055,8 +4702,104 @@ function perfTick(now) {
   perfLast = now;
   if (perfSum >= 2000) {
     perfStats = { fps: +(1000 * perfFrames / perfSum).toFixed(1), frameMs: +(perfSum / perfFrames).toFixed(1) };
-    if (perfOn) console.log('[perf] ' + JSON.stringify({ ...perfStats, ...perfSnapshot() }));
+    if (perfOn) {
+      console.log('[perf] ' + JSON.stringify({ ...perfStats, ...perfSnapshot() }));
+      // With ?perf=1 the frame rate also shows in a corner of the screen (0.6.76), so it can be read on a phone. Nothing is sent.
+      const pb = document.getElementById('perfBox'); pb.style.display = 'block';
+      pb.textContent = perfStats.fps + ' fps · ' + perfStats.frameMs + ' ms';
+    }
     perfSum = 0; perfFrames = 0;
+  }
+}
+// ---- Light under ground (0.6.76): dim and bluish in caves and castle rooms, never black ----
+// When the child's head is under a roof and 4 or more blocks below the top of the ground or building above, the sky and
+// sun light fade to about half and turn blue over one second. Near a cave mouth, a roof hole or a window (any opening to
+// the sky within 6 blocks at head height) it stays bright. No light is stored per block.
+let caveDim = 0, caveTarget = 0, caveCheckT = 0;
+const HEMI_DAY = new THREE.Color(0xbfe6ff), HEMI_CAVE = new THREE.Color(0x7f9cff), SUN_DAY = new THREE.Color(0xfff4e0), SUN_CAVE = new THREE.Color(0x9fb4ff);
+function skyOpen(x, y, z) { for (let yy = y; yy < H; yy++) if (solid(get(x, yy, z))) return false; return true; }
+function caveLightTarget() {
+  const hx = Math.floor(px), hy = Math.floor(py + HH * 0.9), hz = Math.floor(pz);
+  if (skyOpen(hx, hy + 1, hz)) return 0;
+  let top = H - 1;
+  while (top > hy && !solid(get(hx, top, hz))) top--;
+  if (top - hy < 4) return 0;
+  for (let a = 0; a < 8; a++) {
+    const dx = Math.round(Math.cos(a * Math.PI / 4)), dz = Math.round(Math.sin(a * Math.PI / 4));
+    for (let n = 1; n <= 6; n++) {
+      const x = hx + dx * n, z = hz + dz * n;
+      if (solid(get(x, hy, z))) break;
+      if (skyOpen(x, hy, z)) return 0;
+    }
+  }
+  return 1;
+}
+function updateCaveLight(dt) {
+  caveCheckT -= dt;
+  if (caveCheckT <= 0) { caveCheckT = 0.25; caveTarget = caveLightTarget(); }
+  caveDim += (caveTarget - caveDim) * Math.min(1, dt * 3);
+  if (Math.abs(caveTarget - caveDim) < 0.002) caveDim = caveTarget;
+  hemi.intensity = 0.9 * (1 - 0.5 * caveDim);
+  sun.intensity = 0.9 * (1 - 0.5 * caveDim);
+  hemi.color.copy(HEMI_DAY).lerp(HEMI_CAVE, caveDim);
+  sun.color.copy(SUN_DAY).lerp(SUN_CAVE, caveDim);
+}
+// ---- Castles seen from far away (0.6.76) ----
+// The land is drawn out to VIEW chunks. Past that, and up to 500 blocks away, each castle is drawn as a simple outline made
+// of a few plain boxes and cones worked out from the castle's own plan, with no land in between. The outline gives way to
+// the real blocks when the castle comes within the drawn land.
+const OUTLINE_FAR = 500;
+const outlines = new Map();   // castle -> group
+const outlineMat = new THREE.MeshLambertMaterial({ color: 0xc9c3b6 }), outlineRoof = { [T.ROOF]: new THREE.MeshLambertMaterial({ color: 0xb5452f }), [T.ROOFB]: new THREE.MeshLambertMaterial({ color: 0x5b6f8f }) };
+let outlineT = 0;
+// From the castle's own frame (a, b) back to world blocks
+function fromFrame(c, a, b) {
+  switch (c.front) {
+    case 'z-': return [c.sx + a, c.sz + b];
+    case 'z+': return [c.sx + c.W - a, c.sz + c.D - b];
+    case 'x-': return [c.sx + c.W - b, c.sz + a];
+    default: return [c.sx + b, c.sz + c.D - a];
+  }
+}
+function makeOutline(c) {
+  const g = new THREE.Group();
+  const box = (a0, b0, a1, b1, y0, y1, mat = outlineMat) => {
+    const [xa, za] = fromFrame(c, a0, b0), [xb, zb] = fromFrame(c, a1, b1);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(Math.abs(xb - xa), y1 - y0, Math.abs(zb - za)), mat);
+    m.position.set((xa + xb) / 2, c.floorY + (y0 + y1) / 2, (za + zb) / 2);
+    g.add(m);
+  };
+  const K = c.keep;
+  box(K.a0, K.b0, K.a1, K.b1, -1, K.h);
+  if (c.kind !== 'tower') {
+    box(0, 0, c.A, 3, -1, c.wallH + 1); box(0, c.B - 3, c.A, c.B, -1, c.wallH + 1);
+    box(0, 0, 3, c.B, -1, c.wallH + 1); box(c.A - 3, 0, c.A, c.B, -1, c.wallH + 1);
+  }
+  for (const tw of c.towers) {
+    const [x, z] = fromFrame(c, tw.a, tw.b);
+    const body = new THREE.Mesh(tw.round ? new THREE.CylinderGeometry(tw.R, tw.R, tw.h + 1, 12) : new THREE.BoxGeometry(2 * tw.R, tw.h + 1, 2 * tw.R), outlineMat);
+    body.position.set(x, c.floorY + (tw.h - 1) / 2, z);
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(tw.R + 1, tw.R + 3, tw.round ? 12 : 4), outlineRoof[c.roof]);
+    cone.position.set(x, c.floorY + tw.h + (tw.R + 3) / 2, z);
+    if (!tw.round) cone.rotation.y = Math.PI / 4;
+    g.add(body, cone);
+  }
+  return g;
+}
+function updateOutlines(dt) {
+  outlineT -= dt;
+  if (outlineT > 0) return;
+  outlineT = 1;
+  const near = VIEW * CS - 8;   // inside this the real blocks are drawn
+  const keep = new Set(castlesIn(Math.floor(px) - OUTLINE_FAR, Math.floor(pz) - OUTLINE_FAR, Math.floor(px) + OUTLINE_FAR, Math.floor(pz) + OUTLINE_FAR));
+  for (const [c, g] of outlines) if (!keep.has(c)) { scene.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); outlines.delete(c); }
+  for (const c of keep) {
+    const dx = Math.max(c.sx - px, 0, px - (c.sx + c.W)), dz = Math.max(c.sz - pz, 0, pz - (c.sz + c.D));
+    const d = Math.hypot(dx, dz);
+    let g = outlines.get(c);
+    if (d > OUTLINE_FAR) { if (g) g.visible = false; continue; }
+    if (!g) { g = makeOutline(c); outlines.set(c, g); scene.add(g); }
+    g.visible = d > near;
   }
 }
 function frame(now) {
@@ -4068,6 +4811,8 @@ function frame(now) {
   try { updateView(); } catch (e) { logError(e, 'rebuild'); }
   dirty = false;
   updateSky(dt);
+  updateCaveLight(dt);
+  updateOutlines(dt);
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
@@ -4143,12 +4888,25 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.75';
+const VERSION = '0.6.76';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let sb = null;
 // Loaded on demand: if the network is down, the game still plays alone
+// The castle spacing X set by the owner in the admin page (0.6.76). Only the setting is asked for: nothing about the player
+// is sent. It is kept on this device for the next new world. A world that is still new (in the start questions, nothing
+// changed, not shared) is remade with it straight away; worlds already started keep the spacing they recorded.
+fetch(SB_URL + '/rest/v1/game_settings?key=eq.castle_gap&select=value', { headers: { apikey: SB_KEY } })
+  .then(r => r.ok ? r.json() : null)
+  .then(rows => {
+    const g = rows && rows[0] && rows[0].value;
+    if (!gapOk(g)) return;
+    castleGapNext = g;
+    try { localStorage.setItem('kidsgame.castleGap', String(g)); } catch (e) {}
+    if (worldSource === 'new' && paused && !worldId && edited.size === 0 && gen >= 2 && castleGap !== g) initWorld(seed, gen, g);
+  })
+  .catch(() => {});
 const sbReady = import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm')
   .then(m => { sb = m.createClient(SB_URL, SB_KEY, { auth: { persistSession: true } }); })
   .catch(() => {});
@@ -4669,6 +5427,7 @@ updateView(300);
 dirty = false;
 updateHand();
 renderUI();
+setView(viewMode, false);   // the view used last on this device (0.6.76)
 requestAnimationFrame(frame);
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
@@ -4687,7 +5446,7 @@ window.gameTest = {
   // Where the first drawn grass block really is in the world (mesh corner + its own small position), to check blocks did not move
   drawnBlocks: () => { let n = 0, bad = 0; const m = new THREE.Matrix4(), v = new THREE.Vector3(); for (const c of chunkMeshes.values()) for (const im of c.list) for (let i = 0; i < im.count; i++) { im.getMatrixAt(i, m); v.setFromMatrixPosition(m).applyMatrix4(im.matrixWorld); n++; if (get(Math.floor(v.x), Math.floor(v.y), Math.floor(v.z)) === T.AIR) bad++; } return { n, bad }; },
   perf: () => ({ ...perfStats, ...perfSnapshot() }),
-  camDist: () => camera.position.distanceTo(new THREE.Vector3(px, py, pz)), drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles, settleCamera: () => { camera.position.set(px + Math.sin(camYaw) * 9 * zoom, py + 5 * zoom, pz + Math.cos(camYaw) * 9 * zoom); camera.lookAt(px, py + 1, pz); camera.updateMatrixWorld(); }, pendingChunks: () => waiting.length, fireAtNearestWater: (r) => {   // test hook: fire at the closest water block that has a clear line from the player (no solid block in between)
+  camDist: () => camera.position.distanceTo(new THREE.Vector3(px, py, pz)), drawCalls: () => renderer.info.render.calls, triangles: () => renderer.info.render.triangles, settleCamera: () => { placeCamera(0, true); camera.updateMatrixWorld(); }, pendingChunks: () => waiting.length, fireAtNearestWater: (r) => {   // test hook: fire at the closest water block that has a clear line from the player (no solid block in between)
     const cx = Math.floor(px), cz = Math.floor(pz), cy = Math.floor(py);
     const origin = new THREE.Vector3(px, py + HH * 0.7, pz);
     let best = null, bd = 1e9;
@@ -4760,6 +5519,13 @@ window.gameTest = {
   lifeBars: () => enemies.map(en => { const b = lifeBars.get(en); return b ? { kind: en.kind, hp: b.hp, part: b.part, color: b.color, above: b.sprite.position.y - en.y, dx: b.sprite.position.x - en.x, dz: b.sprite.position.z - en.z, inScene: b.sprite.parent === scene, shown: b.sprite.visible, w: b.sprite.scale.x } : null; }),
   lifeBarCount: () => { let n = 0; scene.traverse(o => { if (o.isSprite && [...lifeBars.values()].some(b => b.sprite === o)) n++; }); return { bars: lifeBars.size, inScene: n }; }, lifeColor,
   // 0.6.74: the lit Spell button, sword reach, digging by hand, the Powers panel and the Recent list that fits
+  // Caves, castles and the light (0.6.76)
+  get gen() { return gen; }, get castleGap() { return castleGap; }, towerNearStart, castlesIn, mouthInCell, get caveDim() { return caveDim; }, caveLightTarget,
+  outlineCount: () => [...outlines.values()].filter(g => g.visible).length, updateOutlines: () => { outlineT = 0; updateOutlines(0); }, BLOCK_ITEM,
+  // The view and the camera (0.6.76)
+  get viewMode() { return viewMode; }, setView, get pitch() { return camPitch; }, setPitch: p => { camPitch = Math.max(-PITCH_MAX, Math.min(PITCH_MAX, p)); }, PITCH_MAX,
+  get avatarShown() { return avatar.visible; }, get handViewShown() { return handView.visible; }, camPos: () => [camera.position.x, camera.position.y, camera.position.z], camClear,
+  setPos: (x, y, z) => { px = x; py = y; pz = z; vx = vy = vz = 0; },
   get spellArmed() { return spellArmed; }, armSpell, ageSpell: ms => { spellArmedAt -= ms; }, SPELL_ARM_MS, SWORD_REACH, swordGap, handSlow, digTime,
   get handDigTold() { return handDigTold; }, get powersOpen() { return powersOpen; }, togglePowers, fitRecent, get hudText() { return hud.textContent; },
   setMouse: (x, y) => { mouseAt = { x, y }; },

@@ -63,6 +63,12 @@ The parent wants Claude to do the build and release work on this PC (Windows lap
 - Pushing to GitHub: the Cowork workspace has no GitHub sign-in. Bundle the new commits (`git bundle create .git/claude-push.bundle origin/main..main`), stage the bundle to the cloud workspace, fetch it there and push, then delete the bundle.
 - `check-play-key.bat` checks the Play key without uploading. The Cowork workspace has no route to Google, so the check and the upload only work from Windows.
 
+## The land-maker (0.6.76, SPEC-016)
+- Every world records which land-maker made it (`gen` in the world, with its castle spacing `castleGap`). Worlds with no record are land-maker 1 (before 0.6.76: no big caves, no castles); new worlds are land-maker 2 (caves and castles).
+- Never change what an existing land-maker makes: that would change the land of every world made with it, saved games and shared worlds included. A change to the land, caves or castles is a new land-maker (`GEN_NOW = 3`, with the old code kept for worlds of 2).
+- Castle spacing X is set by the owner in the admin page and kept in the table `game_settings` (migration `docs/migrations/0009_game_settings.sql`): everyone reads, only the owner's account updates.
+- `scripts/tests/caves-castles.test.mjs` walks every cave and castle it checks (walking, one-block jumps, drops of 3 at most): keep it passing when changing caves or castles.
+
 ## Versioning and rollback
 - Every release has a version number and a commit. Rollback = restore an older build file or check out an older commit, and record it as a new version.
 - Tags cannot be pushed from the sandbox (403), so record commit hashes in VERSIONS.md.

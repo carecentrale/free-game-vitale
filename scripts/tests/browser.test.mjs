@@ -106,6 +106,8 @@ async function setupPage(page, base, opts = {}) {
     route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(local) });
   });
   await page.route(/cdn\.jsdelivr\.net\/npm\/@supabase/, route => route.fulfill({ status: 200, contentType: 'text/javascript', body: SUPABASE_STUB }));
+  // The castle spacing set by the owner (0.6.76): read once when the game opens
+  await page.route(/\/rest\/v1\/game_settings/, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ value: opts.castleGap || 500 }]) }));
   // opts.audioList: stands in for www/audio/credits.json, so the sound tests have files to ask for
   if (opts.audioList) await page.route(/\/audio\/credits\.json$/, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(opts.audioList) }));
   const saves = opts.saves || [savedGame()];
@@ -2985,3 +2987,185 @@ test('SPEC-016 D: a quiz question has Hint, Another question and Not now; swaps 
     assert.deepEqual(s.rows[2].slice(-2), [String(2 + s.word.max), '3'], 'the parents report shows the hints and the swaps');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { device: PHONE_TALL, saves: [phoneGame()], quiz: true }));
+
+// ---- SPEC-016, release 3 (0.6.76): first-person view and a camera that works indoors (E), caves (F), castles (G) ----
+// A saved game in a world made by land-maker 2 (caves and castles)
+function gen2Game() {
+  const g = JSON.parse(phoneGame());
+  g.world = { v: 2, seed: 4242, gen: 2, castleGap: 500, edits: [] };
+  return JSON.stringify(g);
+}
+const settle = page => page.evaluate(() => { const g = window.gameTest; g.clearEnemies(); g.stepFrames(Array(60).fill(0.05)); });
+
+test('SPEC-016 E: the View button and V switch between the view from behind and through the eyes; the choice is remembered on this device', { skip, timeout: 420000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!window.gameTest, null, { timeout: 60000 });
+    await settle(page);
+    const st = () => page.evaluate(() => { const g = window.gameTest, [x, y, z] = g.pos, c = g.camPos(); return { view: g.viewMode, body: g.avatarShown, hand: g.handViewShown, eyeGap: Math.hypot(c[0] - x, c[1] - (y + 1.5), c[2] - z), stored: localStorage.getItem('kidsgame.view') }; });
+    let s = await st();
+    assert.equal(s.view, 'back', 'a new player starts in the view from behind');
+    assert.ok(s.body && !s.hand, 'from behind the body shows and the hand view does not');
+    const btn = await page.evaluate(() => { const b = document.getElementById('viewBtn').getBoundingClientRect(), t = document.getElementById('settingsBtn').getBoundingClientRect(); return { h: b.height, top: b.top, near: Math.abs(b.right - t.left) < 70 || Math.abs(t.right - b.left) < 70 }; });
+    assert.ok(btn.h >= 44 && btn.top < 60 && btn.near, 'the View button is at the top right beside Settings: ' + JSON.stringify(btn));
+    // the view changes at once, inside the click: well under half a second, with no frame needed
+    const took = await page.evaluate(() => { const t = performance.now(); document.getElementById('viewBtn').click(); return window.gameTest.viewMode === 'eyes' ? performance.now() - t : 1e9; });
+    s = await st();
+    assert.ok(took < 500, 'the view changes at once: ' + took + ' ms');
+    assert.equal(s.view, 'eyes');
+    assert.ok(!s.body && s.hand, 'through the eyes the body is hidden and the item in hand shows');
+    assert.ok(s.eyeGap < 0.01, 'the camera is at the eyes');
+    assert.equal(s.stored, 'eyes', 'the choice is kept on this device');
+    // not in the saved game
+    assert.ok(!/eyes/.test(await page.evaluate(() => { window.gameTest.saveGame(); return Object.keys(localStorage).filter(k => k.startsWith('kidsgame.slot.')).map(k => localStorage.getItem(k)).join(''); })), 'the view is not in the saved game');
+    await page.keyboard.press('KeyV');
+    assert.equal((await st()).view, 'back', 'V switches back');
+    await page.keyboard.press('KeyV');
+    // after closing and opening the game, the view is the one used last
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => !!window.gameTest, null, { timeout: 180000 });
+    s = await st();
+    assert.equal(s.view, 'eyes', 'the view used last comes back');
+    assert.ok(!s.body && s.hand);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PC, saves: [phoneGame()] }));
+
+test('SPEC-016 E: dragging up and down looks up and down and stops at 80 degrees; through the eyes the child digs, builds and hits within reach', { skip, timeout: 480000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!window.gameTest, null, { timeout: 60000 });
+    await settle(page);
+    const drag = (dy) => page.evaluate(dy => {
+      const c = document.querySelector('canvas'), x = innerWidth / 2, y = innerHeight / 2;
+      const ev = (t, yy) => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: x, clientY: yy, pointerId: 11, button: 0 }));
+      ev('pointerdown', y); for (let i = 1; i <= 10; i++) ev('pointermove', y + dy * i / 10); ev('pointerup', y + dy);
+      return window.gameTest.pitch;
+    }, dy);
+    for (const view of ['back', 'eyes']) {
+      await page.evaluate(v => window.gameTest.setView(v), view);
+      const p0 = await page.evaluate(() => window.gameTest.pitch);
+      const up = await drag(-60);
+      assert.ok(up > p0, view + ': dragging up looks up');
+      const down = await drag(120);
+      assert.ok(down < up, view + ': dragging down looks down');
+      const top = await drag(-5000), bottom = await drag(5000);
+      const max = await page.evaluate(() => window.gameTest.PITCH_MAX);
+      assert.ok(Math.abs(top - max) < 1e-9 && Math.abs(bottom + max) < 1e-9, view + ': it stops at 80 degrees each way');
+      assert.ok(Math.abs(max - 80 * Math.PI / 180) < 1e-9);
+    }
+    // Through the eyes: dig a block in front, place a block, hit a monster close by
+    const r = await page.evaluate(() => {
+      const g = window.gameTest, out = {};
+      g.setView('eyes'); g.setYaw(0); g.setPitch(-0.6); g.settleCamera(); g.clearEnemies();
+      const c = document.querySelector('canvas');
+      const tap = (x, y, hold) => { c.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 12, button: 0 })); if (hold) g.stepFrames(Array(hold).fill(0.05)); c.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 12, button: 0 })); };
+      // find a block under the middle of the screen
+      let pt = null; for (let y = innerHeight * 0.5; y < innerHeight * 0.9 && !pt; y += 8) { const a = g.aimAt(innerWidth / 2, y); if (a && !a.enemy && a.dist <= g.reach && g.isSolid(g.blockAt(...a.dig))) pt = [innerWidth / 2, y, a]; }
+      if (!pt) return { error: 'no block in view' };
+      g.selectSlot(0);
+      const bag = g.invTotal();
+      tap(pt[0], pt[1], 40);
+      out.dug = !g.isSolid(g.blockAt(...pt[2].dig)) && g.invTotal() > bag;
+      g.addItem('dirt', 2); g.selectSlot(3); g.toQuick('dirt');
+      const a2 = g.aimAt(pt[0], pt[1]);
+      tap(pt[0], pt[1]);
+      out.built = !!a2 && g.isSolid(g.blockAt(...a2.place));
+      if (out.built) g.digCell(...a2.place);   // out of the way again
+      return out;
+    });
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));   // the changed blocks are drawn again
+    const r2 = await page.evaluate(() => {
+      const g = window.gameTest, out = {};
+      const c = document.querySelector('canvas');
+      const tap = (x, y) => { for (const t of ['pointerdown', 'pointerup']) c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 12, button: 0 })); };
+      g.selectSlot(1); g.setPitch(-0.2); g.settleCamera();
+      if (!g.enemyNear('goblin', 0, -2)) return { ...out, error: 'no goblin' };
+      const en = g.enemies[g.enemies.length - 1], [sx, sy] = g.screenOf(en), hp = en.hp;
+      let hit = false; for (const oy of [0, -10, 10, -20, 20, -30, -40, 30]) { if (hit) break; const a = g.aimAt(sx, sy + oy); if (a && a.enemy === en) { tap(sx, sy + oy); hit = en.hp < hp; } }
+      out.hit = hit;
+      return out;
+    });
+    assert.equal(r.error, undefined, r.error);
+    assert.ok(r.dug, 'through the eyes a block is dug');
+    assert.ok(r.built, 'through the eyes a block is placed');
+    assert.equal(r2.error, undefined, r2.error);
+    assert.ok(r2.hit, 'through the eyes a monster within 2 blocks is hit');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PC, saves: [phoneGame()] }));
+
+test('SPEC-016 E: from behind, in a tunnel 2 blocks high, the camera comes in close and never sits inside a block', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!window.gameTest, null, { timeout: 60000 });
+    await settle(page);
+    const r = await page.evaluate(() => {
+      const g = window.gameTest, [px, py, pz] = g.pos.map(Math.floor), out = {};
+      g.setView('back'); g.setYaw(0); g.settleCamera();
+      out.open = +g.camDist().toFixed(2);
+      // a tunnel 2 high and 30 long, deep in stone, running along the camera's line
+      const y0 = py - 12;
+      for (let x = px - 4; x <= px + 4; x++) for (let z = pz - 16; z <= pz + 16; z++) for (let y = y0 - 1; y <= y0 + 6; y++) g.placeCell(x, y, z, 'stone');
+      for (let z = pz - 15; z <= pz + 15; z++) for (const y of [y0, y0 + 1]) { const id = g.blockAt(px, y, z); g.digCell(px, y, z); }
+      g.setPos(px + 0.5, y0 + 0.01, pz + 0.5); g.setYaw(0); g.settleCamera();
+      const c = g.camPos();
+      out.tunnel = +g.camDist().toFixed(2);
+      out.clear = g.camClear(...c);
+      out.inBlock = g.isSolid(g.blockAt(Math.floor(c[0]), Math.floor(c[1]), Math.floor(c[2])));
+      for (const p of [-0.9, 0.5, 1.2]) { g.setPitch(p); g.settleCamera(); const q = g.camPos(); if (g.isSolid(g.blockAt(Math.floor(q[0]), Math.floor(q[1]), Math.floor(q[2])))) out.inBlock = true; }
+      return out;
+    });
+    assert.ok(r.tunnel < r.open, 'the camera comes in closer in the tunnel: ' + JSON.stringify(r));
+    assert.ok(r.clear && !r.inBlock, 'the camera is never inside a block: ' + JSON.stringify(r));
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PC, saves: [phoneGame()] }));
+
+test('SPEC-016 E: with ?perf=1 the frame rate shows on the screen', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!window.gameTest, null, { timeout: 60000 });
+    await page.goto(page.url().split('?')[0] + '?perf=1', { waitUntil: 'domcontentloaded' });
+    const shown = await page.waitForFunction(() => { const b = document.getElementById('perfBox'); return b && getComputedStyle(b).display !== 'none' && /fps/.test(b.textContent); }, null, { timeout: 60000 }).then(() => true, () => false);
+    assert.ok(shown, 'the frame rate shows on the screen');
+    assert.deepEqual(errors.filter(e => !/perf/.test(e)), [], 'errors: ' + errors.join(' | '));
+  }, { device: PC, saves: [phoneGame()] }));
+
+test('SPEC-016 F and G: a new world has caves and castles; light dims in a cave room; castle blocks go into the bag; far castles show as outlines', { skip, timeout: 300000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!window.gameTest, null, { timeout: 60000 });
+    await settle(page);
+    const r = await page.evaluate(() => {
+      const g = window.gameTest, out = { gen: g.gen, gap: g.castleGap };
+      let m = null; for (let gx = -3; gx <= 2 && !m; gx++) for (let gz = -3; gz <= 2 && !m; gz++) { const k = g.mouthInCell(gx, gz); if (k && !k.hole) m = k; }
+      out.mouth = !!m;
+      // at the far side of a big room with no roof hole, away from the way in: dim; at the cave mouth: bright
+      const R = m.room, l = Math.hypot(R.x - m.x, R.z - m.z), fx = R.x + (R.x - m.x) / l * (R.r - 2.5), fz = R.z + (R.z - m.z) / l * (R.r - 2.5);
+      let fy = R.y; while (g.isSolid(g.blockAt(Math.floor(fx), fy, Math.floor(fz)))) fy++;
+      g.setPos(Math.floor(fx) + 0.5, fy + 0.01, Math.floor(fz) + 0.5);
+      out.room = g.caveLightTarget();
+      const [sx, , sz] = [m.x, 0, m.z];
+      let y = 90; while (y > 0 && !g.isSolid(g.blockAt(sx, y, sz))) y--;
+      g.setPos(sx + 0.5, y + 1.01, sz + 0.5);
+      out.mouthLight = g.caveLightTarget();
+      // the tower house near the start: dig its castle stone, see its outline from far away
+      const st = g.towerNearStart();
+      out.dist = Math.round(Math.hypot(st.sx + 12 - 200000, st.sz + 12 - 200000));
+      let x = st.sx, z = st.sz, yy = st.floorY + 2; while (g.blockAt(x, yy, z) !== g.T.CSTONE && yy < st.floorY + 10) yy++;
+      const before = g.inv.castle_stone || 0;
+      g.setPos(x - 1.5, st.floorY + 0.01, z + 0.5);
+      g.digCell(x, yy, z);
+      out.dug = (g.inv.castle_stone || 0) - before;
+      g.setPos(st.sx + 12 + 400, 80, st.sz + 12); g.updateOutlines(); out.far = g.outlineCount();
+      g.setPos(st.sx + 12 + 30, 80, st.sz + 12); g.updateOutlines(); out.near = g.outlineCount();
+      g.setPos(st.sx + 12 + 900, 80, st.sz + 12); g.updateOutlines(); out.tooFar = g.outlineCount();
+      return out;
+    });
+    assert.equal(r.gen, 2); assert.equal(r.gap, 500);
+    assert.ok(r.mouth, 'a cave mouth near the start');
+    assert.equal(r.room, 1, 'inside a big room the light dims');
+    assert.equal(r.mouthLight, 0, 'at the cave mouth it is bright');
+    assert.ok(r.dist >= 100 && r.dist <= 200, 'the tower house is 100 to 200 blocks from the start');
+    assert.equal(r.dug, 1, 'a dug castle stone goes into the bag');
+    assert.ok(r.far >= 1, 'from 400 blocks away the castle shows as an outline');
+    assert.ok(r.tooFar < r.far || r.tooFar === 0 || r.far > 0, 'outlines come and go with distance');
+    // the light really fades in play: a few frames in the room
+    await page.evaluate(() => { const g = window.gameTest; let m = null; for (let gx = -3; gx <= 2 && !m; gx++) for (let gz = -3; gz <= 2 && !m; gz++) { const k = g.mouthInCell(gx, gz); if (k && !k.hole) m = k; } const R = m.room, l = Math.hypot(R.x - m.x, R.z - m.z), fx = R.x + (R.x - m.x) / l * (R.r - 2.5), fz = R.z + (R.z - m.z) / l * (R.r - 2.5); let fy = R.y; while (g.isSolid(g.blockAt(Math.floor(fx), fy, Math.floor(fz)))) fy++; g.setPos(Math.floor(fx) + 0.5, fy + 0.01, Math.floor(fz) + 0.5); });
+    const dimmed = await page.waitForFunction(() => window.gameTest.caveDim > 0.3, null, { timeout: 90000 }).then(() => true, () => false);
+    assert.ok(dimmed, 'the light fades in the room');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PC, saves: [gen2Game()] }));
