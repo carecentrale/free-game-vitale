@@ -1,0 +1,4 @@
+request: quick 20261120T202746Z
+status: FAILED: quick, started 2026-11-20 15:28:48, finished 2026-11-20 15:28:52, exit code 1.  BUILD STOPPED: The update from GitHub did not work (see the message above). Nothing was built. Send the message to Claude.
+reported: 2026-11-20 15:28:52 (build laptop time)
+game folder commit: 6357e78
