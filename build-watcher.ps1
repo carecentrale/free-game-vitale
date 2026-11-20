@@ -24,6 +24,10 @@
 #   errors.log          every failure, with the end of its log
 #   watcher-alive.txt   updated every 15 seconds; watcher-errors.log: problems in the watcher itself
 # Every finished build, push or failure also shows a Windows notification on this PC.
+# Build reports for the Cost and Build Optimizer: after every full, quick or build request, build-report.mjs adds a row to
+#   build-log.csv and rewrites latest-build.txt in the Google Drive folder "Adventurers of Drenerics - Build machine reports";
+#   about once an hour it checks whether the weekly machine report (machine-status.ps1, cleaned) is due. Only numbers and
+#   cleaned log lines go there, never keys. A report problem never stops a build (see watcher-errors.log).
 # Builds run hidden: no windows open. Before each request the watcher closes finished .bat windows from this folder.
 # When this file changes, the watcher stops itself and the scheduled task starts the new version within 5 minutes.
 # Install or reinstall: install-build-watcher.bat. Remove: remove-build-watcher.bat.
@@ -176,6 +180,10 @@ while ($true) {
       $remoteLine = RemoteRequest
       if ($remoteLine) { Set-Content $req (($remoteLine -split '\s+')[0].ToLower()) }
     }
+    # About once an hour: the weekly machine report for the Drive reports folder (build-report.mjs decides if it is due)
+    if (($tick % 240) -eq 2 -and -not (Test-Path $req)) {
+      try { & node (Join-Path $tools 'build-report.mjs') weekly 2>&1 | Out-Null } catch { Add-Content $watcherErrors ((Stamp) + "  weekly report: " + $_) }
+    }
     $tick++
     if (Test-Path $req) {
       $mode = ''
@@ -250,6 +258,9 @@ while ($true) {
       }
       Set-Content $status ("$result`: $mode, started $start, finished $end, exit code $code. $tests $detail Full log: history\$saved").Trim()
       Add-Content $history ("$start  $mode  $result  exit $code  $tests  $detail").TrimEnd()
+      if ($mode -in @('full', 'quick', 'build')) {
+        try { & node (Join-Path $tools 'build-report.mjs') build $mode $result $code $start $end $log 2>&1 | Out-Null } catch { Add-Content $watcherErrors ((Stamp) + "  build report: " + $_) }
+      }
       if ($result -eq 'FAILED') {
         Add-Content $errors ("==== $end  $mode FAILED (exit $code)  log: history\$saved")
         if ($text) { ($text -split "`r?`n" | Select-Object -Last 30) | Add-Content $errors }

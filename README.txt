@@ -14,7 +14,10 @@ The game folder holds only the game, its tests and its documents.
   machine-status.ps1           report on this PC ("status" request)
   save-tools.ps1               saves these files to the branch "build-tools" of the game's GitHub repository
   remote-build.sh              asks for a build from anywhere through GitHub (run it in any clone that can push)
-  tests\                       test for upload-play.mjs (run: node --test tests\upload-play.test.mjs)
+  serve-local.mjs              local test server: serves the game folder's www (read only) to this PC and the home Wi-Fi
+  start-local-test.bat         starts it (double-click): play the game before any push. Close the window to stop it.
+                               Uses port 8080. Added 18 Nov 2026. Not part of the build; nothing is pushed or built.
+  tests\                       tests for upload-play.mjs and serve-local.mjs (run: node --test tests\serve-local.test.mjs)
 
   build-requests\              write one word into request.txt to ask for a build; status and logs are here
   build-android-work\          the build's work folder (safe to delete; it is made again)
