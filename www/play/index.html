@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.74 (3D)</title>
+<title>Adventurers of Drenerics v0.6.75 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -163,6 +163,10 @@
   #quizPanel .qt{background:#3b6fd8;border:3px solid rgba(255,255,255,.35)}
   #quizPanel .qt.used{opacity:.2}
   #quizPanel .qa.ok{background:#2e9e4f;border-color:#fff}
+  /* Hint, Another question and Not now (0.6.75): three small buttons in one row under the answers, each at least 48 px tall */
+  #quizPanel .qrow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+  #quizPanel .qrow button{flex:0 1 auto;margin-top:0;min-width:0;min-height:48px;padding:8px 12px;font-size:clamp(14px,4vmin,18px);border:2px solid rgba(255,255,255,.35);border-radius:12px;background:transparent;color:#fff;font-family:inherit;cursor:pointer}
+  #quizPanel .qrow button:disabled{opacity:.3;cursor:default}
   #quizPanel .qnot{margin-top:10px;min-height:48px;min-width:160px;padding:10px 22px;border:2px solid rgba(255,255,255,.35);border-radius:12px;background:transparent;color:#fff;font-family:inherit;font-size:18px;cursor:pointer}
   @keyframes qwob{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px) rotate(-3deg)}40%{transform:translateX(9px) rotate(3deg)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
   #quizPanel .qstars{position:absolute;inset:0;pointer-events:none;overflow:hidden}
@@ -1530,6 +1534,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.75', title: 'Hint and Another question', items: [
+    'Quiz friends have two new buttons: Hint gives you a clue, and Another question swaps it for a different one',
+    'For parents: the quiz friends report also counts how many hints and swaps were used'] },
   { v: '0.6.74', title: 'Aim the fireball, dig by hand, and a Powers button', items: [
     'The fireball now flies where you tap: tap the Spell button, then tap a monster or a place. The Spell button is no longer hidden under the Recent list',
     'Swords now reach 2 blocks, so walk up to a monster to hit it. Fireballs still fly far',
@@ -3154,6 +3161,8 @@ const QUIZ_WORDS = QUIZ_WORD_ROWS.flatMap((row, r) => row.map(([w, pic]) => [w, 
 const QUIZ_REMEMBER = 10;                    // no question repeats within this many
 const QUIZ_GEMS_FIRST = 5, QUIZ_GEMS_LATER = 2;   // fixed rewards at every level: right first time, and right after a wrong try
 const QUIZ_HINT_AFTER = 2;                   // wrong tries before the hint shows
+const QUIZ_SWAPS = 2;                        // "Another question": at most this many for one visit of a quiz friend (0.6.75)
+const QUIZ_MATH_HINTS = 2;                   // "Hint": at most this many for a maths question; a hint never leaves only the right answer
 const quizRecent = [];                       // the last questions asked, in memory only
 const quizInt = (rnd, lo, hi) => lo + Math.floor(rnd() * (hi - lo + 1));
 const quizPick = (rnd, list) => list[Math.floor(rnd() * list.length)];
@@ -3368,17 +3377,20 @@ function nextQuestion(rnd = Math.random) {
 // How many questions the child has seen and how many were answered right, for maths and for words, and the first and
 // last day. The questions and the answers themselves are never kept. The counts go wherever the saved game goes:
 // they stay on the device, and are in the parent's cloud save only if a parent has signed in and turned cloud save on.
-const quizBlank = () => ({ math: { opened: 0, first: 0, later: 0 }, words: { opened: 0, first: 0, later: 0 }, since: null, last: null });
+// 0.6.75 (the parent's decision of 20 Nov 2026): the report also counts hints used and questions swapped.
+const QUIZ_COUNTS = ['opened', 'first', 'later', 'hints', 'swaps'];
+const quizBlank = () => ({ math: { opened: 0, first: 0, later: 0, hints: 0, swaps: 0 }, words: { opened: 0, first: 0, later: 0, hints: 0, swaps: 0 }, since: null, last: null });
 let quizStats = quizBlank();
 // Reads the counts from a saved game, keeping only whole numbers and dates
 function quizStatsFrom(v) {
   const out = quizBlank(), n = x => Number.isInteger(x) && x >= 0 ? x : 0, day = d => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
   if (!v || typeof v !== 'object') return out;
-  for (const sub of ['math', 'words']) for (const k of ['opened', 'first', 'later']) out[sub][k] = n(v[sub] && v[sub][k]);
+  for (const sub of ['math', 'words']) for (const k of QUIZ_COUNTS) out[sub][k] = n(v[sub] && v[sub][k]);
   out.since = day(v.since); out.last = day(v.last);
   return out;
 }
-// Adds one to a count: what is 'opened' (a question was shown), 'first' (right first time) or 'later' (right after a wrong try)
+// Adds one to a count: what is 'opened' (a question was shown), 'first' (right first time), 'later' (right after a wrong try),
+// 'hints' (the Hint button was used) or 'swaps' (the question was swapped for another one)
 function quizCount(subject, what, now = new Date()) {
   quizStats[subject][what]++;
   const day = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -3632,13 +3644,14 @@ function tapFriend() {
 
 // The quiz report as a small table, for the parent area
 function quizReportHtml(st) {
-  const row = (name, c) => `<tr><td style="text-align:left;padding:3px 6px 3px 0">${name}</td><td>${c.opened}</td><td>${c.first}</td><td>${c.later}</td><td>${Math.max(0, c.opened - c.first - c.later)}</td></tr>`;
-  const all = { opened: st.math.opened + st.words.opened, first: st.math.first + st.words.first, later: st.math.later + st.words.later };
+  const row = (name, c) => `<tr><td style="text-align:left;padding:3px 6px 3px 0">${name}</td><td>${c.opened}</td><td>${c.first}</td><td>${c.later}</td><td>${Math.max(0, c.opened - c.first - c.later)}</td><td>${c.hints || 0}</td><td>${c.swaps || 0}</td></tr>`;
+  const sum = k => (st.math[k] || 0) + (st.words[k] || 0);
+  const all = { opened: sum('opened'), first: sum('first'), later: sum('later'), hints: sum('hints'), swaps: sum('swaps') };
   return '<div style="font-size:15px;font-weight:700;margin-bottom:4px">Quiz friends report</div>' +
     '<table id="quizReportTable" style="width:100%;border-collapse:collapse;font-size:12px;text-align:center">' +
-    '<tr style="opacity:.75"><th></th><th>Seen</th><th>Right first time</th><th>Right after a retry</th><th>Not finished</th></tr>' +
+    '<tr style="opacity:.75"><th></th><th>Seen</th><th>Right first time</th><th>Right after a retry</th><th>Not finished</th><th>Hints used</th><th>Swapped</th></tr>' +
     row('Maths', st.math) + row('Words', st.words) + row('<b>All</b>', all) + '</table>' +
-    `<div style="font-size:12px;opacity:.75;margin-top:4px">${st.since ? 'First question on ' + esc(st.since) + ', last on ' + esc(st.last) + '. ' : 'No questions yet. '}For this saved game. Only these counts are kept, not the questions or the answers. They are in your cloud save if cloud save is on.</div>`;
+    `<div style="font-size:12px;opacity:.75;margin-top:4px">${st.since ? 'First question on ' + esc(st.since) + ', last on ' + esc(st.last) + '. ' : 'No questions yet. '}For this saved game. A swapped question counts as seen and not finished. Only these counts are kept, not the questions or the answers. They are in your cloud save if cloud save is on.</div>`;
 }
 
 // ---- Quiz Friends: the question panel. Tap only: three big answer buttons and "Not now". No timer and no countdown. ----
@@ -3674,7 +3687,7 @@ const quizLevelLabel = (sub, n) => (sub === 'words' ? 'Words' : 'Maths') + ' lev
 function openQuiz() {
   if (!friend || friend.guide || quizPanel) return;
   const f = friend;
-  if (!f.q) { f.q = nextQuestion(); f.wrong = 0; f.spell = []; f.fixed = 0; quizCount(quizSubject(f.q.kind), 'opened'); }
+  if (!f.q) { f.q = nextQuestion(); f.wrong = 0; f.spell = []; f.fixed = 0; f.help = 0; f.hints = 0; quizCount(quizSubject(f.q.kind), 'opened'); }
   if (f.state === 'come') f.state = 'wait';
   paused = true;   // the game stands still while the question is open, so there is no hurry
   const q = f.q, el = document.createElement('div'), sub = quizSubject(q.kind);
@@ -3687,36 +3700,90 @@ function openQuiz() {
     `<div class="qhint" style="display:none"></div>` +
     `<div class="qmsg"></div>` +
     `<div class="qans">${q.answers.map((a, i) => `<button class="qa" data-a="${i}">${a.label ? `<span>${esc(a.label)}</span>` : ''}${a.shape && a.n ? `<span style="display:flex;gap:2px;flex-wrap:wrap;justify-content:center">${Array.from({ length: a.n }, () => quizPic(a.shape, 13)).join('')}</span>` : a.shape ? quizPic(a.shape, 48) : ''}</button>`).join('')}</div>`) +
-    '<button class="qnot">Not now</button><div class="qstars"></div></div>';
+    '<div class="qrow"><button class="qhintb">Hint</button><button class="qswap">Another question</button><button class="qnot" style="margin-top:0;min-width:0">Not now</button></div><div class="qstars"></div></div>';
   el.addEventListener('click', e => {
     const b = e.target.closest('.qa'), t = e.target.closest('.qt'), sl = e.target.closest('.qs');
     if (b) answerQuiz(+b.dataset.a);
     else if (t) quizTile(+t.dataset.t);
     else if (sl) quizSlot(+sl.dataset.s);
+    else if (e.target.closest('.qhintb')) quizHint();
+    else if (e.target.closest('.qswap')) quizSwap();
     else if (e.target.closest('.qnot')) quizNotNow();
   });
   document.body.appendChild(el);
   quizPanel = el;
   if (f.wrong >= QUIZ_HINT_AFTER) showQuizHint();
-  else if (q.kind === 'word') renderSpell();
+  else quizShowHelp();
   sfx('open');
 }
+// Help with a question. It comes by itself after two wrong tries (as before), and from the "Hint" button (0.6.75).
+// Maths, level of help 1: a picture with dots for the easy questions, or one wrong answer taken away for sums in figures.
+// Level 2 (picture questions only): one wrong answer is taken away as well. A hint never leaves only the right answer.
+// Words: `fixed` letters are put in their places, from the first letter on: at most half of the letters (rounded down), at least one.
+const quizHintMax = q => q.kind === 'word' ? Math.max(1, Math.floor(q.letters.length / 2)) : (q.hint.drop || q.answers.length < 3 ? 1 : QUIZ_MATH_HINTS);
+const quizHelpNow = f => f.q.kind === 'word' ? (f.fixed || 0) : (f.help || 0);
+// The letter tiles that stand in the first `fixed` places of the word
+function quizFixedSpell(f) {
+  const out = [];
+  for (let j = 0; j < (f.fixed || 0); j++) out.push(f.q.letters.findIndex((ch, i) => ch === f.q.word[j] && !out.includes(i)));
+  return out;
+}
+// The help that comes by itself after two wrong tries: the first level, if it is not there yet
 function showQuizHint() {
   if (!quizPanel || !friend || !friend.q) return;
+  const f = friend;
+  if (f.q.kind === 'word') { if (!(f.fixed >= 1)) f.fixed = 1; f.spell = quizFixedSpell(f); }
+  else if (!(f.help >= 1)) f.help = 1;
+  quizShowHelp();
+}
+// Draws the help the child has so far, and greys out the buttons that have nothing left to give
+function quizShowHelp() {
+  if (!quizPanel || !friend || !friend.q) return;
   const f = friend, q = f.q;
-  if (q.kind === 'word') {   // the hint for a word: its first letter is put in place and stays there
-    f.fixed = 1;
-    f.spell = [q.letters.indexOf(q.hint.first)];
-    renderSpell();
-    return;
+  if (q.kind === 'word') renderSpell();
+  else {
+    const help = f.help || 0, wrongOnes = q.answers.map((_, i) => i).filter(i => i !== q.right);
+    if (help >= 1 && !q.hint.drop) { const h = quizPanel.querySelector('.qhint'); h.innerHTML = quizHintHtml(q); h.style.display = 'flex'; }
+    if (help >= (q.hint.drop ? 1 : 2)) { const out = quizPanel.querySelector(`.qa[data-a="${wrongOnes[0]}"]`); out.classList.add('out'); out.disabled = true; }
   }
-  if (q.hint.drop) {   // sums in figures: one wrong answer is taken away
-    const out = quizPanel.querySelector(`.qa[data-a="${q.answers.findIndex((_, i) => i !== q.right)}"]`);
-    out.classList.add('out'); out.disabled = true;
-    return;
+  quizPanel.querySelector('.qhintb').disabled = quizHelpNow(f) >= quizHintMax(q);
+  quizPanel.querySelector('.qswap').disabled = (f.swaps || 0) >= QUIZ_SWAPS;
+}
+// "Hint" (0.6.75): one piece of help straight away. It is not a wrong answer and does not move the level; a right answer
+// after a hint gives 2 gems, the same as after a wrong try. The report for parents counts it. Nothing is sent.
+function quizHint() {
+  const f = friend;
+  if (!quizPanel || !f || !f.q || f.done || quizHelpNow(f) >= quizHintMax(f.q)) return;
+  f.hints = (f.hints || 0) + 1;
+  if (f.q.kind === 'word') { f.fixed = (f.fixed || 0) + 1; f.spell = quizFixedSpell(f); }
+  else f.help = (f.help || 0) + 1;
+  quizCount(quizSubject(f.q.kind), 'hints');
+  sfx('tap');
+  quizShowHelp();
+  saveGame();
+}
+// "Another question" (0.6.75): a new question of the same kind (maths stays maths, words stay words) at the child's own
+// level, at most twice for one visit of a friend. The old question counts as neither right nor wrong and does not move the level.
+function quizSwap() {
+  const f = friend;
+  if (!quizPanel || !f || !f.q || f.done || (f.swaps || 0) >= QUIZ_SWAPS) return;
+  const sub = quizSubject(f.q.kind), old = f.q.key;
+  let q = null;
+  for (let tries = 0; tries < 300; tries++) {
+    q = sub === 'words' ? makeQuestion('word', Math.random, quizLevels.words.use, quizBand()[0])
+      : makeQuestion(quizPick(Math.random, QUIZ_MATH_ROWS[quizRowOf(quizLevels.math.use)]), Math.random, quizLevels.math.use);
+    if (q.key !== old && !quizRecent.includes(q.key)) break;
   }
-  const h = quizPanel.querySelector('.qhint');
-  h.innerHTML = quizHintHtml(q); h.style.display = 'flex';
+  if (q.key === old) return;
+  quizRecent.push(q.key);
+  while (quizRecent.length > QUIZ_REMEMBER) quizRecent.shift();
+  f.swaps = (f.swaps || 0) + 1;
+  f.q = q; f.wrong = 0; f.spell = []; f.fixed = 0; f.help = 0; f.hints = 0;
+  quizCount(sub, 'swaps');
+  quizCount(sub, 'opened');   // the new question was shown
+  quizPanel.remove(); quizPanel = null;
+  openQuiz();
+  saveGame();
 }
 // Word scramble: the letter tiles to tap, and the places they go to. A used tile is dimmed; a tap on a filled place takes its letter back.
 function renderSpell() {
@@ -3738,7 +3805,7 @@ function quizTile(i) {
   // Not the word: the letters go back, the places wobble, and nothing is lost
   f.wrong++;
   if (f.wrong === 1) { quizFirstAnswer('words', false); saveGame(); }
-  f.spell = [];
+  f.spell = quizFixedSpell(f);   // letters that a hint put in place stay there
   quizPanel.querySelector('.qmsg').textContent = 'Try again';
   if (f.wrong >= QUIZ_HINT_AFTER) showQuizHint(); else renderSpell();
   const slots = quizPanel.querySelector('.qslots');
@@ -3784,9 +3851,10 @@ function answerQuiz(i) {
 // A right answer: stars and the fixed reward, then the friend waves and leaves
 function quizWin() {
   const f = friend, msg = quizPanel.querySelector('.qmsg');
-  const gems = f.wrong ? QUIZ_GEMS_LATER : QUIZ_GEMS_FIRST;
+  const gems = f.wrong || f.hints ? QUIZ_GEMS_LATER : QUIZ_GEMS_FIRST;   // 2 gems after a wrong try or a hint, else 5
   f.done = true;
-  const sub = quizSubject(f.q.kind), up = f.wrong ? 0 : quizFirstAnswer(sub, true);   // a right first answer moves the level up
+  // a right first answer moves the level up; after a hint the level stays where it is (a hint is not a wrong answer either)
+  const sub = quizSubject(f.q.kind), up = f.wrong || f.hints ? 0 : quizFirstAnswer(sub, true);
   quizCount(sub, f.wrong ? 'later' : 'first');
   msg.textContent = 'Well done! +' + gems + ' gems' + (up ? '. Level up! ' + quizLevelLabel(sub, up) : '');
   quizPanel.querySelector('.qstars').innerHTML = Array.from({ length: 14 }, (_, k) => {
@@ -4075,7 +4143,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.74';
+const VERSION = '0.6.75';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -4704,9 +4772,11 @@ window.gameTest = {
   get tipOpen() { return !!tipPanel; }, get tipText() { return tipPanel ? tipPanel.querySelector('.ttext').textContent : null; },
   // Learning level (0.6.72)
   get quizLevels() { return JSON.parse(JSON.stringify(quizLevels)); }, setQuizLevels: v => { quizLevels = quizLevelsFrom(v); }, quizFirstAnswer, quizSetBand, quizSetLevel, quizLevelsRestart, QUIZ_BANDS, QUIZ_MATH_ROWS, QUIZ_WORD_ROWS,
-  askQuiz: (kind, level) => { if (!friend) return null; friend.q = makeQuestion(kind, Math.random, level, 1); friend.wrong = 0; friend.spell = []; friend.fixed = 0; return { ...friend.q }; },
+  askQuiz: (kind, level) => { if (!friend) return null; friend.q = makeQuestion(kind, Math.random, level, 1); friend.wrong = 0; friend.spell = []; friend.fixed = 0; friend.help = 0; friend.hints = 0; return { ...friend.q }; },
   quizTile, quizSlot, QUIZ_WORDS, QUIZ_MATH_KINDS, get quizStats() { return JSON.parse(JSON.stringify(quizStats)); }, quizReportHtml, saveGame,
   get quizSpell() { return friend && friend.q && friend.q.kind === 'word' ? { letters: friend.spell.map(i => friend.q.letters[i]).join(''), picked: friend.spell.slice(), fixed: friend.fixed, wrong: friend.wrong } : null; },
+  // Hint and Another question (0.6.75)
+  quizHint, quizSwap, QUIZ_SWAPS, QUIZ_MATH_HINTS, quizHintMax, get quizHelp() { return friend && friend.q ? { hints: friend.hints || 0, swaps: friend.swaps || 0, help: friend.help || 0, fixed: friend.fixed || 0 } : null; },
   // Quiz Friends (0.6.63)
   get quizOn() { return quizOn; }, setQuizOn, makeQuestion, nextQuestion, QUIZ_KINDS, get quizRecent() { return quizRecent.slice(); },
   get friend() { return friend ? { guide: !!friend.guide, kind: friend.kind, state: friend.state, x: friend.x, y: friend.y, z: friend.z, age: friend.age, wrong: friend.wrong, bubble: friend.group.userData.bubble.visible, wave: friend.group.userData.wave.rotation.z, inScene: friend.group.parent === scene } : null; },
@@ -4715,7 +4785,7 @@ window.gameTest = {
   friendBubbleScreen: () => { const b = friendBubblePoint(); return b ? [b.x, b.y, b.r] : null; },
   friendScreen: () => { const v = new THREE.Vector3(friend.x, friend.y + 0.6, friend.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight, v.z < 1]; },
   clearEnemies: () => { for (const en of enemies) scene.remove(en.group); enemies.length = 0; },
-  askKind: kind => { if (friend) { friend.q = makeQuestion(kind); friend.wrong = 0; friend.spell = []; friend.fixed = 0; } },   // gives the friend on screen a question of one kind
+  askKind: kind => { if (friend) { friend.q = makeQuestion(kind); friend.wrong = 0; friend.spell = []; friend.fixed = 0; friend.help = 0; friend.hints = 0; } },   // gives the friend on screen a question of one kind
   walkAway: blocks => { px += blocks; let y = H - 1; while (y > 0 && !solid(get(Math.floor(px), y, Math.floor(pz)))) y--; py = y + 1.01; vy = 0; },   // puts the character this many blocks to the side, on the ground FRIEND: { GAP: FRIEND_GAP, FIRST: FRIEND_FIRST, AFTER_SOLVE: FRIEND_AFTER_SOLVE, STOP: FRIEND_STOP, STAY: FRIEND_STAY, FAR: FRIEND_FAR, CLEAR: FRIEND_MONSTER_CLEAR },
   // Where an enemy's middle is on the screen: [x, y] (y from the top), and whether it is in front of the camera
   screenOf: en => { const v = new THREE.Vector3(en.x, en.y + 0.5, en.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight, v.z < 1]; },

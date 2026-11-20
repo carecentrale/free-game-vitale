@@ -2898,3 +2898,90 @@ test('SPEC-016 H: on a phone the button at the top left still shows and hides th
     assert.ok(fits, 'the panel fits the phone screen');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { device: PHONE_TALL, saves: [phoneGame()] }));
+
+// ---- SPEC-016, release 2 (0.6.75): quiz "Hint" and "Another question" (part D) ----
+test('SPEC-016 D: a quiz question has Hint, Another question and Not now; swaps and hints have limits, give 2 gems, and show in the parents report', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!window.gameTest, null, { timeout: 60000 });
+    const r = await page.evaluate(() => {
+      const g = window.gameTest, out = {};
+      g.stepFrames(Array(80).fill(0.05));
+      g.clearEnemies();
+      if (!g.friend) g.callFriend('owl');
+      const panel = () => document.getElementById('quizPanel');
+      const dis = c => panel().querySelector(c).disabled;
+      // a maths question in pictures (counting): two hints, the second takes one wrong answer away
+      g.askQuiz('count', 1); g.openQuiz();
+      out.buttons = [...panel().querySelectorAll('.qrow button')].map(b => b.textContent);
+      out.tall = [...panel().querySelectorAll('.qrow button')].every(b => b.getBoundingClientRect().height >= 48);
+      out.fits = [...panel().querySelectorAll('button')].every(b => { const r = b.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth; });
+      out.scroll = panel().querySelector('.qbox').scrollHeight <= panel().querySelector('.qbox').clientHeight + 1;
+      const lvl0 = g.quizLevels.math.best, gems0 = g.inv.gem;
+      panel().querySelector('.qhintb').click();
+      out.hint1 = { shown: panel().querySelector('.qhint').style.display, out: panel().querySelectorAll('.qa.out').length, grey: dis('.qhintb') };
+      panel().querySelector('.qhintb').click();
+      out.hint2 = { out: panel().querySelectorAll('.qa.out').length, grey: dis('.qhintb'), rightOut: panel().querySelector(`.qa[data-a="${g.quizQuestion.right}"]`).disabled };
+      panel().querySelector('.qhintb').click();
+      out.hint3 = g.quizHelp.hints;
+      g.answerQuiz(g.quizQuestion.right);
+      out.afterHint = { gems: g.inv.gem - gems0, lvl: g.quizLevels.math.best - lvl0, msg: panel().querySelector('.qmsg').textContent };
+      return out;
+    });
+    assert.deepEqual(r.buttons, ['Hint', 'Another question', 'Not now']);
+    assert.ok(r.tall, 'every small button is at least 48 px tall');
+    assert.ok(r.fits && r.scroll, 'on a phone held upright all buttons are on the screen with no scrolling');
+    assert.deepEqual(r.hint1, { shown: 'flex', out: 0, grey: false }, 'the first maths hint is the help that comes after two wrong tries');
+    assert.deepEqual(r.hint2, { out: 1, grey: true, rightOut: false }, 'the second hint takes one wrong answer away, never the right one, and the button greys out');
+    assert.equal(r.hint3, 2, 'no third hint');
+    assert.deepEqual({ gems: r.afterHint.gems, lvl: r.afterHint.lvl }, { gems: 2, lvl: 0 }, 'a right answer after a hint gives 2 gems and the level stays: ' + r.afterHint.msg);
+    await page.waitForFunction(() => !window.gameTest.quizOpen, null, { timeout: 30000 });
+    // Swaps and word hints, with a new friend
+    const s = await page.evaluate(() => {
+      const g = window.gameTest, out = {};
+      g.removeFriend(); g.callFriend('robot');
+      const panel = () => document.getElementById('quizPanel');
+      g.askQuiz('add', 1); g.openQuiz();
+      const k0 = g.quizQuestion.key, lv = JSON.stringify(g.quizLevels);
+      panel().querySelector('.qswap').click();
+      out.swap1 = { other: g.quizQuestion.key !== k0, maths: g.quizQuestion.kind !== 'word', open: g.quizOpen, grey: panel().querySelector('.qswap').disabled };
+      const k1 = g.quizQuestion.key;
+      panel().querySelector('.qswap').click();
+      out.swap2 = { other: g.quizQuestion.key !== k1, maths: g.quizQuestion.kind !== 'word', grey: panel().querySelector('.qswap').disabled };
+      const k2 = g.quizQuestion.key;
+      panel().querySelector('.qswap').click();
+      out.swap3 = g.quizQuestion.key === k2 && g.quizHelp.swaps === 2;
+      out.levelSame = JSON.stringify(g.quizLevels) === lv;
+      // a word: each hint puts one more letter in place; the button greys out at half the letters
+      g.quizNotNow(); g.askQuiz('word', 35); g.openQuiz();
+      const word = g.quizQuestion.word, max = g.quizHintMax(g.quizQuestion);
+      out.word = { len: word.length, max, steps: [] };
+      for (let i = 0; i < max + 1; i++) { panel().querySelector('.qhintb').click(); out.word.steps.push([g.quizSpell.letters, g.quizSpell.fixed, panel().querySelector('.qhintb').disabled]); }
+      out.word.prefix = word.slice(0, max);
+      // a word swap gives a different word
+      g.quizNotNow(); g.removeFriend(); g.callFriend('turtle'); g.askQuiz('word', 5); g.openQuiz();
+      const w0 = g.quizQuestion.word;
+      panel().querySelector('.qswap').click();
+      out.wordSwap = { other: g.quizQuestion.word !== w0, word: g.quizQuestion.kind === 'word' };
+      g.quizNotNow();
+      out.stats = g.quizStats;
+      const div = document.createElement('div'); div.innerHTML = g.quizReportHtml(g.quizStats);
+      out.head = [...div.querySelectorAll('th')].map(t => t.textContent);
+      out.rows = [...div.querySelectorAll('tr')].slice(1).map(tr => [...tr.querySelectorAll('td')].map(t => t.textContent));
+      return out;
+    });
+    assert.deepEqual(s.swap1, { other: true, maths: true, open: true, grey: false }, 'Another question on a maths question shows a different maths question');
+    assert.deepEqual(s.swap2, { other: true, maths: true, grey: true }, 'after 2 swaps in one visit the button is greyed out');
+    assert.ok(s.swap3, 'no third swap');
+    assert.ok(s.levelSame, 'a swapped question does not move the level');
+    assert.equal(s.word.max, Math.max(1, Math.floor(s.word.len / 2)));
+    s.word.steps.slice(0, s.word.max).forEach(([letters, fixed, grey], i) => {
+      assert.equal(letters, s.word.prefix.slice(0, i + 1), 'hint ' + (i + 1) + ' puts the next letter in its place');
+      assert.equal(grey, i + 1 >= s.word.max, 'the Hint button greys out when half the letters are placed');
+    });
+    assert.equal(s.word.steps[s.word.max][1], s.word.max, 'no hint past half of the letters');
+    assert.deepEqual(s.wordSwap, { other: true, word: true }, 'Another question on a word shows a different word');
+    assert.deepEqual([s.stats.math.hints, s.stats.math.swaps, s.stats.words.hints, s.stats.words.swaps], [2, 2, s.word.max, 1], 'the report counts hints and swaps: ' + JSON.stringify(s.stats));
+    assert.deepEqual(s.head.slice(-2), ['Hints used', 'Swapped']);
+    assert.deepEqual(s.rows[2].slice(-2), [String(2 + s.word.max), '3'], 'the parents report shows the hints and the swaps');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PHONE_TALL, saves: [phoneGame()], quiz: true }));

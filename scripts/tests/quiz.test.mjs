@@ -289,12 +289,15 @@ test('the ENABLE list and the rude-word list are used by the tests only: neither
 // ---- Quiz report (0.6.65) ----
 test('the quiz report starts empty and counts questions seen, right first time and right after a retry, for maths and for words', () => {
   Q.setStats(Q.quizBlank());
-  assert.deepEqual(JSON.parse(JSON.stringify(Q.stats())), { math: { opened: 0, first: 0, later: 0 }, words: { opened: 0, first: 0, later: 0 }, since: null, last: null });
+  assert.deepEqual(JSON.parse(JSON.stringify(Q.stats())), { math: { opened: 0, first: 0, later: 0, hints: 0, swaps: 0 }, words: { opened: 0, first: 0, later: 0, hints: 0, swaps: 0 }, since: null, last: null });
   const day1 = new Date(2026, 10, 17, 9, 0), day2 = new Date(2026, 10, 19, 23, 30);
   Q.quizCount('math', 'opened', day1); Q.quizCount('math', 'first', day1);
   Q.quizCount('words', 'opened', day1);
   Q.quizCount('words', 'opened', day2); Q.quizCount('words', 'later', day2);
-  assert.deepEqual(JSON.parse(JSON.stringify(Q.stats())), { math: { opened: 1, first: 1, later: 0 }, words: { opened: 2, first: 0, later: 1 }, since: '2026-11-17', last: '2026-11-19' });
+  assert.deepEqual(JSON.parse(JSON.stringify(Q.stats())), { math: { opened: 1, first: 1, later: 0, hints: 0, swaps: 0 }, words: { opened: 2, first: 0, later: 1, hints: 0, swaps: 0 }, since: '2026-11-17', last: '2026-11-19' });
+  // 0.6.75 (SPEC-016 part D): hints used and questions swapped are counted too
+  Q.quizCount('math', 'hints', day2); Q.quizCount('words', 'swaps', day2); Q.quizCount('words', 'swaps', day2);
+  assert.deepEqual([Q.stats().math.hints, Q.stats().math.swaps, Q.stats().words.hints, Q.stats().words.swaps], [1, 0, 0, 2]);
 });
 
 test('the quiz report read from a saved game keeps only whole numbers and dates', () => {
@@ -302,15 +305,19 @@ test('the quiz report read from a saved game keeps only whole numbers and dates'
   const blank = JSON.parse(JSON.stringify(Q.quizBlank()));
   for (const bad of [undefined, null, 'x', 7, []]) assert.deepEqual(clean(bad), blank);
   assert.deepEqual(clean({ math: { opened: 3, first: 2, later: 1, extra: 'How many stars?' }, words: { opened: -1, first: 1.5, later: '2' }, since: '2026-11-17', last: '<b>', answers: ['7'] }),
-    { math: { opened: 3, first: 2, later: 1 }, words: { opened: 0, first: 0, later: 0 }, since: '2026-11-17', last: null });
+    { math: { opened: 3, first: 2, later: 1, hints: 0, swaps: 0 }, words: { opened: 0, first: 0, later: 0, hints: 0, swaps: 0 }, since: '2026-11-17', last: null });
+  // a save from before 0.6.75 has no hints or swaps: they read as 0; the new counts are kept as whole numbers only
+  assert.deepEqual(clean({ math: { opened: 2, first: 1, later: 0, hints: 3, swaps: 'x' }, words: { hints: 1.5, swaps: 2 } }).math, { opened: 2, first: 1, later: 0, hints: 3, swaps: 0 });
+  assert.deepEqual(clean({ words: { hints: 1.5, swaps: 2 } }).words, { opened: 0, first: 0, later: 0, hints: 0, swaps: 2 });
 });
 
 test('the quiz report holds counts and two dates only: no question, no answer, no name', () => {
   const report = questionCode.slice(questionCode.indexOf('// ---- Quiz report')).replace(/\/\/.*$/gm, '');
   assert.deepEqual(Object.keys(Q.quizBlank()).sort(), ['last', 'math', 'since', 'words']);
   assert.ok(!/q\.text|q\.key|answers|playerName|worldId|pid\b/.test(report), 'the report code touches a question, an answer or a name');
-  // counted in three places only: a question shown, and a right answer
-  assert.equal((game.match(/quizCount\(/g) || []).length, 3);
+  // counted in five places only (and the function itself): a question shown, a right answer, and since 0.6.75 a hint,
+  // a swap and the question shown by the swap
+  assert.equal((game.match(/quizCount\(/g) || []).length, 6);
 });
 
 // ---- Learning level (0.6.72, SPEC-004) ----
@@ -521,4 +528,28 @@ test('questions follow the level in use: levels 81 to 100 give two-step sums and
   for (const q of qs) { if (q.kind === 'word') assert.ok(q.word.length <= 4, 'a long word in levels 1 to 20: ' + q.word); else assert.ok(['add', 'take', 'skip'].includes(q.kind), q.kind); }
   for (let i = 10; i < qs.length; i++) assert.ok(!qs.slice(i - 10, i).some(p => p.key === qs[i].key), 'a question repeats within 10');
   fresh();
+});
+
+// ---- Hint and Another question (0.6.75, SPEC-016 part D) ----
+test('SPEC-016 D: the limits for hints and swaps, the lower reward after a hint, and nothing sent when one is used', () => {
+  assert.match(game, /const QUIZ_SWAPS = 2;/, 'at most 2 swaps for one visit of a friend');
+  assert.match(game, /const QUIZ_MATH_HINTS = 2;/, 'at most 2 hints for a maths question');
+  assert.match(game, /Math\.max\(1, Math\.floor\(q\.letters\.length \/ 2\)\)/, 'a word: at most half of the letters, rounded down, and at least one');
+  assert.match(game, /q\.hint\.drop \|\| q\.answers\.length < 3 \? 1 : QUIZ_MATH_HINTS/, 'a hint never leaves only the right answer');
+  assert.match(game, /const gems = f\.wrong \|\| f\.hints \? QUIZ_GEMS_LATER : QUIZ_GEMS_FIRST;/, 'a right answer after a hint gives the smaller reward');
+  assert.match(game, /up = f\.wrong \|\| f\.hints \? 0 : quizFirstAnswer\(sub, true\)/, 'after a hint the level does not go up');
+  const body = name => { const i = game.indexOf('function ' + name + '('); return game.slice(i, game.indexOf('\n}\n', i)); };
+  for (const name of ['quizHint', 'quizSwap']) {
+    const code = body(name);
+    assert.ok(code.length > 100, name + ' was not found');
+    assert.ok(!/logEvent|supabase|fetch\(|sb\.|cloud/i.test(code), name + ' sends or logs something');
+    assert.ok(!/quizFirstAnswer/.test(code), name + ' must not move the level');
+  }
+  assert.match(body('quizSwap'), /quizCount\(sub, 'swaps'\)/);
+  assert.match(body('quizHint'), /quizCount\(quizSubject\(f\.q\.kind\), 'hints'\)/);
+  // the three small buttons, and the privacy page names the two new counts
+  assert.match(game, /class="qhintb">Hint<\/button><button class="qswap">Another question<\/button><button class="qnot"[^>]*>Not now<\/button>/);
+  assert.match(game, /#quizPanel \.qrow button\{[^}]*min-height:48px/, 'every button is at least 48 px tall');
+  const privacy = fs.readFileSync(path.join(root, 'www', 'privacy.html'), 'utf8');
+  assert.match(privacy, /how many times the Hint button was used and how many questions were swapped/);
 });
