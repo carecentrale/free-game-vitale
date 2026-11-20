@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.73 (3D)</title>
+<title>Adventurers of Drenerics v0.6.74 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -13,10 +13,20 @@
   #msg{position:fixed;top:12px;left:50%;transform:translateX(-50%);color:#fff;font-size:20px;text-shadow:0 2px 4px #000;pointer-events:none;white-space:nowrap}
   .btn{position:fixed;width:56px;height:50px;background:rgba(255,255,255,.3);color:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;touch-action:none}
   #topbar{position:fixed;top:8px;right:10px;display:flex;align-items:center;gap:8px;z-index:10}
+  /* Powers button (0.6.74): a star, beside Settings. At least 44 px tall. Opens the Powers panel */
+  #powersBtn{flex:none;min-width:44px;height:44px;box-sizing:border-box;padding:0 10px;background:rgba(0,0,0,.4);color:#fff;border-radius:8px;font-size:14px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;justify-content:center;gap:5px}
+  #powersBtn .star{color:#ffd54a;font-size:22px;line-height:1}
+  #powers{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(380px,90vw);max-height:90vh;overflow:auto;background:rgba(20,20,35,.96);color:#fff;border-radius:16px;padding:16px;display:none;z-index:30;box-sizing:border-box;font-size:20px;line-height:1.3}
+  #powers .pname{font-size:22px;font-weight:700;color:#ffd54a;margin-bottom:8px}
+  #powers .bar{width:100%;height:16px;margin:4px 0 12px;border-radius:6px;overflow:hidden}
+  #powers .small{font-size:13px;opacity:.8;margin-top:4px}
+  #powersClose{display:block;width:100%;margin-top:12px;padding:12px;border:0;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;background:#3b6fd8;color:#fff}
+  /* The Recent list is taken off the screen when fewer than two of its rows fit between the buttons (0.6.74) */
+  #recent.nofit{display:none!important}
   #toggle,#bagBtn,#settingsBtn{padding:6px 10px;background:rgba(0,0,0,.4);color:#fff;border-radius:8px;font-size:14px;cursor:pointer;white-space:nowrap}
   #bagBtn{position:fixed;right:10px;top:50px;z-index:10}
   /* Hand buttons and Spell button (touch screens): round picture buttons in a column above JUMP (0.6.60) */
-  .hb{position:fixed;right:28px;width:52px;height:52px;border-radius:50%;background:rgba(0,0,0,.4);border:3px solid rgba(255,255,255,.45);box-sizing:border-box;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer}
+  .hb{position:fixed;right:28px;width:52px;height:52px;border-radius:50%;background:rgba(0,0,0,.4);border:3px solid rgba(255,255,255,.45);box-sizing:border-box;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer;z-index:6}
   .hb .sw{width:30px;height:30px;border:0;border-radius:4px;pointer-events:none}
   .hb .ct{position:absolute;right:-4px;bottom:-4px;background:rgba(0,0,0,.75);color:#fff;font-size:11px;border-radius:8px;padding:1px 5px;pointer-events:none}
   .hb.empty{background:rgba(0,0,0,.15);border-style:dashed}
@@ -54,21 +64,19 @@
     .slot{width:calc((100vw - 60px) / 6);max-width:70px;height:52px;font-size:10px;border-width:2px}
     .slot .n{font-size:9px}
     #recent{width:130px;font-size:12px}
+    #powersBtn .pl{display:none}
     #recent .row{font-size:12px;padding:4px 6px}
     .title{font-size:12px}
   }
   /* Analog stick for touch movement: drag the knob in any direction; further from the middle = faster */
   #stick{position:fixed;left:16px;bottom:16px;width:clamp(96px,30vmin,150px);height:clamp(96px,30vmin,150px);border-radius:50%;background:rgba(255,255,255,.16);border:2px solid rgba(255,255,255,.4);touch-action:none;box-sizing:border-box}
   #knob{position:absolute;left:28%;top:28%;width:44%;height:44%;border-radius:50%;background:rgba(255,255,255,.6);box-shadow:0 2px 6px rgba(0,0,0,.35);pointer-events:none}
-  /* Phone button: shows the item in hand; tap it to show the quick bar and power meters */
+  /* Phone button: shows the item in hand; tap it to show the quick bar */
   #hudBtn{display:none;position:fixed;top:8px;left:8px;padding:6px 10px;background:rgba(0,0,0,.45);color:#fff;border-radius:10px;font-size:14px;align-items:center;gap:6px;z-index:10;cursor:pointer;touch-action:none;max-width:45vw;white-space:nowrap;overflow:hidden}
-  /* Phones, held either way: smaller controls; the quick bar, recent list and power meters stay hidden until the button is tapped */
+  /* Phones, held either way: smaller controls; the quick bar and recent list stay hidden until the button is tapped */
   body.phone #hudBtn{display:flex}
   body.phone #hud{top:46px;left:8px;font-size:12px;line-height:1.3}
-  body.phone #hud .bar{width:120px;height:9px;margin:2px 0}
-  body.phone #hud .bars{display:none}
   body.phone #qb,body.phone #recent{display:none}
-  body.phone.panel #hud .bars{display:block}
   body.phone.panel #qb,body.phone.panel #recent{display:flex}
   body.phone #qb{bottom:10px;left:calc(clamp(96px,30vmin,150px) + 28px);right:calc(clamp(64px,20vmin,88px) + 24px);transform:none;justify-content:center;gap:4px;padding:0;box-sizing:border-box;flex-wrap:wrap}
   body.phone .slot{width:clamp(44px,13vmin,62px);height:clamp(40px,12vmin,54px);font-size:9px;border-width:2px}
@@ -86,7 +94,8 @@
   body.phone #topbar{gap:6px;right:8px}
   body.phone #bagBtn{top:44px;right:8px}
   body.phone #teleBtn{width:30px;height:30px;font-size:15px}
-  body.phone #hudBtn{max-width:calc(100vw - 230px)}
+  body.phone #powersBtn .pl{display:none}
+  body.phone #hudBtn{max-width:calc(100vw - 250px)}
   body.phone #msg{font-size:15px;top:104px;white-space:normal;text-align:center;width:70vw}   /* under the name, bag and world lines, not on top of them (0.6.69) */
   #wiz{position:fixed;inset:0;background:rgba(10,12,25,.85);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;box-sizing:border-box}
   #wiz.hide{display:none}
@@ -170,12 +179,13 @@
 <div id="hudBtn"></div>
 <div id="quit"><div style="font-weight:700;font-size:19px">Quit the game?</div><div style="margin-top:6px;opacity:.85;font-size:14px">Your game is saved first.</div><button id="quitYes">Save and quit</button><button id="quitNo">Keep playing</button></div>
 <!-- The buttons at the top right sit in one row, so they can never lie on top of each other whatever their text or the screen size (0.6.69) -->
-<div id="topbar"><div id="teleBtn" title="Teleport to the start">&#10022;</div><div id="settingsBtn">Settings</div><div id="toggle">Controls</div></div>
+<div id="topbar"><div id="teleBtn" title="Teleport to the start">&#10022;</div><div id="powersBtn" role="button" aria-label="Powers" title="Powers"><span class="star">&#9733;</span><span class="pl">Powers</span></div><div id="settingsBtn">Settings</div><div id="toggle">Controls</div></div>
 <div id="bagBtn">Bag (B)</div>
 <div id="recent"></div>
 <div id="qb"></div>
 <div id="bag"></div>
 <div id="settings"></div>
+<div id="powers"></div>
 <div id="slots" class="hide"><div class="box"><div id="slotsBody"></div></div></div>
 <div id="wiz" class="hide"><div class="box"><div id="wizBody"></div><div id="wizErr"></div><div class="nav"><button id="wizBack" class="secondary">Back</button><button id="wizNext">Next</button></div></div></div>
 <div id="pad">
@@ -1172,10 +1182,13 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (/^Digit[1-6]$/.test(e.code)) selectSlot(+e.code.slice(5) - 1);
   if (e.code === 'KeyB') toggleBag();
-  if (e.code === 'KeyF') fireAt(innerWidth / 2, innerHeight / 2);
+  // F casts toward the mouse pointer (0.6.74; before, straight ahead). Before the mouse has moved, the middle of the screen is used.
+  if (e.code === 'KeyF' && !anyPanelOpen()) { const m = mouseAt || { x: innerWidth / 2, y: innerHeight / 2 }; fireAt(m.x, m.y); }
   if (e.code === 'Escape') backAction();
 });
 addEventListener('keyup', e => keys[e.code] = false);
+let mouseAt = null;   // where the mouse pointer is on the screen, for the F key. Not kept and not sent.
+addEventListener('pointermove', e => { if (e.pointerType === 'mouse') mouseAt = { x: e.clientX, y: e.clientY }; });
 const touch = { J: false };
 // Analog stick: x is right (+) / left (-), z is back (+) / forward (-), each from -1 to 1. Zero when released.
 const stick = { x: 0, z: 0, id: null };
@@ -1213,7 +1226,8 @@ bindBtn('bJ', 'J');
 // Hand 1 and Hand 2 are quick bar slots 1 and 2. A tap only puts that item in the hand; the game never moves an item
 // onto a hand button or changes the item in hand by itself. An empty hand button opens the bag with its slot chosen.
 // With the bag, Settings, the quit question or another panel open, the buttons do nothing.
-const anyPanelOpen = () => bagOpen || settingsOpen || quitOpen || !!skillPanel || !!quizPanel || !!tipPanel || paused;
+let powersOpen = false;
+const anyPanelOpen = () => bagOpen || settingsOpen || quitOpen || powersOpen || !!skillPanel || !!quizPanel || !!tipPanel || paused;
 // The item a hand button shows. A stack that has run out counts as empty.
 const handItem = i => { const id = qb[i], d = id ? defOf(id) : null; return d && !(ITEMS[id] && d.kind !== 'spell' && !(inv[id] > 0)) ? id : null; };
 function handTap(i) {
@@ -1227,8 +1241,18 @@ for (const [id, i] of [['bH1', 0], ['bH2', 1]]) {
   el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); handTap(i); holdStart(i); });   // held: the bag opens for this slot (0.6.68)
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, () => holdEnd());
 }
-// Spell button: one tap casts the fireball where the camera is looking (the same as the F key)
-document.getElementById('bSpell').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (!anyPanelOpen()) fireAt(innerWidth / 2, innerHeight / 2); });
+// Spell button (0.6.74): a tap lights it up and casts nothing. The next tap on the world casts the fireball there.
+// A second tap on the button, or 5 seconds with no tap on the world, turns it off again.
+const SPELL_ARM_MS = 5000, SPELL_ARM_TEXT = 'Tap where the fireball should go.';
+let spellArmed = false, spellArmedAt = 0;
+function armSpell(on) {
+  spellArmed = on;
+  spellArmedAt = performance.now();
+  document.getElementById('bSpell').classList.toggle('on', on);
+  if (on) say(SPELL_ARM_TEXT, SPELL_ARM_MS);
+  else if (msgEl.textContent === SPELL_ARM_TEXT) { msgEl.textContent = ''; msgT = 0; }
+}
+document.getElementById('bSpell').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (spellArmed) armSpell(false); else if (!anyPanelOpen()) { sfx('tap'); armSpell(true); } });
 
 // On-screen controls: on by default on touch devices, off on PCs. Choice is remembered.
 const isTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
@@ -1267,6 +1291,11 @@ const pw = { dig: { lvl: 1, xp: 0 }, build: { lvl: 1, xp: 0 }, inv: { lvl: 1, xp
 const need = lvl => Math.floor(10 * Math.pow(1.5, lvl - 1));
 const invCap = () => 8 + pw.inv.lvl * 4;
 const digTime = () => 1.0 * Math.pow(0.92, pw.dig.lvl - 1);
+// Digging by hand (0.6.74): without the pickaxe in hand every block can still be dug, more slowly the harder it is.
+// Sand, snow, dirt and grass take 2 times as long as with the pickaxe, stone 4 times, gems 6 times.
+const handSlow = t => t === T.STONE ? 4 : t === T.GEM ? 6 : 2;
+const digSlow = t => tplOf(held()) === 'pick' ? 1 : handSlow(t);
+let handDigTold = false;   // "Digging by hand is slow" is said once in a visit
 const fightTime = () => 1.0 * Math.pow(0.92, pw.fight.lvl - 1);
 let invTimer = 0;
 
@@ -1332,8 +1361,29 @@ function renderUI() {
     '</div>').join('');
   renderHudBtn();
   renderHands();
+  fitRecent();
   if (bagOpen) renderBag();
 }
+// The Recent list never covers a button (0.6.74). It shows only as many rows as fit in the free space between the
+// buttons; when fewer than two fit, or the screen is narrower than 400 px, it is not on the screen at all.
+// The bag always shows the Recent list at its top, so nothing is lost.
+const RECENT_AVOID = ['bSpell', 'bH1', 'bH2', 'bJ', 'qb', 'bagBtn', 'topbar', 'hudBtn', 'stick', 'hud'];
+function fitRecent() {
+  const rows = [...recentEl.querySelectorAll('.row')];
+  recentEl.classList.remove('nofit');
+  for (const r of rows) r.style.display = '';
+  if (!recentEl.getClientRects().length) return;   // not shown anyway (a phone with the quick bar closed)
+  const boxes = RECENT_AVOID.map(id => document.getElementById(id).getBoundingClientRect()).filter(b => b.width > 0 && b.height > 0);
+  const clear = () => {
+    const a = recentEl.getBoundingClientRect();
+    if (a.left < 0 || a.top < 0 || a.right > innerWidth || a.bottom > innerHeight) return false;
+    return !boxes.some(b => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top);
+  };
+  let n = rows.length;
+  while (n > 0 && !clear()) rows[--n].style.display = 'none';
+  if (innerWidth < 400 || n < Math.min(2, rows.length) || !clear()) recentEl.classList.add('nofit');
+}
+addEventListener('resize', () => fitRecent());
 // The phone button shows what is in hand, and whether the bar is open
 function renderHudBtn() {
   const el = document.getElementById('hudBtn');
@@ -1361,7 +1411,11 @@ function renderBag() {
     `<b>Bag ${invTotal()}/${invCap()}</b><span id="bagClose" style="cursor:pointer;padding:6px">Close &#10005;</span></div>` +
     `<div id="bagSlotNote" style="margin-top:8px;opacity:.85;font-size:14px">Tap an item to put it in quick bar slot ${sel + 1}.</div>` +
     `<div style="margin-top:4px;opacity:.85;font-size:14px">Bag full? Tap Drop to put one on the ground. It stays there for 5 minutes.</div>` +
-    `<div class="grid">` +
+    `<div class="title" style="margin-top:10px">Recent</div><div class="grid" id="bagRecent" style="margin-top:4px">` +
+    (recent.filter(id => inv[id] > 0 || gearOf(id)).map(id => `<div class="row" data-item="${id}"><span class="sw" style="background-image:url(${itemIcon(id)})"></span>${labelOf(id)}</div>`).join('') ||
+     '<div style="opacity:.8;font-size:14px">Nothing yet</div>') +
+    `</div><div class="title" style="margin-top:12px">Everything in your bag</div>` +
+    `<div class="grid" id="bagAll" style="margin-top:4px">` +
     (ids.map(id => `<div class="row" data-item="${id}"><span class="sw" style="background-image:url(${itemIcon(id)})"></span>${labelOf(id)}` +
       (canDrop(id) ? `<span class="drop" data-drop="${id}">Drop</span>` : '') + `</div>`).join('') ||
      '<div>Empty. Dig some blocks!</div>') +
@@ -1476,6 +1530,11 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.74', title: 'Aim the fireball, dig by hand, and a Powers button', items: [
+    'The fireball now flies where you tap: tap the Spell button, then tap a monster or a place. The Spell button is no longer hidden under the Recent list',
+    'Swords now reach 2 blocks, so walk up to a monster to hit it. Fireballs still fly far',
+    'You can dig without a pickaxe now. It is slower, so keep your pickaxe for big jobs',
+    'Your powers now live behind the Powers button, so the top left of the screen is clear'] },
   { v: '0.6.73', title: 'Meet Vital the elephant', items: [
     'Meet Vital the elephant! He walks up with a ! and shows you how to play, one tip at a time. Tap No more tips if you know it all',
     'Settings has a "Tips from Vital" switch to turn his tips off or on'] },
@@ -1805,10 +1864,40 @@ function backAction() {
   if (tipPanel) tipClose();
   else if (quizPanel) quizNotNow();
   else if (quitOpen) toggleQuit(false);
+  else if (powersOpen) togglePowers(false);
   else if (settingsOpen) toggleSettings(false);
   else if (bagOpen) toggleBag(false);
   else toggleQuit(true);
 }
+// ---- Powers panel (0.6.74): the powers, their levels and bars moved here from the top left of the screen ----
+const powersEl = document.getElementById('powers');
+let powersShown = '';
+function powersHtml() {
+  const row = (k, ratio) => `<div class="prow">${LABEL[k]} Lv ${pw[k].lvl}<div class="bar"><div style="width:${Math.min(1, ratio) * 100}%;background:${BAR[k]}"></div></div></div>`;
+  return `<div class="pname">${esc(playerName)}</div>` +
+    row('dig', pw.dig.xp / need(pw.dig.lvl)) + row('build', pw.build.xp / need(pw.build.lvl)) + row('inv', invTotal() / invCap()) +
+    row('fight', pw.fight.xp / need(pw.fight.lvl)) + (skills.length ? row('magic', pw.magic.xp / need(pw.magic.lvl)) : '') +
+    `<div class="small">World ${esc(worldId || 'alone')} &middot; v${VERSION}` + (others.size ? ' &middot; With: ' + [...others.values()].map(o => esc(o.name)).join(', ') : '') + `</div>` +
+    `<button id="powersClose">Close</button>`;
+}
+function renderPowers() { const h = powersHtml(); if (h !== powersShown) { powersEl.innerHTML = h; powersShown = h; } }
+function togglePowers(force) {
+  const was = powersOpen;
+  powersOpen = force !== undefined ? force : !powersOpen;
+  if (powersOpen !== was) sfx(powersOpen ? 'open' : 'close');
+  powersEl.style.display = powersOpen ? 'block' : 'none';
+  if (powersOpen) renderPowers();
+}
+document.getElementById('powersBtn').addEventListener('click', () => { if (powersOpen || !anyPanelOpen()) togglePowers(); });
+powersEl.addEventListener('click', e => { if (e.target.closest('#powersClose')) togglePowers(false); });
+// A tap outside the panel closes it; it is used up here, so it does not dig, build or fight
+addEventListener('pointerdown', e => {
+  if (!powersOpen || powersEl.contains(e.target)) return;
+  if (e.target.closest && e.target.closest('#powersBtn')) return;
+  e.stopPropagation();
+  e.preventDefault();
+  togglePowers(false);
+}, true);
 document.getElementById('quitYes').addEventListener('click', quitGame);
 document.getElementById('quitNo').addEventListener('click', () => toggleQuit(false));
 // A tap outside the question means keep playing; it is used up here, so it does not dig, build or fight
@@ -1838,7 +1927,7 @@ function digCell(x, y, z) {
     addItem(id);
   }
   sfx('dig');
-  wear(held());
+  if (tplOf(held()) === 'pick') wear(held());   // digging by hand wears out no tool or weapon (0.6.74)
   gain('dig', 1);
   dirty = true;
   return true;
@@ -2405,13 +2494,20 @@ function weaponDamage(id) {
   const d = defOf(id);
   return pw.fight.lvl + (d && d.dmg ? d.dmg - 1 : 0);
 }
+// Sword reach (0.6.74): a sword hits only from 2 blocks or closer. The 2 blocks are measured from the character to the
+// nearest side of the monster's body, so a bigger monster can be reached from a little further away.
+const SWORD_REACH = 2;
+function swordGap(en) {
+  const side = Math.max(0, Math.hypot(en.x - px, en.z - pz) - 0.45 * en.base);
+  const up = Math.max(0, en.y - (py + HH), py - (en.y + 1.8 * en.base));
+  return Math.hypot(side, up);
+}
 // Hold on an enemy with a weapon selected to hit it. Each hit takes off health; the enemy is defeated at 0.
 function updateFight(dt) {
   if (!fight) { for (const en of enemies) en.hitP = 0; return; }
   const en = fight.e;
   if (!enemies.includes(en)) { fight = null; return; }
-  const dist = Math.hypot(en.x - px, en.y - py, en.z - pz);
-  if (dist > REACH + 1) { fight = null; en.hitP = 0; return; }
+  if (swordGap(en) > SWORD_REACH) { fight = null; en.hitP = 0; return; }   // walked away: the hits stop
   fight.t += dt;
   const hitTime = fightTime() * ENEMY_KINDS[en.kind].fight;
   en.hitP = Math.min(1, fight.t / hitTime);
@@ -2521,7 +2617,7 @@ function chooseSkill(id) {
   if (!padOn && empty >= 0) qb[empty] = id;
   if (skillPanel) { skillPanel.remove(); skillPanel = null; }
   paused = false;
-  say(SKILLS[id].name + ' learned! ' + (padOn ? 'Tap the spell button to shoot.' : empty >= 0 ? 'Select it in the quick bar. Tap to shoot, or press F.' : 'Press F to shoot.'), 4000);
+  say(SKILLS[id].name + ' learned! ' + (padOn ? 'Tap the spell button, then tap where to shoot.' : empty >= 0 ? 'Select it in the quick bar. Tap to shoot, or press F.' : 'Press F to shoot.'), 4000);
   updateHand();
   renderUI();
   saveGame();
@@ -2799,11 +2895,13 @@ canvas.addEventListener('pointerdown', e => {
   // A press on a quiz friend never digs, builds, fights or casts: if it was a tap, the question opens on release (0.6.63)
   pendingFriend = !!friendAt(e.clientX, e.clientY);
   if (pendingFriend) return;
+  // The Spell button is lit: this tap only casts. It does not dig, build or hit (0.6.74)
+  if (spellArmed) { pendingCast = { x: e.clientX, y: e.clientY }; return; }
   if (defOf(held()) && defOf(held()).kind === 'spell') { pendingCast = { x: e.clientX, y: e.clientY }; return; }
   const a = aim(e);
   if (!a) return;
   if (a.enemy) {
-    if (Math.hypot(a.enemy.x - px, a.enemy.y - py, a.enemy.z - pz) > REACH + 1) { say('Too far away! Get closer.'); return; }
+    if (swordGap(a.enemy) > SWORD_REACH) { say('Too far away! Get closer.'); return; }
     // A sword in the hand hits on the tap and keeps hitting while held. With another item in the hand, a sword on a hand button
     // (quick bar slot 1 or 2) swings once straight away; the item in the hand stays in the hand (0.6.60).
     const isWeapon = id => !!(id && defOf(id) && defOf(id).kind === 'weapon');
@@ -2831,8 +2929,8 @@ canvas.addEventListener('pointerdown', e => {
   if (blockInHand) {
     pendingPlace = a.place; // build on release, so a drag does not build
   } else if (solid(get(dx, dy, dz))) {
-    if (tplOf(held()) !== 'pick') { say('Select the pickaxe in the quick bar (1-6) to dig.', 2000); return; }
     if (friendOn(dx, dy, dz)) { say('Your friend is standing there.', 2000); return; }
+    if (tplOf(held()) !== 'pick' && !handDigTold) { handDigTold = true; say('Digging by hand is slow. The pickaxe is faster.', 3500); }
     digging = { x: dx, y: dy, z: dz, t: 0 };
     armSwing = 0;
   } else {
@@ -2841,8 +2939,13 @@ canvas.addEventListener('pointerdown', e => {
 });
 canvas.addEventListener('pointerup', e => {
   if (press && press.id === e.pointerId && !press.moved && pendingPlace) placeCell(...pendingPlace);
-  if (press && press.id === e.pointerId && !press.moved && pendingCast) fireAt(pendingCast.x, pendingCast.y);
-  if (press && press.id === e.pointerId && !press.moved && pendingFriend) tapFriend();
+  if (press && press.id === e.pointerId && !press.moved && pendingCast) {
+    const before = fireballs.length;
+    fireAt(pendingCast.x, pendingCast.y);
+    if (spellArmed && fireballs.length > before) armSpell(false);   // cast: the button goes dark again
+  }
+  if (spellArmed && press && press.id === e.pointerId && press.moved) spellArmedAt = performance.now();   // a drag turns the camera, casts nothing and leaves the button lit
+  if (press && press.id === e.pointerId && !press.moved && pendingFriend) { tapFriend(); if (spellArmed) armSpell(false); }
   pendingFriend = false;
   pendingPlace = null;
   pendingCast = null;
@@ -2858,7 +2961,7 @@ function updateDig(dt) {
   const dist = Math.hypot(x + 0.5 - px, y + 0.5 - (py + HH / 2), z + 0.5 - pz);
   if (!solid(get(x, y, z)) || dist > REACH + 1) { digging = null; crack.visible = false; return; }
   digging.t += dt;
-  const progress = Math.min(1, digging.t / digTime());
+  const progress = Math.min(1, digging.t / (digTime() * digSlow(get(x, y, z))));
   crack.visible = true;
   crack.position.set(x + 0.5, y + 0.5, z + 0.5);
   crack.material.opacity = progress * 0.6;
@@ -2879,7 +2982,7 @@ const VITAL_TIPS = [   // [on a tablet or phone, on a computer (left out when it
   ['Hi! I am Vital. I can show you how to play.'],
   ['Push the thumb stick to walk. Tap JUMP to jump.', 'Use W A S D to walk. Press Space to jump.'],
   ['Drag sideways with a finger to turn the view.', 'Drag sideways with the mouse to turn the view.'],
-  ['Choose the pickaxe. Hold a finger on a block to dig it.', 'Choose the pickaxe. Hold the mouse button on a block to dig it.'],
+  ['Hold a finger on a block to dig it. The pickaxe is the fastest.', 'Hold the mouse button on a block to dig it. The pickaxe is the fastest.'],
   ['Choose a block. Tap the side or top of another block to build.', 'Choose a block. Click the side or top of another block to build.'],
   ['Gems sparkle inside some blocks. Dig the block to get the gem.'],
   ['Tap Bag to see your things. Tap one to put it in your quick bar.', 'Press B to see your things. Click one to put it in your quick bar.'],
@@ -3850,21 +3953,19 @@ function update(dt) {
 }
 
 const hud = document.getElementById('hud');
+let hudLine = '', fitSig = '';
 function drawHud() {
   const spellBtn = document.getElementById('bSpell');   // shown once the fireball is learned; dimmed while the power recharges
   spellBtn.style.display = padOn && skills.includes('fireball') ? 'flex' : 'none';
   spellBtn.classList.toggle('wait', spellCool > 0);
-  const cap = invCap(), total = invTotal();
-  const bar = (k, ratio) => `<div class="bar"><div style="width:${Math.min(1, ratio) * 100}%;background:${BAR[k]}"></div></div>`;
-  hud.innerHTML =
-    `${playerName}<br><div class="bars">` +
-    `Digging Lv ${pw.dig.lvl}${bar('dig', pw.dig.xp / need(pw.dig.lvl))}` +
-    `Building Lv ${pw.build.lvl}${bar('build', pw.build.xp / need(pw.build.lvl))}` +
-    `Inventory Lv ${pw.inv.lvl}${bar('inv', total / cap)}` +
-    `Fighting Lv ${pw.fight.lvl}${bar('fight', pw.fight.xp / need(pw.fight.lvl))}` +
-    (skills.length ? `Magic Lv ${pw.magic.lvl}${bar('magic', pw.magic.xp / need(pw.magic.lvl))}` : '') + `</div>` +
-    `Bag ${total}/${cap} &nbsp; Gems ${inv.gem}<br>` +
-    `World ${esc(worldId || 'alone')} &middot; v${VERSION}` + (others.size ? ' &middot; With: ' + [...others.values()].map(o => esc(o.name)).join(', ') : '');
+  // The lit Spell button turns itself off after 5 seconds with no tap on the world, or when it is no longer on screen
+  if (spellArmed && !press && (performance.now() - spellArmedAt > SPELL_ARM_MS || spellBtn.style.display === 'none')) armSpell(false);
+  // One short line at the top left (0.6.74): gems and the bag. The powers are in the Powers panel.
+  const line = `Gems ${inv.gem} &nbsp; Bag ${invTotal()}/${invCap()}`;
+  if (line !== hudLine) { hud.innerHTML = line; hudLine = line; }
+  if (powersOpen) renderPowers();
+  const sig = innerWidth + 'x' + innerHeight + spellBtn.style.display + padOn + panelOpen + document.body.className;
+  if (sig !== fitSig) { fitSig = sig; fitRecent(); }
 }
 
 let last = performance.now();
@@ -3974,7 +4075,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.73';
+const VERSION = '0.6.74';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -4590,6 +4691,10 @@ window.gameTest = {
   // Life bars (0.6.64): one entry per monster, in the same order as `enemies` (null if a monster has no bar)
   lifeBars: () => enemies.map(en => { const b = lifeBars.get(en); return b ? { kind: en.kind, hp: b.hp, part: b.part, color: b.color, above: b.sprite.position.y - en.y, dx: b.sprite.position.x - en.x, dz: b.sprite.position.z - en.z, inScene: b.sprite.parent === scene, shown: b.sprite.visible, w: b.sprite.scale.x } : null; }),
   lifeBarCount: () => { let n = 0; scene.traverse(o => { if (o.isSprite && [...lifeBars.values()].some(b => b.sprite === o)) n++; }); return { bars: lifeBars.size, inScene: n }; }, lifeColor,
+  // 0.6.74: the lit Spell button, sword reach, digging by hand, the Powers panel and the Recent list that fits
+  get spellArmed() { return spellArmed; }, armSpell, ageSpell: ms => { spellArmedAt -= ms; }, SPELL_ARM_MS, SWORD_REACH, swordGap, handSlow, digTime,
+  get handDigTold() { return handDigTold; }, get powersOpen() { return powersOpen; }, togglePowers, fitRecent, get hudText() { return hud.textContent; },
+  setMouse: (x, y) => { mouseAt = { x, y }; },
   HOLD_MS, holdOpensBag,   // holding a quick bar slot opens the bag for it (0.6.68)
   // Word scramble and the quiz report (0.6.65)
   // Vital the guide (0.6.73)

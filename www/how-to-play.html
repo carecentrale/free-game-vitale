@@ -7,7 +7,7 @@
 <meta name="description" content="How to play Adventurers of Drenerics: moving, digging, building, the bag, gems, powers, monsters, magic, saving and playing with friends.">
 <!-- This guide must describe the game as it is. Every new feature or changed rule gets its part here in the same release,
      and guide-version below is set to the game's version (scripts/tests/site-pages.test.mjs checks it). -->
-<meta name="guide-version" content="0.6.73">
+<meta name="guide-version" content="0.6.74">
 <style>
   :root{--bg:#f4f6fb;--card:#fff;--ink:#1d2433;--muted:#5b6475;--line:#e4e7ee;--accent:#3b6fd8;--key:#eef1f8}
   @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0;--key:#262e44}}
@@ -40,7 +40,7 @@
   <nav><a href="/">Home</a><a href="/release-notes.html">Release notes</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="/contact.html">Contact</a></nav>
 
   <h1>How to play</h1>
-  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.73</span>. New things are added here with every version; see the <a href="/release-notes.html">release notes</a> for what changed.</div>
+  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.74</span>. New things are added here with every version; see the <a href="/release-notes.html">release notes</a> for what changed.</div>
 
   <p>Adventurers of Drenerics is a world made of blocks. You dig into it, build with what you dig, collect gems, grow stronger and meet monsters. You can play alone or in the same world as your friends.</p>
   <a class="play" href="/play/">Play now</a>
@@ -102,20 +102,21 @@
     <tr><td>Turn the view</td><td>Drag sideways with the mouse</td><td>Drag sideways with a finger</td></tr>
     <tr><td>Zoom in and out</td><td>Mouse wheel</td><td>Pinch with two fingers</td></tr>
     <tr><td>Choose what is in your hand</td><td><kbd>1</kbd> to <kbd>6</kbd>, or click a quick bar slot</td><td>Tap a quick bar slot or a hand button</td></tr>
-    <tr><td>Dig</td><td>With the pickaxe in hand, hold the mouse button on a block</td><td>With the pickaxe in hand, hold a finger on a block</td></tr>
+    <tr><td>Dig</td><td>Hold the mouse button on a block. The pickaxe is the fastest way. You can also dig by hand, with any tool or an empty hand; it is slower, and hard blocks like stone take the longest</td><td>Hold a finger on a block. The pickaxe is the fastest way. You can also dig by hand, with any tool or an empty hand; it is slower, and hard blocks like stone take the longest</td></tr>
     <tr><td>Build</td><td>With a block in hand, click the side or top of a block. Right-click also builds</td><td>With a block in hand, tap the side or top of a block</td></tr>
-    <tr><td>Fight</td><td>With a sword in hand, hold the mouse button on a monster</td><td>Tap a close monster (with a sword on a hand button), or hold on it with the sword in hand</td></tr>
-    <tr><td>Cast the fireball</td><td><kbd>F</kbd>, or right-click with the fireball selected</td><td>The Spell button</td></tr>
+    <tr><td>Fight</td><td>With a sword in hand, walk up to a monster (2 blocks or closer) and click it, or hold the mouse button on it</td><td>Walk up to a monster (2 blocks or closer) and tap it (with a sword on a hand button), or hold on it with the sword in hand</td></tr>
+    <tr><td>Cast the fireball</td><td>Point with the mouse and press <kbd>F</kbd>. With the on-screen controls on: tap the Spell button, then click a monster or a place</td><td>Tap the Spell button. It lights up. Now tap a monster or a place, and the fireball flies there. Tap the Spell button again if you change your mind</td></tr>
+    <tr><td>See your powers</td><td>The Powers button (the star at the top right)</td><td>The Powers button (the star at the top right)</td></tr>
     <tr><td>Open the bag</td><td><kbd>B</kbd>, or the Bag button</td><td>The Bag button</td></tr>
     <tr><td>Close a panel, or quit</td><td><kbd>Esc</kbd></td><td>Tap outside the panel. On Android, the Back button</td></tr>
   </table>
   </div>
   <p>The <em>Controls</em> button switches the on-screen stick and buttons on or off. On a touch screen they start switched on.</p>
-  <p>You can only dig, build or fight close to you. If the game says "Too far away! Get closer", walk nearer.</p>
+  <p>You can only dig, build or fight close to you: 7 blocks for digging and building, 2 blocks for a sword. If the game says "Too far away! Get closer", walk nearer.</p>
 
   <h2 id="quickbar">4. The quick bar and the bag</h2>
   <p>The <strong>quick bar</strong> is the row of 6 slots at the bottom. The slot you choose is the item in your hand: the pickaxe digs, a sword fights, a block builds.</p>
-  <p>The <strong>bag</strong> holds everything you own. Open it, then tap an item to put it in the slot you have chosen. The <em>Recent</em> list at the side shows the things you picked up last; tap one to put it in the quick bar.</p>
+  <p>The <strong>bag</strong> holds everything you own. Open it, then tap an item to put it in the slot you have chosen. The <em>Recent</em> list shows the things you picked up last; tap one to put it in the quick bar. It is always at the top of the bag. On a big screen it is also at the side, as long as it does not cover a button.</p>
   <p><strong>To fill a slot quickly:</strong> press and hold the slot for a moment (with a finger or the mouse). The bag opens with that slot chosen; tap an item and it goes into the slot. A short tap only chooses the slot.</p>
   <h3>On tablets and phones</h3>
   <ul>
@@ -124,10 +125,12 @@
   </ul>
 
   <h2 id="dig">5. Digging</h2>
-  <ol>
-    <li>Choose the pickaxe.</li>
-    <li>Hold on a block. A crack grows; when it is complete the block comes out and goes into your bag.</li>
-  </ol>
+  <p>Hold on a block to dig it. The pickaxe is the fastest way. You can also dig by hand, with any tool or an empty hand; it is slower, and hard blocks like stone take the longest.</p>
+  <ul>
+    <li>A crack grows while you hold; when it is complete the block comes out and goes into your bag.</li>
+    <li>By hand, sand, snow, dirt and grass take 2 times as long as with the pickaxe, stone 4 times and gems 6 times. Digging by hand wears out nothing.</li>
+    <li>With a block in your hand, a tap builds; it does not dig.</li>
+  </ul>
   <p>Digging is how you get blocks to build with, and how you find gems. Each block you dig also makes your Digging power grow.</p>
 
   <h2 id="build">6. Building</h2>
@@ -156,7 +159,8 @@
   </ul>
 
   <h2 id="powers">9. Powers and levels</h2>
-  <p>You have five powers. Each one grows when you use it, and the game tells you when one goes up a level. The power meters show how far you are.</p>
+  <p>Tap the Powers button at the top right to see your powers, their levels and how close each one is to the next level.</p>
+  <p>You have five powers. Each one grows when you use it, and the game tells you when one goes up a level. The Powers panel also shows your name, the world code and the game version. Close it with its Close button, a tap outside it, <kbd>Esc</kbd> or the Android Back button. During play the top left of the screen shows your gems and how full your bag is.</p>
   <div class="scroll">
   <table>
     <tr><th>Power</th><th>How it grows</th><th>What it does</th></tr>
@@ -170,6 +174,7 @@
 
   <h2 id="monsters">10. Monsters and fighting</h2>
   <p>Monsters walk around the land. They never hurt you. Defeat them to earn gems, monster parts and sometimes gear.</p>
+  <p>Your sword reaches 2 blocks. Walk up to a monster before you tap it. The fireball reaches much further.</p>
   <ul>
     <li><strong>With the sword in your hand:</strong> get close and tap or click the monster to hit it once. Hold on it to keep hitting. Each hit takes away some of its health.</li>
     <li><strong>On a touch screen, with something else in your hand:</strong> tap a close monster. A sword on one of your hand buttons swings once, and your item stays in your hand. If there is no sword there, the game says "Put a sword on a hand button".</li>
@@ -210,8 +215,9 @@
   <h2 id="magic">12. Magic</h2>
   <p>When your Fighting power reaches level 2, the game says "Magic unlocked!" and lets you choose your first skill. For now the skill is <strong>Fireball</strong>.</p>
   <ul>
-    <li><strong>Computer:</strong> press <kbd>F</kbd>, or choose the fireball in the quick bar and right-click where you want it to go.</li>
-    <li><strong>Tablet or phone:</strong> tap the Spell button.</li>
+    <li>Tap the Spell button. It lights up. Now tap a monster or a place, and the fireball flies there. Tap the Spell button again if you change your mind. On a computer you can also point with the mouse and press <kbd>F</kbd>.</li>
+    <li>The lit Spell button goes dark by itself after 5 seconds if you tap nothing. While it is lit, dragging still turns the view.</li>
+    <li>With the on-screen controls off, the fireball sits in a quick bar slot: choose it, then tap or click where it should go.</li>
     <li>The fireball flies to the block or monster you aim at and bursts. Every monster inside the burst is hurt.</li>
     <li>Monsters that are weak to fire take double damage.</li>
     <li>A fireball that reaches water fizzles out in a puff of steam and does no damage.</li>

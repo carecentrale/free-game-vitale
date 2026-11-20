@@ -416,7 +416,7 @@ test('with the fireball selected, right-click casts a fireball', { skip, timeout
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [fightLevel2Game()] }));
 
-test('the Spell button is hidden until on-screen controls are on, then tapping it casts a fireball; there is no FIRE button', { skip, timeout: 180000 }, () =>
+test('the Spell button is hidden until on-screen controls are on, then a tap on it and a tap on the world casts a fireball; there is no FIRE button', { skip, timeout: 180000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
     await page.click('#skillPanel [data-skill="fireball"]');
@@ -428,7 +428,9 @@ test('the Spell button is hidden until on-screen controls are on, then tapping i
     const shown = await page.waitForFunction(() => getComputedStyle(document.getElementById('bSpell')).display !== 'none', null, { timeout: 30000 }).then(() => true, () => false);
     assert.ok(shown, 'the Spell button should show once on-screen controls are on');
     const before = await page.evaluate(() => { const p = window.gameProbe(); return p.fireballs + p.blasts; });
-    await page.evaluate(() => document.getElementById('bSpell').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true })));
+    // 0.6.74: the tap on the button lights it up; the next tap on the world casts
+    await page.evaluate(() => { document.getElementById('bSpell').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+      const c = document.querySelector('canvas'); for (const t of ['pointerdown', 'pointerup']) c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: innerWidth / 2, clientY: innerHeight * 0.4, pointerId: 3, button: 0 })); });
     const after = await page.waitForFunction(b => { const p = window.gameProbe(); return p.fireballs + p.blasts > b && p.fireballs + p.blasts; }, before, { timeout: 30000 })
       .then(h => h.jsonValue(), () => before);
     assert.ok(after > before, `the Spell button did not cast: ${before} -> ${after}`);
@@ -741,14 +743,13 @@ async function offScreenControls(page) {
 }
 
 for (const [label, device] of [['held sideways', PHONE_WIDE], ['held upright', PHONE_TALL]]) {
-  test(`on a phone ${label}, the controls fit the screen and the quick bar and power meters start hidden`, { skip, timeout: 120000 }, () =>
+  test(`on a phone ${label}, the controls fit the screen and the quick bar starts hidden`, { skip, timeout: 120000 }, () =>
     withGame(async (page, errors) => {
       await page.waitForTimeout(1500);
       const st = await page.evaluate(() => ({
         phone: document.body.classList.contains('phone'),
         qb: getComputedStyle(document.getElementById('qb')).display,
         recent: getComputedStyle(document.getElementById('recent')).display,
-        bars: (() => { const b = document.querySelector('#hud .bars'); return b ? getComputedStyle(b).display : 'missing'; })(),
         hudBtn: getComputedStyle(document.getElementById('hudBtn')).display,
         arrows: ['bF', 'bL', 'bR', 'bB'].filter(id => document.getElementById(id)).length,
       }));
@@ -756,24 +757,22 @@ for (const [label, device] of [['held sideways', PHONE_WIDE], ['held upright', P
       assert.equal(st.arrows, 0, 'the old arrow buttons should be gone');
       assert.equal(st.qb, 'none', 'the quick bar should start hidden on a phone');
       assert.equal(st.recent, 'none', 'the recent list should start hidden on a phone');
-      assert.equal(st.bars, 'none', 'the power meters should start hidden on a phone');
       assert.notEqual(st.hudBtn, 'none', 'the button to show them should be visible');
       assert.deepEqual(await offScreenControls(page), [], 'controls outside the screen');
       assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
     }, { device, saves: [phoneGame()] }));
 }
 
-test('on a phone, the top-left button shows the quick bar and meters, and choosing a tool hides them again', { skip, timeout: 180000 }, () =>
+test('on a phone, the top-left button shows the quick bar, and choosing a tool hides them again', { skip, timeout: 180000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForTimeout(1500);
     // Taps are sent straight to the elements: the test browser can draw slowly, which makes simulated taps time out
     await page.evaluate(() => document.getElementById('hudBtn').click());
     const open = await page.evaluate(() => ({
       qb: getComputedStyle(document.getElementById('qb')).display,
-      bars: getComputedStyle(document.querySelector('#hud .bars')).display,
       panel: window.gameTest.panelOpen,
     }));
-    assert.ok(open.panel && open.qb !== 'none' && open.bars !== 'none', 'tapping the button should show the quick bar and meters: ' + JSON.stringify(open));
+    assert.ok(open.panel && open.qb !== 'none', 'tapping the button should show the quick bar: ' + JSON.stringify(open));
     // The open quick bar must also fit the screen
     const qbBox = await page.evaluate(() => { const r = document.getElementById('qb').getBoundingClientRect(); return [r.left, r.right, r.bottom, innerWidth, innerHeight]; });
     assert.ok(qbBox[0] >= 0 && qbBox[1] <= qbBox[3] + 0.5 && qbBox[2] <= qbBox[4] + 0.5, 'the open quick bar goes off the screen: ' + qbBox.map(Math.round).join(','));
@@ -982,7 +981,7 @@ test('the hand buttons show quick bar slots 1 and 2, only change the item in han
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { device: PHONE_WIDE, saves: [phoneGame()] }));
 
-test('on a touch screen the fireball needs no quick bar slot: the Spell button casts it, and it does nothing while a panel is open', { skip, timeout: 180000 }, () =>
+test('on a touch screen the fireball needs no quick bar slot: the Spell button and a tap on the world cast it, and it does nothing while a panel is open', { skip, timeout: 180000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
     assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('bSpell')).display), 'none', 'the Spell button is hidden before the fireball is learned');
@@ -996,12 +995,15 @@ test('on a touch screen the fireball needs no quick bar slot: the Spell button c
     const cast = await page.evaluate(() => {
       const g = window.gameTest, n = g.fireballs.length;
       const tap = () => document.getElementById('bSpell').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 7 }));
-      tap();
+      // 0.6.74: the button lights up, and the next tap on the world casts
+      const c = document.querySelector('canvas');
+      const world = () => { for (const t of ['pointerdown', 'pointerup']) c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: innerWidth / 2, clientY: innerHeight * 0.4, pointerId: 8, button: 0, pointerType: 'touch' })); };
+      tap(); world();
       const one = g.fireballs.length - n;
-      tap();   // straight away again: the power is still recharging
+      tap(); world();   // straight away again: the power is still recharging
       return { one, two: g.fireballs.length - n, sel: g.sel };
     });
-    assert.equal(cast.one, 1, 'one tap casts one fireball');
+    assert.equal(cast.one, 1, 'a tap on the button and a tap on the world cast one fireball');
     assert.equal(cast.two, 1, 'no second fireball while the power recharges');
     assert.equal(cast.sel, 0, 'the item in hand is unchanged');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
@@ -2513,3 +2515,386 @@ test('Vital on a phone: touch wording, at most 4 visits from him in one visit, n
     assert.deepEqual([s.friend, s.vital.on, s.vital.seen], [null, false, 5], 'the switch or the tips seen were not remembered');
     assert.deepEqual(errors, [], errors.join('\n'));
   }, { device: { viewport: { width: 360, height: 740 }, hasTouch: true, isMobile: true }, saves: [readyGame()], quiz: true, vital: true }));
+
+// ---- SPEC-016, release 1 (0.6.74): the fireball flies where you tap (A), sword reach (B), digging by hand (C), powers in a menu (H) ----
+// A tap (press and release) on the world at a screen point, with a finger or the mouse; `drag` moves the pointer before the release
+const tapWorld = (page, x, y, opts = {}) => page.evaluate(({ x, y, o }) => {
+  const c = document.querySelector('canvas');
+  const ev = (t, dx = 0) => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: x + dx, clientY: y, pointerId: 9, button: 0, pointerType: o.touch ? 'touch' : 'mouse' }));
+  ev('pointerdown');
+  if (o.drag) ev('pointermove', o.drag);
+  if (!o.keep) ev('pointerup');
+}, { x, y, o: opts });
+// Do two boxes on the screen overlap?
+const BOXES_FN = `(ids => { const out = []; const r = id => { const el = document.getElementById(id); const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0 ? b : null; };
+  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) { const a = r(ids[i]), b = r(ids[j]); if (a && b && a.left < b.right - 0.5 && a.right > b.left + 0.5 && a.top < b.bottom - 0.5 && a.bottom > b.top + 0.5) out.push(ids[i] + ' on ' + ids[j]); } return out; })`;
+
+test('SPEC-016 A: a tap in the middle of the Spell button lights it up even with six rows in the Recent list, and the list never covers a button', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    await page.waitForFunction(() => getComputedStyle(document.getElementById('bSpell')).display !== 'none', null, { timeout: 60000 });
+    // Six things in the Recent list, and the quick bar open (on a phone the list shows with the quick bar)
+    await page.evaluate(() => { const g = window.gameTest; for (const id of ['dirt', 'stone', 'gem', 'goblin_ear', 'imp_horn', 'brute_tooth']) g.addItem(id, 1); });
+    await page.dispatchEvent('#hudBtn', 'click');
+    const sizes = [[320, 360], [360, 640], [360, 780], [640, 360], [780, 360], [800, 480], [1024, 600], [1280, 609], [1920, 1080]];
+    for (const [w, h] of sizes) {
+      await page.setViewportSize({ width: w, height: h });
+      await page.evaluate(() => window.gameTest.stepFrames([0.016]));
+      const r = await page.evaluate(`({ over: ${BOXES_FN}(['recent', 'bSpell', 'bH1', 'bH2', 'bJ', 'qb', 'bagBtn', 'settingsBtn', 'toggle', 'teleBtn', 'powersBtn', 'hudBtn', 'stick']),
+        recent: document.getElementById('recent').getClientRects().length > 0, rows: [...document.querySelectorAll('#recent .row')].filter(e => e.getClientRects().length).length,
+        spell: (() => { const b = document.getElementById('bSpell').getBoundingClientRect(); const el = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2); return !!el && !!el.closest('#bSpell'); })(),
+        powers: document.getElementById('powersBtn').getBoundingClientRect().height })`);
+      assert.deepEqual(r.over.filter(o => /recent|powersBtn|bSpell/.test(o)), [], `at ${w} x ${h} nothing lies on the Recent list, the Spell button or the Powers button: ` + r.over.join(', '));
+      assert.ok(r.spell, `at ${w} x ${h} the middle of the Spell button is the Spell button`);
+      assert.ok(!r.recent || r.rows >= 2, `at ${w} x ${h} the Recent list shows two rows or more, or is not on the screen (rows: ${r.rows})`);
+      assert.ok(r.powers >= 44, `at ${w} x ${h} the Powers button is at least 44 px tall (${r.powers})`);
+      if (w < 400) assert.equal(r.recent, false, `at ${w} px wide the Recent list is not on the screen`);
+    }
+    // The real tap, on a wide phone held sideways
+    await page.setViewportSize({ width: 780, height: 360 });
+    await page.evaluate(() => window.gameTest.stepFrames([0.016]));
+    const before = await page.evaluate(() => ({ qb: window.gameTest.qb.slice(), balls: window.gameTest.fireballs.length }));
+    const box = await page.evaluate(() => { const b = document.getElementById('bSpell').getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; });
+    await page.touchscreen.tap(box[0], box[1]);
+    const after = await page.evaluate(() => ({ qb: window.gameTest.qb.slice(), balls: window.gameTest.fireballs.length, armed: window.gameTest.spellArmed, msg: window.gameTest.msg, lit: document.getElementById('bSpell').classList.contains('on') }));
+    assert.ok(after.armed && after.lit, 'the Spell button lights up');
+    assert.equal(after.msg, 'Tap where the fireball should go.');
+    assert.equal(after.balls, before.balls, 'nothing is cast yet');
+    assert.deepEqual(after.qb, before.qb, 'nothing is added to the quick bar');
+    // 360 px wide: the list is at the top of the bag and not on the screen
+    await page.setViewportSize({ width: 360, height: 780 });
+    await page.evaluate(() => { window.gameTest.armSpell(false); window.gameTest.stepFrames([0.016]); });
+    await page.dispatchEvent('#bagBtn', 'click');
+    const bag = await page.evaluate(() => ({ onScreen: document.getElementById('recent').getClientRects().length > 0, open: window.gameTest.bagOpen,
+      rows: document.querySelectorAll('#bagRecent [data-item]').length, first: !!document.querySelector('#bag .title') && document.querySelector('#bag .title').textContent,
+      aboveAll: document.getElementById('bagRecent').getBoundingClientRect().top < document.getElementById('bagAll').getBoundingClientRect().top }));
+    assert.ok(bag.open, 'the bag is open');
+    assert.equal(bag.onScreen, false, 'the Recent list is not on a 360 px screen');
+    assert.equal(bag.rows, 6, 'the bag shows the six recent things');
+    assert.equal(bag.first, 'Recent');
+    assert.ok(bag.aboveAll, 'the Recent list is at the top of the bag');
+    // A tap on a recent row in the bag puts the item in the chosen slot, as the list on the screen does
+    await page.evaluate(() => { window.gameTest.selectSlot(4); document.querySelector('#bagRecent [data-item="stone"]').click(); });
+    assert.equal(await page.evaluate(() => window.gameTest.qb[4]), 'stone');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PHONE_WIDE, saves: [spellGame()] }));
+
+test('SPEC-016 A: after a tap on the Spell button, a tap on a monster to one side sends the fireball to that monster; a tap on the ground lands it there; a drag casts nothing', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    await page.waitForFunction(() => getComputedStyle(document.getElementById('bSpell')).display !== 'none', null, { timeout: 60000 });
+    const arm = () => pressOn(page, '#bSpell');
+    // A goblin to one side, further away than a sword reaches
+    const m = await page.evaluate(() => {
+      const g = window.gameTest;
+      g.setYaw(0); g.settleCamera(); g.clearEnemies();
+      for (const [dx, dz] of [[5, -6], [-5, -6], [4, -7], [-4, -7], [6, -5]]) {
+        if (!g.enemyNear('goblin', dx, dz)) continue;
+        const en = g.enemies[g.enemies.length - 1];
+        const [sx, sy, front] = g.screenOf(en);
+        if (front && sx > 20 && sx < innerWidth - 120 && sy > 60 && sy < innerHeight - 20 && g.enemyAt(sx, sy) === en && document.elementFromPoint(sx, sy) === document.querySelector('canvas')) return { sx, sy, dx, dz, gap: g.swordGap(en) };
+        g.clearEnemies();
+      }
+      return { error: 'no goblin could be put to one side on the screen' };
+    });
+    assert.equal(m.error, undefined, m.error);
+    assert.ok(m.gap > 2, 'the goblin is out of sword reach');
+    // Lit button, then a drag: nothing is cast and the button stays lit
+    await arm();
+    assert.equal(await page.evaluate(() => window.gameTest.spellArmed), true);
+    const n0 = await page.evaluate(() => window.gameTest.fireballs.length);
+    await tapWorld(page, m.sx, m.sy, { touch: true, drag: 60 });
+    let st = await page.evaluate(() => ({ armed: window.gameTest.spellArmed, balls: window.gameTest.fireballs.length }));
+    assert.equal(st.balls, n0, 'a drag casts nothing');
+    assert.equal(st.armed, true, 'a drag leaves the button lit');
+    // The tap on the monster: one fireball, flying toward it, and the button goes dark. No sword hit and no digging.
+    await page.evaluate(() => { window.gameTest.setYaw(0); window.gameTest.settleCamera(); });
+    const hp0 = await page.evaluate(() => window.gameTest.enemies[0].hp);
+    await tapWorld(page, m.sx, m.sy, { touch: true });
+    const shot = await page.evaluate(() => {
+      const g = window.gameTest, f = g.fireballs[g.fireballs.length - 1], en = g.enemies[0], [px, py, pz] = g.pos;
+      if (!f) return null;
+      const to = [en.x - px, en.z - pz], l = Math.hypot(...to), v = Math.hypot(f.vx, f.vz);
+      return { homing: f.homing === en, toward: (f.vx * to[0] + f.vz * to[1]) / (l * v), armed: g.spellArmed, hp: en.hp, digging: !!g.digging, fight: !!g.fight };
+    });
+    assert.ok(shot, 'a fireball is cast');
+    assert.ok(shot.homing, 'the fireball follows the tapped monster');
+    assert.ok(shot.toward > 0.95, 'the fireball flies toward the monster, not straight ahead: ' + shot.toward);
+    assert.equal(shot.armed, false, 'the button goes dark after the cast');
+    assert.equal(shot.hp, hp0, 'the tap itself does not hit with the sword');
+    assert.ok(!shot.digging && !shot.fight, 'the tap does not dig or fight');
+    const hit = await page.evaluate(() => { const g = window.gameTest; const hp = g.enemies[0] ? g.enemies[0].hp : 0; g.stepFrames(Array(60).fill(0.05)); return { hp, now: g.enemies[0] ? g.enemies[0].hp : 0 }; });
+    assert.ok(hit.now < hit.hp, 'the fireball hits that monster');
+    // A tap on the ground far to the left: the fireball flies there
+    await page.evaluate(() => { const g = window.gameTest; g.clearEnemies(); g.setYaw(0); g.settleCamera(); g.stepFrames(Array(12).fill(0.05)); g.clearEnemies(); });
+    await arm();
+    const gx = 60, gy = await page.evaluate(() => Math.round(innerHeight * 0.62));
+    await tapWorld(page, gx, gy, { touch: true });
+    const ground = await page.evaluate(() => {
+      const g = window.gameTest, f = g.fireballs[g.fireballs.length - 1], s = g.lastShot;
+      if (!f || !s || !s.aimPoint) return null;
+      const to = [s.aimPoint[0] - s.origin[0], s.aimPoint[1] - s.origin[1], s.aimPoint[2] - s.origin[2]], l = Math.hypot(...to), v = Math.hypot(f.vx, f.vy, f.vz);
+      const ahead = g.viewDir ? null : null;
+      return { toward: (f.vx * to[0] + f.vy * to[1] + f.vz * to[2]) / (l * v), left: to[0], armed: g.spellArmed };
+    });
+    assert.ok(ground, 'a fireball is cast at the ground');
+    assert.ok(ground.toward > 0.99, 'the fireball flies to the tapped place: ' + ground.toward);
+    assert.ok(ground.left < -2, 'the place is to the left of the character, not straight ahead: ' + ground.left);
+    assert.equal(ground.armed, false);
+    // A second tap on the button turns it off; so do 5 seconds with no tap on the world
+    await page.evaluate(() => window.gameTest.stepFrames(Array(12).fill(0.05)));
+    await arm(); await arm();
+    assert.equal(await page.evaluate(() => window.gameTest.spellArmed), false, 'a second tap on the button turns it off');
+    await arm();
+    const timed = await page.evaluate(() => { const g = window.gameTest, n = g.fireballs.length; g.ageSpell(g.SPELL_ARM_MS + 100); g.stepFrames([0.016]); return { armed: g.spellArmed, cast: g.fireballs.length - n }; });
+    assert.deepEqual(timed, { armed: false, cast: 0 }, 'after 5 seconds the button goes dark and nothing is cast');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PHONE_WIDE, saves: [spellGame()] }));
+
+test('SPEC-016 A: on a computer the F key casts toward the mouse pointer', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const m = await page.evaluate(() => {
+      const g = window.gameTest;
+      g.setYaw(0); g.settleCamera(); g.clearEnemies();
+      for (const [dx, dz] of [[5, -6], [-5, -6], [4, -7], [-4, -7]]) {
+        if (!g.enemyNear('goblin', dx, dz)) continue;
+        const en = g.enemies[g.enemies.length - 1];
+        const [sx, sy, front] = g.screenOf(en);
+        if (front && sx > 20 && sx < innerWidth - 20 && sy > 60 && sy < innerHeight - 90 && g.enemyAt(sx, sy) === en) return { sx, sy };
+        g.clearEnemies();
+      }
+      return { error: 'no goblin could be put to one side on the screen' };
+    });
+    assert.equal(m.error, undefined, m.error);
+    await page.mouse.move(m.sx, m.sy);
+    await page.evaluate(() => { window.gameTest.setYaw(0); window.gameTest.settleCamera(); });
+    await page.keyboard.press('KeyF');
+    const shot = await page.evaluate(() => { const g = window.gameTest, f = g.fireballs[g.fireballs.length - 1]; return f ? { homing: f.homing === g.enemies[0] } : null; });
+    assert.ok(shot && shot.homing, 'F casts a fireball at the monster under the mouse pointer');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PC, saves: [spellGame()] }));
+
+test('SPEC-016 B: a sword hits only from 2 blocks or closer, a bigger monster from a little further; the fireball and digging keep their reach', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    // Puts one monster dz blocks in front and returns a screen point on it
+    const put = (kind, dz) => page.evaluate(({ kind, dz }) => {
+      const g = window.gameTest;
+      g.setYaw(0); g.settleCamera(); g.clearEnemies();
+      for (const dx of [0, 1, -1]) {
+        if (!g.enemyNear(kind, dx, dz)) continue;
+        const en = g.enemies[g.enemies.length - 1];
+        const [sx, sy] = g.screenOf(en);
+        for (const oy of [0, -10, 10, -20, 20, -30]) for (const ox of [0, -8, 8]) { const a = g.aimAt(sx + ox, sy + oy); if (a && a.enemy === en) return { x: sx + ox, y: sy + oy, gap: g.swordGap(en), hp: en.hp }; }
+        g.clearEnemies();
+      }
+      return { error: 'no ' + kind + ' could be put under the pointer at ' + dz };
+    }, { kind, dz });
+    const state = () => page.evaluate(() => { const g = window.gameTest, en = g.enemies[0]; return { hp: en ? en.hp : 0, msg: g.msg, fight: !!g.fight, balls: g.fireballs.length }; });
+    await page.evaluate(() => window.gameTest.selectSlot(1));   // the sword is in hand
+    assert.equal(await page.evaluate(() => window.gameTest.SWORD_REACH), 2);
+    // Next to the monster: the tap hits
+    let m = await put('goblin', -1);
+    assert.equal(m.error, undefined, m.error);
+    await tapWorld(page, m.x, m.y);
+    assert.equal((await state()).hp, m.hp - 1, 'next to a monster the sword hits it');
+    // 5 blocks away: no hit, and the game says so
+    await page.evaluate(() => window.gameTest.stepFrames(Array(10).fill(0.05)));
+    m = await put('goblin', -5);
+    assert.equal(m.error, undefined, m.error);
+    assert.ok(m.gap > 2);
+    await tapWorld(page, m.x, m.y);
+    let s = await state();
+    assert.equal(s.hp, m.hp, '5 blocks away the sword does not hit');
+    assert.equal(s.msg, 'Too far away! Get closer.');
+    // Holding: the hits stop when the character walks back more than 2 blocks
+    m = await put('brute', -1);
+    assert.equal(m.error, undefined, m.error);
+    await tapWorld(page, m.x, m.y, { keep: true });
+    assert.equal((await state()).fight, true, 'holding on a close monster keeps hitting');
+    const walked = await page.evaluate(() => { const g = window.gameTest, en = g.enemies[0]; g.walkAway(4); const gap = g.swordGap(en); g.stepFrames([0.05]); return { gap, fight: !!g.fight }; });
+    assert.ok(walked.gap > 2 && !walked.fight, 'walking back more than 2 blocks stops the hits: ' + JSON.stringify(walked));
+    await page.evaluate(() => document.querySelector('canvas').dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 9 })));
+    // A bigger monster can be reached from a little further away than a smaller one at the same spot
+    const gaps = await page.evaluate(() => {
+      const g = window.gameTest, [px, py, pz] = g.pos, out = {};
+      for (const kind of ['goblin', 'brute']) { g.clearEnemies(); g.enemyNear(kind, 0, 0); const en = g.enemies[0]; en.x = px + 2.5; en.z = pz; en.y = py; out[kind] = g.swordGap(en); }
+      g.clearEnemies();
+      return out;
+    });
+    assert.ok(gaps.brute < gaps.goblin, 'the bigger monster is nearer to the sword: ' + JSON.stringify(gaps));
+    assert.ok(gaps.brute <= 2 && gaps.goblin > 2, 'at 2.5 blocks a Brute is in reach and a Goblin is not: ' + JSON.stringify(gaps));
+    // The fireball still reaches a monster 15 blocks away (the lit Spell button, on-screen controls on)
+    await page.evaluate(() => { document.getElementById('toggle').click(); });
+    await page.waitForFunction(() => getComputedStyle(document.getElementById('bSpell')).display !== 'none', null, { timeout: 30000 });
+    const far = await page.evaluate(() => {
+      const g = window.gameTest;
+      g.setYaw(0); g.settleCamera(); g.clearEnemies();
+      if (!g.enemyNear('goblin', 0, -15)) return { error: 'no far goblin' };
+      const en = g.enemies[0], [sx, sy, front] = g.screenOf(en);
+      return { sx, sy, front, at: g.enemyAt(sx, sy) === en };
+    });
+    assert.equal(far.error, undefined, far.error);
+    assert.ok(far.front && far.at, 'the far goblin is on the screen');
+    await pressOn(page, '#bSpell');
+    await tapWorld(page, far.sx, far.sy);
+    const cast = await page.evaluate(() => { const g = window.gameTest, f = g.fireballs[g.fireballs.length - 1]; return !!f && f.homing === g.enemies[0]; });
+    assert.ok(cast, 'a fireball is cast at a monster 15 blocks away');
+    // Digging reach is unchanged: a block about 6 blocks away can still be dug
+    assert.equal(await page.evaluate(() => window.gameTest.reach), 7);
+    const dig = await page.evaluate(() => {
+      const g = window.gameTest;
+      g.clearEnemies(); g.selectSlot(0); g.setYaw(0); g.settleCamera();
+      for (let y = Math.round(innerHeight * 0.75); y > innerHeight * 0.2; y -= 6) for (let x = Math.round(innerWidth * 0.3); x < innerWidth * 0.7; x += 10) {
+        if (document.elementFromPoint(x, y) !== document.querySelector('canvas')) continue;
+        const c = g.aimAt(x, y);
+        if (c && !c.enemy && c.dist > 5.5 && c.dist <= 7 && g.isSolid(g.blockAt(...c.dig))) return { x, y, dist: c.dist };
+      }
+      return { error: 'no block about 6 blocks away was found on the screen' };
+    });
+    assert.equal(dig.error, undefined, dig.error);
+    await tapWorld(page, dig.x, dig.y, { keep: true });
+    assert.equal(await page.evaluate(() => !!window.gameTest.digging), true, 'a block ' + dig.dist.toFixed(1) + ' blocks away can still be dug');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PC, saves: [spellGame()] }));
+
+test('SPEC-016 C: every block can be dug by hand, more slowly than with the pickaxe, and digging by hand wears out nothing', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    // Holds on a close block until it is dug (or 15 seconds pass). Returns the seconds it took and what was said at the start.
+    const digOne = (slot, stone) => page.evaluate(({ slot, stone }) => {
+      const g = window.gameTest;
+      g.clearEnemies(); g.setYaw(0); g.settleCamera(); g.selectSlot(slot);
+      const [px, py, pz] = g.pos;
+      let pt = null, a = null;
+      for (let y = Math.round(innerHeight * 0.9); y > innerHeight * 0.3 && !pt; y -= 12) for (let x = Math.round(innerWidth * 0.25); x < innerWidth * 0.75 && !pt; x += 12) {
+        if (document.elementFromPoint(x, y) !== document.querySelector('canvas')) continue;
+        const c = g.aimAt(x, y);
+        if (!c || c.enemy || c.dist > 4.5 || !g.isSolid(g.blockAt(...c.dig)) || g.isSolid(g.blockAt(...c.place))) continue;
+        if (stone ? g.blockAt(...c.dig) !== g.T.STONE : (g.blockAt(...c.dig) === g.T.STONE || g.blockAt(...c.dig) === g.T.GEM)) continue;
+        if (Math.abs(c.dig[0] + 0.5 - px) < 1.2 && Math.abs(c.dig[2] + 0.5 - pz) < 1.2) continue;
+        pt = [x, y]; a = c;
+      }
+      if (!pt) return { error: 'no block to dig was found' };
+      const kind = g.blockAt(...a.dig), bag = g.invTotal(), dur = Object.fromEntries(g.gear.map(x => [g.tplOf(x.uid), x.dur]));
+      const c = document.querySelector('canvas');
+      const ev = t => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: pt[0], clientY: pt[1], pointerId: 9, button: 0 }));
+      ev('pointerdown');
+      const msg = g.msg, started = !!g.digging;
+      let t = 0;
+      while (g.isSolid(g.blockAt(...a.dig)) && t < 15) { g.stepFrames([0.05]); t += 0.05; }
+      ev('pointerup');
+      return { t: +t.toFixed(2), msg, started, kind, dug: !g.isSolid(g.blockAt(...a.dig)), inBag: g.invTotal() - bag, base: g.digTime(),
+        durAfter: Object.fromEntries(g.gear.map(x => [g.tplOf(x.uid), x.dur])), dur, cell: a.dig, place: a.place };
+    }, { slot, stone: !!stone });
+    assert.deepEqual(await page.evaluate(() => { const g = window.gameTest; return [g.handSlow(g.T.DIRT), g.handSlow(g.T.GRASS), g.handSlow(g.T.SAND), g.handSlow(g.T.SNOW), g.handSlow(g.T.STONE), g.handSlow(g.T.GEM)]; }),
+      [2, 2, 2, 2, 4, 6], 'by hand: soft blocks 2 times, stone 4 times, gems 6 times as long');
+    // With the pickaxe (slot 1): the time it takes today
+    const pick = await digOne(0);
+    assert.equal(pick.error, undefined, pick.error);
+    assert.ok(pick.dug && Math.abs(pick.t - pick.base) <= 0.11, 'with the pickaxe a block takes the usual time: ' + JSON.stringify(pick));
+    assert.equal(pick.durAfter.pick, pick.dur.pick - 1, 'the pickaxe wears by one');
+    // An empty quick bar slot (slot 3): the block is dug and is in the bag, in about 2 times the time, and the game says so once
+    const hand = await digOne(2);
+    assert.equal(hand.error, undefined, hand.error);
+    assert.ok(hand.started && hand.dug, 'with an empty hand, holding on a block digs it');
+    assert.equal(hand.inBag, 1, 'the block is in the bag');
+    assert.equal(hand.msg, 'Digging by hand is slow. The pickaxe is faster.');
+    assert.ok(Math.abs(hand.t - 2 * hand.base) <= 0.11, 'by hand a soft block takes about 2 times as long: ' + hand.t + ' s against ' + pick.t + ' s');
+    assert.deepEqual(hand.durAfter, hand.dur, 'digging by hand wears out nothing');
+    // The message comes once in a visit, not at every block
+    await page.evaluate(() => window.gameTest.stepFrames(Array(90).fill(0.05)));
+    const again = await digOne(2);
+    assert.notEqual(again.msg, 'Digging by hand is slow. The pickaxe is faster.', 'the message is not said at every block');
+    // With the sword in hand: still by hand, and the sword does not wear
+    const sword = await digOne(1);
+    assert.ok(sword.dug && sword.durAfter.sword === sword.dur.sword, 'digging with the sword in hand does not wear the sword');
+    // Stone by hand: about 4 times as long. A stone block is put down first so that there is one to dig.
+    const placed = await page.evaluate(cell => { const g = window.gameTest; g.inv.stone = 1; return g.placeCell(...cell, 'stone') !== false && g.blockAt(...cell) === g.T.STONE; }, hand.cell);
+    assert.ok(placed, 'a stone block was put down for the test');
+    const stone = await digOne(2, true);
+    assert.equal(stone.error, undefined, stone.error);
+    assert.ok(stone.dug && Math.abs(stone.t - 4 * stone.base) <= 0.11, 'by hand stone takes about 4 times as long: ' + JSON.stringify({ t: stone.t, base: stone.base }));
+    console.log(`      digging times (Digging level 1): pickaxe ${pick.t} s, soft block by hand ${hand.t} s, stone by hand ${stone.t} s`);
+    // After the pickaxe breaks, the child can still dig
+    await page.evaluate(() => { const g = window.gameTest; const p = g.gear.find(x => g.tplOf(x.uid) === 'pick'); g.wear(p.uid, 1000); g.stepFrames(Array(70).fill(0.05)); });
+    assert.equal(await page.evaluate(() => window.gameTest.gear.some(x => window.gameTest.tplOf(x.uid) === 'pick')), false, 'the pickaxe is broken');
+    const broke = await digOne(0);
+    assert.ok(broke.dug, 'after the pickaxe breaks the child can still dig');
+    // With a block in hand, a tap still builds
+    await page.evaluate(() => { const g = window.gameTest; g.addItem('dirt', 3); g.selectSlot(3); g.toQuick('dirt'); });
+    const b = await tapBlock(page, {});
+    assert.equal(b.error, undefined, b.error);
+    assert.ok(b.after.built && !b.after.dug, 'with a block in hand a tap builds and does not dig');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PC, saves: [phoneGame()] }));
+
+test('SPEC-016 H: the powers are in the Powers panel, not at the top left; gems and the bag stay on screen', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const hud = await page.evaluate(() => window.gameTest.hudText);
+    assert.ok(/Gems \d+/.test(hud) && /Bag \d+\/\d+/.test(hud), 'the top left shows the gem count and the bag count: ' + hud);
+    assert.ok(!/Lv|Digging|Building|Fighting|Inventory|Magic|World/.test(hud), 'no power levels at the top left: ' + hud);
+    assert.equal(await page.evaluate(() => document.querySelectorAll('#hud .bar').length), 0, 'no bars at the top left');
+    const btn = await page.evaluate(() => { const b = document.getElementById('powersBtn').getBoundingClientRect(), s = document.getElementById('settingsBtn').getBoundingClientRect(); return { h: b.height, w: b.width, top: b.top, right: innerWidth - b.right, beside: Math.abs(s.left - b.right) < 16, star: document.getElementById('powersBtn').textContent.includes('★') }; });
+    assert.ok(btn.h >= 44 && btn.w >= 44, 'the Powers button is at least 44 px: ' + JSON.stringify(btn));
+    assert.ok(btn.beside && btn.star && btn.top < 60, 'the Powers button has a star and sits at the top right beside Settings: ' + JSON.stringify(btn));
+    const panel = () => page.evaluate(() => ({ open: window.gameTest.powersOpen, shown: getComputedStyle(document.getElementById('powers')).display !== 'none', text: document.getElementById('powers').textContent,
+      rows: [...document.querySelectorAll('#powers .prow')].map(r => r.textContent.trim()), bars: document.querySelectorAll('#powers .prow .bar').length }));
+    await page.click('#powersBtn');
+    let p = await panel();
+    assert.ok(p.open && p.shown, 'a tap on the Powers button opens the panel');
+    assert.deepEqual(p.rows, ['Digging Lv 1', 'Building Lv 1', 'Inventory Lv 1', 'Fighting Lv 1'], 'the panel lists the powers with their levels');
+    assert.equal(p.bars, 4, 'each power has its bar');
+    assert.ok(p.text.includes('Test Hero') && /World TESTWORLD/.test(p.text) && /v0\.\d+\.\d+/.test(p.text), 'the panel shows the name, the world code and the version: ' + p.text);
+    // While it is open a tap on the world closes it and does nothing else
+    const dirt = await page.evaluate(() => window.gameTest.invTotal());
+    await page.mouse.click(400, 420);
+    p = await panel();
+    assert.ok(!p.open && !p.shown, 'a tap outside the panel closes it');
+    assert.equal(await page.evaluate(() => ({ t: window.gameTest.invTotal(), d: !!window.gameTest.digging })).then(r => r.t + ':' + r.d), dirt + ':false', 'that tap does not dig or build');
+    // Close button, Esc and the Android Back button
+    await page.click('#powersBtn'); await page.click('#powersClose');
+    assert.equal((await panel()).open, false, 'the Close button closes it');
+    await page.click('#powersBtn'); await page.keyboard.press('Escape');
+    assert.deepEqual(await page.evaluate(() => [window.gameTest.powersOpen, window.gameTest.quitOpen]), [false, false], 'Esc closes it and does not ask to quit');
+    await page.click('#powersBtn'); await page.evaluate(() => window.gameTest.backAction());
+    assert.equal((await panel()).open, false, 'the Back button closes it');
+    // Magic is listed once learned, and a level gained is still said on screen
+    const up = await page.evaluate(() => { const g = window.gameTest; g.pw.dig.xp = 1e6; g.clearEnemies(); const [px, py, pz] = g.pos; let y = Math.floor(py) - 1, x = Math.floor(px) + 2, z = Math.floor(pz); while (y > 0 && !g.isSolid(g.blockAt(x, y, z))) y--; g.digCell(x, y, z); return { msg: g.msg, lvl: g.pw.dig.lvl }; });
+    assert.equal(up.msg, 'Digging power up! Level 2', 'a level gained is said on screen');
+    await page.evaluate(() => { const g = window.gameTest; g.pw.fight.lvl = 2; g.chooseSkill('fireball'); });
+    await page.click('#powersBtn');
+    p = await panel();
+    assert.deepEqual(p.rows, ['Digging Lv 2', 'Building Lv 1', 'Inventory Lv 1', 'Fighting Lv 2', 'Magic Lv 1']);
+    await page.click('#powersClose');
+    // Five quick taps on the top-left corner still open the parent area
+    for (let i = 0; i < 5; i++) await page.mouse.click(12, 12);
+    const parent = await page.evaluate(() => [...document.querySelectorAll('div')].some(d => d.textContent.trim().startsWith('Parent area') && d.getClientRects().length > 0));
+    assert.ok(parent, 'five quick taps on the top-left corner open the parent area');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PC, saves: [phoneGame()] }));
+
+test('SPEC-016 H: on a phone the button at the top left still shows and hides the quick bar, and the Powers button covers no other button', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    for (const [w, h] of [[360, 780], [780, 360], [320, 568]]) {
+      await page.setViewportSize({ width: w, height: h });
+      await page.evaluate(() => window.gameTest.stepFrames([0.016]));
+      const over = await page.evaluate(`${BOXES_FN}(['powersBtn', 'settingsBtn', 'toggle', 'teleBtn', 'bagBtn', 'hudBtn', 'bJ', 'bH1', 'bH2', 'stick'])`);
+      assert.deepEqual(over, [], `at ${w} x ${h} no button covers another: ` + over.join(', '));
+    }
+    await page.setViewportSize({ width: 360, height: 780 });
+    const qb = () => page.evaluate(() => getComputedStyle(document.getElementById('qb')).display);
+    assert.equal(await qb(), 'none', 'the quick bar starts hidden on a phone');
+    await page.dispatchEvent('#hudBtn', 'click');
+    assert.notEqual(await qb(), 'none', 'the button at the top left shows the quick bar');
+    await page.dispatchEvent('#hudBtn', 'click');
+    assert.equal(await qb(), 'none', 'and hides it again');
+    await page.dispatchEvent('#powersBtn', 'click');
+    assert.equal(await page.evaluate(() => window.gameTest.powersOpen), true, 'the Powers button opens the panel on a phone');
+    const fits = await page.evaluate(() => { const b = document.getElementById('powers').getBoundingClientRect(); return b.left >= 0 && b.right <= innerWidth && b.top >= 0 && b.bottom <= innerHeight; });
+    assert.ok(fits, 'the panel fits the phone screen');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PHONE_TALL, saves: [phoneGame()] }));
