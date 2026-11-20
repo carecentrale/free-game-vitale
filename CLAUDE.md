@@ -49,6 +49,14 @@ A 3D block-world game for kids and families (dig, build, gems, power levels, ene
 - Build, sign and upload locally on the parent's PC (Android Studio's Java and SDK): `build-android-upload.bat`, or `build-android.bat` to build without uploading (both in the build tools folder, see below). Details in `docs/RELEASE.md`, "Uploading from this PC".
 - Improve this by adding to the project's own local tools, not by adding cloud steps.
 
+## Where the builder works (parent's decision, 20 Nov 2026)
+The laptop is used for building only. Chats never ask for the laptop's folders and never use `device_bash`, computer use or the laptop's file tools.
+- Code work happens in the chat's cloud workspace: clone `carecentrale/free-game-vitale` from GitHub, branch from `origin/dev`, make the change, run the syntax check and the fast tests there, commit, and push the branch (never `main`).
+- A release is `dev` brought into `main` on GitHub, with the parent's agreement (at most one push to `main` a day).
+- Builds go through GitHub only: `remote-build.sh quick` (or `full`, `build`, `check`, `status`) and `remote-build.sh result`, from the cloud clone, after the push to `main` has gone through (see `claude/remote-build-trigger-patch.md` in the project docs).
+- Anything that can only be done on the laptop (changing the build tools, `run`, `push`, `restart`, `tidy`, reading laptop logs): stop and ask the parent. Do not request folder access.
+- The section "This PC is the build machine" below describes how the laptop builds. It no longer tells chats to work there.
+
 ## This PC is the build machine (parent's decision, 13 Nov 2026)
 The parent wants Claude to do the build and release work on this PC (Windows laptop, Claude desktop app linked to the chat). How:
 - Game folder: `Desktop\adventurers-of-drenerics-game` (this repository, main branch). Keys and tools stay outside it in `Desktop\Claude tools for access\` (upload key, `play-service-account.json`, `jdk-21`). Never copy or print the keys.
@@ -91,7 +99,7 @@ Requirements come from the Google Drive folder "Adventurers of Drenerics - PM re
 - One game folder: `Desktop\adventurers-of-drenerics-game`. Never create another project folder, clone or copy on the parent's computer.
 - Scratch work (test clones, downloads, temporary files) stays in the cloud workspace or the session's scratch folder.
 - If a clone or copy fails halfway, remove what it left straight away, or tell the parent exactly what was left and where.
-- First step of any session that needs the computer: check which computer and Windows account the chat is linked to. The build machine's account is `15144`. If it does not match, stop and say so. Do not guess paths.
+- Chats do not use the computer (see "Where the builder works"). Only if the parent asks for laptop work in that chat: first step of any session that needs the computer: check which computer and Windows account the chat is linked to. The build machine's account is `15144`. If it does not match, stop and say so. Do not guess paths.
 - Anything new that is part of the game goes inside the game folder. Tools that only help to build or release it go in `Desktop\Claude tools for access\drenerics-build\`, never in the game folder. Either way, write it down here.
 - No downloads are kept in the game folder: once a download has been unpacked into `assets/`, delete it.
 
