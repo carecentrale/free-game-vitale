@@ -103,6 +103,7 @@ async function load() {
   loadQuizReport().catch(e => { $('quizReport').textContent = 'Report not available: ' + e.message; });
   loadDebugLog();
   loadCastleGap();
+  loadBadges();
 }
 
 // ---- Castle spacing (0.6.76, SPEC-016 part G): a game setting everyone can read and only the owner can change ----
@@ -118,6 +119,26 @@ $('saveGap').addEventListener('click', async () => {
   if (error) { $('gapMsg').textContent = 'Not saved: ' + error.message; return; }
   if (!data || !data.length) { $('gapMsg').textContent = 'Not saved: only the owner\'s account can change this.'; return; }
   $('gapMsg').textContent = 'Saved: one castle about every ' + data[0].value + ' blocks, in worlds started from now on.';
+});
+
+// ---- Quiz badge milestones (0.6.78): five game settings (quiz_m1 to quiz_m5) everyone can read and only the owner can change ----
+const BADGE_KEYS = ['quiz_m1', 'quiz_m2', 'quiz_m3', 'quiz_m4', 'quiz_m5'], BADGE_DEFAULT = [1, 5, 25, 100, 500];
+async function loadBadges() {
+  const { data, error } = await sb.from('game_settings').select('key,value').in('key', BADGE_KEYS);
+  if (error) { $('badgeMsg').textContent = 'Not available yet: ' + error.message; return; }
+  BADGE_KEYS.forEach((k, i) => { const row = (data || []).find(r => r.key === k); $('badge' + (i + 1)).value = row ? row.value : BADGE_DEFAULT[i]; });
+  if (!data || data.length < 5) $('badgeMsg').textContent = 'Not set up in the database yet (migration 0010): the game uses 1, 5, 25, 100 and 500.';
+}
+$('saveBadges').addEventListener('click', async () => {
+  const v = BADGE_KEYS.map((_, i) => Math.round(Number($('badge' + (i + 1)).value)));
+  if (!v.every((n, i) => n >= 1 && n <= 100000 && (i === 0 || n > v[i - 1]))) { $('badgeMsg').textContent = 'Use five whole numbers from 1 to 100000, each bigger than the one before.'; return; }
+  const now = new Date().toISOString();
+  for (let i = 0; i < 5; i++) {
+    const { data, error } = await sb.from('game_settings').update({ value: v[i], updated_at: now }).eq('key', BADGE_KEYS[i]).select('value');
+    if (error) { $('badgeMsg').textContent = 'Not saved: ' + error.message; return; }
+    if (!data || !data.length) { $('badgeMsg').textContent = 'Not saved: only the owner\'s account can change this.'; return; }
+  }
+  $('badgeMsg').textContent = 'Saved: badges at ' + v.join(', ') + ' right answers. Each game picks this up the next time it opens.';
 });
 
 // ---- Quiz friends report (0.6.65). Read from the signed-in account's own cloud save: the database shows an account
@@ -349,6 +370,22 @@ load();
     </div>
     <div class="muted">One castle about every X blocks, from 250 to 2000 (it starts at 500). A change affects only worlds started afterwards; worlds already started keep their castles where they are. Only the owner's account can change it. It holds nothing about any player.</div>
     <div id="gapMsg" class="muted" style="margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <b>Quiz badges (owner only)</b>
+      <span class="row">
+        <input id="badge1" type="number" min="1" max="100000" step="1" style="max-width:80px">
+        <input id="badge2" type="number" min="1" max="100000" step="1" style="max-width:80px">
+        <input id="badge3" type="number" min="1" max="100000" step="1" style="max-width:80px">
+        <input id="badge4" type="number" min="1" max="100000" step="1" style="max-width:80px">
+        <input id="badge5" type="number" min="1" max="100000" step="1" style="max-width:80px">
+        <button class="secondary" id="saveBadges">Save</button>
+      </span>
+    </div>
+    <div class="muted">A child earns a badge at each of these numbers of right quiz answers, maths and words together (it starts at 1, 5, 25, 100 and 500). Each number must be bigger than the one before. Games pick up a change the next time they open; badges already reached stay earned. Only the owner's account can change it. It holds nothing about any player.</div>
+    <div id="badgeMsg" class="muted" style="margin-top:6px"></div>
   </div>
 
   <div class="card">

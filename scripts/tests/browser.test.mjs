@@ -154,6 +154,12 @@ async function withGame(fn, opts) {
   }
 }
 
+// After a right answer the question stays open with "Play again" and "Done" (0.6.78): tap Done, then wait for it to close
+const quizClosed = async page => {
+  await page.evaluate(() => { const d = document.querySelector('#quizPanel .qdone'); if (d) d.click(); });
+  return page.waitForFunction(() => !window.gameTest.quizOpen, null, { timeout: 10000 });
+};
+
 test('the game starts from a saved game with blocks, enemies and no errors', { skip, timeout: 120000 }, () =>
   withGame(async (page, errors) => {
     let state = null;
@@ -1631,10 +1637,9 @@ test('a right first answer gives 5 gems, a right answer after a wrong try gives 
       assert.equal(t.open, true);
       return page.evaluate(() => window.gameTest.quizQuestion.right);
     };
-    const closed = () => page.waitForFunction(() => !window.gameTest.quizOpen, null, { timeout: 10000 });
+    const closed = () => quizClosed(page);
     // Right first time: stars, 5 gems, then the friend leaves
     let start = await gems(page), right = await open();
-    // (read in the same step as the tap: the panel closes by itself a moment later)
     const won = await page.evaluate(i => {
       const btn = document.querySelector(`#quizPanel .qa[data-a="${i}"]`);
       btn.click();
@@ -1954,7 +1959,7 @@ const spell = (page, o = {}) => page.evaluate(o => {
 test('a word scramble shows a picture and mixed-up letter tiles; tapping them in order spells the word for 5 gems, a wrong word takes nothing, and the first letter is given after two wrong tries', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors) => {
     await playing(page);
-    const closed = () => page.waitForFunction(() => !window.gameTest.quizOpen, null, { timeout: 10000 });
+    const closed = () => quizClosed(page);
     const open = async () => {
       const a = await friendArrives(page, undefined, 'word');
       assert.equal(a.error, undefined, a.error);
@@ -2024,7 +2029,7 @@ test('a word scramble shows a picture and mixed-up letter tiles; tapping them in
 test('the quiz report counts questions seen and right answers for maths and words, is kept with the saved game, and shows in the parent area', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors, requests) => {
     await playing(page);
-    const closed = () => page.waitForFunction(() => !window.gameTest.quizOpen, null, { timeout: 10000 });
+    const closed = () => quizClosed(page);
     const stats = () => page.evaluate(() => window.gameTest.quizStats);
     const blank = { opened: 0, first: 0, later: 0 };
     assert.deepEqual(await stats(), { math: blank, words: blank, since: null, last: null });
@@ -2164,7 +2169,7 @@ const askAtLevel = async (page, kind) => {
       tiles: [...p.querySelectorAll('.qt')].map(b => { const r = b.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), Math.round(r.width)]; }), width: innerWidth }; });
   return { q, panel };
 };
-const quizClosed = page => page.waitForFunction(() => !window.gameTest.quizOpen, null, { timeout: 10000 });
+
 
 test('learning level: three right first maths answers give "Maths level 16" with "Level up!", words stay at level 1, two wrong first answers make the questions easier without lowering the number, and the levels are kept in the saved game with nothing sent', { skip, timeout: 300000 }, () =>
   withGame(async (page, errors, requests) => {
@@ -2936,7 +2941,7 @@ test('SPEC-016 D: a quiz question has Hint, Another question and Not now; swaps 
     assert.deepEqual(r.hint2, { out: 1, grey: true, rightOut: false }, 'the second hint takes one wrong answer away, never the right one, and the button greys out');
     assert.equal(r.hint3, 2, 'no third hint');
     assert.deepEqual({ gems: r.afterHint.gems, lvl: r.afterHint.lvl }, { gems: 2, lvl: 0 }, 'a right answer after a hint gives 2 gems and the level stays: ' + r.afterHint.msg);
-    await page.waitForFunction(() => !window.gameTest.quizOpen, null, { timeout: 30000 });
+    await quizClosed(page);
     // Swaps and word hints, with a new friend
     const s = await page.evaluate(() => {
       const g = window.gameTest, out = {};
@@ -3207,4 +3212,96 @@ test('a merchant trades: monster parts and blocks for gems, gems for gear; not e
     assert.deepEqual(r.offers, [6, 6, 6]);
     assert.equal(r.gearOffer, true, 'every merchant sells at least one piece of gear');
     assert.deepEqual(errors, []);
+  }, { saves: [readyGame()] }));
+
+// ---- 0.6.78: "Play again" after a right answer, quiz badges, merchants that ride on ----
+test('after a right answer the question stays open: Play again asks a new question with the usual gems, Done (or Esc) lets the friend leave; badges come at the milestones', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const a = await friendArrives(page, 'owl', 'add');
+    assert.equal(a.error, undefined, a.error);
+    assert.equal((await pressFriend(page)).open, true);
+    const r = await page.evaluate(() => {
+      const g = window.gameTest, out = {}, panel = () => document.getElementById('quizPanel');
+      out.setBad = g.setQuizBadges([5, 3, 9, 10, 11]);   // not in order: refused
+      out.set = g.setQuizBadges([1, 2, 3, 4, 5]);
+      const total0 = g.quizRightTotal(), gems0 = g.inv.gem, key0 = g.quizQuestion.key;
+      g.answerQuiz(g.quizQuestion.right);
+      out.gems1 = g.inv.gem - gems0;
+      out.badge1 = (panel().querySelector('.qbadge') || {}).textContent || '';
+      // no timer: the panel is still open well after the old 1.3 seconds
+      return new Promise(res => setTimeout(() => {
+        out.stillOpen = g.quizOpen;
+        out.endButtons = [...panel().querySelectorAll('.qend button')].map(b => b.textContent);
+        out.answersOff = [...panel().querySelectorAll('.qa')].every(b => b.disabled);
+        out.tall = [...panel().querySelectorAll('.qend button')].every(b => b.getBoundingClientRect().height >= 48);
+        panel().querySelector('.qagain').click();
+        // the new question is maths (three answer buttons) or a word (one tile per letter): half and half
+        const q2 = g.quizQuestion, word = q2.kind === 'word';
+        out.again = { open: g.quizOpen, newKey: q2.key !== key0, buttons: panel().querySelectorAll(word ? '.qt' : '.qa').length === (word ? q2.letters.length : 3), notNow: !!panel().querySelector('.qnot'), paused: g.paused };
+        const gems1 = g.inv.gem;
+        if (word) { const used = []; for (const ch of q2.word) { const i = q2.letters.findIndex((c, k) => c === ch && !used.includes(k)); used.push(i); g.quizTile(i); } }
+        else g.answerQuiz(q2.right);
+        out.gems2 = g.inv.gem - gems1;
+        out.badge2 = (panel().querySelector('.qbadge') || {}).textContent || '';
+        out.total = g.quizRightTotal() - total0;
+        out.earned = g.quizBadgesEarned();
+        g.backAction();   // Esc / Back after a right answer means Done
+        out.closed = !g.quizOpen && !g.paused;
+        out.state = g.friend && g.friend.state;
+        out.quitOpen = g.quitOpen;
+        res(out);
+      }, 2500));
+    });
+    assert.equal(r.setBad, false, 'milestones out of order are refused');
+    assert.equal(r.set, true);
+    assert.equal(r.gems1, 5);
+    assert.match(r.badge1, /New badge: 1 right answer!/);
+    assert.equal(r.stillOpen, true, 'the question closed by itself');
+    assert.deepEqual(r.endButtons, ['Play again', 'Done']);
+    assert.equal(r.answersOff, true, 'the answer buttons are off after a right answer');
+    assert.equal(r.tall, true);
+    assert.deepEqual(r.again, { open: true, newKey: true, buttons: true, notNow: true, paused: true });
+    assert.equal(r.gems2, 5, 'Play again pays the usual gems');
+    assert.match(r.badge2, /New badge: 2 right answers!/);
+    assert.equal(r.total, 2);
+    assert.equal(r.earned, 2);
+    assert.equal(r.closed, true);
+    assert.equal(r.state, 'leave', 'the friend leaves after Done');
+    assert.equal(r.quitOpen, false, 'Back also asked about quitting');
+    // The Powers panel shows the badges
+    const row = await page.evaluate(() => { document.getElementById('powersBtn').click(); return (document.getElementById('quizBadgeRow') || {}).textContent || ''; });
+    assert.match(row, /Quiz badges: 2 of 5/);
+    assert.match(row, /next at 3 right answers/);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()], quiz: true }));
+
+test('a merchant stopped by the child rides on after 20 seconds without a trade, and stops again only after the child has walked away', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    const r = await page.evaluate(() => {
+      const g = window.gameTest, m = { s: 50, dir: 1, wait: 0, stopped: false }, L = 400, out = {};
+      const run = (secs, dist) => { for (let t = 0; t < secs; t += 0.1) g.merchantStep(m, L, dist, true, 0.1); };
+      run(1, 3);
+      out.stops = m.stopped; out.s1 = m.s;
+      run(g.MERCH_PATIENCE - 2, 3);
+      out.stillStopped = m.stopped && m.s === out.s1;
+      run(3, 3);
+      out.ridesOn = !m.stopped && m.s > out.s1;
+      const s2 = m.s;
+      run(5, 5);   // the child follows it: it keeps going
+      out.keepsGoing = !m.stopped && m.s > s2;
+      run(1, g.MERCH_GO + 1);   // the child walks away
+      run(0.5, 3);              // and comes back
+      out.stopsAgain = m.stopped;
+      // a cart the child does not come near never stops, and turns round at the end of its road after waiting
+      const n = { s: 395, dir: 1, wait: 0, stopped: false };
+      for (let t = 0; t < 3; t += 0.1) g.merchantStep(n, L, 200, true, 0.1);
+      out.turned = n.dir === -1 && n.s === L;
+      for (let t = 0; t < 17; t += 0.1) g.merchantStep(n, L, 200, true, 0.1);
+      out.back = n.s < L;
+      return out;
+    });
+    assert.deepEqual(r, { stops: true, s1: r.s1, stillStopped: true, ridesOn: true, keepsGoing: true, stopsAgain: true, turned: true, back: true });
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [readyGame()] }));

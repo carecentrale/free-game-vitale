@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.77 (3D)</title>
+<title>Adventurers of Drenerics v0.6.78 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -186,6 +186,12 @@
   #quizPanel .qrow{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px}
   #quizPanel .qrow button{flex:0 1 auto;margin-top:0;min-width:0;min-height:48px;padding:8px 12px;font-size:clamp(14px,4vmin,18px);border:2px solid rgba(255,255,255,.35);border-radius:12px;background:transparent;color:#fff;font-family:inherit;cursor:pointer}
   #quizPanel .qrow button:disabled{opacity:.3;cursor:default}
+  /* After a right answer (0.6.78): "Play again" and "Done", big enough for small fingers */
+  #quizPanel .qend{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+  #quizPanel .qend button{flex:1 1 140px;min-height:64px;border:3px solid rgba(255,255,255,.35);border-radius:16px;color:#fff;font-family:inherit;font-size:clamp(20px,5.5vmin,28px);font-weight:700;cursor:pointer}
+  #quizPanel .qagain{background:#2e9e4f}
+  #quizPanel .qdone{background:#3b6fd8}
+  #quizPanel .qbadge{margin-top:6px;font-size:clamp(18px,4.8vmin,24px);font-weight:700;color:#7df9ff}
   #quizPanel .qnot{margin-top:10px;min-height:48px;min-width:160px;padding:10px 22px;border:2px solid rgba(255,255,255,.35);border-radius:12px;background:transparent;color:#fff;font-family:inherit;font-size:18px;cursor:pointer}
   @keyframes qwob{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px) rotate(-3deg)}40%{transform:translateX(9px) rotate(3deg)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
   #quizPanel .qstars{position:absolute;inset:0;pointer-events:none;overflow:hidden}
@@ -1273,6 +1279,23 @@ else if (saved && typeof saved.world === 'string') {
     saved.drops = (saved.drops || []).map(r => Array.isArray(r) && r.length >= 4 ? [r[0] + CENTER, r[1], r[2] + CENTER, r[3], ...(r.length === 5 ? [r[4]] : [])] : r);
   }
 }
+// ---- Quiz badges (0.6.78) ----
+// Worked out from the counts the quiz report already keeps (right answers, maths and words together): nothing new is saved
+// or sent. The milestones are set by the owner in the admin page (game_settings quiz_m1 to quiz_m5) and kept on this device.
+const QUIZ_BADGES_DEFAULT = [1, 5, 25, 100, 500];
+const badgesOk = v => Array.isArray(v) && v.length === 5 && v.every((n, i) => Number.isInteger(n) && n >= 1 && n <= 100000 && (i === 0 || n > v[i - 1]));
+let quizBadges = QUIZ_BADGES_DEFAULT.slice();
+try { const v = JSON.parse(localStorage.getItem('kidsgame.quizBadges')); if (badgesOk(v)) quizBadges = v; } catch (e) {}
+const quizRightTotal = () => quizStats.math.first + quizStats.math.later + quizStats.words.first + quizStats.words.later;
+const quizBadgesEarned = (n = quizRightTotal()) => quizBadges.filter(m => n >= m).length;
+// The milestone just reached by the n-th right answer, or 0
+const quizBadgeNew = n => quizBadges.includes(n) ? n : 0;
+function setQuizBadges(v) {
+  if (!badgesOk(v)) return false;
+  quizBadges = v.slice();
+  try { localStorage.setItem('kidsgame.quizBadges', JSON.stringify(quizBadges)); } catch (e) {}
+  return true;
+}
 // Castle spacing X for a new world: the last value read from the server (or 500). Read again below once the game is open.
 try { const g = Number(localStorage.getItem('kidsgame.castleGap')); if (gapOk(g)) castleGapNext = g; } catch (e) {}
 if (!worldLoaded) initWorld(Math.floor(Math.random() * 999999) + 1);
@@ -2247,6 +2270,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.78', title: 'Play again, quiz badges and merchants on the move', items: [
+    'After a right answer the quiz stays open: tap Play again for another question from the same friend, or Done when you have had enough',
+    'Quiz badges: earn one for your 1st, 5th, 25th, 100th and 500th right answer. See them in Powers',
+    'Merchants no longer stay parked at a castle: if you do not trade, a merchant waits a little, then rides on to the next castle'] },
   { v: '0.6.77', title: 'Busy castles and travelling merchants', items: [
     'Castles seen from far away no longer look cut off or floating: they stand on their hill all the way until you arrive',
     'Castle courtyards are busy now: market stalls with their keepers, a well, barrels, crates, hay carts, banners and lanterns, and villagers walking about',
@@ -2606,6 +2633,7 @@ function powersHtml() {
   return `<div class="pname">${esc(playerName)}</div>` +
     row('dig', pw.dig.xp / need(pw.dig.lvl)) + row('build', pw.build.xp / need(pw.build.lvl)) + row('inv', invTotal() / invCap()) +
     row('fight', pw.fight.xp / need(pw.fight.lvl)) + (skills.length ? row('magic', pw.magic.xp / need(pw.magic.lvl)) : '') +
+    `<div class="small" id="quizBadgeRow">&#11088; Quiz badges: ${quizBadgesEarned()} of ${quizBadges.length}` + (quizBadgesEarned() < quizBadges.length ? ` &middot; next at ${quizBadges[quizBadgesEarned()]} right answers (${quizRightTotal()} so far)` : ' &middot; all earned!') + `</div>` +
     `<div class="small">World ${esc(worldId || 'alone')} &middot; v${VERSION}` + (others.size ? ' &middot; With: ' + [...others.values()].map(o => esc(o.name)).join(', ') : '') + `</div>` +
     `<button id="powersClose">Close</button>`;
 }
@@ -4298,8 +4326,8 @@ function removeFriend() {
     return;
   }
   // After a right answer the next friend comes a minute of moving about later; otherwise 4 to 7 minutes of play later
-  friendOnMove = !!friend.done;
-  friendWait = friend.done ? FRIEND_AFTER_SOLVE : friendGap();
+  friendOnMove = !!(friend.done || friend.solved);   // solved: right at least once, then "Play again" (0.6.78)
+  friendWait = friend.done || friend.solved ? FRIEND_AFTER_SOLVE : friendGap();
   friend = null;
 }
 function friendLeave() { if (friend && friend.state !== 'leave') { friend.state = 'leave'; friend.leaveT = 0; } }
@@ -4451,6 +4479,8 @@ function openQuiz() {
     else if (e.target.closest('.qhintb')) quizHint();
     else if (e.target.closest('.qswap')) quizSwap();
     else if (e.target.closest('.qnot')) quizNotNow();
+    else if (e.target.closest('.qagain')) quizPlayAgain();
+    else if (e.target.closest('.qdone')) quizDone();
   });
   document.body.appendChild(el);
   quizPanel = el;
@@ -4569,7 +4599,8 @@ function closeQuiz() {
 }
 // "Not now" (also Esc and the Back button): the panel closes and nothing is lost. The friend waits a little, then leaves.
 function quizNotNow() {
-  if (!quizPanel || (friend && friend.done)) return;
+  if (!quizPanel) return;
+  if (friend && friend.done) { quizDone(); return; }   // after a right answer, Esc and Back mean "Done" (0.6.78)
   closeQuiz();
   if (friend) friend.age = FRIEND_STAY - 20;
 }
@@ -4594,7 +4625,7 @@ function answerQuiz(i) {
 function quizWin() {
   const f = friend, msg = quizPanel.querySelector('.qmsg');
   const gems = f.wrong || f.hints ? QUIZ_GEMS_LATER : QUIZ_GEMS_FIRST;   // 2 gems after a wrong try or a hint, else 5
-  f.done = true;
+  f.done = true; f.solved = true;
   // a right first answer moves the level up; after a hint the level stays where it is (a hint is not a wrong answer either)
   const sub = quizSubject(f.q.kind), up = f.wrong || f.hints ? 0 : quizFirstAnswer(sub, true);
   quizCount(sub, f.wrong ? 'later' : 'first');
@@ -4604,12 +4635,38 @@ function quizWin() {
     return `<svg viewBox="0 0 24 24" width="34" height="34" style="--dx:${Math.round(Math.cos(a) * 190)}px;--dy:${Math.round(Math.sin(a) * 150)}px;animation-delay:${(k % 3) * 0.08}s">${QUIZ_ART.star}</svg>`;
   }).join('');
   addItem('gem', gems);
+  // Quiz badges (0.6.78): one for each milestone of right answers in all (1, 5, 25, 100, 500 unless the owner changed them)
+  const badge = quizBadgeNew(quizRightTotal());
+  if (badge) {
+    const b = document.createElement('div');
+    b.className = 'qbadge';
+    b.textContent = '\u2B50 New badge: ' + badge + ' right answer' + (badge === 1 ? '' : 's') + '!';
+    msg.after(b);
+  }
   saveGame();
-  setTimeout(() => {   // the stars show for a moment, then the friend waves and leaves
-    closeQuiz();
-    say(up ? 'Level up! ' + quizLevelLabel(sub, up) + '. +' + gems + ' gems!' : '+' + gems + ' gems!', up ? 3500 : 2000);
-    friendLeave();
-  }, 1300);
+  // 0.6.78 (the parent's report of 20 Nov 2026): the panel no longer closes by itself after a moment. The child chooses:
+  // "Play again" (a new question from the same friend, the usual gems, no limit) or "Done" (the friend waves and leaves).
+  for (const sel of ['.qans', '.qrow', '.qtiles']) { const e = quizPanel.querySelector(sel); if (e) e.querySelectorAll('button').forEach(x => { x.disabled = true; }); }
+  const row = quizPanel.querySelector('.qrow');
+  const end = document.createElement('div');
+  end.className = 'qend';
+  end.innerHTML = '<button class="qagain">Play again</button><button class="qdone">Done</button>';
+  row.replaceWith(end);
+}
+// "Play again" (0.6.78): the same friend asks a new question at the child's level. Gems as usual, as many times as the child likes
+function quizPlayAgain() {
+  const f = friend;
+  if (!quizPanel || !f || !f.done) return;
+  f.q = null; f.done = false; f.swaps = 0;   // a new question gets its own two swaps
+  quizPanel.remove(); quizPanel = null;
+  sfx('tap');
+  openQuiz();
+}
+// "Done" (and Esc or Back after a right answer): the panel closes and the friend waves and leaves
+function quizDone() {
+  if (!quizPanel || !friend || !friend.done) return;
+  closeQuiz();
+  friendLeave();
 }
 // The "Quiz friends" switch in Settings. Off: the friend on screen leaves at once and no new one appears.
 function setQuizOn(on) {
@@ -5217,6 +5274,10 @@ function updateCastleLife(dt) {
 // comes close it stops, and a tap opens the merchant's trades (gems for blocks and gear, monster parts and blocks for gems).
 // The carts are worked out on this device only: other players see their own. Nothing new is saved or sent.
 const MERCH_SPEED = 5, MERCH_WAIT = 15, MERCH_STOP = 7, MERCH_GO = 11, MERCH_REACH = 9, MERCH_ROADS = 700;
+// 0.6.78 (the parent's report of 20 Nov 2026: the carts stayed at a castle and never travelled). A cart stopped for the
+// child waits at most this many seconds of play without a trade, then rides on. It stops for the child again only after
+// the child has been more than MERCH_GO blocks away from it, so a child who stays by a castle gate still sees them come and go.
+const MERCH_PATIENCE = 20;
 const merchants = new Map();   // road key -> merchant
 let merchT = 0;
 function merchantCart(seedN) {
@@ -5264,6 +5325,27 @@ function landTop(x, z) {
 }
 const chunkDrawn = (x, z) => chunkMeshes.has(ckey(Math.floor(x / CS), Math.floor(z / CS)));
 const tradeMerchant = () => tradePanel ? tradePanel.m : null;
+// One step of a merchant: whether it stops for the child, and its way along the road (L long). dist: blocks to the child.
+function merchantStep(m, L, dist, shown, dt) {
+  const trading = m === tradeMerchant();
+  if (dist >= MERCH_GO) m.passing = false;   // the child walked away: next time it stops again
+  const wasStopped = m.stopped;
+  m.stopped = shown && (trading || (!m.passing && (dist < MERCH_STOP || (m.stopped && dist < MERCH_GO))));
+  if (!m.stopped || trading) m.stopT = 0;
+  else if (!paused) {
+    m.stopT = (m.stopT || 0) + dt;
+    if (m.stopT >= MERCH_PATIENCE) { m.passing = true; m.stopped = false; m.stopT = 0; }   // no trade: it rides on
+  }
+  if (wasStopped && !m.stopped && m.passing && dist < MERCH_GO) say('The merchant waves and rides on.', 2000);
+  if (!paused && !m.stopped) {
+    if (m.wait > 0) m.wait -= dt;
+    else {
+      m.s += m.dir * MERCH_SPEED * dt;
+      if (m.s >= L) { m.s = L; m.dir = -1; m.wait = MERCH_WAIT; }
+      else if (m.s <= 0) { m.s = 0; m.dir = 1; m.wait = MERCH_WAIT; }
+    }
+  }
+}
 function updateMerchants(dt) {
   merchT -= dt;
   if (merchT <= 0) {
@@ -5281,15 +5363,7 @@ function updateMerchants(dt) {
   for (const m of merchants.values()) {
     const L = roadLength(m.road), here = roadPoint(m.road, m.s), dist = Math.hypot(here.x - px, here.z - pz);
     const shown = chunkDrawn(here.x, here.z);
-    m.stopped = shown && (m === tradeMerchant() || dist < MERCH_STOP || (m.stopped && dist < MERCH_GO));
-    if (!paused && !m.stopped) {
-      if (m.wait > 0) m.wait -= dt;
-      else {
-        m.s += m.dir * MERCH_SPEED * dt;
-        if (m.s >= L) { m.s = L; m.dir = -1; m.wait = MERCH_WAIT; }
-        else if (m.s <= 0) { m.s = 0; m.dir = 1; m.wait = MERCH_WAIT; }
-      }
-    }
+    merchantStep(m, L, dist, shown, dt);
     const g = m.group, u = g.userData;
     g.visible = shown;
     if (!shown) { m.y = null; continue; }
@@ -5500,7 +5574,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.77';
+const VERSION = '0.6.78';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -5517,6 +5591,15 @@ fetch(SB_URL + '/rest/v1/game_settings?key=eq.castle_gap&select=value', { header
     castleGapNext = g;
     try { localStorage.setItem('kidsgame.castleGap', String(g)); } catch (e) {}
     if (worldSource === 'new' && paused && !worldId && edited.size === 0 && gen >= 2 && castleGap !== g) initWorld(seed, gen, g);
+  })
+  .catch(() => {});
+// Quiz badge milestones set by the owner in the admin page (0.6.78): only the five settings are asked for, nothing is sent
+fetch(SB_URL + '/rest/v1/game_settings?key=like.quiz_m*&select=key,value', { headers: { apikey: SB_KEY } })
+  .then(r => r.ok ? r.json() : null)
+  .then(rows => {
+    if (!Array.isArray(rows)) return;
+    const v = [1, 2, 3, 4, 5].map(i => { const row = rows.find(x => x && x.key === 'quiz_m' + i); return row ? row.value : null; });
+    setQuizBadges(v);
   })
   .catch(() => {});
 const sbReady = import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm')
@@ -6158,9 +6241,9 @@ window.gameTest = {
   // Quiz Friends (0.6.63)
   get quizOn() { return quizOn; }, setQuizOn, makeQuestion, nextQuestion, QUIZ_KINDS, get quizRecent() { return quizRecent.slice(); },
   get friend() { return friend ? { guide: !!friend.guide, kind: friend.kind, state: friend.state, x: friend.x, y: friend.y, z: friend.z, age: friend.age, wrong: friend.wrong, bubble: friend.group.userData.bubble.visible, wave: friend.group.userData.wave.rotation.z, inScene: friend.group.parent === scene } : null; },
-  get friendWait() { return friendWait; }, setFriendWait: s => { friendWait = s; friendOnMove = false; friendFirst = false; }, get friendOnMove() { return friendOnMove; }, callFriend: kind => spawnFriend(kind), removeFriend, friendOn, tapFriend, openQuiz, answerQuiz, quizNotNow,
+  get friendWait() { return friendWait; }, setFriendWait: s => { friendWait = s; friendOnMove = false; friendFirst = false; }, get friendOnMove() { return friendOnMove; }, callFriend: kind => spawnFriend(kind), removeFriend, friendOn, tapFriend, openQuiz, answerQuiz, quizNotNow, quizPlayAgain, quizDone, get quizBadges() { return quizBadges.slice(); }, setQuizBadges, quizBadgesEarned, quizRightTotal,
   // Castle life and travelling merchants (0.6.77)
-  castleLife: () => ({ castles: lifeGroups.size, people: [...lifeGroups.values()].reduce((a, L) => a + L.people.length, 0), merchants: merchants.size }),
+  merchantStep, MERCH_PATIENCE, MERCH_STOP, MERCH_GO, castleLife: () => ({ castles: lifeGroups.size, people: [...lifeGroups.values()].reduce((a, L) => a + L.people.length, 0), merchants: merchants.size }),
   merchantOffers, openTradeWith: offers => { openTrade({ offers, group: new THREE.Group() }); return !!tradePanel; }, doTrade, closeTrade, get tradeOpen() { return !!tradePanel; },
   setInv: (id, n) => { inv[id] = n; renderUI(); }, get gearList() { return gear.map(g => g.t); }, get outlineClip() { return drawnClip.map(p => p.constant); },
   BUYS, SELLS,

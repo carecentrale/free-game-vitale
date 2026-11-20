@@ -7,7 +7,7 @@
 <meta name="description" content="How to play Adventurers of Drenerics: moving, digging, building, the bag, gems, powers, monsters, magic, saving and playing with friends.">
 <!-- This guide must describe the game as it is. Every new feature or changed rule gets its part here in the same release,
      and guide-version below is set to the game's version (scripts/tests/site-pages.test.mjs checks it). -->
-<meta name="guide-version" content="0.6.77">
+<meta name="guide-version" content="0.6.78">
 <style>
   :root{--bg:#f4f6fb;--card:#fff;--ink:#1d2433;--muted:#5b6475;--line:#e4e7ee;--accent:#3b6fd8;--key:#eef1f8}
   @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0;--key:#262e44}}
@@ -40,7 +40,7 @@
   <nav><a href="/">Home</a><a href="/release-notes.html">Release notes</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="/contact.html">Contact</a></nav>
 
   <h1>How to play</h1>
-  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.77</span>. New things are added here with every version; see the <a href="/release-notes.html">release notes</a> for what changed.</div>
+  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.78</span>. New things are added here with every version; see the <a href="/release-notes.html">release notes</a> for what changed.</div>
 
   <p>Adventurers of Drenerics is a world made of blocks. You dig into it, build with what you dig, collect gems, grow stronger and meet monsters. You can play alone or in the same world as your friends.</p>
   <a class="play" href="/play/">Play now</a>
@@ -169,7 +169,7 @@
 
   <h2 id="powers">9. Powers and levels</h2>
   <p>Tap the Powers button at the top right to see your powers, their levels and how close each one is to the next level.</p>
-  <p>You have five powers. Each one grows when you use it, and the game tells you when one goes up a level. The Powers panel also shows your name, the world code and the game version. Close it with its Close button, a tap outside it, <kbd>Esc</kbd> or the Android Back button. During play the top left of the screen shows your gems and how full your bag is.</p>
+  <p>You have five powers. Each one grows when you use it, and the game tells you when one goes up a level. The Powers panel also shows your <a href="#quiz">quiz badges</a>, your name, the world code and the game version. Close it with its Close button, a tap outside it, <kbd>Esc</kbd> or the Android Back button. During play the top left of the screen shows your gems and how full your bag is.</p>
   <div class="scroll">
   <table>
     <tr><th>Power</th><th>How it grows</th><th>What it does</th></tr>
@@ -258,7 +258,7 @@
     <li>Castle courtyards are busy: market stalls with their keepers, a well, barrels, crates, hay and hand carts, banners and lanterns, and villagers walking about. They are for looking at: you can walk through them. Since version 0.6.77, in every world that has castles.</li>
   </ul>
   <h3>Merchants</h3>
-  <p>Merchants ride hover carts along the roads from one castle to the next, and wait a little at each gate. Walk up to a cart and it stops; a gem bubble shows over the merchant. Tap the cart to see the trades. Merchants trade for gems only, never real money.</p>
+  <p>Merchants ride hover carts along the roads from one castle to the next, and wait a little at each gate. Walk up to a cart and it stops; a gem bubble shows over the merchant. Tap the cart to see the trades. If you do not trade, the merchant waits about 20 seconds, then waves and rides on; walk away and come back to stop it again. Merchants trade for gems only, never real money.</p>
   <ul>
     <li>Every merchant buys all your monster parts (1 gem each) and some blocks (for example 8 dirt for 1 gem).</li>
     <li>Every merchant sells four things for gems: gear such as a pickaxe, swords and armour, or castle blocks. Different merchants sell different things.</li>
@@ -299,9 +299,10 @@
     <li>The other half are <strong>word scrambles</strong>. The letters of a word are mixed up. Tap the letters in the right order to spell the word. Tap a letter you have placed to take it back. Words start with 3 letters and grow to 8.</li>
     <li><strong>Your levels.</strong> You have a Maths level and a Words level, each from 1 to 100. Answer right the first time and that level goes up. Higher levels bring bigger sums and longer words. Short words come with a picture; from 6 letters on you spell the word with no picture. A wrong answer never takes a level away.</li>
     <li>The question shows your level at the top, such as <em>Maths level 23</em>. When it rises you see <em>Level up!</em> with the new number. At the start you climb five levels at a time, until your first wrong first answer; after that, one level at a time.</li>
-    <li>A right answer gives <strong>5 gems</strong>. Then the friend waves and leaves.</li>
+    <li>A right answer gives <strong>5 gems</strong>. The question stays open with two big buttons: <em>Play again</em> asks you a new question from the same friend (you can play as many as you like, with the same gems each time), and <em>Done</em> closes it, and the friend waves and leaves. <kbd>Esc</kbd> or the Android Back button also mean Done.</li>
+    <li><strong>Quiz badges.</strong> You earn a badge for your 1st, 5th, 25th, 100th and 500th right answer, maths and words together. A new badge shows with a star when you earn it. See how many you have, and how many right answers to the next one, in the <a href="#powers">Powers</a> panel.</li>
     <li>A wrong answer takes nothing away. The button wobbles and you can try again. After two wrong tries you get help: a picture with dots for the easy maths, one wrong answer taken away for bigger sums, or the first letter put in place for a word. A right answer after a wrong try gives <strong>2 gems</strong>.</li>
-    <li><strong>Help and swaps.</strong> Stuck? Tap <em>Hint</em> for a clue. You get 2 gems instead of 5 when you use one. Want a different question? Tap <em>Another question</em>. You can swap twice each time a friend visits.</li>
+    <li><strong>Help and swaps.</strong> Stuck? Tap <em>Hint</em> for a clue. You get 2 gems instead of 5 when you use one. Want a different question? Tap <em>Another question</em>. You can swap twice for each question.</li>
     <li>A hint for a word puts the next letter in its place, up to half of the letters. A hint for maths shows the same help as after two wrong tries; for the picture questions a second hint takes one wrong answer away. A hint is not a wrong answer, and your level stays where it is. A swapped question is of the same kind (maths stays maths, words stay words) and counts as neither right nor wrong. A button turns grey when it has nothing left to give.</li>
     <li><em>Not now</em> closes the question and nothing is lost. The friend waits a little longer, then leaves. Tap it again before it goes to get the same question back.</li>
     <li>A friend leaves by itself after a minute and a half, or when you walk far away. Another one comes later.</li>
