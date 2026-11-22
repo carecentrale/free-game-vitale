@@ -8,6 +8,7 @@ Nicola played 0.6.78 on 22 Nov 2026: Play again and the merchants work, but he c
 - Nothing else changes: same milestones, same counts, nothing new saved or sent
 - Tests: the 0.6.78 browser test now checks the section is right under the name, needs no scrolling, has 40-pixel stars, and lights the right number of them
 - Checked: syntax check, the fast tests, that browser test in the cloud workspace. Not checked: played by the parent
+- **Admin page sign-in** (bug reported by Nicola on 22 Nov 2026): the sign-in email held only a link, no code, and the link opened the home page. Supabase's free plan sends its standard email, which can't be edited without a custom email server. The admin page now asks for the link to come back to the admin page, which signs in when it opens. The code box still works if an email ever carries a code. Commit 2f9ec6b, with a release check for it. Checked: syntax check of the admin page, the fast tests. Not checked: a real sign-in by the parent
 
 ## 0.6.78: Play again, quiz badges, merchants on the move
 Two bugs reported by Nicola on 20 Nov 2026 after playing 0.6.77, and his answers to the question about gems. Not from a PM hand-off.
