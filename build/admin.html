@@ -106,6 +106,7 @@ async function load() {
   loadDebugLog();
   loadCastleGap();
   loadBadges();
+  loadForceDays();
 }
 
 // ---- Castle spacing (0.6.76, SPEC-016 part G): a game setting everyone can read and only the owner can change ----
@@ -121,6 +122,28 @@ $('saveGap').addEventListener('click', async () => {
   if (error) { $('gapMsg').textContent = 'Not saved: ' + error.message; return; }
   if (!data || !data.length) { $('gapMsg').textContent = 'Not saved: only the owner\'s account can change this.'; return; }
   $('gapMsg').textContent = 'Saved: one castle about every ' + data[0].value + ' blocks, in worlds started from now on.';
+});
+
+// ---- Forced update (0.6.80, SPEC-019): a game setting everyone can read and only the owner can change ----
+const showForceDays = row => {
+  $('forceDays').value = row ? row.value : 30;
+  $('forceNow').textContent = row
+    ? 'Now: ' + row.value + (row.value === 1 ? ' day' : ' days') + ', last changed ' + new Date(row.updated_at).toLocaleDateString() + '.'
+    : 'Not set up in the database yet (migration 0011): the game uses 30 days.';
+};
+async function loadForceDays() {
+  const { data, error } = await sb.from('game_settings').select('value,updated_at').eq('key', 'force_update_days').maybeSingle();
+  if (error) { $('forceMsg').textContent = 'Not available yet: ' + error.message; return; }
+  showForceDays(data);
+}
+$('saveForce').addEventListener('click', async () => {
+  const raw = String($('forceDays').value).trim(), v = Number(raw);
+  if (raw === '' || !Number.isInteger(v) || v < 0 || v > 180) { $('forceMsg').textContent = 'Choose a whole number from 0 to 180.'; return; }
+  const { data, error } = await sb.from('game_settings').update({ value: v, updated_at: new Date().toISOString() }).eq('key', 'force_update_days').select('value,updated_at');
+  if (error) { $('forceMsg').textContent = 'Not saved: ' + error.message; return; }
+  if (!data || !data.length) { $('forceMsg').textContent = 'Not saved: only the owner\'s account can change this.'; return; }
+  showForceDays(data[0]);
+  $('forceMsg').textContent = 'Saved. Every game uses it the next time it opens.';
 });
 
 // ---- Quiz badge milestones (0.6.78): five game settings (quiz_m1 to quiz_m5) everyone can read and only the owner can change ----
@@ -372,6 +395,19 @@ load();
     </div>
     <div class="muted">One castle about every X blocks, from 250 to 2000 (it starts at 500). A change affects only worlds started afterwards; worlds already started keep their castles where they are. Only the owner's account can change it. It holds nothing about any player.</div>
     <div id="gapMsg" class="muted" style="margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <b>Forced update (owner only)</b>
+      <span class="row">
+        <input id="forceDays" type="number" min="0" max="180" step="1" style="max-width:90px">
+        <button class="secondary" id="saveForce">Save</button>
+      </span>
+    </div>
+    <div class="muted">Force the update when a new version has waited this many days. A number from 0 to 180 (it starts at 30). 0 means every new version is forced at once. Before that, the Android app offers the new version on Google Play's own small window and downloads it while the child plays. Saving changes it for every player the next time their game opens. Only the owner's account can change it. It holds nothing about any player.</div>
+    <div id="forceNow" class="muted" style="margin-top:6px"></div>
+    <div id="forceMsg" class="muted" style="margin-top:6px"></div>
   </div>
 
   <div class="card">

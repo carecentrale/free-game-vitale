@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.79 (3D)</title>
+<title>Adventurers of Drenerics v0.6.80 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -2278,6 +2278,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.80', title: 'The game offers each new version', items: [
+    'When there is a new version, the game offers it. Tap Update, keep playing, then tap Restart. Your world stays safe'] },
   { v: '0.6.79', title: 'Quiz badges are easy to find', items: [
     'Tap Powers to see your quiz badges: five big stars that light up as you earn them, and how many right answers until the next one'] },
   { v: '0.6.78', title: 'Play again, quiz badges and merchants on the move', items: [
@@ -2552,7 +2554,7 @@ function renderSettings() {
     `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#128024; Tips from Vital</b><div style="font-size:13px;opacity:.8;margin-top:2px">Vital the elephant comes around and shows how to play</div></div>` +
     `<button id="vitalSwitch" style="flex:none;min-height:48px;min-width:96px;border:0;border-radius:12px;font-size:17px;font-weight:600;color:#fff;cursor:pointer;background:${vital.on ? '#2e9e4f' : '#666b80'}">${vital.on ? 'On' : 'Off'}</button></div>` +
     `<details style="margin-top:14px"><summary style="cursor:pointer;padding:12px 0">Music, sound and picture credits</summary><div id="creditList" style="font-size:13px;opacity:.9">${creditsHtml()}</div><div id="picCredit" style="font-size:13px;opacity:.9;margin-top:8px">Pictures in word questions: Twemoji, copyright Twitter, Inc and other contributors, licensed under CC BY 4.0.</div></details>` +
-    `<div style="margin-top:10px"><b>Game version ${esc(VERSION)}</b></div>` +
+    `<div style="margin-top:10px"><b>Game version ${esc(VERSION)}</b>${updLine() ? `<div id="updLine" style="font-size:14px;opacity:.85;margin-top:2px">${esc(updLine())}</div>` : ''}</div>` +
     // The list of changes is folded away, so the Quit button below is easy to reach
     `<details><summary style="cursor:pointer;padding:12px 0;opacity:.85">What has changed, newest first</summary>` +
     GAME_HISTORY.map(h =>
@@ -3306,7 +3308,9 @@ function swingOnce(en, weapon) {
   wear(weapon);
 }
 // Takes health off an enemy and says so. Defeats it when its health is gone.
+let lastFightAt = 0;   // when an enemy was last hit: the update window waits until a fight is over (0.6.80)
 function hurtEnemy(en, amount) {
+  lastFightAt = Date.now();
   en.hp -= amount;
   const k = ENEMY_KINDS[en.kind];
   if (en.hp <= 0) { defeatEnemy(en); return; }
@@ -5591,7 +5595,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.79';
+const VERSION = '0.6.80';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -5672,12 +5676,14 @@ function flushEvents() {
   sb.from('game_events').insert(rows).then(() => {}, () => {});
 }
 setInterval(flushEvents, 10000);
+let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6.80)
 // Parent area: tap the top-left corner 5 times within 3 seconds (a child won't find it by accident).
 // It shows a link to the parent stats page, which requires an email sign-in.
 (() => {
   const tap = document.createElement('div');
   tap.style.cssText = 'position:fixed;left:0;top:0;width:70px;height:70px;z-index:30;';
   const panel = document.createElement('div');
+  panel.id = 'parentArea';
   panel.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:40;';
   panel.innerHTML = '<div style="background:#1e2236;color:#fff;border-radius:14px;padding:20px;max-width:380px;max-height:92vh;overflow:auto;box-sizing:border-box;font-family:system-ui,sans-serif;text-align:center">' +
     '<div style="font-size:18px;font-weight:700;margin-bottom:8px">Parent area</div>' +
@@ -5764,22 +5770,26 @@ setInterval(flushEvents, 10000);
   // The free cloud save holds one game. Automatic saves never replace a different game; a manual "Save now" asks first.
   const worldOf = s => { try { return JSON.parse(s).worldId || null; } catch (e) { return null; } };
   async function cloudSaveNow(manual) {
-    if (!sb || !cloudUser) return;
+    if (!sb || !cloudUser) return true;
     saveGame();
-    if (activeSlot === null) { setStatus('Pick a saved game first.'); return; }
+    if (activeSlot === null) { setStatus('Pick a saved game first.'); return true; }
     const save = localStorage.getItem(slotKey(activeSlot));
-    if (!save) return;
-    const { data: cur } = await sb.from('cloud_saves').select('save').eq('user_id', cloudUser.id).maybeSingle();
+    if (!save) return true;
+    const { data: cur, error: readErr } = await sb.from('cloud_saves').select('save').eq('user_id', cloudUser.id).maybeSingle();
+    if (readErr) { setStatus('Could not save to the cloud: ' + readErr.message); return false; }
     const cloudWorld = cur && cur.save ? worldOf(cur.save) : null;
     const thisWorld = worldOf(save);
     if (cloudWorld && thisWorld && cloudWorld !== thisWorld) {
-      if (!manual) { setStatus('Your free cloud save holds the game for world ' + cloudWorld + '. Press Save now to replace it with this game.'); return; }
-      if (!confirm('Replace the cloud save (world ' + cloudWorld + ') with this game (world ' + thisWorld + ')? The cloud save can only hold one game.')) return;
+      if (!manual) { setStatus('Your free cloud save holds the game for world ' + cloudWorld + '. Press Save now to replace it with this game.'); return true; }
+      if (!confirm('Replace the cloud save (world ' + cloudWorld + ') with this game (world ' + thisWorld + ')? The cloud save can only hold one game.')) return true;
     }
     const { error } = await sb.from('cloud_saves').upsert({ user_id: cloudUser.id, save, updated_at: new Date().toISOString() });
     setStatus(error ? 'Could not save to the cloud: ' + error.message
       : 'Saved to the cloud at ' + new Date().toLocaleTimeString() + '.');
+    return !error;
   }
+  // Before the game restarts for a new version (0.6.80): the cloud save too, if a parent is connected and it is on
+  cloudSaveForUpdate = async () => { try { return !(cloudUser && !cloudPaused()) || await cloudSaveNow(false); } catch (e) { return false; } };
   async function cloudLoadNow() {
     if (!sb || !cloudUser) return;
     const { data, error } = await sb.from('cloud_saves').select('save').eq('user_id', cloudUser.id).maybeSingle();
@@ -6123,6 +6133,163 @@ document.getElementById('slotsBody').addEventListener('click', e => {
   }
 });
 
+// ---- Getting the new version (0.6.80, SPEC-019): Google Play's in-app update, in the Android app only ----
+// The game asks Google Play when it opens and each time it comes back from the background. A new version that has waited
+// fewer days than the owner's limit (admin page, game_settings force_update_days, 30 to start) is offered on Google's small
+// window and downloads while the child plays; "Restart to get the new version" then saves and installs it. Past the limit,
+// Google's full-screen page shows before play, after a save. Nothing about the player is sent: only the setting is read.
+// The website game, and an app not installed from Google Play, show nothing and log nothing.
+const UPD_DAYS_START = 30;
+const updDaysOk = d => Number.isInteger(d) && d >= 0 && d <= 180;
+const UPD = { AVAILABLE: 2, IN_PROGRESS: 3, NOT_AVAILABLE: 1, DOWNLOADED: 11, OK: 0 };
+const upd = {
+  days: (() => { try { const r = localStorage.getItem('kidsgame.forceUpdateDays'); return r !== null && updDaysOk(+r) ? +r : UPD_DAYS_START; } catch (e) { return UPD_DAYS_START; } })(),
+  line: '',            // Settings: '' (cannot be checked), 'Up to date' or 'New version ready'
+  want: null,          // what waits for a safe moment: 'flex' (Google's small window), 'force' (Google's full-screen page)
+  downloaded: false,   // the new version is downloaded and waits for a restart
+  restartLabel: 'Restart to get the new version',
+  blocked: false,      // "A new version is needed" is on screen
+  checking: false, listening: false, offeredFlex: false, busy: false,
+  plugin: null,        // the automated tests put a pretend Google Play here
+};
+fetch(SB_URL + '/rest/v1/game_settings?key=eq.force_update_days&select=value', { headers: { apikey: SB_KEY } })
+  .then(r => r.ok ? r.json() : null)
+  .then(rows => {
+    const d = rows && rows[0] && rows[0].value;
+    if (!updDaysOk(d)) return;
+    upd.days = d;
+    try { localStorage.setItem('kidsgame.forceUpdateDays', String(d)); } catch (e) {}
+  })
+  .catch(() => {});
+function updPlugin() {
+  if (upd.plugin) return upd.plugin;
+  const C = window.Capacitor;
+  if (!C || !C.isNativePlatform || !C.isNativePlatform() || (C.getPlatform && C.getPlatform() !== 'android')) return null;
+  if (C.isPluginAvailable && !C.isPluginAvailable('AppUpdate')) return null;
+  return C.Plugins && C.Plugins.AppUpdate ? C.Plugins.AppUpdate : null;
+}
+const updWait = (p, ms) => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('timeout')), ms))]);
+function updLine() { return upd.line; }
+// Past the limit? 0 forces every new version at once. Otherwise the days Google Play reports since the new version
+// reached this device; when it reports none, the background update is used.
+function updForced(info) {
+  if (info.immediateUpdateAllowed === false) return false;
+  if (upd.days === 0) return true;
+  const d = info.clientVersionStalenessDays;
+  return typeof d === 'number' && d >= upd.days;
+}
+// A safe moment: walking, standing or on the start screen. Never in a fight, a quiz, Vital's tips, a menu or the parent area.
+function updSafe() {
+  const parent = document.getElementById('parentArea');
+  if (settingsOpen || bagOpen || powersOpen || quitOpen || tradePanel || quizPanel || tipPanel) return false;
+  if (parent && parent.style.display !== 'none' && parent.style.display !== '') return false;
+  if (Date.now() - lastFightAt < 5000) return false;
+  return true;
+}
+async function updCheck() {
+  const p = updPlugin();
+  if (!p || upd.checking || upd.busy) return;
+  upd.checking = true;
+  try {
+    const info = await updWait(p.getAppUpdateInfo(), 5000);
+    if (!info) return;
+    if (info.updateAvailability === UPD.NOT_AVAILABLE) { upd.line = 'Up to date'; upd.want = null; return; }
+    if (info.updateAvailability !== UPD.AVAILABLE && info.updateAvailability !== UPD.IN_PROGRESS && info.installStatus !== UPD.DOWNLOADED) return;
+    upd.line = 'New version ready';
+    if (upd.blocked) return;                       // the "new version is needed" screen stays; Google's page is not reopened by itself
+    if (updForced(info)) { upd.want = 'force'; return; }
+    if (info.installStatus === UPD.DOWNLOADED) { upd.downloaded = true; return; }
+    if (info.updateAvailability === UPD.AVAILABLE && !upd.offeredFlex && info.flexibleUpdateAllowed !== false) upd.want = 'flex';
+  } catch (e) {
+    // no internet, Google Play not answering within 5 seconds, or not installed from Google Play: play on, check next time
+  } finally { upd.checking = false; }
+}
+// Saves the game on this device (and the cloud save if a parent is connected). false when the save did not work.
+async function updSave() {
+  if (activeSlot === null) return true;          // still on the start screen: no game to save yet
+  const before = (() => { try { return localStorage.getItem(slotKey(activeSlot)); } catch (e) { return null; } })();
+  saveGame();
+  let ok = false;
+  try { const now = localStorage.getItem(slotKey(activeSlot)); ok = !!now && (now !== before || JSON.parse(now).at > Date.now() - 2000); } catch (e) { ok = false; }
+  if (!ok) return false;
+  return await cloudSaveForUpdate();
+}
+// The screens the game adds: the small restart button at the top, and the full screen when a new version is needed
+const updBtn = document.createElement('button');
+updBtn.id = 'updRestart';
+updBtn.style.cssText = 'position:fixed;top:6px;left:50%;transform:translateX(-50%);z-index:45;display:none;min-height:44px;padding:8px 16px;border:0;border-radius:12px;background:#2e9e4f;color:#fff;font-size:16px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.4);cursor:pointer;font-family:system-ui,sans-serif';
+document.body.appendChild(updBtn);
+const updScreen = document.createElement('div');
+updScreen.id = 'updNeeded';
+updScreen.style.cssText = 'position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(10,12,25,.94);color:#fff;font-family:system-ui,sans-serif;padding:16px;box-sizing:border-box;text-align:center';
+updScreen.innerHTML = '<div style="max-width:420px"><div id="updText" style="font-size:22px;font-weight:700;margin-bottom:22px">A new version is needed to keep playing.</div>' +
+  '<button id="updGo" style="display:block;width:100%;min-height:64px;border:0;border-radius:16px;background:#2e9e4f;color:#fff;font-size:24px;font-weight:700;cursor:pointer">Update</button>' +
+  '<button id="updQuit" style="margin-top:18px;min-height:44px;min-width:110px;border:1px solid #667;border-radius:12px;background:transparent;color:#fff;font-size:16px;cursor:pointer">Quit</button></div>';
+document.body.appendChild(updScreen);
+function updShowNeeded(text) {
+  upd.blocked = true;
+  paused = true;
+  document.getElementById('updText').textContent = text || 'A new version is needed to keep playing.';
+  updScreen.style.display = 'flex';
+}
+async function updForceNow() {
+  const p = updPlugin();
+  if (!p || upd.busy) return;
+  upd.busy = true; upd.want = null;
+  try {
+    if (!(await updSave())) { updShowNeeded('Could not save. Try again'); document.getElementById('updGo').textContent = 'Try again'; return; }
+    document.getElementById('updGo').textContent = 'Update';
+    const r = await p.performImmediateUpdate();
+    // On success Google Play installs the new version and reopens the game. Closed or failed: the old version cannot be played.
+    if (!r || r.code !== UPD.OK) updShowNeeded();
+  } catch (e) { updShowNeeded(); }
+  finally { upd.busy = false; }
+}
+async function updFlexNow() {
+  const p = updPlugin();
+  if (!p || upd.busy) return;
+  upd.busy = true; upd.want = null; upd.offeredFlex = true;   // closed: Google's window comes back the next time the game opens
+  try {
+    if (!upd.listening && p.addListener) {
+      upd.listening = true;
+      await p.addListener('onFlexibleUpdateStateChange', st => { if (st && st.installStatus === UPD.DOWNLOADED) upd.downloaded = true; });
+    }
+    await p.startFlexibleUpdate();
+  } catch (e) {}
+  finally { upd.busy = false; }
+}
+async function updRestart() {
+  const p = updPlugin();
+  if (!p || upd.busy) return;
+  upd.busy = true;
+  updBtn.textContent = 'Saving...';
+  try {
+    if (!(await updSave())) { updBtn.textContent = 'Could not save. Try again'; return; }
+    await p.completeFlexibleUpdate();              // Google Play installs the new version and reopens the game
+  } catch (e) { updBtn.textContent = upd.restartLabel; }
+  finally { upd.busy = false; }
+}
+updBtn.addEventListener('click', () => updRestart());
+document.getElementById('updGo').addEventListener('click', () => {
+  if (document.getElementById('updGo').textContent === 'Try again') { updScreen.style.display = 'none'; upd.blocked = false; }
+  updForceNow();
+});
+document.getElementById('updQuit').addEventListener('click', () => { const app = appPlugin(); if (app) app.exitApp(); });
+// Once a second: show what waits, at a safe moment only
+function updTick() {
+  if (upd.blocked) { updBtn.style.display = 'none'; return; }
+  const safe = updSafe();
+  if (safe && upd.want === 'force') updForceNow();
+  else if (safe && upd.want === 'flex') updFlexNow();
+  const show = upd.downloaded && safe && !upd.blocked;
+  if (show && !upd.busy && updBtn.textContent !== 'Could not save. Try again') updBtn.textContent = upd.restartLabel;
+  updBtn.style.display = show || (upd.busy && upd.downloaded) ? 'block' : 'none';
+}
+setInterval(updTick, 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) updCheck(); });
+// Opened with the new version already downloaded: "Restart now"
+if (updPlugin()) updCheck().then(() => { if (upd.downloaded) upd.restartLabel = 'Restart now'; });
+
 // ---- Startup ----
 applyLook();
 logEvent('session_start', VERSION);
@@ -6144,6 +6311,8 @@ requestAnimationFrame(frame);
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  // Getting the new version (0.6.80, SPEC-019): a pretend Google Play can be put in place
+  upd, updCheck, updTick, updSafe, updForced, updSave, setUpdPlugin: p => { upd.plugin = p; },
   // Phone layout and analog stick (0.6.57)
   get stick() { return { x: stick.x, z: stick.z }; }, setStick, isPhone, get panelOpen() { return panelOpen; },
   get quitOpen() { return quitOpen; }, backAction, get bagOpen() { return bagOpen; }, get settingsOpen() { return settingsOpen; },

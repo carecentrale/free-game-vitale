@@ -2,6 +2,19 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.80: The game offers each new version (SPEC-019 version 3)
+Built from the PM's SPEC-019 version 3, approved by Nicola in the build chat on 22 Nov 2026 ("ready to build it's approved").
+- **Android app only.** When the game opens, and each time it comes back from the background, it asks Google Play whether there is a newer version (Google Play's in-app update, through the plugin `@capawesome/capacitor-app-update` 8.1, MIT)
+- **Within the limit:** Google Play's own small window offers the update. The download runs while the child plays; then a green **Restart to get the new version** button appears at the top. Tapping it saves the game (and the cloud save if a parent is connected) and Google Play installs the new version and reopens the game. Opened again with the download waiting, the button reads **Restart now**. Closing Google's window: play the old version; the window comes back the next time the game opens
+- **Past the limit:** the game saves, then Google Play's full-screen update page shows before play. Closing it shows "A new version is needed to keep playing." with Update and Quit; the old version cannot be played, and Google's page is never reopened by itself. A failed save shows "Could not save. Try again" and waits
+- Never during a fight (5 seconds after the last hit), a quiz, Vital's tips, a menu or the parent area
+- **Limit set in the admin page:** new card "Forced update (owner only)", 0 to 180 days (30 to start; 0 forces every new version at once), with the current value and the date it was last changed. Kept in `game_settings` as `force_update_days` (migration `docs/migrations/0011_force_update_days.sql`, same rules as `castle_gap`). The game reads it when it opens and keeps the last value on the device (`kidsgame.forceUpdateDays`); without the internet, or before the migration is applied: 30
+- Settings shows "Up to date" or "New version ready" under the version number, or nothing when it cannot be checked (website, no internet, not installed from Google Play)
+- No Play Store button or link in the game. No change to the release script
+- **Data:** nothing about the player is collected or sent; only the setting is read. **Migration 0011 is not applied to the live database yet**
+- Tests: new `scripts/tests/app-update.test.mjs` (19 tests: the game's update code run against a pretend Google Play) and one browser test ("SPEC-019")
+- Checked: syntax check of the game and the admin page; the fast tests; the SPEC-019 browser test in the cloud workspace. Not checked: a real phone with two builds on the internal test track (done-when 1, 2, 5); the admin card's Save; that the app builds with the plugin (it is built on the laptop); played by the parent
+
 ## 0.6.79: Quiz badges easy to find
 Nicola played 0.6.78 on 22 Nov 2026: Play again and the merchants work, but he could not find the badges. In 0.6.78 they were one small grey line of text near the bottom of the Powers panel.
 - The Powers panel now opens with a **Quiz badges** section right under the player's name: five big stars, lit when earned and grey when not, each with its number of right answers (the milestones set in the admin page), and a line such as "7 right answers so far. Next badge at 25."

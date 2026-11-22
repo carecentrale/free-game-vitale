@@ -3318,3 +3318,32 @@ test('a merchant stopped by the child rides on after 20 seconds without a trade,
     assert.deepEqual(r, { stops: true, s1: r.s1, stillStopped: true, ridesOn: true, keepsGoing: true, stopsAgain: true, turned: true, back: true });
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [readyGame()] }));
+
+test('SPEC-019: the website game shows no update screen or button; past the limit a pretend Google Play page is shown after a save, and closing it blocks play', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    // the game is open; the update check does not need the character to have landed
+    await page.waitForFunction(() => window.gameTest && window.gameTest.upd, null, { timeout: 90000 });
+    const r = await page.evaluate(async () => {
+      const g = window.gameTest, out = {};
+      const shown = id => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none'; };
+      out.webButton = shown('updRestart'); out.webScreen = shown('updNeeded'); out.webLine = g.upd.line;
+      const calls = [];
+      g.upd.days = 30;
+      g.setUpdPlugin({
+        getAppUpdateInfo: async () => ({ updateAvailability: 2, clientVersionStalenessDays: 45, immediateUpdateAllowed: true, flexibleUpdateAllowed: true }),
+        performImmediateUpdate: async () => { calls.push('immediate'); return { code: 1 }; },
+        startFlexibleUpdate: async () => { calls.push('flexible'); return { code: 0 }; },
+        completeFlexibleUpdate: async () => {}, addListener: async () => ({ remove() {} }),
+      });
+      await g.updCheck();
+      g.updTick();
+      await new Promise(r => setTimeout(r, 300));
+      out.calls = calls.slice(); out.blocked = shown('updNeeded');
+      out.text = document.getElementById('updText').textContent;
+      out.line = g.upd.line;
+      return out;
+    });
+    assert.deepEqual(r, { webButton: false, webScreen: false, webLine: '', calls: ['immediate'], blocked: true,
+      text: 'A new version is needed to keep playing.', line: 'New version ready' });
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
