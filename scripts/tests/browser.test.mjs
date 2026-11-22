@@ -3270,9 +3270,22 @@ test('after a right answer the question stays open: Play again asks a new questi
     assert.equal(r.state, 'leave', 'the friend leaves after Done');
     assert.equal(r.quitOpen, false, 'Back also asked about quitting');
     // The Powers panel shows the badges
-    const row = await page.evaluate(() => { document.getElementById('powersBtn').click(); return (document.getElementById('quizBadgeRow') || {}).textContent || ''; });
-    assert.match(row, /Quiz badges: 2 of 5/);
-    assert.match(row, /next at 3 right answers/);
+    // The Powers panel shows the badges near the top, big enough to see (0.6.79: the parent could not find the 0.6.78 line)
+    const pb = await page.evaluate(() => {
+      document.getElementById('powersBtn').click();
+      const box = document.getElementById('quizBadgeRow'), panel = document.getElementById('powers');
+      if (!box) return null;
+      const r = box.getBoundingClientRect(), p = panel.getBoundingClientRect();
+      return { text: box.textContent, lit: box.querySelectorAll('.pb:not(.off)').length, dark: box.querySelectorAll('.pb.off').length,
+        star: box.querySelector('.pb svg').getBoundingClientRect().height, inView: r.top >= p.top && r.bottom <= p.bottom, afterName: box.previousElementSibling.className === 'pname' };
+    });
+    assert.ok(pb, 'no badge section in Powers');
+    assert.match(pb.text, /Quiz badges: 2 of 5/);
+    assert.match(pb.text, /Next badge at 3/);
+    assert.equal(pb.lit, 2); assert.equal(pb.dark, 3);
+    assert.ok(pb.star >= 40, 'badge stars too small');
+    assert.equal(pb.inView, true, 'badges need scrolling to be seen');
+    assert.equal(pb.afterName, true);
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [readyGame()], quiz: true }));
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.78 (3D)</title>
+<title>Adventurers of Drenerics v0.6.79 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -25,6 +25,14 @@
   #powers .pname{font-size:22px;font-weight:700;color:#ffd54a;margin-bottom:8px}
   #powers .bar{width:100%;height:16px;margin:4px 0 12px;border-radius:6px;overflow:hidden}
   #powers .small{font-size:13px;opacity:.8;margin-top:4px}
+  /* Quiz badges in Powers (0.6.79): five stars, lit when earned, each with its number of right answers */
+  #powers .pbadges{margin:4px 0 12px;padding:10px;border-radius:12px;background:rgba(255,213,74,.12)}
+  #powers .pbtitle{font-size:20px;font-weight:700;color:#ffd54a}
+  #powers .pbrow{display:flex;justify-content:space-between;gap:4px;margin:8px 0 6px}
+  #powers .pb{flex:1;text-align:center;font-size:14px;font-weight:700}
+  #powers .pb svg{width:44px;height:44px;display:block;margin:0 auto 2px}
+  #powers .pb.off{opacity:.4}
+  #powers .pbnext{font-size:15px}
   #powersClose{display:block;width:100%;margin-top:12px;padding:12px;border:0;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;background:#3b6fd8;color:#fff}
   /* The Recent list is taken off the screen when fewer than two of its rows fit between the buttons (0.6.74) */
   #recent.nofit{display:none!important}
@@ -2270,6 +2278,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.79', title: 'Quiz badges are easy to find', items: [
+    'Tap Powers to see your quiz badges: five big stars that light up as you earn them, and how many right answers until the next one'] },
   { v: '0.6.78', title: 'Play again, quiz badges and merchants on the move', items: [
     'After a right answer the quiz stays open: tap Play again for another question from the same friend, or Done when you have had enough',
     'Quiz badges: earn one for your 1st, 5th, 25th, 100th and 500th right answer. See them in Powers',
@@ -2630,12 +2640,19 @@ const powersEl = document.getElementById('powers');
 let powersShown = '';
 function powersHtml() {
   const row = (k, ratio) => `<div class="prow">${LABEL[k]} Lv ${pw[k].lvl}<div class="bar"><div style="width:${Math.min(1, ratio) * 100}%;background:${BAR[k]}"></div></div></div>`;
-  return `<div class="pname">${esc(playerName)}</div>` +
+  return `<div class="pname">${esc(playerName)}</div>` + quizBadgesHtml() +   // badges first, so they show without scrolling (0.6.79)
     row('dig', pw.dig.xp / need(pw.dig.lvl)) + row('build', pw.build.xp / need(pw.build.lvl)) + row('inv', invTotal() / invCap()) +
     row('fight', pw.fight.xp / need(pw.fight.lvl)) + (skills.length ? row('magic', pw.magic.xp / need(pw.magic.lvl)) : '') +
-    `<div class="small" id="quizBadgeRow">&#11088; Quiz badges: ${quizBadgesEarned()} of ${quizBadges.length}` + (quizBadgesEarned() < quizBadges.length ? ` &middot; next at ${quizBadges[quizBadgesEarned()]} right answers (${quizRightTotal()} so far)` : ' &middot; all earned!') + `</div>` +
     `<div class="small">World ${esc(worldId || 'alone')} &middot; v${VERSION}` + (others.size ? ' &middot; With: ' + [...others.values()].map(o => esc(o.name)).join(', ') : '') + `</div>` +
     `<button id="powersClose">Close</button>`;
+}
+// Quiz badges section of Powers (0.6.79: the parent could not find the one small line of 0.6.78)
+function quizBadgesHtml() {
+  const n = quizRightTotal(), got = quizBadgesEarned(n);
+  const star = on => `<svg viewBox="0 0 24 24"><polygon points="12,1.5 15.1,8.6 22.8,9.3 17,14.4 18.7,22 12,18 5.3,22 7,14.4 1.2,9.3 8.9,8.6" fill="${on ? '#ffd54a' : '#556'}" stroke="${on ? '#b8860b' : '#889'}" stroke-width="1"/></svg>`;
+  return `<div class="pbadges" id="quizBadgeRow"><div class="pbtitle">Quiz badges: ${got} of ${quizBadges.length}</div>` +
+    `<div class="pbrow">` + quizBadges.map(m => `<div class="pb${n >= m ? '' : ' off'}">${star(n >= m)}${m}</div>`).join('') + `</div>` +
+    `<div class="pbnext">` + (got < quizBadges.length ? `${n} right answer${n === 1 ? '' : 's'} so far. Next badge at ${quizBadges[got]}.` : `${n} right answers. All badges earned!`) + `</div></div>`;
 }
 function renderPowers() { const h = powersHtml(); if (h !== powersShown) { powersEl.innerHTML = h; powersShown = h; } }
 function togglePowers(force) {
@@ -5574,7 +5591,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.78';
+const VERSION = '0.6.79';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

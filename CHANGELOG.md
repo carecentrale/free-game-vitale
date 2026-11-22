@@ -2,6 +2,13 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.79: Quiz badges easy to find
+Nicola played 0.6.78 on 22 Nov 2026: Play again and the merchants work, but he could not find the badges. In 0.6.78 they were one small grey line of text near the bottom of the Powers panel.
+- The Powers panel now opens with a **Quiz badges** section right under the player's name: five big stars, lit when earned and grey when not, each with its number of right answers (the milestones set in the admin page), and a line such as "7 right answers so far. Next badge at 25."
+- Nothing else changes: same milestones, same counts, nothing new saved or sent
+- Tests: the 0.6.78 browser test now checks the section is right under the name, needs no scrolling, has 40-pixel stars, and lights the right number of them
+- Checked: syntax check, the fast tests, that browser test in the cloud workspace. Not checked: played by the parent
+
 ## 0.6.78: Play again, quiz badges, merchants on the move
 Two bugs reported by Nicola on 20 Nov 2026 after playing 0.6.77, and his answers to the question about gems. Not from a PM hand-off.
 - **Quiz: no chance to play another.** Before, 1.3 seconds after a right answer the panel closed by itself and the friend left. Now the panel stays open, with no timer, and shows two big buttons: **Play again** (a new question from the same friend, at the child's level) and **Done** (the panel closes and the friend waves and leaves). Esc and the Android Back button mean Done. Gems as usual for every question (5, or 2 after a wrong try or a hint), with no limit (Nicola's choice). Each new question gets its own two "Another question" swaps. After a friend has had a right answer, the next friend comes after a minute of moving about even if the last question was left with "Not now"
