@@ -52,10 +52,12 @@ $('sendCode').addEventListener('click', async () => {
   const email = $('email').value.trim();
   if (!email) return;
   $('signinErr').textContent = '';
-  const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+  // The email may hold a link instead of a code (Supabase's default email on the free plan).
+  // Send that link back to this page, not the home page, so clicking it signs in here.
+  const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo: location.origin + '/admin.html' } });
   if (error) { $('signinErr').textContent = error.message; return; }
   $('codeRow').classList.remove('hide');
-  $('signinMsg').textContent = 'A code was sent to ' + email + '. Enter it below.';
+  $('signinMsg').textContent = 'An email was sent to ' + email + '. Enter the code below, or click the sign-in link in the email on this device.';
 });
 $('verifyCode').addEventListener('click', async () => {
   const email = $('email').value.trim();

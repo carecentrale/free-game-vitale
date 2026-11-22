@@ -51,3 +51,8 @@ test('the version has a row in docs/VERSIONS.md', () => {
 test('the game history lists the version', () => {
   assert.ok(game.includes(`{ v: '${VERSION}',`), 'GAME_HISTORY has no entry for ' + VERSION);
 });
+
+test('the admin sign-in email link comes back to the admin page, not the home page', () => {
+  const admin = read('build/admin.html');
+  assert.match(admin, /signInWithOtp\(\{[^}]*emailRedirectTo: location\.origin \+ '\/admin\.html'/);
+});
