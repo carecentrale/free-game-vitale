@@ -51,7 +51,24 @@ class PlayError extends Error {
   }
 }
 
+// Google sometimes answers "try again" (429, 500, 502, 503, 504) or the connection drops: wait and try the same step again.
+// Every request here can be sent again safely: nothing is published until the edit is committed at the end.
+export const retry = { waits: [5000, 15000, 45000], sleep: (ms) => new Promise((r) => setTimeout(r, ms)), log: console.log };
+const TRY_AGAIN = new Set([429, 500, 502, 503, 504]);
+
 async function call(fetchFn, step, url, opts) {
+  for (let attempt = 0; ; attempt++) {
+    try { return await callOnce(fetchFn, step, url, opts); }
+    catch (e) {
+      const again = e instanceof PlayError ? TRY_AGAIN.has(e.status) : true;   // not a PlayError: no answer at all (network)
+      if (!again || attempt >= retry.waits.length) throw e;
+      retry.log(`${step}: Google did not answer properly (${e instanceof PlayError ? e.status : e.message}). Trying again in ${retry.waits[attempt] / 1000} s (try ${attempt + 2} of ${retry.waits.length + 1}).`);
+      await retry.sleep(retry.waits[attempt]);
+    }
+  }
+}
+
+async function callOnce(fetchFn, step, url, opts) {
   const res = await fetchFn(url, opts);
   const text = await res.text();
   let data = null;

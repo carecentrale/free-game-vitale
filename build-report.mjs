@@ -90,8 +90,11 @@ function diskFreeGb(p) {
   try { const s = fs.statfsSync(p); return ((s.bavail * s.bsize) / 1073741824).toFixed(1); } catch { return ''; }
 }
 
-export function buildReport({ mode, result, code, start, end, logText, toolsDir, outDir }) {
+export function buildReport({ mode, result, code, start, end, logText, errText = '', toolsDir, outDir }) {
   const info = parseLog(logText);
+  // Tools such as git and the upload write their errors to the error stream (last-errors.log), not the log
+  const errInfo = parseLog(errText);
+  if (!info.stopped && errInfo.stopped) info.stopped = errInfo.stopped;
   const relDir = path.join(toolsDir, 'releases');
   let kept = '';
   try { kept = String(fs.readdirSync(relDir).filter((f) => f.endsWith('.aab')).length); } catch { }
@@ -111,6 +114,8 @@ export function buildReport({ mode, result, code, start, end, logText, toolsDir,
   if (result !== 'OK') {
     if (info.stopped) lines.push('', clean(info.stopped) ?? '(the stop message was hidden: it looked like it held a key)');
     lines.push('', 'Last log lines (cleaned):', cleanText(String(logText).split(/\r?\n/).slice(-25).join('\n')));
+    const errTail = cleanText(String(errText).split(/\r?\n/).filter((l) => l.trim() && !/^Note: /.test(l)).slice(-12).join('\n'));
+    if (errTail) lines.push('', 'Last error lines (cleaned):', errTail);
   }
   lines.push('', 'Full history: build-log.csv in this folder.');
   fs.writeFileSync(path.join(outDir, 'latest-build.txt'), lines.join('\n') + '\n');
@@ -144,7 +149,9 @@ function main(argv) {
       const [, mode, result, code, start, end, logFile] = argv;
       let logText = '';
       try { logText = fs.readFileSync(logFile, 'utf8'); } catch { }
-      buildReport({ mode, result, code, start, end, logText, toolsDir, outDir });
+      let errText = '';
+      try { errText = fs.readFileSync(path.join(path.dirname(logFile), 'last-errors.log'), 'utf8'); } catch { }
+      buildReport({ mode, result, code, start, end, logText, errText, toolsDir, outDir });
     } else if (argv[0] === 'weekly') {
       weeklyReport({
         toolsDir, outDir,

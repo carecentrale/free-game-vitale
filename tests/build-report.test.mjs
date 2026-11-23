@@ -97,6 +97,17 @@ test('a failed build lists its last log lines, cleaned', () => {
   fs.rmSync(d, { recursive: true, force: true });
 });
 
+test('a failed build also shows the error lines from last-errors.log (git, upload), cleaned', () => {
+  const { d, tools, out } = temp();
+  buildReport({ mode: 'quick', result: 'FAILED', code: '1', start: 's', end: 'e', logText: 'step\nBUILD STOPPED: The app was built but the upload did not work.',
+    errText: 'Note: Recompile with -Xlint\nclient_secret=abc\nUPLOAD STOPPED: Opening the app in Google Play failed (503): The service is currently unavailable.', toolsDir: tools, outDir: out });
+  const latest = fs.readFileSync(path.join(out, 'latest-build.txt'), 'utf8');
+  assert.match(latest, /Last error lines/);
+  assert.match(latest, /failed \(503\)/);
+  assert.doesNotMatch(latest, /client_secret|Xlint/);
+  fs.rmSync(d, { recursive: true, force: true });
+});
+
 test('the weekly report runs once a week and keeps the last 12', () => {
   const { d, tools, out } = temp();
   for (let i = 1; i <= 13; i++) fs.writeFileSync(path.join(out, `machine-weekly-2026-01-${String(i).padStart(2, '0')}.txt`), 'old');
