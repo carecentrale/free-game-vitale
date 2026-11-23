@@ -2,6 +2,14 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.83: A castle loading screen and a quicker start
+Asked for by Nicola in the build chat on 23 Nov 2026: a small loading screen "to help with the update", a castle "like the game's castle", shown "every time the game opens in case there are updates"; and a start menu with "start a new game or load a game with a checkbox that lets it auto load if checked". He approved the drawings and said "push it to the main".
+- **Loading screen:** shown each time the game opens, before the game's code starts: an original block castle (castle stone, red and blue roof tiles, moat and bridge, flags) on an evening sky, the game's name, a filling bar and "Loading...". It goes away (fading) once the game has drawn its first picture and the first Google Play new-version check is done (Google Play answers within 5 seconds or is passed over), shown for at least 1.2 seconds. A new version found by that check is offered straight after. It lets taps through and removes itself after 20 seconds if the game's code never starts. Not shown when the game comes back from the background. Picture: `www/splash/castle.png` (23 KB), drawn by `scripts/splash-castle.py`
+- **Start menu:** two big buttons, **Load my game** (the saved game played last, by save time) and **Start a new game**, and the tick box **Load my game by itself next time** (unticked at first). Every saved game is still there, folded under "All my saved games", with Play and Delete
+- **Load my game by itself:** when on, the game opens the save played last with no menu. Also a switch in Settings (so the menu can be brought back). Kept on the device only (`kidsgame.autoLoad`); nothing is sent anywhere, no change to the data the game collects
+- Tests: new `scripts/tests/start-screen.test.mjs` (11 tests) and two browser tests ("0.6.83 start menu", "0.6.83 with Load my game by itself on")
+- Checked: syntax check and the fast tests in the cloud workspace. **Not checked:** on a phone, in the Android app, with a real Google Play update, played by the parent
+
 ## 0.6.82: Castles without flicker
 Fix asked for by Nicola in the build chat on 23 Nov 2026 ("yeh lets fix this looks strange"), after he showed the castle flickering in the live game.
 - **Cause:** block textures (16 by 16 pictures) were shrunk for distance with nearest-pixel picking and no mipmaps. A far-away block covers a pixel or two on screen, so which dot of the picture showed changed with the smallest camera movement: castle windows and stone lines blinked, and up close with a still camera the wall showed frozen pale smudges
