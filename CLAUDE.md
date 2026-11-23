@@ -42,8 +42,9 @@ A 3D block-world game for kids and families (dig, build, gems, power levels, ene
    Website, in the same release (parent's rule, 17 Nov 2026): add the version to `GAME_HISTORY` in words a player understands, run `node scripts/site-pages.mjs` (it rewrites `www/release-notes.html`), and add every new feature or changed rule to `www/how-to-play.html`: what it is and how to use it, in the part where a player would look for it. Then set the guide's two version marks (`guide-version` and `guideVersion`) to the new version. `scripts/tests/site-pages.test.mjs` fails until both pages are done. The guide's last part explains the parental controls (how to open the parent area and what each control does): keep it matching the game. Neither page links outside the site.
 5. Commit with a clear message. Keep commits local on the parent's computer. Push to `main` (which deploys to Vercel) at most once a day, and only when the parent agrees. Several versions can go out in one push.
    After every push to `main`, confirm the website yourself, never by asking the parent to open the game: Vercel `list_deployments` (project `prj_lVLyLGhWHNAiZRZ1dcsqghpFpAAQ`, team `team_nwtlUjf0r36svOy434IMUrcF`, target `production`) must show the pushed commit with state `READY`. If it is `ERROR` or missing after a few minutes, read its build log and report it. Write the result in the `docs/VERSIONS.md` row (parent's request, 23 Nov 2026).
-6. Every new feature or rule change gets an automated test in `scripts/tests/` in the same release (browser rules go in `browser.test.mjs` and use `window.gameTest`; world rules go in `terrain.test.mjs`). Add the test before the feature is committed, and run it.
-7. Never claim a feature works in a browser unless the parent has tested it. The sandbox cannot load the CDN, so only syntax checks run there. Say what was checked and what was not.
+6. Every new feature records tracking events (parent's rule, 23 Nov 2026: for safety, backtracking, accountability and traceability). Use `logEvent(kind, detail)`, or `logOnce` for things a child can repeat. Never a name or typed text: visit codes, world codes, counts and game words only. List each new kind in `docs/EVENTS.md` and on the privacy page (`www/privacy.html`, "Gameplay records", with the date at the top) in the same release; `scripts/tests/events.test.mjs` fails otherwise.
+7. Every new feature or rule change gets an automated test in `scripts/tests/` in the same release (browser rules go in `browser.test.mjs` and use `window.gameTest`; world rules go in `terrain.test.mjs`). Add the test before the feature is committed, and run it.
+8. Never claim a feature works in a browser unless the parent has tested it. The sandbox cannot load the CDN, so only syntax checks run there. Say what was checked and what was not.
 
 ## Play Store releases (parent's decision, 13 Nov 2026)
 - Do not use git or GitHub to build or push the app to the Play Store. Do not run or trigger `.github/workflows/release.yml`.
@@ -104,6 +105,9 @@ The parent wants Claude to do the build and release work on this PC (Windows lap
 
 ## Assets and licences
 - Quaternius assets (Bestiary, Universal packs) are under the Quaternius Asset License: free for commercial games, no credit required, cannot be resold or redistributed as assets.
+
+## Project instructions are tracked (23 Nov 2026)
+- The claude.ai project instructions are kept in `docs/PROJECT_INSTRUCTIONS.md`, because claude.ai keeps no history of them. When they change, update that file in the same chat with a dated line under "Changes". If the project instructions and that file differ, tell the parent.
 
 ## Style
 - Explain changes in plain language. Keep answers short, with detail on request.

@@ -69,3 +69,4 @@ ASSETS
 
 ## Changes
 - 23 Nov 2026: first tracked copy, taken from the project instructions as they stood on 23 Nov 2026 (including the TRACKING rule added that day).
+- 23 Nov 2026: cleaned up and reorganised by the builder chat that made 0.6.87 (tracking section, "keep play safe", "no ad tracking", direct requests checked with Nick, CLAUDE.md disagreements go to Nick, this tracked copy). Two chats made this file at the same time; this one was kept and both notes merged.
