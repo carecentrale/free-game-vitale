@@ -26,3 +26,6 @@ assets/**/*.zip
 releases/
 build-requests/
 build-android-work/
+
+# Leftovers of the app-icon test when its clean-up could not delete (it now uses the system temp folder)
+.icon-test-*/

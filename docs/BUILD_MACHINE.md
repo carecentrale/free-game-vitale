@@ -10,18 +10,23 @@ Since 20 Nov, chats do not use the laptop (CLAUDE.md, "Where the builder works")
 
 - Watcher: alive. A `check` sent through GitHub at 20:36 laptop time was answered within a minute.
 - Play key: `check` OK (20:37 laptop time), nothing uploaded.
-- Builds through GitHub: one so far, `quick` at 18:29 laptop time on 22 Nov. **FAILED in 4 seconds: "The update from GitHub did not work", nothing built.** The laptop's game folder is still at 6357e78 (0.6.76, 20 Nov), 13 commits behind origin/main (5694922, 0.6.80). `git pull --ff-only` stops, most likely because of local changes or local commits left in the game folder from earlier laptop sessions. So 0.6.77 to 0.6.80 have not been built for Play.
+- Builds through GitHub: one so far, `quick` at 18:29 laptop time on 22 Nov. **FAILED in 4 seconds: "The update from GitHub did not work", nothing built.** The laptop's game folder is still at 6357e78 (0.6.76, 20 Nov), 12 commits behind origin/main (5694922, 0.6.80). `git pull --ff-only` stops, most likely because of local changes or local commits left in the game folder from earlier laptop sessions. So 0.6.77 to 0.6.80 have not been built for Play.
 - GitHub tests (CI) on main: all green this week (0.6.74 to 0.6.80).
 - Git on GitHub: dev contains main and is 2 commits ahead (migrations work).
 
-**Fixed:** nothing (the fix needs the laptop).
+**Cause found (same evening, with Nicola at the laptop and his OK):** the game folder held an unfinished 0.6.77 draft from 20 Nov (5 changed files plus `scripts/tests/castle-life.test.mjs`), already replaced by the real 0.6.77 (f6a16f9). It also held `android-version-code.txt` = 18 (the real last Play build) while git still said 10. The Drive reports (`build-log.csv`) show two failures from this: 20 Nov 15:28 and 22 Nov 18:30. Runs since 20 Nov: 4, 2 OK (0.6.75 build 17 and 0.6.76 build 18, 1.3 to 1.4 min each), 2 FAILED. Free disk 75.0 to 73.3 GB; releases 66 MB (10 builds).
 
-**Needs Nicola:** on the laptop, open the game folder and look at why the update fails (run `update-game.bat`, or ask a Claude chat to do it with laptop access just for this). The end of `build-requests\last.log` names the cause. Then send `quick` again.
+**Fixed:**
+- On the laptop: the draft set aside with `git stash` (`stash@{0}`, recoverable), version code 18 kept, folder updated to 0.6.80 (5694922). A stale `.git/index.lock` (from a `git status` run before delete permission) moved out of the way.
+- In git: `android-version-code.txt` set to 18 so git matches the laptop; `.icon-test-*/` ignored and the app-icon test now uses the system temp folder (it had left 3 such folders in the game folder); new CLAUDE.md section "The laptop's game folder stays clean" (the rule, and how to unblock an update safely).
+
+**Needs Nicola:** nothing to unblock. Send `quick` (or `full`) for 0.6.80 when you want it on Play.
 
 **Recommendations**
 1. Post the cause with a failed result: when the update from GitHub fails, add one short, safe line to `build-status` (for example "local changes in: CHANGELOG.md" or "local commits not on GitHub: 2"), no log text. Cloud chats could then see why without the laptop. Needs Nicola's OK to change the watcher.
 2. Let `status` through GitHub post a few safe numbers (watcher age, free disk, folder size of `releases\`, git ahead/behind/dirty). Weekly tune-ups could then run fully from the cloud, as the 20 Nov rule requires. Needs Nicola's OK to change the watcher.
-3. Update the weekly tune-up task's prompt: it still tells Claude to use `device_bash` on the laptop, which the 20 Nov rule forbids. Needs Nicola.
+3. **Done (22 Nov):** the weekly tune-up task now works from GitHub and the Drive reports only.
+4. The build stops on any local change. It could set leftovers aside itself before updating (`git stash push -u` with a dated message, keeping `android-version-code.txt`), say so in the report, and carry on. Also keep git's own error lines in `latest-build.txt` (this week's report dropped the line that named the files). Saves a lost day each time a draft is left behind. Laptop tool change: needs Nicola's OK.
 
 ## 2026-11-17: the build tools left the game folder
 

@@ -6,6 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -43,7 +44,7 @@ test('syncing the Android project copies the icon into it', () => {
   assert.match(hook, /www\/app-icon\/android-res/);
   assert.match(hook, /android\/app\/src\/main\/res/);
   // Run the step on a stand-in Android project and look at what it left
-  const tmp = fs.mkdtempSync(path.join(root, '.icon-test-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'drenerics-icon-test-'));
   try {
     fs.cpSync(path.join(root, 'www', 'app-icon'), path.join(tmp, 'www', 'app-icon'), { recursive: true });
     fs.mkdirSync(path.join(tmp, 'android/app/src/main/res'), { recursive: true });

@@ -105,6 +105,12 @@ Requirements come from the Google Drive folder "Adventurers of Drenerics - PM re
 - Every file needs a row in the audio table in `docs/ASSETS.md` and a saved licence page in `docs/licences/`. Then run `node scripts/audio-credits.mjs`: it writes `www/audio/credits.json` and the credits on `www/terms.html`. `scripts/tests/audio.test.mjs` fails if any of this is missing.
 - Allowed licences: public domain, CC0, CC BY. Never NC, ND or SA.
 
+## The laptop's game folder stays clean (22 Nov 2026)
+- The laptop's game folder only ever receives updates from GitHub. Nobody edits, drafts or tests game files there: a leftover change blocks every build ("The update from GitHub did not work"). This happened on 20 to 22 Nov 2026: an unfinished 0.6.77 draft left there on 20 Nov blocked the 0.6.77 to 0.6.80 builds.
+- The one file the build changes there is `android-version-code.txt` (the last Play build number). Keep it in git at the real number: whenever a release records a new Play build in `docs/VERSIONS.md`, set `android-version-code.txt` to that build number in the same commit. If git's copy and the laptop's copy agree, updates go through.
+- If a build stops at "Getting the latest game from GitHub": ask the parent for laptop access in that chat (see "Folders on the build machine"), run `git status` in the game folder, and set aside any leftover with `git stash push -u -m "<what and when>" -- <files>` (never `checkout`, `reset` or delete: a stash can be restored). Keep `android-version-code.txt` if it holds a higher number than git's. Then `git pull --ff-only`. If `.git/index.lock` is left behind, move it out of the way (it appears when git runs without delete permission). Record what was set aside in `docs/BUILD_MACHINE.md`.
+- Set aside so far: `stash@{0}` "old 0.6.77 laptop draft (20 Nov), set aside 22 Nov tune-up" (superseded by f6a16f9; delete it with the parent's OK once 0.6.80 is built).
+
 ## Folders on the build machine
 - One game folder: `Desktop\adventurers-of-drenerics-game`. Never create another project folder, clone or copy on the parent's computer.
 - Scratch work (test clones, downloads, temporary files) stays in the cloud workspace or the session's scratch folder.
