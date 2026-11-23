@@ -2,6 +2,12 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.86: Real bridges, and no outline over cream and sandstone castles up close (bugs reported by Nick, 22 Nov 2026)
+- **Castle walls flickered up close (bug).** Each castle also has a plain "far view" outline that is cut away inside the drawn land. The two wall colours added in 0.6.81 (cream Pale Stone and Sandstone) were missing from that cut, so for those castles the plain outline was drawn over the real blocks and the two fought for the same place on screen. Every outline material is cut now
+- **Bridges too narrow (bug), and bridges like real ones.** Slanted bridges came out as a 1-block zigzag: the rails were placed step by step across the road and landed on the deck. Now each column is laid once, by its distance from the road's middle line, and where two roads' bridges meet the deck wins over a rail. Each bridge span gets a kind from its length, its road and the seed: **plank** footbridge on posts (lanes, short spans, 3 wide), **stone arch** bridge with a cobbled deck, stone parapets and arches between piers every 8 blocks (3 wide on lanes, 5 on main roads), **long** timber bridge for spans over 40 blocks with stone towers and a beam over the deck at each end and every 24 blocks (4 wide on lanes, 6 on main roads). Gaps of 1 or 2 blocks between bridge parts are joined into one span. Bridges come from the seed only: nothing new is saved or sent. In land a player changed, bridge blocks still only fill air or water (an old wooden bridge there stays as it was)
+- Tests: 2 new tests in `scripts/tests/castles-roads.test.mjs` (bridge kinds and widths on 4 seeds, the deck a full band with room to walk and no rail on it; every outline material cut); the SPEC-023 bridge test accepts a cobbled deck
+- Checked: syntax check and the fast tests in the cloud workspace. **Not checked:** the browser tests, anything on a phone, played by the parent
+
 ## 0.6.85: Guards tidy up after a fight
 Fix for what Nicola showed in the build chat on 23 Nov 2026 (a screenshot of a road): "the guard who follow the merchants defeated a bunch of monsters. and they are just staying there." He said "push and go live".
 - **Cause:** a monster the guards defeated was laid down like one the child defeats, and every body stays 5 minutes before it sinks. Guards fight all along the roads, so the roads filled up with bodies, even though the game says the guards "drove off" the monster.

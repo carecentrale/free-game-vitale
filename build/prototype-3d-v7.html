@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.85 (3D)</title>
+<title>Adventurers of Drenerics v0.6.86 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -1451,16 +1451,87 @@ function roadPlan(e) {
   for (let i = S.n - 2; i >= 0; i--) h[i] = Math.max(h[i + 1] - 0.5, Math.min(h[i + 1] + 0.5, h[i]));
   S.h = h.map(Math.round);
   S.bridge = S.h.map((y, i) => ground[i] < WATER_Y || ground[i] < y - 4);
+  bridgeSpans(S, e);
   // Which samples fall in which chunk, so a chunk only looks at its own part of the road
   S.byChunk = new Map();
-  for (let i = 0; i < S.n; i++) for (const [ox, oz] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) {
+  for (let i = 0; i < S.n; i++) for (const [ox, oz] of [[-5, -5], [5, -5], [-5, 5], [5, 5]]) {   // 5 (0.6.82): room for the widest bridge
     const k = ckey(Math.floor((S.x[i] + ox) / CS), Math.floor((S.z[i] + oz) / CS));
     let l = S.byChunk.get(k); if (!l) S.byChunk.set(k, l = []);
     if (l[l.length - 1] !== i) l.push(i);
   }
-  S.box = [Math.min(...S.x) - 4, Math.min(...S.z) - 4, Math.max(...S.x) + 4, Math.max(...S.z) + 4];
+  S.box = [Math.min(...S.x) - 6, Math.min(...S.z) - 6, Math.max(...S.x) + 6, Math.max(...S.z) + 6];
   e.S = S;
   return S;
+}
+// ---- Bridges like real ones (0.6.82) ----
+// Each stretch of bridge (a span) gets a kind, from its length, its road and the seed, like bridges in the real world:
+//   plank: a short wooden footbridge on posts, for lanes over streams (3 wide);
+//   arch:  a stone arch bridge with a cobbled deck, stone parapets and arches between piers (3 wide on lanes, 5 on main roads);
+//   long:  a long timber bridge over wide water, with stone towers and a beam over the deck at each end and every 24 blocks
+//          (4 wide on lanes, 6 on main roads).
+// Short gaps of 1 or 2 blocks between bridge parts are joined into one span. S.span[i]: the span of sample i, or -1.
+const BRIDGE_SALT = 3301, BRIDGE_TOWER = 24, BRIDGE_PIER = 8;
+const BRIDGE_HALF = { plank: [1.5, 1.5], arch: [1.5, 2.5], long: [2.0, 3.0] };   // half the deck's width: [lane, main road]
+function bridgeSpans(S, e) {
+  for (let i = 1; i < S.n - 1; i++) if (!S.bridge[i] && S.bridge[i - 1] && (S.bridge[i + 1] || (i + 2 < S.n && S.bridge[i + 2]))) S.bridge[i] = true;
+  S.spans = []; S.span = new Int16Array(S.n).fill(-1);
+  for (let i = 0; i < S.n; i++) {
+    if (!S.bridge[i] || (i && S.bridge[i - 1])) continue;
+    let j = i; while (j + 1 < S.n && S.bridge[j + 1]) j++;
+    const len = j - i + 1, r = hash3(Math.floor(S.x[i]), len, Math.floor(S.z[i]), seed + BRIDGE_SALT);
+    const kind = len > 40 ? 'long' : e.main ? (len <= 8 && r < 0.3 ? 'plank' : 'arch') : (len <= 14 ? (r < 0.65 ? 'plank' : 'arch') : (r < 0.5 ? 'arch' : 'long'));
+    const half = BRIDGE_HALF[kind][e.main ? 1 : 0];
+    S.spans.push({ i0: i, i1: j, kind, half });
+    for (let k = i; k <= j; k++) S.span[k] = S.spans.length - 1;
+  }
+}
+// The bridge columns of one chunk: for each column near a bridge, the nearest bridge sample and how far the column is from
+// the road's middle line. Measured per column (not per step across the road), so the deck is a clean band of the full width
+// on curves and slants too, and a rail never lands on the deck (before 0.6.82, slanted bridges came out as a narrow zigzag).
+function bridgeCells(S, list, x0, z0) {
+  const best = new Map();   // column -> [distance across, sample]
+  for (const i of list) {
+    if (!S.bridge[i]) continue;
+    const sp = S.spans[S.span[i]], r = sp.half + 1.5;
+    for (let X = Math.floor(S.x[i] - r); X <= Math.floor(S.x[i] + r); X++) for (let Z = Math.floor(S.z[i] - r); Z <= Math.floor(S.z[i] + r); Z++) {
+      const lx = X - x0, lz = Z - z0;
+      if (lx < 0 || lx >= CS || lz < 0 || lz >= CS) continue;
+      const ox = X + 0.5 - S.x[i], oz = Z + 0.5 - S.z[i];
+      if (Math.abs(ox * S.dx[i] + oz * S.dz[i]) > 0.75) continue;   // only columns beside this sample, not ahead or behind
+      const across = Math.abs(-ox * S.dz[i] + oz * S.dx[i]), col = lz * CS + lx, b = best.get(col);
+      if (across <= sp.half + 1 && (!b || across < b[0])) best.set(col, [across, i, X, Z]);
+    }
+  }
+  return best;
+}
+// Lays one bridge column. y: the deck's height. rail: the column is the bridge's edge, not its deck.
+function layBridge(S, i, across, data, at, limited) {
+  const sp = S.spans[S.span[i]], y = S.h[i], rail = across > sp.half, along = i - sp.i0, fromEnd = Math.min(i - sp.i0, sp.i1 - i);
+  const deck = sp.kind === 'arch' ? T.COBBLE : T.WOOD, edge = sp.kind === 'arch' ? T.CSTONE : T.WOOD;
+  const tower = sp.kind === 'long' && (fromEnd === 0 || along % BRIDGE_TOWER === 0);
+  if (limited) {   // land a player changed: only fill air or water, never replace what the child built
+    const soft = t => t === T.AIR || t === T.WATER;
+    if (!rail && soft(data[at(y)])) data[at(y)] = deck;
+    if (rail && soft(data[at(y + 1)])) data[at(y + 1)] = edge;
+    return;
+  }
+  data[at(y)] = rail ? edge : deck;
+  if (rail) {
+    data[at(y + 1)] = edge;   // the rail or parapet
+    if (tower) for (let yy = y + 2; yy <= y + 6 && yy < H; yy++) data[at(yy)] = T.CSTONE;
+  } else {
+    for (let yy = y + 1; yy <= y + 3 && yy < H; yy++) if (data[at(yy)] !== deck && data[at(yy)] !== edge) data[at(yy)] = T.AIR;
+    if (tower && y + 6 < H) data[at(y + 6)] = T.WOOD;   // the beam across, high above the deck
+  }
+  // What holds it up
+  const down = yy => { for (; yy >= 1 && !solid(data[at(yy)]); yy--) data[at(yy)] = sp.kind === 'arch' ? T.CSTONE : T.WOOD; };
+  if (sp.kind === 'plank') { if (rail && i % 5 === 0) down(y - 1); return; }
+  if (sp.kind === 'long') { if ((rail && i % 4 === 0) || tower) down(y - 1); return; }
+  // arch: a pier every 8 blocks, and the arch's stone getting deeper towards each pier (only in air, never in the water)
+  const p = Math.min(along % BRIDGE_PIER, BRIDGE_PIER - (along % BRIDGE_PIER), fromEnd);
+  if (p === 0) { down(y - 1); return; }
+  const deep = p === 1 ? 3 : p === 2 ? 2 : 1;
+  for (let yy = y - 1; yy >= y - deep && yy >= 1; yy--) if (data[at(yy)] === T.AIR) data[at(yy)] = T.CSTONE;
 }
 // The roads whose search box reaches the box [x0, x1) x [z0, z1)
 function roadsNear(x0, z0, x1, z1) {
@@ -1475,7 +1546,26 @@ function paveChunk(cx, cz, data, castles, limited) {
   const x0 = cx * CS, z0 = cz * CS, k = ckey(cx, cz);
   const mask = new Uint8Array(CS * CS);
   let any = false;
-  for (const e of roadsNear(x0 - 4, z0 - 4, x0 + CS + 4, z0 + CS + 4)) {
+  const roads = roadsNear(x0 - 4, z0 - 4, x0 + CS + 4, z0 + CS + 4);
+  // Bridges first (0.6.82): each column once, from its distance to the middle line of the nearest bridge. Where two roads'
+  // bridges meet (by a castle's gate), the column deepest inside a deck wins, so a rail never stands on another deck.
+  const cols = new Map();
+  for (const e of roads) {
+    const S = roadPlan(e), list = S.byChunk.get(k);
+    if (!list) continue;
+    for (const [col, [across, i, X, Z]] of bridgeCells(S, list, x0, z0)) {
+      const inside = across - S.spans[S.span[i]].half, b = cols.get(col);
+      if (!b || inside < b[0]) cols.set(col, [inside, S, i, across, X, Z]);
+    }
+  }
+  for (const [col, [, S, i, across, X, Z]] of cols) {
+    const y = S.h[i];
+    if (y < 1 || y >= H - 7) continue;
+    if (castles.some(c => roadCastle(c, X, Z, 0))) continue;   // never into a castle
+    layBridge(S, i, across, data, yy => cellIndex(X - x0, yy, Z - z0), limited);
+    mask[col] = 2; any = true;
+  }
+  for (const e of roads) {
     const S = roadPlan(e), list = S.byChunk.get(k);
     if (!list) continue;
     const half = e.main ? 1.5 : 1.0, mat = e.main ? T.COBBLE : T.EARTH;
@@ -1487,22 +1577,7 @@ function paveChunk(cx, cz, data, castles, limited) {
         if (lx < 0 || lx >= CS || lz < 0 || lz >= CS) continue;
         if (castles.some(c => roadCastle(c, X, Z, 0))) continue;   // never into a castle
         const col = lz * CS + lx, rail = Math.abs(w) > half, at = yy => cellIndex(lx, yy, lz);
-        if (S.bridge[i]) {
-          if (limited) {
-            if (!rail && ROAD_SOFT.has(data[at(y)]) && data[at(y)] !== T.GRASS) data[at(y)] = T.WOOD;
-            if (rail && (data[at(y + 1)] === T.AIR || data[at(y + 1)] === T.WATER)) data[at(y + 1)] = T.WOOD;
-            mask[col] = 2; any = true;
-            continue;
-          }
-          if (mask[col] === 1) continue;   // a road block already laid here: a bridge never cuts it
-          data[at(y)] = T.WOOD;
-          if (rail) {
-            data[at(y + 1)] = T.WOOD;      // the rail
-            if (i % ROAD_POST === 0) for (let yy = y - 1; yy >= 1 && !solid(data[at(yy)]); yy--) data[at(yy)] = T.WOOD;   // a post down to the ground or the bottom of the water
-          } else for (let yy = y + 1; yy <= y + 3 && yy < H; yy++) if (data[at(yy)] !== T.WOOD) data[at(yy)] = T.AIR;
-          mask[col] = 2; any = true;
-          continue;
-        }
+        if (S.bridge[i]) continue;   // laid above
         if (rail || mask[col] === 2) continue;
         if (limited) {
           let yy = Math.min(H - 2, y + 3);
@@ -2974,6 +3049,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.86', title: 'Real bridges', items: [
+    'Bridges now look like real ones: little wooden footbridges over streams, stone arch bridges, and long timber bridges with stone towers over wide water. They are wider too, so they are easy to walk across',
+    'Cream and sandstone castles no longer flicker when you stand right next to their walls',
+  ] },
   { v: '0.6.85', title: 'Guards tidy up', items: [
     'Monsters the merchants\' guards drive off no longer lie around on the road: they sink into the ground after a few seconds'] },
   { v: '0.6.84', title: 'Log off', items: [
@@ -5849,7 +5928,9 @@ function setDrawnClip() {
   drawnClip[0].constant = (pcx - VIEW) * CS; drawnClip[1].constant = -(pcx + VIEW + 1) * CS;
   drawnClip[2].constant = (pcz - VIEW) * CS; drawnClip[3].constant = -(pcz + VIEW + 1) * CS;
 }
-for (const m of [outlineMat, ...Object.values(outlineRoof)]) { m.clippingPlanes = drawnClip; m.clipIntersection = true; }
+// 0.6.82: the wall colours added in 0.6.81 (cream, sandstone) were left out here, so their outline was drawn over the real
+// castle up close and flickered against its blocks. Every outline material is cut now.
+for (const m of new Set([outlineMat, ...Object.values(outlineWall), ...Object.values(outlineRoof)])) { m.clippingPlanes = drawnClip; m.clipIntersection = true; }
 const HILL_COLOR = { [T.GRASS]: 0x5fa83c, [T.SAND]: 0xd9c27a, [T.SNOW]: 0xeef4f8 };
 const hillMats = {};
 const hillMat = top => hillMats[top] || (hillMats[top] = Object.assign(new THREE.MeshLambertMaterial({ color: HILL_COLOR[top] || HILL_COLOR[T.GRASS] }), { clippingPlanes: drawnClip, clipIntersection: true }));
@@ -6990,7 +7071,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.85';
+const VERSION = '0.6.86';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

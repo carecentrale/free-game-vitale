@@ -12,7 +12,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const game = fs.readFileSync(path.join(root, 'build', 'prototype-3d-v7.html'), 'utf8');
 const start = game.indexOf('// ---- World: 400,000'), end = game.indexOf('// ---- Saving: the character', start);
 const api = `;({ CENTER, H, T, CS, WATER_Y, PMIN, PMAX, initWorld, get, groundY, makeChunk, castleInCell, towerNearStart, castlesIn,
-  castleNetwork, roadPlan, encodeWorld, applyWorld, structFor, toFrame, cellToWorld, chunks, edited, setBlock, roadAt, ckey,
+  castleNetwork, roadPlan, encodeWorld, BRIDGE_HALF, applyWorld, structFor, toFrame, cellToWorld, chunks, edited, setBlock, roadAt, ckey,
   eatTreeInWorld, treeLook, dayNum, decorAt, eatenTrees, gen: () => gen, oldCastles: () => oldCastles })`;
 const ctx = vm.createContext({ Math, Uint8Array, Int16Array, Int8Array, Int32Array, Float32Array, Float64Array, Map, Set, JSON, Number, String, Array,
   atob: s => Buffer.from(s, 'base64').toString('binary'), bytesToB64: u => Buffer.from(u).toString('base64') });
@@ -219,7 +219,7 @@ test('SPEC-023: roads curve with the land, climb gently, keep clear of castles a
   assert.ok(W.roadAt(x, z) > 0, 'the road is known there (no trees on it)');
   const bi = S.bridge.indexOf(true);
   if (bi >= 0) {
-    assert.equal(W.get(Math.floor(S.x[bi]), S.h[bi], Math.floor(S.z[bi])), T.WOOD, 'a bridge deck');
+    assert.ok([T.WOOD, T.COBBLE].includes(W.get(Math.floor(S.x[bi]), S.h[bi], Math.floor(S.z[bi]))), 'a bridge deck');
     assert.notEqual(W.get(Math.floor(S.x[bi]), S.h[bi] + 1, Math.floor(S.z[bi])), T.WOOD, 'room to walk on the deck');
   }
 });
@@ -295,4 +295,46 @@ test('SPEC-022: an eaten tree is a stump that day, a young tree the next, the sa
   for (let i = 0; i < 520; i++) W.eatTreeInWorld(W.CENTER + i, W.CENTER + 900, today);
   assert.equal(W.eatenTrees.size, 500);
   assert.equal(W.eatenTrees.has((W.CENTER) + ',' + (W.CENTER + 900)), false, 'the oldest went first');
+});
+
+test('0.6.82: bridges come in real-world kinds and widths, and the deck is a full clean band, never a zigzag', () => {
+  const kinds = new Set(), widths = new Set();
+  let checked = 0;
+  for (const sd of [4242, 77, 9001, 31337]) {
+    W.initWorld(sd, 2, 400);
+    for (const e of W.castleNetwork().edges) {
+      const S = W.roadPlan(e);
+      for (const sp of S.spans) {
+        kinds.add(sp.kind); widths.add(sp.half * 2);
+        assert.equal(sp.half, W.BRIDGE_HALF[sp.kind][e.main ? 1 : 0]);
+        assert.ok(sp.half * 2 >= 3, 'every bridge is at least 3 wide');
+        if (sp.i1 - sp.i0 > 40) assert.equal(sp.kind, 'long', 'long crossings get long bridges');
+        // in the middle of the span: walk across the deck at a right angle to the road; every deck block is there with room above
+        const i = Math.floor((sp.i0 + sp.i1) / 2), y = S.h[i], deck = sp.kind === 'arch' ? T.COBBLE : T.WOOD;
+        if (checked > 60) continue;
+        // every column whose middle is within the deck's half width of the road's middle line (and beside this step)
+        let n = 0;
+        for (let x = Math.floor(S.x[i] - 4); x <= S.x[i] + 4; x++) for (let z = Math.floor(S.z[i] - 4); z <= S.z[i] + 4; z++) {
+          const ox = x + 0.5 - S.x[i], oz = z + 0.5 - S.z[i];
+          if (Math.abs(ox * S.dx[i] + oz * S.dz[i]) > 0.5 || Math.abs(-ox * S.dz[i] + oz * S.dx[i]) > sp.half) continue;
+          const t = W.get(x, y, z);
+          if (t !== deck) { assert.ok([T.WOOD, T.COBBLE, T.EARTH].includes(t), `seed ${sd} ${sp.kind}: deck`); n++; continue; }   // another road or bridge joins here
+          assert.equal(W.get(x, y + 1, z), T.AIR, `seed ${sd} ${sp.kind}: room to walk (no rail on the deck)`);
+          assert.equal(W.get(x, y + 2, z), T.AIR);
+          n++;
+        }
+        assert.ok(n >= sp.half * 2 - 2, `seed ${sd} ${sp.kind}: the deck is ${sp.half * 2} wide, found ${n} across`);
+        checked++;
+      }
+    }
+  }
+  assert.ok(checked >= 5, 'enough bridges checked: ' + checked);
+  assert.ok(kinds.size >= 2, 'more than one kind of bridge: ' + [...kinds]);
+  assert.ok(widths.size >= 2, 'bridges of more than one width: ' + [...widths]);
+});
+
+test('0.6.82: every far-view castle material is cut at the drawn land, so no outline shows over the real castle', () => {
+  const m = game.match(/for \(const m of new Set\(\[([^\]]*)\]\)\) \{ m\.clippingPlanes = drawnClip/);
+  assert.ok(m, 'the clipping line is there');
+  for (const name of ['outlineMat', 'outlineWall', 'outlineRoof']) assert.ok(m[1].includes(name), name + ' is cut');
 });
