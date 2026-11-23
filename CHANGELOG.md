@@ -2,6 +2,17 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.85: Playing together: no more starting in the ground, a player count and a map
+Reported and asked for by Nicola in the build chat on 23 Nov 2026: "I spawned in the ground of the world", and asked for a little box saying when someone joins, a count of players at the top left, and a small map (M on a computer, or a tap) showing where the players are. He chose "Build them now" rather than a PM hand-off first.
+- **Fix: starting inside the ground.** Cause: *Join a friend's world* in the start wizard loaded the friend's land but left the character at the spot picked for a brand-new random world, so it was usually inside the friend's hills. Now the joined world's start point is used (`joinExisting(code, true)`, `placeSafely`). When a saved game reopens its shared world, or the world is read again from the server every 30 seconds, the character stays where it is unless blocks are in the way; then it is lifted onto the land (or, if that is not possible, taken to the start point)
+- **Notes box** at the top left: "Sir Kestrel 4 joined your world", "... left the world", and on arrival who is already there. At most 4 notes, each gone after 8 seconds. It is not a chat: only the game's own messages, with names checked (below)
+- **Player count** at the top left in a shared world: *Players N*, the child included
+- **Map:** M key or the new Map button (top bar). The land 48 blocks each way from the child, seen from above (only land already loaded: dark elsewhere), the child as a white dot, friends as yellow dots with their names, far friends on the edge. Tap the map, M or Esc closes it
+- **Safer names:** other players' names (name tags, notes, map) are shown only if they are a name the game makes (a title, a name from the list, a number 1 to 999); anything else shows as "A player". Before, a changed copy of the game could have shown any text over its character's head
+- No change to what is sent, saved or collected: the names and places already went through the world's live channel
+- Tests: new `scripts/tests/players-together.test.mjs` (6 tests) and one browser test ("0.6.85: the player count ... and the map with M")
+- Checked: see `docs/VERSIONS.md`. **Not checked:** played by the parent; two real devices in one shared world (the join notes and other players on the map); phones and the Android app
+
 ## 0.6.84: Log off
 Bug reported by Nicola in the build chat on 23 Nov 2026: once in a game you could not log off and change world; he asked for a Log off button next to Quit that goes back to the menu, and said "Push it online once developed".
 - **Log off** button (orange) in the quit question, between *Save and quit* and *Keep playing*. It saves the game, stops the sound, sets this tab's choice to `menu` and reloads, so the game opens on the start menu (Load my game, Start a new game, All my saved games). Because the choice is not empty, *Load my game by itself* (0.6.83) does not reopen the same game. Esc, the Android Back button and *Quit the game* in Settings all open the same question. No change to saves, worlds or the data the game collects

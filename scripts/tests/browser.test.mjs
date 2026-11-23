@@ -3563,3 +3563,21 @@ test('SPEC-024: a monster defeated together: equal shares, the odd gem to the la
     const alone = await page.evaluate(() => ({ shared: window.gameTest.sharedOn(), leads: window.gameTest.isLeader() }));
     assert.deepEqual(alone, { shared: false, leads: true }, 'alone, the game plays as before');
   }, { saves: [phoneGame()], choice: '0' }));
+
+test('0.6.85: the player count at the top left, the notes box, and the map with M', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && /Players 1/.test(document.getElementById('hud').textContent), null, { timeout: 60000 });
+    await page.evaluate(() => window.gameTest.addNote('Sir Kestrel 4 joined your world'));
+    assert.equal(await page.evaluate(() => document.getElementById('feed').textContent), 'Sir Kestrel 4 joined your world');
+    await page.keyboard.press('KeyM');
+    assert.equal(await page.evaluate(() => window.gameTest.mapOpen), true, 'M opens the map');
+    const lit = await page.evaluate(() => { const d = document.getElementById('mapLand').getContext('2d').getImageData(40, 40, 16, 16).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 150) n++; return n; });
+    assert.ok(lit > 0, 'the map shows the land around the child');
+    await page.keyboard.press('KeyM');
+    assert.equal(await page.evaluate(() => window.gameTest.mapOpen), false, 'M closes it again');
+    await page.evaluate(() => document.getElementById('mapBtn').click());
+    assert.equal(await page.evaluate(() => window.gameTest.mapOpen), true, 'the Map button opens it');
+    await page.evaluate(() => document.getElementById('mapBox').click());
+    assert.equal(await page.evaluate(() => window.gameTest.mapOpen), false, 'a tap on the map closes it');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [fightLevel2Game()] }));

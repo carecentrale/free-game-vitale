@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.84 (3D)</title>
+<title>Adventurers of Drenerics v0.6.85 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -36,7 +36,15 @@
   #powersClose{display:block;width:100%;margin-top:12px;padding:12px;border:0;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;background:#3b6fd8;color:#fff}
   /* The Recent list is taken off the screen when fewer than two of its rows fit between the buttons (0.6.74) */
   #recent.nofit{display:none!important}
-  #toggle,#bagBtn,#settingsBtn{padding:6px 10px;background:rgba(0,0,0,.4);color:#fff;border-radius:8px;font-size:14px;cursor:pointer;white-space:nowrap}
+  #feed{position:fixed;top:40px;left:10px;max-width:40vw;display:flex;flex-direction:column;gap:4px;pointer-events:none;z-index:9}
+  #feed div{background:rgba(0,0,0,.5);color:#fff;font-size:14px;padding:4px 8px;border-radius:8px;transition:opacity 1s}
+  #mapBox{position:fixed;top:44px;left:50%;transform:translateX(-50%);width:clamp(180px,46vmin,384px);z-index:20;background:rgba(0,0,0,.55);border-radius:12px;padding:6px;cursor:pointer}
+  #mapBox.hide{display:none}
+  #mapBox canvas{display:block;width:100%;aspect-ratio:1;border-radius:8px}
+  #mapLand{image-rendering:pixelated}
+  #mapDots{position:absolute;left:6px;top:6px;width:calc(100% - 12px)!important}
+  #mapBox .mapKey{color:#fff;font-size:12px;text-align:center;margin-top:4px}
+  #toggle,#bagBtn,#settingsBtn,#mapBtn{padding:6px 10px;background:rgba(0,0,0,.4);color:#fff;border-radius:8px;font-size:14px;cursor:pointer;white-space:nowrap}
   #bagBtn{position:fixed;right:10px;top:50px;z-index:10}
   /* Hand buttons and Spell button (touch screens): round picture buttons in a column above JUMP (0.6.60) */
   .hb{position:fixed;right:28px;width:52px;height:52px;border-radius:50%;background:rgba(0,0,0,.4);border:3px solid rgba(255,255,255,.45);box-sizing:border-box;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:pointer;z-index:6}
@@ -104,7 +112,9 @@
   body.phone #bH1{bottom:calc(clamp(48px,15vmin,62px) + 24px)}
   body.phone #bH2{bottom:calc(clamp(48px,15vmin,62px) + 80px)}
   body.phone #bSpell{bottom:calc(clamp(48px,15vmin,62px) + 136px)}
-  body.phone #toggle,body.phone #bagBtn,body.phone #settingsBtn{font-size:12px;padding:5px 8px}
+  body.phone #feed{top:132px;left:8px;max-width:60vw}
+  body.phone #feed div{font-size:12px}
+  body.phone #toggle,body.phone #bagBtn,body.phone #settingsBtn,body.phone #mapBtn{font-size:12px;padding:5px 8px}
   body.phone #topbar{gap:6px;right:8px}
   body.phone #bagBtn{top:44px;right:8px}
   body.phone #teleBtn{width:30px;height:30px;font-size:15px}
@@ -243,10 +253,12 @@
 <script>setTimeout(function(){var e=document.getElementById('splash');if(e)e.remove();},20000);</script>
 <div id="hud"></div>
 <div id="msg"></div>
+<div id="feed"></div>
+<div id="mapBox" class="hide" title="Tap to close the map"><canvas id="mapLand" width="96" height="96"></canvas><canvas id="mapDots" width="384" height="384"></canvas><div class="mapKey">You: white &nbsp; Friends: yellow &nbsp; Tap or M to close</div></div>
 <div id="hudBtn"></div>
 <div id="quit"><div style="font-weight:700;font-size:19px">Quit the game?</div><div style="margin-top:6px;opacity:.85;font-size:14px">Your game is saved first.</div><button id="quitYes">Save and quit</button><button id="quitLogOff">Log off (pick another game)</button><button id="quitNo">Keep playing</button></div>
 <!-- The buttons at the top right sit in one row, so they can never lie on top of each other whatever their text or the screen size (0.6.69) -->
-<div id="topbar"><div id="teleBtn" title="Teleport to the start">&#10022;</div><div id="powersBtn" role="button" aria-label="Powers" title="Powers"><span class="star">&#9733;</span><span class="pl">Powers</span></div><div id="settingsBtn">Settings</div><div id="viewBtn" role="button" aria-label="Change view" title="Change view (V)"><svg viewBox="0 0 24 24"><path d="M1.5 12C4.5 6.5 8 4.5 12 4.5S19.5 6.5 22.5 12C19.5 17.5 16 19.5 12 19.5S4.5 17.5 1.5 12Z" fill="#fff"/><circle cx="12" cy="12" r="4.2" fill="#3b6fd8"/><circle cx="12" cy="12" r="1.9" fill="#111"/></svg><span class="pl">View</span></div><div id="toggle">Controls</div></div>
+<div id="topbar"><div id="teleBtn" title="Teleport to the start">&#10022;</div><div id="powersBtn" role="button" aria-label="Powers" title="Powers"><span class="star">&#9733;</span><span class="pl">Powers</span></div><div id="mapBtn" role="button" aria-label="Map" title="Map (M)">Map</div><div id="settingsBtn">Settings</div><div id="viewBtn" role="button" aria-label="Change view" title="Change view (V)"><svg viewBox="0 0 24 24"><path d="M1.5 12C4.5 6.5 8 4.5 12 4.5S19.5 6.5 22.5 12C19.5 17.5 16 19.5 12 19.5S4.5 17.5 1.5 12Z" fill="#fff"/><circle cx="12" cy="12" r="4.2" fill="#3b6fd8"/><circle cx="12" cy="12" r="1.9" fill="#111"/></svg><span class="pl">View</span></div><div id="toggle">Controls</div></div>
 <div id="bagBtn">Bag (B)</div>
 <div id="recent"></div>
 <div id="qb"></div>
@@ -2463,6 +2475,21 @@ function topSpawnPoint() {
   if (!best) return [CENTER + 0.5, SURF + 3.01, CENTER + 0.5];
   return [best.x + 0.5, best.y + 3.01, best.z + 0.5];   // two blocks above the top, so the character drops onto the land
 }
+// After a shared world's land is loaded (0.6.85): never leave the character inside the ground.
+// fresh: go to the start point of that world. Otherwise stay, or if blocks are in the way, stand on top of them.
+// Returns what was done: 'ok' (nothing in the way), 'up' (moved up onto the land) or 'start' (moved to the start point).
+function placeSafely(fresh) {
+  if (!fresh && !hits(px, py, pz)) return 'ok';
+  if (!fresh) {
+    const x = Math.floor(px), z = Math.floor(pz);
+    let y = H - 1;
+    while (y > 0 && !solid(get(x, y, z))) y--;
+    for (let up = 1.01; up <= 3.01; up += 1) if (y + up < H - 2 && !hits(px, y + up, pz)) { py = y + up; vx = vy = vz = 0; return 'up'; }
+  }
+  [px, py, pz] = topSpawnPoint();
+  vx = vy = vz = 0;
+  return 'start';
+}
 const spawnPoint = topSpawnPoint;
 let [px, py, pz] = spawnPoint();
 let vx = 0, vy = 0, vz = 0, onGround = false, jumpHeld = false, squash = 0, walkT = 0;
@@ -2974,6 +3001,12 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.85', title: 'Playing together: no more starting in the ground, and a map', items: [
+    'When you join a friend\'s world you now start on top of the land at the world\'s start point, not inside the ground',
+    'A small box at the top left tells you when a friend joins or leaves your world',
+    'The top left shows how many players are in your world',
+    'Press M, or tap the Map button, to see a map of the land around you and where your friends are. Tap the map or press M again to close it',
+  ] },
   { v: '0.6.84', title: 'Log off', items: [
     'The quit question has a new Log off button. It saves your game and takes you back to the start menu, so you can load another game or world, or start a new one',
   ] },
@@ -3356,7 +3389,8 @@ function logOff() {
 }
 // Esc and the Android Back button: close an open panel first; with nothing open, ask whether to quit
 function backAction() {
-  if (tipPanel) tipClose();
+  if (mapOpen) toggleMap(false);
+  else if (tipPanel) tipClose();
   else if (quizPanel) quizNotNow();
   else if (tradePanel) closeTrade();
   else if (quitOpen) toggleQuit(false);
@@ -5682,7 +5716,8 @@ function drawHud() {
   // The lit Spell button turns itself off after 5 seconds with no tap on the world, or when it is no longer on screen
   if (spellArmed && !press && (performance.now() - spellArmedAt > SPELL_ARM_MS || spellBtn.style.display === 'none')) armSpell(false);
   // One short line at the top left (0.6.74): gems and the bag. The powers are in the Powers panel.
-  const line = `Gems ${inv.gem} &nbsp; Bag ${invTotal()}/${invCap()}`;
+  // 0.6.85: in a shared world, how many players are in it (this child included)
+  const line = `Gems ${inv.gem} &nbsp; Bag ${invTotal()}/${invCap()}` + (worldId ? ` &nbsp; Players ${playersInWorld()}` : '');
   if (line !== hudLine) { hud.innerHTML = line; hudLine = line; }
   if (powersOpen) renderPowers();
   const sig = innerWidth + 'x' + innerHeight + spellBtn.style.display + padOn + panelOpen + document.body.className;
@@ -6900,6 +6935,7 @@ function frame(now) {
   if (!paused) update(dt);
   else if (sharedLead()) { try { updateEnemies(dt); updateSpawns(dt); } catch (e) { logError(e, 'shared world'); } }   // the leading device keeps the world going while its child reads a question (SPEC-024)
   updateOthers(dt);
+  updateMap(dt);
   try { updateMirrors(dt); updateFriendMirrors(dt); } catch (e) { logError(e, 'shared world'); }
   try { updateView(); } catch (e) { logError(e, 'rebuild'); }
   dirty = false;
@@ -6984,7 +7020,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.84';
+const VERSION = '0.6.85';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7320,9 +7356,9 @@ function makeOther(id, meta) {
   g.traverse(o => { if (o.isMesh) o.material = o.material.clone(); });
   for (const n of ['pick', 'sword', 'held']) { const x = g.getObjectByName(n); if (x) x.visible = false; }
   paint(g, lookOf(meta));
-  g.add(nameTag(meta.name));
+  g.add(nameTag(safeName(meta.name)));
   scene.add(g);
-  return { g, name: meta.name, x: meta.x, y: meta.y, z: meta.z, yaw: meta.yaw, legL: g.getObjectByName('legL'), legR: g.getObjectByName('legR'), walk: 0 };
+  return { g, name: safeName(meta.name), x: meta.x, y: meta.y, z: meta.z, yaw: meta.yaw, legL: g.getObjectByName('legL'), legR: g.getObjectByName('legR'), walk: 0 };
 }
 function updateOthers(dt) {
   for (const o of others.values()) {
@@ -7349,6 +7385,7 @@ function onPresence() {
   if (!channel) return;
   const st = channel.presenceState();
   const seen = new Set();
+  const before = new Map([...others].map(([k, o]) => [k, o.name]));
   for (const key of Object.keys(st)) {
     if (key === pid) continue;
     const metas = st[key];
@@ -7358,10 +7395,121 @@ function onPresence() {
     if (m.n !== (others.get(key) || {}).n) heard.set(key, Date.now());
     let o = others.get(key);
     if (!o) { o = makeOther(key, m); others.set(key, o); }
-    Object.assign(o, { name: m.name, x: m.x, y: m.y, z: m.z, yaw: m.yaw, n: m.n, tk: typeof m.tk === 'string' ? m.tk : null });
+    Object.assign(o, { name: safeName(m.name), x: m.x, y: m.y, z: m.z, yaw: m.yaw, n: m.n, tk: typeof m.tk === 'string' ? m.tk : null });
   }
   for (const [key, o] of others) if (!seen.has(key)) { scene.remove(o.g); others.delete(key); }
+  // Notes when someone comes or goes (0.6.85). The first list after connecting says who is already here.
+  const after = new Map([...others].map(([k, o]) => [k, o.name]));
+  for (const t of presenceNotes(before, after, !presenceSeen)) addNote(t);
+  presenceSeen = true;
 }
+
+// ---- Players together (0.6.85): safe names, notes when someone comes or goes, and the map's colours ----
+// Only names the game itself makes are shown (a title, a name from the list and a number from 1 to 999). Anything
+// else sent by a device shows as "A player", so no typed text can reach a child through a name.
+const NAME_RX = new RegExp('^(' + titles.join('|') + ') (' + names.join('|') + ') ([1-9][0-9]{0,2})$');
+const safeName = n => typeof n === 'string' && NAME_RX.test(n) ? n : 'A player';
+// before, after: Map of presence key -> name. first: the first list after connecting to the world.
+function presenceNotes(before, after, first) {
+  const out = [];
+  if (first) {
+    const list = [...after.values()];
+    if (list.length === 1) out.push(list[0] + ' is here');
+    else if (list.length > 1) out.push(list.length + ' friends are here: ' + list.slice(0, 3).join(', ') + (list.length > 3 ? ' and more' : ''));
+    return out;
+  }
+  for (const [k, n] of after) if (!before.has(k)) out.push(n + ' joined your world');
+  for (const [k, n] of before) if (!after.has(k)) out.push(n + ' left the world');
+  return out;
+}
+// The map's colour for each kind of block (0.6.85), [r, g, b]
+const MAP_COLORS = {
+  [T.GRASS]: [90, 168, 60], [T.DIRT]: [138, 90, 53], [T.STONE]: [138, 138, 138], [T.GEM]: [63, 208, 224], [T.WATER]: [58, 120, 216],
+  [T.SAND]: [224, 208, 138], [T.SNOW]: [244, 248, 255], [T.CSTONE]: [154, 154, 154], [T.ROOF]: [176, 74, 58], [T.WOOD]: [139, 90, 43],
+  [T.ROOFB]: [58, 90, 176], [T.PALE]: [216, 210, 192], [T.SANDST]: [208, 176, 112], [T.DARK]: [68, 68, 68], [T.SLATE]: [85, 96, 112],
+  [T.WINDOW]: [168, 216, 240], [T.IRON]: [112, 120, 128], [T.COBBLE]: [125, 116, 104], [T.EARTH]: [160, 120, 80]
+};
+// Colour of a column whose top block is t at height y: higher land is a little lighter
+function mapColor(t, y) {
+  const c = MAP_COLORS[t] || [136, 136, 136];
+  const f = Math.max(0.6, Math.min(1.25, 0.85 + (y - SURF) * 0.012));
+  return c.map(v => Math.min(255, Math.round(v * f)));
+}
+// Where a player is drawn on the map: (px, pz) is the middle, r blocks each way, size pixels across.
+// Players outside the map are drawn on its edge (edge: true).
+function mapSpot(x, z, cx, cz, r, size) {
+  let dx = (x - cx) / r, dz = (z - cz) / r;
+  const m = Math.max(Math.abs(dx), Math.abs(dz));
+  const edge = m > 1;
+  if (edge) { dx /= m; dz /= m; }
+  return { sx: (dx + 1) / 2 * size, sy: (dz + 1) / 2 * size, edge };
+}
+// ---- end of players-together helpers ----
+
+let presenceSeen = false;
+const feedEl = document.getElementById('feed');
+// A short note in the box at the top left, gone after 8 seconds; at most 4 at once
+function addNote(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  feedEl.appendChild(d);
+  while (feedEl.children.length > 4) feedEl.firstChild.remove();
+  setTimeout(() => { d.style.opacity = '0'; }, 7000);
+  setTimeout(() => d.remove(), 8000);
+}
+const playersInWorld = () => worldId ? 1 + others.size : 1;
+
+// ---- The map (0.6.85): M on a keyboard, or the Map button. Shows the land around this child and where the players are. ----
+const MAP_R = 48;                      // blocks each way from the child
+const mapEl = document.getElementById('mapBox');
+const mapLand = document.getElementById('mapLand'), mapDots = document.getElementById('mapDots');
+let mapOpen = false, mapLandAt = null, mapT = 0;
+function drawMapLand() {
+  const n = MAP_R * 2, img = mapLand.getContext('2d').createImageData(n, n);
+  const cx = Math.floor(px), cz = Math.floor(pz);
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const x = cx - MAP_R + i, z = cz - MAP_R + j, o = (j * n + i) * 4;
+    let c = [27, 32, 48];   // land not loaded yet: dark
+    if (inPlay(x, z) && chunks.has(ckey(Math.floor(x / CS), Math.floor(z / CS)))) {
+      let y = H - 1;
+      while (y > 0 && get(x, y, z) === T.AIR) y--;
+      c = mapColor(get(x, y, z), y);
+    }
+    img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
+  }
+  mapLand.getContext('2d').putImageData(img, 0, 0);
+  mapLandAt = [cx, cz];
+}
+function drawMapDots() {
+  const g = mapDots.getContext('2d'), S = mapDots.width;
+  g.clearRect(0, 0, S, S);
+  const [cx, cz] = mapLandAt;
+  g.font = 'bold 13px sans-serif'; g.textAlign = 'center';
+  for (const o of others.values()) {
+    const p = mapSpot(o.x, o.z, cx + 0.5, cz + 0.5, MAP_R, S);
+    g.fillStyle = '#ffd43b'; g.strokeStyle = '#000'; g.lineWidth = 2;
+    g.beginPath(); g.arc(p.sx, p.sy, p.edge ? 5 : 7, 0, Math.PI * 2); g.fill(); g.stroke();
+    if (!p.edge) { g.fillStyle = '#fff'; g.strokeText(o.name, p.sx, p.sy - 11); g.fillText(o.name, p.sx, p.sy - 11); }
+  }
+  const me = mapSpot(px, pz, cx + 0.5, cz + 0.5, MAP_R, S);
+  g.fillStyle = '#fff'; g.strokeStyle = '#d9473b'; g.lineWidth = 3;
+  g.beginPath(); g.arc(me.sx, me.sy, 8, 0, Math.PI * 2); g.fill(); g.stroke();
+}
+function toggleMap(on = !mapOpen) {
+  mapOpen = on;
+  mapEl.classList.toggle('hide', !on);
+  if (on) { drawMapLand(); drawMapDots(); mapT = 0; }
+}
+// While open: players every frame, the land again every 2 seconds or when the child has walked 8 blocks
+function updateMap(dt) {
+  if (!mapOpen) return;
+  mapT += dt;
+  if (mapT > 2 || Math.hypot(Math.floor(px) - mapLandAt[0], Math.floor(pz) - mapLandAt[1]) > 8) { drawMapLand(); mapT = 0; }
+  drawMapDots();
+}
+mapEl.addEventListener('click', () => toggleMap(false));
+document.getElementById('mapBtn').addEventListener('click', () => toggleMap());
+addEventListener('keydown', e => { if (e.code === 'KeyM' && !e.repeat && !(e.target && e.target.tagName === 'INPUT')) toggleMap(); });
 
 // ---- Shared world: block changes are sent live and saved every few seconds ----
 function shareBlock(x, y, z, t) {
@@ -7373,6 +7521,7 @@ function connectWorld() {
   if (channel) { try { sb.removeChannel(channel); } catch (e) {} channel = null; channelJoined = false; }
   for (const o of others.values()) scene.remove(o.g);
   others.clear();
+  presenceSeen = false;
   const ch = sb.channel('world-' + worldId, { config: { presence: { key: pid }, broadcast: { self: false } } });
   ch.on('broadcast', { event: 'block' }, ({ payload }) => {
     const p = payload || {};
@@ -7405,7 +7554,7 @@ setInterval(async () => {
 setInterval(async () => {
   if (!sb || !worldId || worldDirty) return;
   const { data } = await sb.rpc('world_get', { p_code: worldId }).maybeSingle();
-  if (data && data.grid && data.updated_at !== lastStamp) { lastStamp = data.updated_at; loadShared(data.grid, worldId); dirty = true; }
+  if (data && data.grid && data.updated_at !== lastStamp) { lastStamp = data.updated_at; loadShared(data.grid, worldId); dirty = true; placeSafely(false); }
 }, 30000);
 
 
@@ -7709,7 +7858,10 @@ function mirrorFriendAt(x, y) {
   return null;
 }
 
-async function joinExisting(code) {
+// fresh: joined from the start wizard. The character was standing in a world made for a new game, so it starts at the
+// start point of the joined world. Otherwise (a saved game reopening its shared world) it stays where it was, unless
+// the land loaded from the server is in the way (0.6.85: children were starting inside the ground).
+async function joinExisting(code, fresh = false) {
   await sbReady;
   if (!sb) throw new Error('offline');
   const { data, error } = await sb.rpc('world_get', { p_code: code }).maybeSingle();
@@ -7718,6 +7870,7 @@ async function joinExisting(code) {
   if (data.grid) { loadShared(data.grid, code); dirty = true; }
   lastStamp = data.updated_at;
   worldId = code;
+  placeSafely(fresh);
   return true;
 }
 async function createWorld() {
@@ -7813,7 +7966,7 @@ async function finishWizard() {
     await sbReady;
     if (wiz.mode === 'new') await createWorld();
     else {
-      const found = await joinExisting(wiz.code);
+      const found = await joinExisting(wiz.code, true);
       if (!found) throw new Error('No world has that code. Check it with your friend.');
     }
   } catch (err) {
@@ -8079,6 +8232,8 @@ Promise.all([
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  // 0.6.85: joining a world, notes, the player count and the map
+  placeSafely, safeName, presenceNotes, addNote, toggleMap, get mapOpen() { return mapOpen; }, playersInWorld,
   // Getting the new version (0.6.80, SPEC-019): a pretend Google Play can be put in place
   upd, updCheck, updTick, updSafe, updForced, updSave, setUpdPlugin: p => { upd.plugin = p; },
   // Loading screen and load-by-itself (0.6.83)
