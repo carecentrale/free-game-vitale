@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.81 (3D)</title>
+<title>Adventurers of Drenerics v0.6.82 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -1914,6 +1914,11 @@ const clamp = v => Math.max(0, Math.min(255, Math.round(v)));
 function shade(hexN, v) {
   return `rgb(${clamp((hexN >> 16 & 255) + v * 255)},${clamp((hexN >> 8 & 255) + v * 255)},${clamp((hexN & 255) + v * 255)})`;
 }
+// Up close a block keeps its sharp pixels (magFilter Nearest). Far away it uses smaller, smoothed
+// copies of its picture (mipmaps), so walls full of small details (castle windows, stone lines)
+// no longer shimmer or blink when the camera moves (0.6.82). Anisotropy keeps walls seen at a
+// slant clear; it is set once the renderer exists (see blockTextures below the renderer).
+const blockTextures = [];
 function makeTex(draw) {
   const S = 16;
   const c = document.createElement('canvas');
@@ -1922,8 +1927,10 @@ function makeTex(draw) {
   draw(g, S);
   const t = new THREE.CanvasTexture(c);
   t.magFilter = THREE.NearestFilter;
-  t.minFilter = THREE.NearestFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
   t.colorSpace = THREE.SRGBColorSpace;
+  blockTextures.push(t);
   return t;
 }
 function noise(g, S, base, amt) {
@@ -2043,6 +2050,8 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
+// Block textures seen at a slant stay clear (0.6.82). Capped at 4 so older phones keep their speed.
+{ const aniso = Math.min(4, renderer.capabilities.getMaxAnisotropy() || 1); for (const t of blockTextures) { t.anisotropy = aniso; t.needsUpdate = true; } }
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb);
@@ -2917,6 +2926,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.82', title: 'Castles without flicker', items: [
+    'Castle walls and windows no longer flicker or blink when you look at them from far away. Up close, blocks look as sharp as before',
+  ] },
   { v: '0.6.81', title: 'Grand castles, roads, guards, dragons and playing together', items: [
     'Castles are much grander: three styles, tall roofs, towers with spires, windows, gardens and furnished rooms. Your own worlds get them too',
     'Roads now wind across the land and join every castle. Follow the signposts, cross the bridges, and dig up cobblestones for your own paths!',
@@ -6901,7 +6913,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.81';
+const VERSION = '0.6.82';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
