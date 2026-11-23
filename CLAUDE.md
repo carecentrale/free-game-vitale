@@ -93,6 +93,11 @@ The parent wants Claude to do the build and release work on this PC (Windows lap
 - The first device in a world (presence `since`) leads; one silent for 4 seconds is passed over. Only the leader moves monsters and carts, decides fights, drops and dragons' meals; it sends `ws` about 3 times a second. Followers send `hit` and `pick` to it. Never send text, a typed name or anything about a child.
 - Supabase free plan limits (checked 22 Nov 2026, supabase.com/docs/guides/realtime/limits): 200 concurrent connections, 100 messages a second and 20 presence messages a second for the whole project. Presence is sent twice a second per device: keep it that way or lower.
 
+## Tracking records (Nick's rule, 23 Nov 2026)
+- Every feature records tracking events for safety (backtracking, accountability, traceability). Records hold visit codes, world codes, counts and game words only: never a name or anything typed.
+- Everything the game sends off the device (event kinds, tables, database functions, shared-world messages, presence fields, other requests) is listed in `docs/EVENTS.md`, with the privacy-page row that explains it. A new kind goes into `docs/EVENTS.md` and `www/privacy.html` in the same release, after Nick's yes (it changes what is collected).
+- `scripts/tests/events.test.mjs` fails when the game sends something not listed there, or a listed privacy-page row is missing. Rows marked "Not yet" are known gaps waiting for Nick's decision (shown as todo).
+
 ## Database changes (22 Nov 2026)
 - Every change to the database's structure or access rules is a file in `docs/migrations/` (next free number), committed before or with the change, and added to the table in `docs/migrations/README.md` when it is applied to the live database. Never change the live database with SQL that is not in a file there.
 - After applying one, check that the live list (Supabase `list_migrations`) still matches the README. `scripts/tests/migrations.test.mjs` checks that every file is listed.
