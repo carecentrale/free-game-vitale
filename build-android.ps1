@@ -43,8 +43,18 @@ function Install-Packages($where) {
 if (-not $NoUpdate) {
   Say 'Getting the latest game from GitHub'
   if (-not (Get-Command git -ErrorAction SilentlyContinue)) { Fail 'Git for Windows is not installed, so the game could not be updated. Install it from https://git-scm.com/download/win, or build without updating: -NoUpdate.' }
-  & git pull --ff-only
-  if ($LASTEXITCODE) { Fail 'The update from GitHub did not work (see the message above). Nothing was built. Send the message to Claude.' }
+  # git writes its errors to stderr, which the watcher keeps out of the log and the Drive report: merge them into the output.
+  $gitOut = @(cmd /c 'git pull --ff-only 2>&1'); $gitCode = $LASTEXITCODE
+  $gitOut | ForEach-Object { Write-Host $_ }
+  if ($gitCode) {
+    Write-Host ''; Write-Host 'Git said:'
+    $gitOut | Where-Object { $_ -match '^(error|fatal|hint):|^\s+\S' } | Select-Object -First 12 | ForEach-Object { Write-Host "  $_" }
+    Write-Host 'Changed or new files in the game folder (git status):'
+    @(cmd /c 'git status --short 2>&1') | Select-Object -First 15 | ForEach-Object { Write-Host "  $_" }
+    $why = ($gitOut | Where-Object { $_ -match '^(error|fatal):' } | Select-Object -First 1)
+    if (-not $why) { $why = 'no error line from git' }
+    Fail "The update from GitHub did not work. Git said: $why. Nothing was built. Send this report to Claude."
+  }
 }
 
 # ---- 1. Tools ----
