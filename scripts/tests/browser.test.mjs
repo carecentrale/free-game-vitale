@@ -177,19 +177,24 @@ test('the game starts from a saved game with blocks, enemies and no errors', { s
 
 test('enemies stay on the ground while the player roams', { skip, timeout: 180000 }, () =>
   withGame(async (page, errors) => {
-    // Walk in a loop for about 20 seconds, turning now and then; check the enemies as we go
-    const moves = ['KeyW', 'KeyW', 'KeyD', 'KeyW', 'KeyA', 'KeyW', 'KeyS', 'KeyD'];
-    const bad = [];
-    for (let step = 0; step < 40; step++) {
-      const key = moves[step % moves.length];
-      await page.keyboard.down(key);
-      for (let k = 0; k < 2; k++) {
-        await page.waitForTimeout(250);
-        const st = await page.evaluate(() => window.gameProbe());
-        for (const e of st.list) if (e.airT > 1.5) bad.push({ step, player: [st.px, st.py, st.pz].map(v => Math.round(v)), ...e });
+    // Walk in a loop for 20 seconds of game time, turning now and then; check the enemies as we go.
+    // Game time is played with stepFrames (0.25 s per check), in one call, not waited for: on slow test machines that
+    // drew about one frame a second, real-time waiting gave too little game time and the test ran out of time (23 Nov 2026)
+    const bad = await page.evaluate(() => {
+      const g = window.gameTest, out = [];
+      const moves = ['KeyW', 'KeyW', 'KeyD', 'KeyW', 'KeyA', 'KeyW', 'KeyS', 'KeyD'];
+      for (let step = 0; step < 40; step++) {
+        const key = moves[step % moves.length];
+        dispatchEvent(new KeyboardEvent('keydown', { code: key }));
+        for (let k = 0; k < 2; k++) {
+          g.stepFrames(Array(5).fill(0.05));
+          const st = window.gameProbe();
+          for (const e of st.list) if (e.airT > 1.5) out.push({ step, player: [st.px, st.py, st.pz].map(v => Math.round(v)), ...e });
+        }
+        dispatchEvent(new KeyboardEvent('keyup', { code: key }));
       }
-      await page.keyboard.up(key);
-    }
+      return out;
+    });
     assert.deepEqual(errors, [], 'errors in the browser:\n' + errors.join('\n'));
     assert.deepEqual(bad.slice(0, 5), [], 'enemies hung in the air while the player roamed (first 5):\n' + JSON.stringify(bad.slice(0, 5)));
   }));
@@ -209,7 +214,9 @@ test('with saved games and none chosen, the start menu lists them (it does not s
 test('at Fighting level 2 the skill choice appears, and F shoots a fireball', { skip, timeout: 180000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
-    await page.click('#skillPanel [data-skill="fireball"]');
+    // Clicked from inside the page: Playwright's own click waits for the page to draw steady frames, which timed out
+    // on slow test machines (about one frame a second) although the button was there (23 Nov 2026)
+    await page.evaluate(() => document.querySelector('#skillPanel [data-skill="fireball"]').click());
     const chosen = await page.evaluate(() => window.gameProbe());
     assert.deepEqual(chosen.skills, ['fireball']);
     assert.equal(chosen.skillPanel, false);
@@ -224,14 +231,19 @@ test('at Fighting level 2 the skill choice appears, and F shoots a fireball', { 
 test('in water the character sinks slowly, and holding jump swims up', { skip, timeout: 180000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => { const p = window.gameProbe(); return Math.abs(p.px - (199960 + 0.5)) < 0.01; }, null, { timeout: 60000 });
-    const y0 = await page.evaluate(() => window.gameProbe().py);
-    await page.waitForTimeout(300);
-    const y1 = await page.evaluate(() => window.gameProbe().py);
+    // Game time is played with stepFrames (1/60 s each), not waited for: on slow test machines that drew about one
+    // frame a second, 600 ms of real time was too little game time to swim up (23 Nov 2026)
+    const { y0, y1, y2 } = await page.evaluate(() => {
+      const g = window.gameTest, y = () => window.gameProbe().py;
+      const y0 = y();
+      g.stepFrames(Array(18).fill(1 / 60));   // 0.3 s
+      const y1 = y();
+      dispatchEvent(new KeyboardEvent('keydown', { code: 'Space' }));
+      g.stepFrames(Array(36).fill(1 / 60));   // 0.6 s holding jump
+      dispatchEvent(new KeyboardEvent('keyup', { code: 'Space' }));
+      return { y0, y1, y2: y() };
+    });
     assert.ok(y1 < y0 && y0 - y1 < 0.8, `sinking should be slow: ${y0} -> ${y1}`);
-    await page.keyboard.down('Space');
-    await page.waitForTimeout(600);
-    await page.keyboard.up('Space');
-    const y2 = await page.evaluate(() => window.gameProbe().py);
     assert.ok(y2 > y1 + 0.8, `holding jump should swim up: ${y1} -> ${y2}`);
     assert.deepEqual(errors, [], 'errors while swimming: ' + errors.join(' | '));
   }, { saves: [swimGame()] }));
@@ -414,7 +426,8 @@ test('next to water the jump climbs, but on dry land away from water it does not
 test('with the fireball selected, right-click casts a fireball', { skip, timeout: 180000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
-    await page.click('#skillPanel [data-skill="fireball"]');
+    // Clicked from inside the page (see the Fighting level 2 test)
+    await page.evaluate(() => document.querySelector('#skillPanel [data-skill="fireball"]').click());
     await page.keyboard.press('Digit3');   // the fireball went into the first empty quick bar slot (slot 3)
     const before = await page.evaluate(() => { const p = window.gameProbe(); return p.fireballs + p.blasts; });
     await page.mouse.click(400, 300, { button: 'right' });
@@ -427,7 +440,8 @@ test('with the fireball selected, right-click casts a fireball', { skip, timeout
 test('the Spell button is hidden until on-screen controls are on, then a tap on it and a tap on the world casts a fireball; there is no FIRE button', { skip, timeout: 180000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
-    await page.click('#skillPanel [data-skill="fireball"]');
+    // Clicked from inside the page (see the Fighting level 2 test)
+    await page.evaluate(() => document.querySelector('#skillPanel [data-skill="fireball"]').click());
     assert.equal(await page.evaluate(() => !!document.getElementById('bFire')), false, 'the FIRE button should be gone');
     const hidden = await page.evaluate(() => getComputedStyle(document.getElementById('bSpell')).display);
     assert.equal(hidden, 'none', 'the Spell button should be hidden while on-screen controls are off');
@@ -449,9 +463,10 @@ test('the Spell button is hidden until on-screen controls are on, then a tap on 
 test('a fireball aimed at a screen point is fired and flies toward it', { skip, timeout: 180000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
-    await page.click('#skillPanel [data-skill="fireball"]');
+    // Clicked from inside the page (see the Fighting level 2 test)
+    await page.evaluate(() => document.querySelector('#skillPanel [data-skill="fireball"]').click());
     await page.waitForFunction(() => window.gameTest.skills.includes('fireball'), null, { timeout: 60000 });
-    await page.waitForTimeout(500);
+    await page.evaluate(() => window.gameTest.stepFrames(Array(10).fill(0.05)));   // 0.5 s of game time: the spell cooldown wears off
     const r = await page.evaluate(() => {
       const g = window.gameTest;
       const before = g.fireballs.length;
@@ -469,9 +484,10 @@ test('a fireball aimed at a screen point is fired and flies toward it', { skip, 
 test('a fireball aimed at a block flies from the character to the point that was clicked', { skip, timeout: 180000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
-    await page.click('#skillPanel [data-skill="fireball"]');
+    // Clicked from inside the page (see the Fighting level 2 test)
+    await page.evaluate(() => document.querySelector('#skillPanel [data-skill="fireball"]').click());
     await page.waitForFunction(() => window.gameTest.skills.includes('fireball'), null, { timeout: 60000 });
-    await page.waitForTimeout(500);
+    await page.evaluate(() => window.gameTest.stepFrames(Array(10).fill(0.05)));   // 0.5 s of game time: the spell cooldown wears off
     const r = await page.evaluate(() => {
       const g = window.gameTest, p = window.gameProbe();
       // Find a screen point, from low to the centre, that is over a block
@@ -502,9 +518,10 @@ test('a fireball aimed at a block flies from the character to the point that was
 test('a fireball aimed at water bursts on the water', { skip, timeout: 480000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
-    await page.click('#skillPanel [data-skill="fireball"]');
+    // Clicked from inside the page (see the Fighting level 2 test)
+    await page.evaluate(() => document.querySelector('#skillPanel [data-skill="fireball"]').click());
     await page.waitForFunction(() => window.gameTest.skills.includes('fireball'), null, { timeout: 60000 });
-    await page.waitForTimeout(800);
+    await page.evaluate(() => window.gameTest.stepFrames(Array(16).fill(0.05)));   // 0.8 s of game time: the spell cooldown wears off
     await page.waitForFunction(() => window.gameTest.pendingNear(2) === 0, null, { timeout: 60000 });   // the chunks right around the player exist (far chunks and scenery are not needed for this check)
     await page.evaluate(() => window.gameTest.settleCamera());   // put the camera behind the player now, instead of waiting for it to ease there
     // A short shot: the closest water with a clear line (a few blocks away), so the fireball does not have far to fly
@@ -587,7 +604,8 @@ test('a goblin has arms and legs that the game can swing', { skip, timeout: 1200
 test('performance is measured: frame rate, memory, draw calls, triangles', { skip, timeout: 400000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
-    await page.click('#skillPanel [data-skill="fireball"]');
+    // Clicked from inside the page (see the Fighting level 2 test)
+    await page.evaluate(() => document.querySelector('#skillPanel [data-skill="fireball"]').click());
     await page.waitForFunction(() => window.gameTest.skills.includes('fireball'), null, { timeout: 60000 });
     await page.waitForFunction(() => window.gameTest.decorReady() && window.gameTest.pendingChunks() === 0, null, { timeout: 300000 });
     await page.evaluate(() => window.gameTest.settleCamera());
@@ -603,7 +621,8 @@ test('performance is measured: frame rate, memory, draw calls, triangles', { ski
 test('a shot at any part of an enemy is linked to that enemy, so it flies to it', { skip, timeout: 150000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
-    await page.click('#skillPanel [data-skill="fireball"]');
+    // Clicked from inside the page (see the Fighting level 2 test)
+    await page.evaluate(() => document.querySelector('#skillPanel [data-skill="fireball"]').click());
     await page.waitForFunction(() => window.gameTest.skills.includes('fireball'), null, { timeout: 60000 });
     // Turn the camera (set directly) until an enemy is in front of it and on the screen
     let target = null;
@@ -1024,7 +1043,8 @@ test('on a computer there are no hand buttons, and a learned fireball goes into 
     assert.deepEqual(shown, [], 'hand and spell buttons are not shown on a computer');
     // Fill the bar, then learn the fireball: no slot is taken over, and F still casts
     const before = await page.evaluate(() => { const g = window.gameTest; g.addItem('dirt', 1); for (let i = 2; i < 6; i++) g.qb[i] = 'dirt'; return g.qb.slice(); });
-    await page.click('#skillPanel [data-skill="fireball"]');
+    // Clicked from inside the page (see the Fighting level 2 test)
+    await page.evaluate(() => document.querySelector('#skillPanel [data-skill="fireball"]').click());
     await page.waitForFunction(() => window.gameTest.skills.includes('fireball'), null, { timeout: 60000 });
     assert.deepEqual(await page.evaluate(() => window.gameTest.qb.slice()), before, 'a full quick bar is left alone');
     const n = await page.evaluate(() => window.gameTest.fireballs.length);
@@ -1258,7 +1278,8 @@ test('with the sword in hand, a tap on a close monster hits it once straight awa
 test('with the fireball in hand, a tap on a close monster casts a fireball and does not swing the sword', { skip, timeout: 240000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => !!document.querySelector('#skillPanel [data-skill="fireball"]'), null, { timeout: 60000 });
-    await page.click('#skillPanel [data-skill="fireball"]');
+    // Clicked from inside the page (see the Fighting level 2 test)
+    await page.evaluate(() => document.querySelector('#skillPanel [data-skill="fireball"]').click());
     await playing(page);
     await page.keyboard.press('Digit3');   // the fireball went into the first empty quick bar slot (slot 3)
     const a = await tapMonster(page, {});
