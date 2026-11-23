@@ -3509,6 +3509,26 @@ test('SPEC-021: guards by the worth of the goods, the owner\'s steps, the escort
     assert.deepEqual(errors.filter(e => !/GL Driver/.test(e)), [], errors.join('\n'));
   }, { saves: [phoneGame()], choice: '0' }));
 
+test('0.6.85: a monster the guards defeat sinks away after a few seconds; one the child defeats stays', { skip, timeout: 400000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest.enemies.length > 1, null, { timeout: 150000 });
+    const start = await page.evaluate(() => {
+      const G = window.gameTest, [a, b] = G.enemies, p = window.gameProbe();
+      for (const en of [a, b]) { en.x = p.px + 1.5; en.z = p.pz; en.y = p.py; }
+      const n = G.corpseList.length;
+      G.defeatEnemy(a, { guard: true });
+      G.defeatEnemy(b);
+      return { list: G.corpseList.slice(n) };
+    });
+    assert.equal(start.list.length, 2, 'both lie down first');
+    assert.ok(start.list[0].guard && !start.list[1].guard, JSON.stringify(start.list));
+    await page.waitForTimeout(8000);   // 3 seconds lying, 3 seconds sinking, and some room
+    const after = await page.evaluate(() => window.gameTest.corpseList);
+    assert.equal(after.filter(c => c.guard).length, 0, 'the guards\' monster is gone');
+    assert.ok(after.some(c => !c.guard), 'the child\'s monster still lies there (5 minutes)');
+    assert.deepEqual(errors.filter(e => !/GL Driver/.test(e)), [], errors.join('\n'));
+  }, { saves: [phoneGame()], choice: '0' }));
+
 test('SPEC-021: what a monster defeated by guards drops is collected by a guard; the child cannot pick it up', { skip, timeout: 400000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => window.gameTest.enemies.length > 0, null, { timeout: 150000 });

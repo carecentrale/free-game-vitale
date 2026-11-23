@@ -2,6 +2,13 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.85: Guards tidy up after a fight
+Fix for what Nicola showed in the build chat on 23 Nov 2026 (a screenshot of a road): "the guard who follow the merchants defeated a bunch of monsters. and they are just staying there." He said "push and go live".
+- **Cause:** a monster the guards defeated was laid down like one the child defeats, and every body stays 5 minutes before it sinks. Guards fight all along the roads, so the roads filled up with bodies, even though the game says the guards "drove off" the monster.
+- **Change:** a monster defeated by guards lies for 3 seconds (while a guard collects what it dropped), then sinks into the ground over 3 seconds. In a shared world every device does the same. Monsters the child defeats still stay 5 minutes, as before. No change to saves or the data the game collects.
+- Tests: new browser test "0.6.85: a monster the guards defeat sinks away after a few seconds".
+- Checked: syntax check and the fast tests in the cloud workspace. **Not checked:** the browser test (needs Chromium), on a phone, played by the parent.
+
 ## 0.6.84: Log off
 Bug reported by Nicola in the build chat on 23 Nov 2026: once in a game you could not log off and change world; he asked for a Log off button next to Quit that goes back to the menu, and said "Push it online once developed".
 - **Log off** button (orange) in the quit question, between *Save and quit* and *Keep playing*. It saves the game, stops the sound, sets this tab's choice to `menu` and reloads, so the game opens on the start menu (Load my game, Start a new game, All my saved games). Because the choice is not empty, *Load my game by itself* (0.6.83) does not reopen the same game. Esc, the Android Back button and *Quit the game* in Settings all open the same question. No change to saves, worlds or the data the game collects

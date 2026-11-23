@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.84 (3D)</title>
+<title>Adventurers of Drenerics v0.6.85 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -2974,6 +2974,8 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.85', title: 'Guards tidy up', items: [
+    'Monsters the merchants\' guards drive off no longer lie around on the road: they sink into the ground after a few seconds'] },
   { v: '0.6.84', title: 'Log off', items: [
     'The quit question has a new Log off button. It saves your game and takes you back to the start menu, so you can load another game or world, or start a new one',
   ] },
@@ -3965,6 +3967,9 @@ function updateEnemies(dt) {
 // Defeated enemies lie on the ground for CORPSE_TIME seconds, then sink into the ground
 const CORPSE_TIME = 300; // 5 minutes
 const CORPSE_SINK = 3;   // seconds to sink out of sight
+// 0.6.85: a monster the merchant's guards defeat ("drove off") does not stay: it lies for GUARD_BODY_TIME seconds, while a
+// guard collects what it dropped, then sinks like any other body. Before, guarded roads filled up with bodies for 5 minutes.
+const GUARD_BODY_TIME = 3;
 const corpses = [];
 function updateCorpses(dt) {
   for (let i = corpses.length - 1; i >= 0; i--) {
@@ -4091,7 +4096,8 @@ function defeatEnemy(en, how = null) {
   // (it stops mid-air-gravity), so using it directly left the body hovering.
   const startY = onBlock ? cy + 1 + lift : en.y + lift;
   en.group.position.set(en.x, startY, en.z);
-  corpses.push({ group: en.group, kind: en.kind, t: 0, x: en.x, z: en.z, vy: 0, lift, landed: onBlock, restY: startY });
+  const byGuards = !!(how && how.guard);
+  corpses.push({ group: en.group, kind: en.kind, t: byGuards ? CORPSE_TIME - GUARD_BODY_TIME : 0, x: en.x, z: en.z, vy: 0, lift, landed: onBlock, restY: startY, guard: byGuards });
   const k = ENEMY_KINDS[en.kind];
   if (how && how.guard) { if (sharedLead()) sendSync('defeat', { id: en.id, x: en.x, y: en.y, z: en.z, s: [], guard: 1 }); guardSpoils(en, k, how); sfx('defeat'); return; }    // guards keep what it drops (SPEC-021)
   if (how && how.shared) { sharedSpoils(en, k, how); return; }                // a shared world: the gems are split (SPEC-024)
@@ -6984,7 +6990,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.84';
+const VERSION = '0.6.85';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -8220,7 +8226,7 @@ window.gameTest = {
   dragons: () => [...dragonShapes.keys()], dragonsNear: () => dragonsNear().map(o => ({ id: o.d.id, x: o.p.x, y: o.p.y, z: o.p.z, state: o.p.state, dist: o.dist })),
   get dragonEat() { return dragonEat; }, pickTree, startEat, eatTree, eatenList, treeLook, dayNum,
   dragonWaitNow: () => { dragonWait = 0; },
-  splitShares, sharedOn, isLeader, get sharedNow() { return sharedNow(); }, guardSpoils, defeatEnemy, get dropList() { return [...drops.values()].map(d => ({ x: d.x, y: d.y, z: d.z, id: d.id, guard: !!d.guard })); },
+  splitShares, sharedOn, isLeader, get sharedNow() { return sharedNow(); }, guardSpoils, defeatEnemy, get corpseList() { return corpses.map(c => ({ kind: c.kind, t: c.t, guard: !!c.guard })); }, CORPSE_TIME, GUARD_BODY_TIME, get dropList() { return [...drops.values()].map(d => ({ x: d.x, y: d.y, z: d.z, id: d.id, guard: !!d.guard })); },
   askKind: kind => { if (friend) { friend.q = makeQuestion(kind); friend.wrong = 0; friend.spell = []; friend.fixed = 0; friend.help = 0; friend.hints = 0; } },   // gives the friend on screen a question of one kind
   walkAway: blocks => { px += blocks; let y = H - 1; while (y > 0 && !solid(get(Math.floor(px), y, Math.floor(pz)))) y--; py = y + 1.01; vy = 0; },   // puts the character this many blocks to the side, on the ground FRIEND: { GAP: FRIEND_GAP, FIRST: FRIEND_FIRST, AFTER_SOLVE: FRIEND_AFTER_SOLVE, STOP: FRIEND_STOP, STAY: FRIEND_STAY, FAR: FRIEND_FAR, CLEAR: FRIEND_MONSTER_CLEAR },
   // Where an enemy's middle is on the screen: [x, y] (y from the top), and whether it is in front of the camera
