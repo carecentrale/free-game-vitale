@@ -113,7 +113,8 @@ test('home page: first screen with the heading, a picture and Play now; the four
     'Learn while playing', '<h2>Transform screen time into learning</h2>', '100 maths levels and 100 word levels', 'Levels follow your child and never go down',
     'No timers on questions, no pressure', "See your child's levels in the parent area", 'Fun at any age, with parents and teachers in control',
     'Private worlds, never public', 'Coming soon', 'For teachers and schools', 'href="/teachers.html"', 'href="/how-to-play.html#grownups">All parental controls',
-    '<h2>What is new</h2>', 'href="/release-notes.html">See all changes', 'Ready for an adventure?'])
+    '<h2 style="margin:0">What is new</h2>', 'href="/release-notes.html">See all changes', 'Ready for an adventure?',
+    'Free to play in your browser', 'Open the game and start digging. Your world is saved as you play.'])
     assert.ok(home.includes(s), 'the home page misses: ' + s);
   assert.equal((home.match(/href="\/play\/"/g) || []).length >= 3, true, 'Play now twice plus the top bar');
 });
