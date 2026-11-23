@@ -77,6 +77,11 @@ The parent wants Claude to do the build and release work on this PC (Windows lap
 - Castle spacing X is set by the owner in the admin page and kept in the table `game_settings` (migration `docs/migrations/0009_game_settings.sql`): everyone reads, only the owner's account updates.
 - `scripts/tests/caves-castles.test.mjs` walks every cave and castle it checks (walking, one-block jumps, drops of 3 at most): keep it passing when changing caves or castles.
 
+## Database changes (22 Nov 2026)
+- Every change to the database's structure or access rules is a file in `docs/migrations/` (next free number), committed before or with the change, and added to the table in `docs/migrations/README.md` when it is applied to the live database. Never change the live database with SQL that is not in a file there.
+- After applying one, check that the live list (Supabase `list_migrations`) still matches the README. `scripts/tests/migrations.test.mjs` checks that every file is listed.
+- These files hold the structure only. The data is not backed up by them, and no player data may ever be committed (the repository is public). The Supabase project is on the free plan, which has no automatic backups.
+
 ## Versioning and rollback
 - Every release has a version number and a commit. Rollback = restore an older build file or check out an older commit, and record it as a new version.
 - Tags cannot be pushed from the sandbox (403), so record commit hashes in VERSIONS.md.
