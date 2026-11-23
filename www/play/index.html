@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.82 (3D)</title>
+<title>Adventurers of Drenerics v0.6.83 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -211,6 +211,35 @@
 </script>
 </head>
 <body>
+<!-- Loading screen (0.6.83): shows each time the game opens, while the game loads and asks Google Play for a new version.
+     It lets taps through (pointer-events:none) and the game takes it away with hideSplash() at the end of the startup.
+     If the game's code never starts, the timer below takes it away after 20 seconds, so it can never block the screen. -->
+<div id="splash" aria-hidden="true">
+  <div class="sp-sun"></div>
+  <img class="sp-castle" src="../splash/castle.png" alt="">
+  <div class="sp-ground">
+    <div class="sp-title">Adventurers of Drenerics</div>
+    <div class="sp-bar"><div class="sp-fill"></div></div>
+    <div class="sp-text">Loading...</div>
+  </div>
+</div>
+<style>
+  #splash{position:fixed;inset:0;z-index:100;pointer-events:none;overflow:hidden;font-family:Georgia,'Times New Roman',serif;
+    background:linear-gradient(#28437a 0%,#7aa3d8 38%,#f2c08a 62%,#f7dcae 70%);transition:opacity .5s}
+  #splash.gone{opacity:0}
+  #splash .sp-sun{position:absolute;left:62%;top:42%;width:60vmin;height:60vmin;transform:translate(-50%,-50%);border-radius:50%;
+    background:radial-gradient(circle,#fff5d0 0%,rgba(255,224,154,.85) 30%,rgba(255,210,122,0) 70%)}
+  #splash .sp-castle{position:absolute;left:50%;bottom:30%;transform:translateX(-50%);height:min(48vh,79vw);image-rendering:auto}
+  #splash .sp-ground{position:absolute;left:0;right:0;bottom:0;height:30%;box-sizing:border-box;padding-top:3vh;text-align:center;color:#fff4dc;
+    background:linear-gradient(#5ea93e 0,#5ea93e 1.6vh,#7a5230 1.6vh,#3e2818 100%)}
+  #splash .sp-title{padding:0 8px;font-size:clamp(18px,min(4.2vh,6.6vw),40px);font-weight:bold;text-shadow:0 2px 4px rgba(0,0,0,.6)}
+  #splash .sp-bar{width:min(60vw,320px);height:12px;margin:2.2vh auto 0;border-radius:6px;background:#2a1a0c;border:2px solid #c9a65a;overflow:hidden}
+  #splash .sp-fill{height:100%;width:8%;background:#e8b93a;border-radius:4px;animation:spFill 5s ease-out forwards}
+  #splash.done .sp-fill{width:100%;animation:none;transition:width .3s}
+  #splash .sp-text{margin-top:1.4vh;font-size:clamp(14px,2.2vh,20px)}
+  @keyframes spFill{to{width:90%}}
+</style>
+<script>setTimeout(function(){var e=document.getElementById('splash');if(e)e.remove();},20000);</script>
 <div id="hud"></div>
 <div id="msg"></div>
 <div id="hudBtn"></div>
@@ -1873,8 +1902,26 @@ function saveGame() {
   } catch (e) {}
 }
 
+// "Load my game by itself next time" (0.6.83): a tick box on the start menu and a switch in Settings, kept on this device only.
+// When it is on and nothing was picked in this tab yet, the game opens the saved game played last, with no menu.
+const AUTOLOAD_KEY = 'kidsgame.autoLoad';
+function autoLoadOn() { try { return localStorage.getItem(AUTOLOAD_KEY) === '1'; } catch (e) { return false; } }
+function setAutoLoad(on) { try { if (on) localStorage.setItem(AUTOLOAD_KEY, '1'); else localStorage.removeItem(AUTOLOAD_KEY); } catch (e) {} }
+// The saved game played last (the newest save time), or null when there is none
+function lastSlot() {
+  let best = null;
+  for (const s of listSlots()) if (best === null || (s.d.at || 0) > (best.d.at || 0)) best = s;
+  return best ? best.n : null;
+}
+// Which saved game to open as the game starts: the one picked in this tab, or with the switch on, the one played last
+function startSlot() {
+  const c = getChoice();
+  if (c !== null && c !== 'new' && listSlots().some(s => s.n === +c)) return +c;
+  if (c === null && autoLoadOn()) { const n = lastSlot(); if (n !== null) { setChoice(n); return n; } }
+  return null;
+}
 // Open the game the menu picked (a reload in the same tab reopens it)
-{ const c = getChoice(); if (c !== null && c !== 'new' && listSlots().some(s => s.n === +c)) activeSlot = +c; }
+activeSlot = startSlot();
 const saved = activeSlot !== null ? readSlot(activeSlot) : null;
 let worldLoaded = false;
 if (saved && saved.world && saved.world.v === 2) { applyWorld(saved.world); worldLoaded = true; }
@@ -2926,6 +2973,11 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.83', title: 'A castle to welcome you, and a quicker start', items: [
+    'A castle now greets you each time the game opens, while it gets ready and checks for a new version',
+    'The start menu has two big buttons: Load my game (the one you played last) and Start a new game. All your saved games are still there, folded below',
+    'Tick "Load my game by itself next time" to go straight into your game. Change it any time in Settings',
+  ] },
   { v: '0.6.82', title: 'Castles without flicker', items: [
     'Castle walls and windows no longer flicker or blink when you look at them from far away. Up close, blocks look as sharp as before',
   ] },
@@ -3211,6 +3263,9 @@ function renderSettings() {
     // Tips from Vital switch (0.6.73): on at first, kept on this device
     `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#128024; Tips from Vital</b><div style="font-size:13px;opacity:.8;margin-top:2px">Vital the elephant comes around and shows how to play</div></div>` +
     `<button id="vitalSwitch" style="flex:none;min-height:48px;min-width:96px;border:0;border-radius:12px;font-size:17px;font-weight:600;color:#fff;cursor:pointer;background:${vital.on ? '#2e9e4f' : '#666b80'}">${vital.on ? 'On' : 'Off'}</button></div>` +
+    // Load my game by itself (0.6.83): the same choice as the tick box on the start menu, kept on this device
+    `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#127984; Load my game by itself</b><div style="font-size:13px;opacity:.8;margin-top:2px">Opens the game you played last, with no start menu. Off: the menu shows each time</div></div>` +
+    `<button id="autoLoadSwitch" style="flex:none;min-height:48px;min-width:96px;border:0;border-radius:12px;font-size:17px;font-weight:600;color:#fff;cursor:pointer;background:${autoLoadOn() ? '#2e9e4f' : '#666b80'}">${autoLoadOn() ? 'On' : 'Off'}</button></div>` +
     `<details style="margin-top:14px"><summary style="cursor:pointer;padding:12px 0">Music, sound and picture credits</summary><div id="creditList" style="font-size:13px;opacity:.9">${creditsHtml()}</div><div id="picCredit" style="font-size:13px;opacity:.9;margin-top:8px">Pictures in word questions: Twemoji, copyright Twitter, Inc and other contributors, licensed under CC BY 4.0.</div></details>` +
     `<div style="margin-top:10px"><b>Game version ${esc(VERSION)}</b>${updLine() ? `<div id="updLine" style="font-size:14px;opacity:.85;margin-top:2px">${esc(updLine())}</div>` : ''}</div>` +
     // The list of changes is folded away, so the Quit button below is easy to reach
@@ -3234,6 +3289,7 @@ settingsEl.addEventListener('click', e => {
   // Quit the game: Settings closes and the same question as Esc and Back is asked (0.6.60)
   else if (e.target.closest('#settingsQuit')) { toggleSettings(false); toggleQuit(true); }
   else if (e.target.closest('#vitalSwitch')) { setVitalOn(!vital.on); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
+  else if (e.target.closest('#autoLoadSwitch')) { setAutoLoad(!autoLoadOn()); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
   else if (e.target.closest('#quizSwitch')) { setQuizOn(!quizOn); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
 });
 // Volume sliders: tap a step, or drag along the track
@@ -6913,7 +6969,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.82';
+const VERSION = '0.6.83';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7768,20 +7824,35 @@ async function finishWizard() {
 function hideSlotMenu() { document.getElementById('slots').classList.add('hide'); }
 function renderSlotMenu() {
   const list = listSlots();
-  document.getElementById('slotsBody').innerHTML = '<h2>Your games</h2>' +
-    (list.length ? '<p>Pick a saved game to carry on.</p>' : '<p>No saved games on this device yet.</p>') +
-    list.map(({ n, d }) =>
-      `<div class="savecard"><span class="sv-name">${esc(d.name || 'Adventurer')}</span>` +
-      `<span class="sv-meta">World ${esc(d.worldId || '?')} · ${d.at ? 'last played ' + esc(new Date(d.at).toLocaleString()) : 'saved on this device'}</span>` +
-      `<div class="sv-acts"><button data-play="${n}">Play</button><button class="sv-del" data-del="${n}">Delete</button></div></div>`).join('') +
-    `<div style="text-align:center;margin-top:12px"><button data-new="1" ${list.length >= SLOT_MAX ? 'disabled' : ''}>Start a new game</button></div>` +
-    (list.length >= SLOT_MAX ? '<p>You have 100 saved games. Delete one to start another.</p>' : '');
+  const last = lastSlot();
+  const lastSave = last !== null ? readSlot(last) : null;
+  const big = 'display:block;width:100%;min-height:56px;margin-top:10px;border:0;border-radius:14px;font-size:19px;font-weight:700;color:#fff;cursor:pointer';
+  // 0.6.83: two big buttons, "Load my game" (the one played last) and "Start a new game", a tick box to load it by
+  // itself next time, and every saved game folded below (Play or Delete), as before
+  document.getElementById('slotsBody').innerHTML = '<h2>Adventurers of Drenerics</h2>' +
+    (lastSave
+      ? `<button id="slotLoad" data-play="${last}" style="${big};background:#4f9a3a">Load my game</button>` +
+        `<div style="font-size:13px;opacity:.8;margin-top:4px">${esc(lastSave.name || 'Adventurer')} · World ${esc(lastSave.worldId || '?')}</div>`
+      : '<p>No saved games on this device yet.</p>') +
+    `<button id="slotNew" data-new="1" style="${big};background:#c98a2e" ${list.length >= SLOT_MAX ? 'disabled' : ''}>Start a new game</button>` +
+    (list.length >= SLOT_MAX ? '<p>You have 100 saved games. Delete one to start another.</p>' : '') +
+    (lastSave ? `<label id="autoLoadRow" style="display:flex;align-items:center;gap:10px;justify-content:center;margin-top:14px;min-height:44px;cursor:pointer;font-size:15px">` +
+      `<input type="checkbox" id="autoLoadBox" style="width:24px;height:24px;margin:0;cursor:pointer" ${autoLoadOn() ? 'checked' : ''}> Load my game by itself next time</label>` : '') +
+    (list.length ? `<details style="margin-top:10px;text-align:left"><summary style="cursor:pointer;padding:10px 0;text-align:center">All my saved games (${list.length})</summary>` +
+      list.map(({ n, d }) =>
+        `<div class="savecard"><span class="sv-name">${esc(d.name || 'Adventurer')}</span>` +
+        `<span class="sv-meta">World ${esc(d.worldId || '?')} · ${d.at ? 'last played ' + esc(new Date(d.at).toLocaleString()) : 'saved on this device'}</span>` +
+        `<div class="sv-acts"><button data-play="${n}">Play</button><button class="sv-del" data-del="${n}">Delete</button></div></div>`).join('') +
+      '</details>' : '');
 }
 function showSlotMenu() {
   paused = true;
   renderSlotMenu();
   document.getElementById('slots').classList.remove('hide');
 }
+document.getElementById('slotsBody').addEventListener('change', e => {
+  if (e.target.id === 'autoLoadBox') { setAutoLoad(e.target.checked); sfx('tap'); }
+});
 document.getElementById('slotsBody').addEventListener('click', e => {
   const p = e.target.closest('[data-play]');
   if (p) { setChoice(p.dataset.play); location.reload(); return; }
@@ -7955,7 +8026,8 @@ function updTick() {
 setInterval(updTick, 1000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) updCheck(); });
 // Opened with the new version already downloaded: "Restart now"
-if (updPlugin()) updCheck().then(() => { if (upd.downloaded) upd.restartLabel = 'Restart now'; });
+// The loading screen (0.6.83) waits for this first check (Google Play answers within 5 seconds or is passed over)
+const updFirstCheck = updPlugin() ? updCheck().then(() => { if (upd.downloaded) upd.restartLabel = 'Restart now'; }) : Promise.resolve();
 
 // ---- Startup ----
 applyLook();
@@ -7975,11 +8047,27 @@ updateHand();
 renderUI();
 setView(viewMode, false);   // the view used last on this device (0.6.76)
 requestAnimationFrame(frame);
+// Loading screen (0.6.83): away once the game has drawn its first picture and the first new-version check is done,
+// and shown for at least 1.2 seconds so it does not flash. A new version found by the check is then offered at once.
+const SPLASH_MIN_MS = 1200;
+function hideSplash() {
+  const sp = document.getElementById('splash');
+  if (!sp || sp.classList.contains('gone')) return;
+  sp.classList.add('done', 'gone');
+  setTimeout(() => sp.remove(), 600);
+}
+Promise.all([
+  new Promise(ok => requestAnimationFrame(() => requestAnimationFrame(ok))),
+  updFirstCheck.catch(() => {}),
+  new Promise(ok => setTimeout(ok, Math.max(0, SPLASH_MIN_MS - performance.now()))),
+]).then(() => { hideSplash(); updTick(); });
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
   // Getting the new version (0.6.80, SPEC-019): a pretend Google Play can be put in place
   upd, updCheck, updTick, updSafe, updForced, updSave, setUpdPlugin: p => { upd.plugin = p; },
+  // Loading screen and load-by-itself (0.6.83)
+  hideSplash, autoLoadOn, setAutoLoad, lastSlot, renderSlotMenu,
   // Phone layout and analog stick (0.6.57)
   get stick() { return { x: stick.x, z: stick.z }; }, setStick, isPhone, get panelOpen() { return panelOpen; },
   get quitOpen() { return quitOpen; }, backAction, get bagOpen() { return bagOpen; }, get settingsOpen() { return settingsOpen; },

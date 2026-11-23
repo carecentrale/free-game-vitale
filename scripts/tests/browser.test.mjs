@@ -210,6 +210,46 @@ test('with saved games and none chosen, the start menu lists them (it does not s
     choice: null,
   }));
 
+// 0.6.83: the castle loading screen goes away once the game is ready; the start menu has "Load my game" (the game played
+// last), "Start a new game" and the tick box "Load my game by itself next time"
+test('0.6.83 start menu: castle screen goes, Load my game opens the newest save, the tick box is kept', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !document.getElementById('splash'), null, { timeout: 30000 });
+    await page.waitForFunction(() => !!document.getElementById('slotLoad'), null, { timeout: 20000 });
+    const r = await page.evaluate(() => ({
+      play: document.getElementById('slotLoad').dataset.play,
+      newGame: !!document.getElementById('slotNew'),
+      ticked: document.getElementById('autoLoadBox').checked,
+      cards: document.querySelectorAll('#slots .savecard').length,
+    }));
+    assert.equal(r.play, '1', 'Load my game should open the save played last (slot 1)');
+    assert.ok(r.newGame, 'Start a new game should be on the menu');
+    assert.equal(r.ticked, false, 'the tick box starts unticked');
+    assert.equal(r.cards, 2, 'every saved game is still listed below');
+    await page.evaluate(() => document.getElementById('autoLoadBox').click());   // a click in the page: the test browser draws too slowly for page.click
+    assert.equal(await page.evaluate(() => localStorage.getItem('kidsgame.autoLoad')), '1');
+    assert.deepEqual(errors, [], 'errors in the browser:\n' + errors.join('\n'));
+  }, {
+    saves: [JSON.stringify({ ...JSON.parse(savedGame()), at: 1000 }), JSON.stringify({ ...JSON.parse(savedGame()), name: 'Second Hero', at: 2000 })],
+    choice: null,
+  }));
+
+test('0.6.83 with Load my game by itself on, the game played last opens with no start menu', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !document.getElementById('splash'), null, { timeout: 30000 });
+    const r = await page.evaluate(() => ({
+      menu: !document.getElementById('slots').classList.contains('hide'),
+      choice: sessionStorage.getItem('kidsgame.choice'),
+    }));
+    assert.equal(r.menu, false, 'the start menu should not show');
+    assert.equal(r.choice, '1', 'the save played last (slot 1) should be open');
+    assert.deepEqual(errors, [], 'errors in the browser:\n' + errors.join('\n'));
+  }, {
+    saves: [JSON.stringify({ ...JSON.parse(savedGame()), at: 1000 }), JSON.stringify({ ...JSON.parse(savedGame()), name: 'Second Hero', at: 2000 })],
+    choice: null,
+    init: () => localStorage.setItem('kidsgame.autoLoad', '1'),
+  }));
+
 // A saved game at Fighting level 2 (magic unlocks): the skill choice appears, and F fires a fireball
 test('at Fighting level 2 the skill choice appears, and F shoots a fireball', { skip, timeout: 180000 }, () =>
   withGame(async (page, errors) => {
