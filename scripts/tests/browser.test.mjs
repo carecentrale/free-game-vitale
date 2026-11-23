@@ -917,6 +917,32 @@ test('Esc asks before quitting, and Save and quit saves the game and goes to the
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [readyGame()] }));
 
+// Log off (0.6.84): from the quit question, saves and goes back to the start menu instead of the world.
+// With "Load my game by itself" on (0.6.83), Log off must still show the menu, not reopen the same game.
+const logOffCheck = async (page, errors, savedSlot) => {
+  await page.waitForFunction(() => !!window.gameTest, null, { timeout: 60000 });
+  const menuShown = () => page.evaluate(() => !document.getElementById('slots').classList.contains('hide'));
+  assert.equal(await menuShown(), false, 'the game opens in the world, not on the menu');
+  const before = await page.evaluate(n => JSON.parse(localStorage.getItem('kidsgame.slot.' + n)).at, savedSlot);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => window.gameTest.quitOpen), true, 'Esc asks first');
+  await Promise.all([page.waitForEvent('load', { timeout: 30000 }), page.dispatchEvent('#quitLogOff', 'click')]);
+  await page.waitForFunction(() => !!window.gameTest, null, { timeout: 60000 });
+  assert.equal(new URL(page.url()).pathname, '/play/', 'Log off stays in the game page');
+  const after = await page.evaluate(n => JSON.parse(localStorage.getItem('kidsgame.slot.' + n)).at, savedSlot);
+  assert.ok(after > before, 'the game was saved before logging off');
+  assert.equal(await menuShown(), true, 'the start menu is shown, so another game or world can be picked');
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('kidsgame.choice')), 'menu', 'no saved game is picked for this tab');
+  assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+};
+test('0.6.84 Log off saves the game and opens the start menu', { skip, timeout: 150000 }, () =>
+  withGame((page, errors) => logOffCheck(page, errors, 0), { saves: [readyGame()] }));
+test('0.6.84 with Load my game by itself on, Log off still opens the start menu', { skip, timeout: 150000 }, () =>
+  withGame((page, errors) => logOffCheck(page, errors, 0), {
+    saves: [readyGame()], choice: null,
+    init: () => localStorage.setItem('kidsgame.autoLoad', '1'),
+  }));
+
 // Quit in the Android app (0.6.59): Back asks first, and Save and quit closes the app (the app is stood in for here)
 test('in the Android app, the Back button asks first and Save and quit closes the app', { skip, timeout: 150000 }, () =>
   withGame(async (page, errors) => {

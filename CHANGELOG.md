@@ -2,6 +2,12 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.84: Log off
+Bug reported by Nicola in the build chat on 23 Nov 2026: once in a game you could not log off and change world; he asked for a Log off button next to Quit that goes back to the menu, and said "Push it online once developed".
+- **Log off** button (orange) in the quit question, between *Save and quit* and *Keep playing*. It saves the game, stops the sound, sets this tab's choice to `menu` and reloads, so the game opens on the start menu (Load my game, Start a new game, All my saved games). Because the choice is not empty, *Load my game by itself* (0.6.83) does not reopen the same game. Esc, the Android Back button and *Quit the game* in Settings all open the same question. No change to saves, worlds or the data the game collects
+- Tests: two new browser tests in `scripts/tests/browser.test.mjs` (Log off saves and shows the start menu; with Load my game by itself on, Log off still shows the menu)
+- Checked: syntax check and the fast tests in the cloud workspace. **Not checked:** the browser tests (the cloud workspace cannot load the game's 3D library), played by the parent in a browser or the Android app
+
 ## 0.6.83: A castle loading screen and a quicker start
 Asked for by Nicola in the build chat on 23 Nov 2026: a small loading screen "to help with the update", a castle "like the game's castle", shown "every time the game opens in case there are updates"; and a start menu with "start a new game or load a game with a checkbox that lets it auto load if checked". He approved the drawings and said "push it to the main".
 - **Loading screen:** shown each time the game opens, before the game's code starts: an original block castle (castle stone, red and blue roof tiles, moat and bridge, flags) on an evening sky, the game's name, a filling bar and "Loading...". It goes away (fading) once the game has drawn its first picture and the first Google Play new-version check is done (Google Play answers within 5 seconds or is passed over), shown for at least 1.2 seconds. A new version found by that check is offered straight after. It lets taps through and removes itself after 20 seconds if the game's code never starts. Not shown when the game comes back from the background. Picture: `www/splash/castle.png` (23 KB), drawn by `scripts/splash-castle.py`
