@@ -21,7 +21,7 @@ CHILD SAFETY AND PRIVACY (non-negotiable)
 TRACKING (Nick's rule, 23 Nov 2026)
 - Every feature records tracking events, for safety: backtracking, accountability and traceability in case something happens.
 - Records hold visit codes, world codes, counts and game words only. Never a name or anything typed.
-- Each new kind of record is listed in docs/EVENTS.md and on the privacy page (www/privacy.html) in the same release. The test scripts/tests/events.test.mjs checks this.
+- Each new kind of record is listed in docs/EVENTS.md in the same release. The privacy page (www/privacy.html) describes records by category: a new kind that fits an existing category needs no change to the page; a new kind of information, a new place it goes or a new company that receives it gets new wording on the page in the same release, after Nick's yes. The test scripts/tests/events.test.mjs checks this.
 
 HOW WE WORK
 - This project's Claude is the builder. Requirements come from the product manager's hand-offs in the Google Drive folder "Adventurers of Drenerics - PM requirements". Build only hand-offs marked "Ready to build". When Nick asks for a change directly in chat, check with him whether to build it now or send it to the PM first.
@@ -70,3 +70,4 @@ ASSETS
 ## Changes
 - 23 Nov 2026: first tracked copy, taken from the project instructions as they stood on 23 Nov 2026 (including the TRACKING rule added that day).
 - 23 Nov 2026: cleaned up and reorganised by the builder chat that made 0.6.87 (tracking section, "keep play safe", "no ad tracking", direct requests checked with Nick, CLAUDE.md disagreements go to Nick, this tracked copy). Two chats made this file at the same time; this one was kept and both notes merged.
+- 23 Nov 2026: TRACKING, third point: the privacy page describes records by category instead of naming every kind (Nick's decision in the builder chat, 23 Nov 2026). Nick to paste the same line into the project instructions.

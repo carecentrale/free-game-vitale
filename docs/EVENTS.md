@@ -1,6 +1,6 @@
 # Tracking records: everything the game sends off the device
 
-Nick's rule (23 Nov 2026): every feature records tracking events, for safety (backtracking, accountability, traceability). Records hold visit codes, world codes, counts and game words only, never a name typed by anyone and never anything typed. Each new kind of record is listed here **and** on the privacy page (`www/privacy.html`) in the same release.
+Nick's rule (23 Nov 2026): every feature records tracking events, for safety (backtracking, accountability, traceability). Records hold visit codes, world codes, counts and game words only, never a name typed by anyone and never anything typed. Each new kind of record is listed here in the same release. The privacy page (`www/privacy.html`) describes records by category (Nick's decision, 23 Nov 2026): a new kind that fits an existing row (for example a new gameplay record) needs no change to the page; a new kind of information, a new place it goes, or a new company that receives it gets new wording on the page in the same release, after Nick's yes.
 
 `scripts/tests/events.test.mjs` reads the game file and fails when the game sends a record (an event kind, a database table, a database function, a shared-world message or a presence field) that is not in this file in backticks. For every row it also checks that the privacy-page row named in the last column exists on `www/privacy.html`. A row whose last column starts with **Not yet** is a known gap waiting for Nick's decision: the test lists it as "todo" and does not fail.
 
@@ -26,13 +26,13 @@ Sent every 10 seconds and when the page closes. Each row: the event kind, game v
 | `map_opened` | The map is opened; at most once a minute (`logOnce`, 0.6.87) | `players N` | "Gameplay records" |
 | `log_opened` | The world's log is opened; at most once a minute (`logOnce`, 0.6.87) | `notes N` | "Gameplay records" |
 
-Since 0.6.87 the "Gameplay records" row on the privacy page names every kind above, says the world code is kept with each record, and gives safety as the reason. The world's log itself (the join and leave notes) is not sent: it stays in memory on the device.
+Since 23 Nov 2026 the "Gameplay records" row on the privacy page describes these records by category (with examples), says the world code is kept with each record, and gives safety as the reason. It no longer lists every kind by name. The world's log itself (the join and leave notes) is not sent: it stays in memory on the device.
 
 
 ## 2. Error reports: table `game_errors`
 | Record | When | Fields | Privacy page row |
 |---|---|---|---|
-| `game_errors` | A JavaScript error, a failed promise, a failed shared-world connection, or a caught error in the wizard, the shared world, drawing, castle life or dragons | Game version, visit code, message (500 characters), where it happened (80 characters), and the **stack trace** (2000 characters: the game's own code lines) | "Error reports" (the page does not mention the stack trace or the version: Not yet for those two fields) |
+| `game_errors` | A JavaScript error, a failed promise, a failed shared-world connection, or a caught error in the wizard, the shared world, drawing, castle life or dragons | Game version, visit code, message (500 characters), where it happened (80 characters), and the **stack trace** (2000 characters: the game's own code lines) | "Error reports" |
 
 ## 3. Enemy debug log: table `debug_log`
 Sent every 10 seconds. World code, game version, kind, position rounded to 0.1, and a short reason with the monster kind. No visit code. Kept 30 days (owner can change it).
@@ -58,7 +58,7 @@ Sent every 10 seconds. World code, game version, kind, position rounded to 0.1, 
 ## 6. Owner settings read when the game opens: table `game_settings` (read only, nothing sent about the player)
 | Record | Fields read | Privacy page row |
 |---|---|---|
-| `game_settings` | Castle spacing, quiz settings, merchant prices, guards and carts, forced-update days | "World record" (the page does not name the quiz settings or the forced-update days: Not yet for those two) |
+| `game_settings` | Castle spacing, quiz settings, merchant prices, guards and carts, forced-update days | "World record" |
 
 ## 7. Shared world live messages (not stored on our servers)
 Sent over the shared world's live connection to the other devices in that world only. Each carries the sender's visit code.
@@ -82,23 +82,23 @@ Each device in a shared world sends this about its own player twice a second to 
 
 | Field | What it is | Privacy page row |
 |---|---|---|
-| `name` | The character's name, from the preset list | Not yet: the page does not say the player's own character is sent to the other players |
-| `race` | The character's look (human, elf or dwarf) | Not yet (as above) |
-| `sex` | The character's clothes choice from the start questions | Not yet (as above) |
-| `x` | Position | Not yet (as above) |
-| `y` | Position | Not yet (as above) |
-| `z` | Position | Not yet (as above) |
-| `yaw` | Which way the character faces | Not yet (as above) |
-| `since` | When this device joined the world (the first one leads) | Not yet (as above) |
-| `n` | A counter, so a device that goes quiet is noticed | Not yet (as above) |
-| `f` | The child's quiz friend or Vital as a character: kind, place, turn (nothing it says) | Not yet (as above) |
-| `tk` | The merchant cart the player is trading with | Not yet (as above) |
-| `dr` | The dragons choice of this device | Not yet (as above) |
+| `name` | The character's name, from the preset list | "Your character in a shared world" |
+| `race` | The character's look (human, elf or dwarf) | "Your character in a shared world" |
+| `sex` | The character's clothes choice from the start questions | "Your character in a shared world" |
+| `x` | Position | "Your character in a shared world" |
+| `y` | Position | "Your character in a shared world" |
+| `z` | Position | "Your character in a shared world" |
+| `yaw` | Which way the character faces | "Your character in a shared world" |
+| `since` | When this device joined the world (the first one leads) | "Your character in a shared world" |
+| `n` | A counter, so a device that goes quiet is noticed | "Your character in a shared world" |
+| `f` | The child's quiz friend or Vital as a character: kind, place, turn (nothing it says) | "Your character in a shared world" |
+| `tk` | The merchant cart the player is trading with | "Your character in a shared world" |
+| `dr` | The dragons choice of this device | "Your character in a shared world" |
 
 ## 9. Other requests that leave the device
 | Record | What | Privacy page row |
 |---|---|---|
-| `google_play_update_check` | Android app only (0.6.80): when the game opens and comes back, it asks Google Play whether a newer version is on the store. Google says its in-app update library collects no data | Not yet: Google is listed only as a sign-in provider |
+| `google_play_update_check` | Android app only (0.6.80): when the game opens and comes back, it asks Google Play whether a newer version is on the store. Google says its in-app update library collects no data | "Google Play" (service providers) |
 | `credits.json` | The list of sound files, from our own site | Not needed: our own website, nothing about the player |
 
 ## Kept on the device only (never sent)

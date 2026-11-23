@@ -96,7 +96,8 @@ The parent wants Claude to do the build and release work on this PC (Windows lap
 
 ## Tracking records (Nick's rule, 23 Nov 2026)
 - Every feature records tracking events for safety (backtracking, accountability, traceability). Records hold visit codes, world codes, counts and game words only: never a name or anything typed.
-- Everything the game sends off the device (event kinds, tables, database functions, shared-world messages, presence fields, other requests) is listed in `docs/EVENTS.md`, with the privacy-page row that explains it. A new kind goes into `docs/EVENTS.md` and `www/privacy.html` in the same release, after Nick's yes (it changes what is collected).
+- Everything the game sends off the device (event kinds, tables, database functions, shared-world messages, presence fields, other requests) is listed in `docs/EVENTS.md`, with the privacy-page row that explains it. A new kind goes into `docs/EVENTS.md` in the same release, after Nick's yes (it changes what is collected).
+- The privacy page describes records by category, not by name (Nick's decision, 23 Nov 2026). A new kind that fits an existing row (for example a new gameplay record) needs no change to the page. A new kind of information, a new place it goes, or a new company that receives it needs new wording on `www/privacy.html` in the same release, and a new "Last updated" date.
 - `scripts/tests/events.test.mjs` fails when the game sends something not listed there, or a listed privacy-page row is missing. Rows marked "Not yet" are known gaps waiting for Nick's decision (shown as todo).
 
 ## Database changes (22 Nov 2026)
