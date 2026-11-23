@@ -106,6 +106,9 @@ The parent wants Claude to do the build and release work on this PC (Windows lap
 ## Assets and licences
 - Quaternius assets (Bestiary, Universal packs) are under the Quaternius Asset License: free for commercial games, no credit required, cannot be resold or redistributed as assets.
 
+## Project instructions are tracked (23 Nov 2026)
+- The claude.ai project instructions are kept in `docs/PROJECT_INSTRUCTIONS.md`, because claude.ai keeps no history of them. When they change, update that file in the same chat with a dated line under "Changes". If the project instructions and that file differ, tell the parent.
+
 ## Style
 - Explain changes in plain language. Keep answers short, with detail on request.
 
