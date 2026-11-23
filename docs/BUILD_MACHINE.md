@@ -18,9 +18,13 @@ Since 20 Nov, chats do not use the laptop (CLAUDE.md, "Where the builder works")
 
 **Fixed:**
 - On the laptop: the draft set aside with `git stash` (`stash@{0}`, recoverable), version code 18 kept, folder updated to 0.6.80 (5694922). A stale `.git/index.lock` (from a `git status` run before delete permission) moved out of the way.
-- In git: `android-version-code.txt` set to 18 so git matches the laptop; `.icon-test-*/` ignored and the app-icon test now uses the system temp folder (it had left 3 such folders in the game folder); new CLAUDE.md section "The laptop's game folder stays clean" (the rule, and how to unblock an update safely).
+- In git: `android-version-code.txt` set to 18 (then 19) so git matches the laptop; `.icon-test-*/` ignored and the app-icon test now uses the system temp folder (it had left 3 such folders in the game folder); new CLAUDE.md section "The laptop's game folder stays clean" (the rule, and how to unblock an update safely).
 
-**Needs Nicola:** nothing to unblock. Send `quick` (or `full`) for 0.6.80 when you want it on Play.
+**Then built (Nicola's OK):** `quick` through GitHub at 21:58 laptop time: update OK, 0.6.80 built as build 19 (Gradle 1 min 30 s, 191 tasks), upload stopped on "Opening the app in Google Play failed (503): The service is currently unavailable". The upload alone was run again with `run` at 22:01: "build 19 is on the internal track". `android-version-code.txt` set to 19 in git.
+
+**Also fixed (build-tools 907e550, Nicola's OK):** `upload-play.mjs` tries again after 5, 15 and 45 s when Google answers 429/500/502/503/504 or the connection drops (403 and other refusals are not retried); `build-report.mjs` adds the last lines of `last-errors.log` (cleaned) to `latest-build.txt`, because the upload's own error, like git's, went only there. Tool tests: 23 pass. Not yet seen working on a real busy answer from Google.
+
+**Needs Nicola:** nothing.
 
 **Recommendations**
 1. Post the cause with a failed result: when the update from GitHub fails, add one short, safe line to `build-status` (for example "local changes in: CHANGELOG.md" or "local commits not on GitHub: 2"), no log text. Cloud chats could then see why without the laptop. Needs Nicola's OK to change the watcher.
