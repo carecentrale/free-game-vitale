@@ -12,6 +12,12 @@
   p.lead{font-size:clamp(17px,2.6vw,21px);color:var(--muted);max-width:620px;margin:0 auto 28px;line-height:1.5}
   .play{display:inline-block;background:var(--accent2);color:#fff;text-decoration:none;font-size:22px;font-weight:700;padding:16px 40px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.3)}
   .play:hover,.play:focus{background:var(--accent)}
+  .buttons{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;align-items:center}
+  .gplay{display:inline-flex;align-items:center;gap:12px;background:#000;color:#fff;text-decoration:none;padding:10px 22px;border-radius:14px;border:1px solid #a6a6a6;box-shadow:0 6px 18px rgba(0,0,0,.3);text-align:left}
+  .gplay:hover,.gplay:focus{background:#222}
+  .gplay svg{width:30px;height:32px;flex:none}
+  .gplay small{display:block;font-size:12px;letter-spacing:.04em;text-transform:uppercase;line-height:1.1}
+  .gplay b{display:block;font-size:21px;line-height:1.15;font-weight:600}
   ul.points{list-style:none;padding:0;margin:28px 0 0;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:680px}
   ul.points li{background:rgba(255,255,255,.12);border-radius:10px;padding:8px 14px;font-size:15px}
   .more{margin:22px 0 0;font-size:17px}
@@ -24,7 +30,13 @@
   <h1 style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Adventurers of Drenerics</h1>
   <p class="lead">A block-building adventure. Dig into the ground, build your own places, collect gems, grow stronger and explore a world with friends.</p>
 
-  <a class="play" href="/play/">Play now</a>
+  <div class="buttons">
+    <a class="play" href="/play/">Play now</a>
+    <a class="gplay" href="https://play.google.com/store/apps/details?id=com.drenerics.adventurers" target="_blank" rel="noopener" aria-label="Get it on Google Play">
+      <svg viewBox="0 0 30 32" aria-hidden="true"><path fill="#00d7fe" d="M1.4.6C1 1 .8 1.6.8 2.4v27.2c0 .8.2 1.4.6 1.8l.1.1L16.7 16.3v-.4L1.5.5z"/><path fill="#ffce00" d="M21.8 21.4l-5.1-5.1v-.4l5.1-5.1.1.1 6 3.4c1.7 1 1.7 2.6 0 3.6l-6 3.4z"/><path fill="#ff3a44" d="M21.9 21.3L16.7 16.1 1.4 31.4c.6.6 1.5.7 2.6.1l17.9-10.2"/><path fill="#00f076" d="M21.9 10.9L4 .7C2.9.1 2 .2 1.4.8l15.3 15.3z"/></svg>
+      <span><small>Get it on</small><b>Google Play</b></span>
+    </a>
+  </div>
 
   <p class="more"><a href="/how-to-play.html">How to play</a> <a href="/release-notes.html">What is new</a></p>
 

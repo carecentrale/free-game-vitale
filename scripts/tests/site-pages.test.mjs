@@ -73,3 +73,9 @@ test('the new pages lead nowhere outside the site', () => {
     assert.deepEqual(out, [], p + ' has outside links');
   }
 });
+
+test('the home page has a Google Play button for the app', () => {
+  const home = read('www/index.html');
+  assert.ok(home.includes('href="https://play.google.com/store/apps/details?id=com.drenerics.adventurers"'), 'no Play Store link with the app id');
+  assert.ok(home.includes('href="/play/"'), 'the Play now button is gone');
+});
