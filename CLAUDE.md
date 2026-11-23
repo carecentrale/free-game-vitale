@@ -71,6 +71,11 @@ The parent wants Claude to do the build and release work on this PC (Windows lap
 - Pushing to GitHub: the Cowork workspace has no GitHub sign-in. Bundle the new commits (`git bundle create .git/claude-push.bundle origin/main..main`), stage the bundle to the cloud workspace, fetch it there and push, then delete the bundle.
 - `check-play-key.bat` checks the Play key without uploading. The Cowork workspace has no route to Google, so the check and the upload only work from Windows.
 
+## Reading build results (22 Nov 2026)
+- After a build request, read the result in this order, all without the laptop: `remote-build.sh result` (one line on the branch `build-status`), then the Google Drive folder "Adventurers of Drenerics - Build machine reports" (written by the laptop after every run): `latest-build.txt` (result, version, build number, the last log lines, cleaned) and `build-log.csv` (one row per run).
+- Never read the laptop's own log files from a chat. If the Drive report does not say why a build failed, ask the parent to paste the end of `build-requests\last.log`.
+- Do not move or rename the Build machine reports folder in Drive: the laptop writes to it by its place in Google Drive on the laptop. Moving it needs the watcher changed at the same time (laptop work).
+
 ## The land-maker (0.6.76, SPEC-016)
 - Every world records which land-maker made it (`gen` in the world, with its castle spacing `castleGap`). Worlds with no record are land-maker 1 (before 0.6.76: no big caves, no castles); new worlds are land-maker 2 (caves and castles).
 - Never change what an existing land-maker makes: that would change the land of every world made with it, saved games and shared worlds included. A change to the land, caves or castles is a new land-maker (`GEN_NOW = 3`, with the old code kept for worlds of 2).
