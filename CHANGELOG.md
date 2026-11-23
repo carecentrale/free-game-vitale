@@ -2,6 +2,17 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.86: Playing together: no more starting in the ground, a world log, a player count and a map
+Reported and asked for by Nicola in the build chat on 23 Nov 2026: "I spawned in the ground of the world", and asked for a little box saying when someone joins, a count of players at the top left, and a small map (M on a computer, or a tap) showing where the players are. He chose "Build them now" rather than a PM hand-off first, then asked for the notes to be "a chat log style at bottom corner with a bubble that highlights so there is a track of it and it can be reviewed".
+- **Fix: starting inside the ground.** Cause: *Join a friend's world* in the start wizard loaded the friend's land but left the character at the spot picked for a brand-new random world, so it was usually inside the friend's hills. Now the joined world's start point is used (`joinExisting(code, true)`, `placeSafely`). When a saved game reopens its shared world, or the world is read again from the server every 30 seconds, the character stays where it is unless blocks are in the way; then it is lifted onto the land (or, if that is not possible, taken to the start point)
+- **World log:** a speech bubble at the bottom left (above the stick when the on-screen controls are on). When a friend joins or leaves it lights up (yellow glow) with a red count of notes not read yet, and the newest note shows beside it for 5 seconds. A tap opens the log: every note of this visit with its time ("11:42 Sir Kestrel 4 joined your world"), newest at the bottom, at most 50. The bubble, the close button or Esc closes it. Kept in memory only: not saved and not sent. It is not a chat: only the game's own notes, with names checked (below)
+- **Player count** at the top left in a shared world: *Players N*, the child included
+- **Map:** M key or the new Map button (top bar). The land 48 blocks each way from the child, seen from above (only land already loaded: dark elsewhere), the child as a white dot, friends as yellow dots with their names, far friends on the edge. Tap the map, M or Esc closes it
+- **Safer names:** other players' names (name tags, notes, map) are shown only if they are a name the game makes (a title, a name from the list, a number 1 to 999); anything else shows as "A player". Before, a changed copy of the game could have shown any text over its character's head
+- No change to what is sent, saved or collected: the names and places already went through the world's live channel
+- Tests: new `scripts/tests/players-together.test.mjs` (6 tests) and one browser test ("0.6.86: the player count ..., the world's log bubble, and the map with M")
+- Checked: see `docs/VERSIONS.md`. **Not checked:** played by the parent; two real devices in one shared world (the join notes and other players on the map); phones and the Android app
+
 ## 0.6.85: Guards tidy up after a fight
 Fix for what Nicola showed in the build chat on 23 Nov 2026 (a screenshot of a road): "the guard who follow the merchants defeated a bunch of monsters. and they are just staying there." He said "push and go live".
 - **Cause:** a monster the guards defeated was laid down like one the child defeats, and every body stays 5 minutes before it sinks. Guards fight all along the roads, so the roads filled up with bodies, even though the game says the guards "drove off" the monster.

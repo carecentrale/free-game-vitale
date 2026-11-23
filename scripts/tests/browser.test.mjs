@@ -3583,3 +3583,32 @@ test('SPEC-024: a monster defeated together: equal shares, the odd gem to the la
     const alone = await page.evaluate(() => ({ shared: window.gameTest.sharedOn(), leads: window.gameTest.isLeader() }));
     assert.deepEqual(alone, { shared: false, leads: true }, 'alone, the game plays as before');
   }, { saves: [phoneGame()], choice: '0' }));
+
+test('0.6.86: the player count at the top left, the world\'s log bubble, and the map with M', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && /Players 1/.test(document.getElementById('hud').textContent), null, { timeout: 60000 });
+    // the log (0.6.86): the bubble lights up with a count, a tap opens the list, the notes stay to read again
+    await page.evaluate(() => { window.gameTest.addNote('Sir Kestrel 4 joined your world'); window.gameTest.addNote('Dame Elowen 2 joined your world'); });
+    let st = await page.evaluate(() => ({ on: document.getElementById('chatBtn').classList.contains('on'), lit: document.getElementById('chatBtn').classList.contains('new'), n: document.getElementById('chatCount').textContent }));
+    assert.deepEqual(st, { on: true, lit: true, n: '2' });
+    await page.evaluate(() => document.getElementById('chatBtn').click());
+    st = await page.evaluate(() => ({ open: document.getElementById('chatLog').classList.contains('open'), text: document.getElementById('chatLines').textContent, lit: document.getElementById('chatBtn').classList.contains('new'), unread: window.gameTest.logUnread }));
+    assert.equal(st.open, true); assert.equal(st.lit, false); assert.equal(st.unread, 0);
+    assert.match(st.text, /Sir Kestrel 4 joined your world.*Dame Elowen 2 joined your world/);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => document.getElementById('chatLog').classList.contains('open')), false, 'Esc closes the log');
+    await page.evaluate(() => document.getElementById('chatBtn').click());
+    assert.match(await page.evaluate(() => document.getElementById('chatLines').textContent), /Sir Kestrel 4/, 'the notes are still there to read again');
+    await page.evaluate(() => window.gameTest.toggleLog(false));
+    await page.keyboard.press('KeyM');
+    assert.equal(await page.evaluate(() => window.gameTest.mapOpen), true, 'M opens the map');
+    const lit = await page.evaluate(() => { const d = document.getElementById('mapLand').getContext('2d').getImageData(40, 40, 16, 16).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 150) n++; return n; });
+    assert.ok(lit > 0, 'the map shows the land around the child');
+    await page.keyboard.press('KeyM');
+    assert.equal(await page.evaluate(() => window.gameTest.mapOpen), false, 'M closes it again');
+    await page.evaluate(() => document.getElementById('mapBtn').click());
+    assert.equal(await page.evaluate(() => window.gameTest.mapOpen), true, 'the Map button opens it');
+    await page.evaluate(() => document.getElementById('mapBox').click());
+    assert.equal(await page.evaluate(() => window.gameTest.mapOpen), false, 'a tap on the map closes it');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [fightLevel2Game()] }));
