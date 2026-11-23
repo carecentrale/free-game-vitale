@@ -2499,6 +2499,11 @@ function topSpawnPoint() {
 // fresh: go to the start point of that world. Otherwise stay, or if blocks are in the way, stand on top of them.
 // Returns what was done: 'ok' (nothing in the way), 'up' (moved up onto the land) or 'start' (moved to the start point).
 function placeSafely(fresh) {
+  const r = placeSafelyMove(fresh);
+  if (r !== 'ok') logEvent('spawn_moved', r + (fresh ? ' join' : ' reload'));   // 0.6.86: kept for tracing start-place problems
+  return r;
+}
+function placeSafelyMove(fresh) {
   if (!fresh && !hits(px, py, pz)) return 'ok';
   if (!fresh) {
     const x = Math.floor(px), z = Math.floor(pz);
@@ -7325,6 +7330,19 @@ let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6
     sb.auth.onAuthStateChange((_e, sess) => showSignedIn(sess));
   });
 })();
+// The same kind at most once in `ms` (so pressing M again and again does not fill the records) (0.6.86)
+const loggedAt = {};
+function logOnce(kind, detail = '', ms = 60000) {
+  const now = Date.now();
+  if (loggedAt[kind] && now - loggedAt[kind] < ms) return;
+  loggedAt[kind] = now;
+  logEvent(kind, detail);
+}
+// Leaving a shared world: closing the game, Log off or going to another page (0.6.86). Sent with the last records.
+let leftLogged = false;
+addEventListener('pagehide', () => {
+  if (worldId && channelJoined && !leftLogged) { leftLogged = true; logEvent('world_left', 'players ' + playersInWorld()); }
+});
 addEventListener('pagehide', flushEvents);
 function logError(err, where) {
   if (!sb) return;
@@ -7429,6 +7447,13 @@ function onPresence() {
   // Notes when someone comes or goes (0.6.86). The first list after connecting says who is already here.
   const after = new Map([...others].map(([k, o]) => [k, o.name]));
   for (const t of presenceNotes(before, after, !presenceSeen)) addNote(t);
+  // 0.6.86: records. On arrival, how many players are here. After that, the leading device (only one in the world, so
+  // nothing is counted twice) records each visit code that comes or goes. Visit codes and counts only: never names.
+  if (!presenceSeen) logEvent('world_players', 'players ' + (after.size + 1));
+  else if (isLeader()) {
+    for (const k of after.keys()) if (!before.has(k)) logEvent('player_joined', String(k).slice(0, 40) + ' players ' + (after.size + 1));
+    for (const k of before.keys()) if (!after.has(k)) logEvent('player_left', String(k).slice(0, 40) + ' players ' + (after.size + 1));
+  }
   presenceSeen = true;
 }
 
@@ -7511,7 +7536,7 @@ function addNote(text) {
 function toggleLog(on = !logOpen) {
   logOpen = on;
   chatLog.classList.toggle('open', on);
-  if (on) { logUnread = 0; drawLog(); chatPeek.style.opacity = '0'; }
+  if (on) { logOnce('log_opened', 'notes ' + worldLog.length); logUnread = 0; drawLog(); chatPeek.style.opacity = '0'; }
   drawBubble();
 }
 chatBtn.addEventListener('click', () => toggleLog());
@@ -7557,7 +7582,7 @@ function drawMapDots() {
 function toggleMap(on = !mapOpen) {
   mapOpen = on;
   mapEl.classList.toggle('hide', !on);
-  if (on) { drawMapLand(); drawMapDots(); mapT = 0; }
+  if (on) { drawMapLand(); drawMapDots(); mapT = 0; logOnce('map_opened', 'players ' + playersInWorld()); }
 }
 // While open: players every frame, the land again every 2 seconds or when the child has walked 8 blocks
 function updateMap(dt) {
@@ -7594,7 +7619,7 @@ function connectWorld() {
   on('ws', onWorldState); on('hit', onHit); on('defeat', onDefeat); on('drop', onDrop); on('pick', onPick); on('taken', onTaken);
   on('drops', onDropsList); on('snapreq', onSnapReq); on('snap', onSnap); on('eat', onEat);
   ch.subscribe(status => {
-    if (status === 'SUBSCRIBED') { channelJoined = true; Promise.resolve(ch.track(myMeta())).catch(() => {}); }
+    if (status === 'SUBSCRIBED') { const first = !channelJoined; channelJoined = true; Promise.resolve(ch.track(myMeta())).catch(() => {}); if (first) logOnce('world_entered', '', 5000); }
     else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { channelJoined = false; logError(status, 'realtime'); }
   });
   channel = ch;

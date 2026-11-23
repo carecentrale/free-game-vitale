@@ -34,10 +34,10 @@ function placeCtx(ground, extra = new Set()) {
     for (const dx of [-HW, HW]) for (const dz of [-HW, HW]) for (const dy of [FOOT, HH - FOOT]) if (solid(get(Math.floor(x + dx), Math.floor(y + dy), Math.floor(z + dz)))) return true;
     return false;
   };
-  const ctx = vm.createContext({ H, get, solid, hits, Math, topSpawnPoint: () => [1000.5, ground + 3.01, 1000.5], px: 0, py: 0, pz: 0, vx: 1, vy: 1, vz: 1 });
+  const ctx = vm.createContext({ H, get, solid, hits, Math, topSpawnPoint: () => [1000.5, ground + 3.01, 1000.5], logged: [], px: 0, py: 0, pz: 0, vx: 1, vy: 1, vz: 1 });
   const s = game.indexOf('function placeSafely(fresh)');
   const e = game.indexOf('const spawnPoint = topSpawnPoint;', s);
-  vm.runInContext(game.slice(s, e), ctx);
+  vm.runInContext('function logEvent(k, d) { logged.push(k + \' \' + d); }\n' + game.slice(s, e), ctx);
   return ctx;
 }
 
@@ -47,6 +47,7 @@ test('0.6.86: a child who joins a world from the start screen begins at that wor
   assert.equal(vm.runInContext('placeSafely(true)', c), 'start');
   assert.deepEqual([c.px, c.py, c.pz], [1000.5, 33.01, 1000.5]);
   assert.deepEqual([c.vx, c.vy, c.vz], [0, 0, 0]);
+  assert.deepEqual([...c.logged], ['spawn_moved start join'], 'the move is recorded');
   // and the game really does it: the wizard joins with fresh = true, and every load of the land checks the place
   assert.match(game, /joinExisting\(wiz\.code, true\)/);
   assert.match(between('async function joinExisting', 'async function createWorld'), /placeSafely\(fresh\)/);
@@ -62,6 +63,7 @@ test('0.6.86: reopening a shared world keeps the child where they were, or lifts
   assert.equal(vm.runInContext('placeSafely(false)', c), 'up');
   assert.deepEqual([c.px, c.py, c.pz], [5.5, 21.01, 5.5]);
   assert.equal(c.hits(c.px, c.py, c.pz), false);
+  assert.deepEqual([...c.logged], ['spawn_moved up reload'], 'only real moves are recorded');
   // someone built a pillar right up to the sky here: the start point instead
   const sky = new Set(); for (let y = 0; y < 96; y++) sky.add('5,' + y + ',5');
   const d = placeCtx(20, sky);
