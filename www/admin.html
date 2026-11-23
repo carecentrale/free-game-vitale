@@ -107,6 +107,7 @@ async function load() {
   loadCastleGap();
   loadBadges();
   loadForceDays();
+  loadMerchantCards();
 }
 
 // ---- Castle spacing (0.6.76, SPEC-016 part G): a game setting everyone can read and only the owner can change ----
@@ -144,6 +145,74 @@ $('saveForce').addEventListener('click', async () => {
   if (!data || !data.length) { $('forceMsg').textContent = 'Not saved: only the owner\'s account can change this.'; return; }
   showForceDays(data[0]);
   $('forceMsg').textContent = 'Saved. Every game uses it the next time it opens.';
+});
+
+// ---- Merchants (0.6.81): prices (SPEC-020), traffic (SPEC-023) and guards (SPEC-021). Game settings everyone can read
+// and only the owner can change; they hold nothing about any player. Each game picks them up the next time it opens.
+// A price row is mp_<thing> (the child buys) or ms_<thing> (the child sells): gem price x 100 + amount.
+const PRICE_ROWS = [
+  ['mp_castle_stone', 'Castle Stone', 310], ['mp_roof_tile', 'Roof Tile', 206], ['mp_roof_tile_blue', 'Blue Roof Tile', 206], ['mp_wood_floor', 'Wood Floor', 208],
+  ['mp_pale_stone', 'Pale Stone', 310], ['mp_sandstone', 'Sandstone', 310], ['mp_dark_stone', 'Dark Stone', 310], ['mp_slate_roof', 'Slate Roof', 310],
+  ['mp_window', 'Window', 306], ['mp_iron_bars', 'Iron Bars', 306],
+  ['mp_pick', 'Pickaxe', 401], ['mp_wood_sword', 'Wooden Sword', 501], ['mp_leather_armor', 'Leather Armour', 801], ['mp_iron_sword', 'Iron Sword', 1501], ['mp_iron_helmet', 'Iron Helmet', 1501], ['mp_gold_sword', 'Gold Sword', 3001],
+  ['ms_dirt', 'Dirt (the child sells)', 108], ['ms_stone', 'Stone (the child sells)', 106], ['ms_castle_stone', 'Castle Stone (the child sells)', 106], ['mp_parts', 'Each monster part (the child sells)', 101],
+];
+const FIXED_ONE = k => k === 'mp_parts' || ['pick', 'wood_sword', 'leather_armor', 'iron_sword', 'iron_helmet', 'gold_sword'].some(g => k === 'mp_' + g);
+const GUARD_KEYS = ['guard_max', 'guard_step1', 'guard_step2', 'guard_step3', 'guard_step4'], GUARD_DEFAULT = [4, 30, 40, 50, 58];
+function priceTable(map) {
+  $('priceRows').innerHTML = PRICE_ROWS.map(([k, name, start]) => {
+    const v = map[k] || start, gems = Math.floor(v / 100), n = v % 100;
+    return `<tr><td>${name}</td><td><input data-k="${k}" data-f="n" type="number" min="1" max="64" value="${n}" style="max-width:64px"${FIXED_ONE(k) ? ' disabled' : ''}></td>` +
+      `<td><input data-k="${k}" data-f="g" type="number" min="1" max="500" value="${gems}" style="max-width:70px"></td><td class="muted">${Math.floor(start / 100)} gems for ${start % 100}</td></tr>`;
+  }).join('');
+}
+const showGuardSteps = () => {
+  const v = GUARD_KEYS.map(k => Math.round(Number($(k).value)));
+  const steps = v.slice(1);
+  while (steps.length < 6) steps.push(steps[steps.length - 1] + 8);
+  $('guardInfo').textContent = v[0] ? 'Guards: ' + steps.slice(0, v[0]).map((s, i) => (i + 1) + ' from ' + s + ' gems').join(', ') + '.' : 'Guards are off.';
+};
+async function loadMerchantCards() {
+  const { data, error } = await sb.from('game_settings').select('key,value');
+  if (error) { $('priceMsg').textContent = $('trafficMsg').textContent = $('guardMsg').textContent = 'Not available yet: ' + error.message; return; }
+  const map = {};
+  for (const r of data || []) map[r.key] = r.value;
+  priceTable(map);
+  $('cartsMax').value = map.carts_max || 6;
+  GUARD_KEYS.forEach((k, i) => { $(k).value = map[k] !== undefined ? map[k] : GUARD_DEFAULT[i]; });
+  showGuardSteps();
+  if (map.carts_max === undefined) $('trafficMsg').textContent = 'Not set up in the database yet (migration 0012): the game uses 6.';
+}
+async function saveRows(rows, msgId) {
+  const now = new Date().toISOString();
+  for (const [key, value] of rows) {
+    const { data, error } = await sb.from('game_settings').update({ value, updated_at: now }).eq('key', key).select('value');
+    if (error) { $(msgId).textContent = 'Not saved: ' + error.message; return false; }
+    if (!data || !data.length) { $(msgId).textContent = 'Not saved: only the owner\'s account can change this (or migration 0012 is not applied yet).'; return false; }
+  }
+  return true;
+}
+$('savePrices').addEventListener('click', async () => {
+  const rows = [];
+  for (const [k] of PRICE_ROWS) {
+    const n = FIXED_ONE(k) ? 1 : Math.round(Number(document.querySelector(`[data-k="${k}"][data-f="n"]`).value));
+    const g = Math.round(Number(document.querySelector(`[data-k="${k}"][data-f="g"]`).value));
+    if (!(n >= 1 && n <= 64 && g >= 1 && g <= 500)) { $('priceMsg').textContent = 'Each amount must be 1 to 64 and each price 1 to 500 gems.'; return; }
+    rows.push([k, g * 100 + n]);
+  }
+  if (await saveRows(rows, 'priceMsg')) $('priceMsg').textContent = 'Saved. Merchants show the new prices the next time a game opens.';
+});
+$('saveTraffic').addEventListener('click', async () => {
+  const v = Math.round(Number($('cartsMax').value));
+  if (!(v >= 1 && v <= 20)) { $('trafficMsg').textContent = 'Choose a number from 1 to 20.'; return; }
+  if (await saveRows([['carts_max', v]], 'trafficMsg')) $('trafficMsg').textContent = 'Saved: at most ' + v + ' carts on screen, the next time a game opens.';
+});
+for (const k of GUARD_KEYS) $(k).addEventListener('input', showGuardSteps);
+$('saveGuards').addEventListener('click', async () => {
+  const v = GUARD_KEYS.map(k => Math.round(Number($(k).value)));
+  if (!(v[0] >= 0 && v[0] <= 6)) { $('guardMsg').textContent = 'The most guards must be 0 to 6.'; return; }
+  if (!v.slice(1).every((n, i, a) => n >= 1 && n <= 500 && (i === 0 || n > a[i - 1]))) { $('guardMsg').textContent = 'Each step must be 1 to 500 gems and bigger than the one before.'; return; }
+  if (await saveRows(GUARD_KEYS.map((k, i) => [k, v[i]]), 'guardMsg')) $('guardMsg').textContent = 'Saved. Carts get their guards the next time a game opens.';
 });
 
 // ---- Quiz badge milestones (0.6.78): five game settings (quiz_m1 to quiz_m5) everyone can read and only the owner can change ----
@@ -395,6 +464,41 @@ load();
     </div>
     <div class="muted">One castle about every X blocks, from 250 to 2000 (it starts at 500). A change affects only worlds started afterwards; worlds already started keep their castles where they are. Only the owner's account can change it. It holds nothing about any player.</div>
     <div id="gapMsg" class="muted" style="margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <b>Merchant prices (owner only)</b>
+      <button class="secondary" id="savePrices">Save</button>
+    </div>
+    <div class="muted">Everything merchants sell and buy: the amount and its price in gems (amount 1 to 64, price 1 to 500). A merchant's list of goods does not change, only prices and amounts. Guards follow the prices in force. Gems only: no real money. Only the owner's account can change it. It holds nothing about any player.</div>
+    <table style="width:100%;font-size:13px;margin-top:6px"><tr class="muted"><td>Thing</td><td>Amount</td><td>Gems</td><td>At the start</td></tr><tbody id="priceRows"></tbody></table>
+    <div id="priceMsg" class="muted" style="margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <b>Merchant traffic (owner only)</b>
+      <span class="row">
+        <input id="cartsMax" type="number" min="1" max="20" step="1" style="max-width:80px">
+        <button class="secondary" id="saveTraffic">Save</button>
+      </span>
+    </div>
+    <div class="muted">The most hover carts drawn on screen at once, from 1 to 20 (it starts at 6). If more carts are nearby, the closest ones are drawn. Saving changes it for every player the next time their game opens. Only the owner's account can change it. It holds nothing about any player.</div>
+    <div id="trafficMsg" class="muted" style="margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <b>Merchant guards (owner only)</b>
+      <button class="secondary" id="saveGuards">Save</button>
+    </div>
+    <div class="muted">The most guards a cart can have (0 to 6, it starts at 4; 0 turns guards off), and the gem worth of the goods a cart needs for each guard (it starts at 30, 40, 50, 58; each bigger than the one before, 1 to 500). Steps 5 and 6 are each 8 gems more than the step before. Only the owner's account can change it. It holds nothing about any player.</div>
+    <div class="row" style="margin-top:6px;gap:6px">Most <input id="guard_max" type="number" min="0" max="6" style="max-width:60px"> Steps
+      <input id="guard_step1" type="number" min="1" max="500" style="max-width:64px"><input id="guard_step2" type="number" min="1" max="500" style="max-width:64px">
+      <input id="guard_step3" type="number" min="1" max="500" style="max-width:64px"><input id="guard_step4" type="number" min="1" max="500" style="max-width:64px"></div>
+    <div id="guardInfo" class="muted" style="margin-top:6px"></div>
+    <div id="guardMsg" class="muted" style="margin-top:6px"></div>
   </div>
 
   <div class="card">

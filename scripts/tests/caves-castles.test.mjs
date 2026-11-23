@@ -41,25 +41,28 @@ function reach(from, box) {
 const mouthsNearStart = () => { const out = []; for (let gx = -2; gx <= 1; gx++) for (let gz = -2; gz <= 1; gz++) { const m = W.mouthInCell(gx, gz); if (m) out.push(m); } return out; };
 
 // ---- The land-maker record ----
-test('a new world records land-maker 2 and its castle spacing; a world saved before 0.6.76 keeps land-maker 1 and its land', () => {
+test('a new world records land-maker 2, its castle spacing and land-maker 3; a world from before 0.6.76 keeps its land and no caves, and gets castles (SPEC-020)', () => {
   W.setNext(800);
   W.initWorld(4242);
   const w = W.encodeWorld();
-  assert.equal(w.gen, 2);
+  assert.equal(w.gen, 2, 'gen stays 2, so an older version of the game reads the same land and caves');
   assert.equal(w.castleGap, 800, 'the spacing read last is recorded in a new world');
+  assert.equal(w.maker, 3);
+  assert.equal(w.oldCastles.length, 0, 'a new world has no castle of the old look');
   W.setNext(500);
-  // an old save (no record): land-maker 1, and its land is the same as before (no new caves or castles)
+  // an old save (no record): land-maker 1 land (no new caves), but castles now (owner, 22 Nov 2026), at the standard spacing
   W.applyWorld({ v: 2, seed: 4242, edits: [] });
   assert.equal(W.gen(), 1);
-  assert.deepEqual(Object.keys(W.encodeWorld()).sort(), ['edits', 'seed', 'v'], 'an old world is written back as before');
-  const sum = () => { let n = 0; for (let x = W.CENTER - 120; x < W.CENTER + 120; x += 5) for (let z = W.CENTER - 120; z < W.CENTER + 120; z += 5) for (let y = 0; y < 40; y++) n = (n * 31 + W.get(x, y, z)) >>> 0; return n; };
-  const before = sum();
+  const w1 = W.encodeWorld();
+  assert.equal(w1.gen, undefined, 'still read as land-maker 1 by an older version');
+  assert.equal(w1.maker, 3); assert.equal(w1.castleGap, 500);
   const caves = mouthsNearStart().length, castles = W.castlesIn(W.CENTER - 600, W.CENTER - 600, W.CENTER + 600, W.CENTER + 600).length;
   assert.equal(caves, 0, 'no cave mouths are planned in an old world');
-  assert.equal(castles, 0, 'no castles in an old world');
-  // the same old world loaded again gives the same land
+  assert.ok(castles > 0, 'castles in an old world now');
+  const sum = () => { let n = 0; for (let x = W.CENTER - 120; x < W.CENTER + 120; x += 5) for (let z = W.CENTER - 120; z < W.CENTER + 120; z += 5) for (let y = 0; y < 40; y++) n = (n * 31 + W.get(x, y, z)) >>> 0; return n; };
+  const before = sum();
   W.applyWorld({ v: 2, seed: 4242, edits: [] });
-  assert.equal(sum(), before);
+  assert.equal(sum(), before, 'the same old world loaded again gives the same land');
   // a world recorded with land-maker 2 and spacing 1000 keeps them when loaded again (a shared world on another device)
   W.applyWorld({ v: 2, seed: 4242, gen: 2, castleGap: 1000, edits: [] });
   assert.equal(W.gen(), 2); assert.equal(W.gap(), 1000);
@@ -193,7 +196,8 @@ test('SPEC-016 G: a great castle can be walked through: every tower, the wall to
   for (let gx = -3; gx <= 2 && !c; gx++) for (let gz = -3; gz <= 2 && !c; gz++) { const k = W.castleInCell(gx, gz); if (k && k.kind === 'great') c = k; }
   assert.ok(c, 'a great castle in this world');
   assert.ok(c.towers.length >= 8, 'many towers: ' + c.towers.length);
-  assert.ok(c.keep.h >= 60, 'a tall main building: ' + c.keep.h);
+  // 0.6.81 (SPEC-020): the main building has a pointed roof now; with it, it stands at least 60 high
+  assert.ok(c.keep.h + (c.keep.rh || 0) >= 60, 'a tall main building: ' + c.keep.h + ' + roof ' + c.keep.rh);
   const r = checkCastle(c);
   assert.ok(allReached(r), JSON.stringify(r));
 });

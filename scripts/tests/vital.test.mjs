@@ -72,7 +72,10 @@ test('nothing about the tips is sent or logged: the device keeps one small note,
   const save = game.slice(game.indexOf('function saveGame()'), game.indexOf('let worldLoaded'));
   assert.ok(!/vital/i.test(save), 'the saved game (and so the cloud save) holds something about Vital');
   const meta = game.slice(game.indexOf('function myMeta()'), game.indexOf('function onPresence()'));
-  assert.ok(!/vital|friend/i.test(meta), 'Vital is sent to the shared world');
+  // 0.6.81 (SPEC-024, owner's rule of 22 Nov 2026): the friend (or Vital) is seen by everyone as a character, so its
+  // kind, place and turn are sent; never its question, answer, hints, tips, the child's level or anything the child typed
+  assert.ok(!/friend\.q\b|quiz(Levels|Stats|On)|question|answer|hint|tip|level/i.test(meta), 'only the character is sent to the shared world, never its questions or tips');
+  assert.ok(/friend\.kind, Math\.round\(friend\.x/.test(meta), 'the friend is sent as a character: kind and place');
 });
 
 test('tap only: the tip panel has no place to type, no timer and no countdown, and never opens by itself', () => {

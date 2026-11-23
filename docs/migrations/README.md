@@ -22,6 +22,7 @@ Checked on 22 Nov 2026: each file below has the same text as the step recorded i
 | 11 | 0009_game_settings.sql | 0009_game_settings | 20 Nov 2026 |
 | 12 | 0010_quiz_badges.sql | 0010_quiz_badges | 20 Nov 2026 |
 | 13 | 0011_force_update_days.sql | 0011_force_update_days | 22 Nov 2026 |
+| 14 | 0012_merchant_settings.sql | 0012_merchant_settings | 22 Nov 2026 |
 
 **Not applied:** `0008_guardian_packages.sql` (purchases, waits for the parent's approval). Its tables are not in the live database.
 

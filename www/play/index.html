@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.80 (3D)</title>
+<title>Adventurers of Drenerics v0.6.81 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -262,7 +262,10 @@ const PMIN = CENTER - PLAY, PMAX = CENTER + PLAY;
 const inPlay = (x, z) => x >= PMIN && x < PMAX && z >= PMIN && z < PMAX;
 const WATER_Y = 9;                        // low places fill with water (lakes and sea) up to this height
 const H = 96, SURF = 12, CS = 16;        // height in blocks, average ground level, chunk size in blocks
-const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4, WATER: 5, SAND: 6, SNOW: 7, CSTONE: 8, ROOF: 9, WOOD: 10, ROOFB: 11 };   // 8 to 11: castle blocks (0.6.76)
+const T = { AIR: 0, GRASS: 1, DIRT: 2, STONE: 3, GEM: 4, WATER: 5, SAND: 6, SNOW: 7, CSTONE: 8, ROOF: 9, WOOD: 10, ROOFB: 11,   // 8 to 11: castle blocks (0.6.76)
+  PALE: 12, SANDST: 13, DARK: 14, SLATE: 15, WINDOW: 16, IRON: 17,   // 12 to 17: the new castle blocks (0.6.81, SPEC-020)
+  COBBLE: 18, EARTH: 19 };                                             // 18, 19: road blocks (0.6.81, SPEC-023)
+const T_MAX = 19;   // the highest block number (a block sent by another player must be one of these)
 // Blocks that stop the player and enemies. Water does not: you can wade and sink into it.
 const solid = t => t !== T.AIR && t !== T.WATER;
 
@@ -282,6 +285,15 @@ const ITEMS = {
   roof_tile:    { name: 'Roof Tile',    kind: 'block', color: 0xb5452f, block: T.ROOF },
   roof_tile_blue: { name: 'Blue Roof Tile', kind: 'block', color: 0x5b6f8f, block: T.ROOFB },
   wood_floor:   { name: 'Wood Floor',   kind: 'block', color: 0xa0703f, block: T.WOOD },
+  // The new castle blocks (0.6.81, SPEC-020) and the road blocks (SPEC-023)
+  pale_stone:   { name: 'Pale Stone',   kind: 'block', color: 0xeae3d2, block: T.PALE },
+  sandstone:    { name: 'Sandstone',    kind: 'block', color: 0xd8b57a, block: T.SANDST },
+  dark_stone:   { name: 'Dark Stone',   kind: 'block', color: 0x55575e, block: T.DARK },
+  slate_roof:   { name: 'Slate Roof',   kind: 'block', color: 0x4a5560, block: T.SLATE },
+  window:       { name: 'Window',       kind: 'block', color: 0x2d4f86, block: T.WINDOW },
+  iron_bars:    { name: 'Iron Bars',    kind: 'block', color: 0x3b3f46, block: T.IRON },
+  cobblestone:  { name: 'Cobblestone',  kind: 'block', color: 0x8a8780, block: T.COBBLE },
+  packed_earth: { name: 'Packed Earth', kind: 'block', color: 0xa27a4e, block: T.EARTH },
   gem:   { name: 'Gem',     kind: 'gem',    color: 0x29d3ff },
   fireball: { name: 'Fireball', kind: 'spell', color: 0xff7a1a },
   goblin_ear:    { name: 'Goblin Ear',     kind: 'part', color: 0x7fd65a },
@@ -466,16 +478,39 @@ function biomeIndexAt(x, z) {
   for (let i = 0; i < BIOMES.length; i++) { acc += BIOME_W[i]; if (u < acc) return i; }
   return BIOMES.length - 1;
 }
+// ---- Trees eaten by wild dragons (0.6.81, SPEC-022) ----
+// Each eaten tree is kept with the world: its place, the day it was eaten and the day it has grown back (day numbers:
+// dates only, no time of day). It is a stump until the next day, then a young tree, then the same tree as before, and
+// it leaves the list. At most 500: past that, the oldest grows back early.
+const eatenTrees = new Map();   // "x,z" -> { x, z, day, back }
+const dayNum = (ms = Date.now()) => Math.floor((ms - new Date(ms).getTimezoneOffset() * 60000) / 86400000);
+function eatTreeInWorld(x, z, day) {
+  const back = day + 1 + (hash3(x, 61, z, seed + 6201) < 0.5 ? 0 : 1);   // 1 or 2 days, from the seed and the tree's place
+  eatenTrees.set(x + ',' + z, { x, z, day, back });
+  while (eatenTrees.size > 500) eatenTrees.delete(eatenTrees.keys().next().value);
+}
+// 0: the tree as it was; 1: a stump; 2: a young tree
+function treeLook(x, z) {
+  const e = eatenTrees.get(x + ',' + z);
+  if (!e) return 0;
+  const today = dayNum();
+  if (today >= e.back) { eatenTrees.delete(x + ',' + z); return 0; }
+  return today <= e.day ? 1 : 2;
+}
 // What scenery sits on the surface block at (x, y, z), or null. y is the surface block's height.
 function decorAt(x, y, z) {
   if (y < WATER_Y || Math.hypot(x - CENTER, z - CENTER) < DECOR_CLEAR) return null;
-  if (gen >= 2 && castleCovers(x, z, 3)) return null;   // no trees in or against a castle
+  if (castlesOn() && castleCovers(x, z, 3)) return null;   // no trees in or against a castle
+  if (maker >= 3 && roadAt(x, z)) return null;             // nor on a road (0.6.81)
   const shares = BIOMES[biomeIndexAt(x, z)].shares;
   const r = hash3(x, y, z, seed + 31);
   let acc = 0;
   for (const kind in shares) {
     acc += shares[kind];
-    if (r < acc) return { kind, pick: hash3(x, y, z, seed + 37), rot: hash3(x, y, z, seed + 41) * Math.PI * 2 };
+    if (r < acc) {
+      const look = (kind === 'common' || kind === 'pine' || kind === 'palm') && eatenTrees.size ? treeLook(x, z) : 0;   // eaten by a dragon (0.6.81)
+      return { kind: look === 1 ? 'stump' : look === 2 ? 'bush' : kind, pick: hash3(x, y, z, seed + 37), rot: hash3(x, y, z, seed + 41) * Math.PI * 2 };
+    }
   }
   return null;
 }
@@ -551,6 +586,7 @@ function planMouth(b, gx, gz) {
     if (!inPlay(x - 3, z - 3) || !inPlay(x + 3, z + 3) || nearWater(x, z)) return null;
     if (Math.hypot(x - CENTER, z - CENTER) < MOUTH_CLEAR) return null;
     if (castleCovers(x, z, 8)) return null;
+    if (maker >= 3 && nearRoad(x, z, 5)) return null;   // land-maker 3: no cave mouth on or beside a road (0.6.81)
   }
   // The room's roof stays at least 2 blocks under the land above (it never opens to the sky by accident)
   let low = H;
@@ -693,7 +729,16 @@ const CASTLE_SIZES = {
 // (the slope around them is made wider to match, so it stays one block up or down per block)
 const CASTLE_UNEVEN = { tower: 6, castle: 12, great: 20 };
 const castleCache = new Map();
-let startTower;   // the tower house near the start point (worked out once per world)
+let startTower, startPlan = null;   // the tower house near the start point (worked out once per world); its plan, even when it is not built
+// Land-maker 3 (0.6.81): see styleCastle. maker: 3 once the world has been opened in 0.6.81 or later
+let maker = 0, oldCastles = new Set(), roaded = new Set();
+const castlesOn = () => gen >= 2 || maker >= 3;
+// A castle of the new look, or its old look when it is in the world's list; in a world from before 0.6.76 a castle in
+// the list is not built at all
+function castleLook(c) {
+  if (maker >= 3 && !oldCastles.has(c.sx + ',' + c.sz)) return styleCastle(c);
+  return gen >= 2 ? c : null;
+}
 // Ground over a footprint and the land around it (m blocks), on a grid of about 12 blocks: [lowest, highest, wet share].
 // Water counts as ground at water level (around a castle it becomes a shore). wet: the share of the footprint under water.
 function siteHeights(x0, z0, w, d, m = 10) {
@@ -771,7 +816,7 @@ function castleInCell(gx, gz) {
   if (castleCache.has(key)) return castleCache.get(key);
   let c = null;
   const X = castleGap, num = Math.floor(hash3(gx, 3, gz, seed + CASTLE_SALT) * 1e9);
-  if (gen >= 2 && hash3(gx, 1, gz, seed + CASTLE_SALT) < 0.85) {
+  if (castlesOn() && hash3(gx, 1, gz, seed + CASTLE_SALT) < 0.85) {
     const r = hash3(gx, 2, gz, seed + CASTLE_SALT);
     let kind = r < 0.4 ? 'tower' : r < 0.75 ? 'castle' : 'great';
     const fits = k => Math.max(CASTLE_SIZES[k].W, CASTLE_SIZES[k].D) + 2 * (APRON + 4 + Math.ceil(CASTLE_UNEVEN[k] / 2)) + 16 <= X;
@@ -793,9 +838,11 @@ function castleInCell(gx, gz) {
     }
     if (c) {
       footprint(c);
-      const st = towerNearStart();   // never on top of the tower house near the start
+      towerNearStart();
+      const st = startPlan;   // never on top of the tower house near the start (where it is planned, built or not)
       if (st && c.fx0 < st.fx1 + 16 && c.fx1 > st.fx0 - 16 && c.fz0 < st.fz1 + 16 && c.fz1 > st.fz0 - 16) c = null;
     }
+    if (c) c = castleLook(c);
   }
   castleCache.set(key, c);
   return c;
@@ -803,8 +850,8 @@ function castleInCell(gx, gz) {
 // One tower house always stands between 100 and 200 blocks from the start, so every child finds a castle on the first day
 function towerNearStart() {
   if (startTower !== undefined) return startTower;
-  startTower = null;
-  if (gen < 2) return null;
+  startTower = null; startPlan = null;
+  if (!castlesOn()) return null;
   let best = null;
   for (let k = 0; k < 24; k++) {
     const ang = (hash3(k, 5, 9, seed + CASTLE_SALT) + k / 24) * Math.PI * 2, dist = 125 + (k % 3) * 20;
@@ -816,13 +863,13 @@ function towerNearStart() {
   }
   if (best) {
     const c = makeCastle('tower', best.sx, best.sz, 24, 24, best.hs[0], best.hs[1], Math.floor(hash3(1, 6, 1, seed + CASTLE_SALT) * 1e9), frontFacing(best.sx, best.sz, 24, 24));
-    if (c) startTower = footprint(c);
+    if (c) { startPlan = footprint(c); startTower = castleLook(c); }
   }
   return startTower;
 }
 // The castles whose footprint (with margin m) overlaps the box [x0, x1) x [z0, z1)
 function castlesIn(x0, z0, x1, z1, m = 0) {
-  if (gen < 2) return [];
+  if (!castlesOn()) return [];
   const out = [], X = castleGap, reach = CASTLE_SIZES.great.W + 2 * (APRON + 4 + CASTLE_UNEVEN.great);
   const gx0 = Math.floor((x0 - reach - CENTER) / X), gx1 = Math.floor((x1 + reach - CENTER) / X);
   const gz0 = Math.floor((z0 - reach - CENTER) / X), gz1 = Math.floor((z1 + reach - CENTER) / X);
@@ -941,6 +988,7 @@ function toFrame(c, x, z) {
 function buildCastles(cx, cz, data, tops, castles) {
   const x0 = cx * CS, z0 = cz * CS;
   for (const c of castles) {
+    const sb = structFor(c), fresh = c.style === 'new';
     for (let lz = 0; lz < CS; lz++) for (let lx = 0; lx < CS; lx++) {
       const x = x0 + lx, z = z0 + lz;
       if (x < c.fx0 || x >= c.fx1 || z < c.fz0 || z >= c.fz1) continue;
@@ -956,26 +1004,545 @@ function buildCastles(cx, cz, data, tops, castles) {
           data[cellIndex(lx, fy - 2, lz)] = bridge ? T.STONE : T.WATER;
           data[cellIndex(lx, fy - 1, lz)] = bridge ? T.WOOD : T.WATER;
           for (let y = fy; y < H; y++) data[cellIndex(lx, y, lz)] = T.AIR;
+          if (fresh && out === 1) overhang(c, lx, lz, x, z, data);
           continue;
         }
         const apron = out - (c.moat ? 4 : 0);   // the slope back to the land: at most one block up or down per block
         const wet = top < WATER_Y;   // over water the slope ends at water level, as a sandy shore
         const s = Math.round(fy + ((wet ? WATER_Y - 1 : top) + 1 - fy) * Math.min(1, apron / c.apron));
         const cap = wet ? T.SAND : data[cellIndex(lx, top, lz)];
-        for (let y = top + 1; y < s; y++) data[cellIndex(lx, y, lz)] = T.DIRT;
-        if (s - 1 !== top || !solid(cap)) data[cellIndex(lx, s - 1, lz)] = cap === T.SAND || cap === T.SNOW || cap === T.GRASS ? cap : T.GRASS;
+        if (fresh && c.rock && !wet) {   // a fairy-tale castle's rock: the slope is stone (0.6.81)
+          for (let y = Math.min(top, s - 1) - 2; y < s; y++) if (y >= 1) data[cellIndex(lx, y, lz)] = T.STONE;
+        } else {
+          for (let y = top + 1; y < s; y++) data[cellIndex(lx, y, lz)] = T.DIRT;
+          if (s - 1 !== top || !solid(cap)) data[cellIndex(lx, s - 1, lz)] = cap === T.SAND || cap === T.SNOW || cap === T.GRASS ? cap : T.GRASS;
+        }
         for (let y = s; y < H; y++) data[cellIndex(lx, y, lz)] = T.AIR;
+        if (fresh && out === 1) overhang(c, lx, lz, x, z, data);
         continue;
       }
       const [a, b] = toFrame(c, x, z);
       const near = c.towers.filter(tw => Math.abs(a + 0.5 - tw.a) <= tw.R + 1.5 && Math.abs(b + 0.5 - tw.b) <= tw.R + 1.5);   // only the towers over this column
       for (let y = Math.min(top + 1, fy - 1); y < Math.min(H, fy + c.height + 1); y++) {
-        const t = structBlock(c, a, b, y - fy, near);
+        const t = sb(c, a, b, y - fy, near);
         data[cellIndex(lx, y, lz)] = t === undefined ? T.AIR : t;
       }
       for (let y = fy + c.height + 1; y < H; y++) data[cellIndex(lx, y, lz)] = T.AIR;
     }
   }
+}
+
+// The battlements of a new-look castle stick out one block over the wall's outer face (0.6.81)
+function overhang(c, lx, lz, x, z, data) {
+  if (c.kind === 'tower') return;
+  const [a, b] = toFrame(c, Math.max(c.sx, Math.min(c.sx + c.W - 1, x)), Math.max(c.sz, Math.min(c.sz + c.D - 1, z)));
+  if (b === 0 && Math.abs(a + 0.5 - c.A / 2) <= 6) return;   // not in front of the gatehouse
+  const along = (Math.abs(x - c.sx) + Math.abs(z - c.sz)) % 2, y = c.floorY + c.wallH;
+  if (y + 1 >= H) return;
+  data[cellIndex(lx, y - 1, lz)] = T.DARK;
+  data[cellIndex(lx, y, lz)] = c.wallM;
+  if (along === 0) data[cellIndex(lx, y + 1, lz)] = c.wallM;
+}
+
+// ======== Land-maker 3 (0.6.81, SPEC-020 and SPEC-023): castles with much more detail, and roads ========
+// Every world opened in this version gets the new castles and the roads. The castles keep the place, outer size, floor
+// height, slope and moat that land-maker 2 gave them, so the land around them still meets. A castle that touches land a
+// player had already changed when the world was first opened in this version keeps its old look for good (in a world from
+// before 0.6.76 such a castle is simply not built). That list is made once, kept in the world record, and travels with
+// the saved game and the shared world, so every device builds the same castles.
+// The record keeps `gen` (1 or 2: the land and the caves, as before) and adds `maker: 3`, so a device still on an older
+// version reads the world as it always did and never loses its land.
+const STYLES = ['fortress', 'fairy', 'palace'];
+const STYLE_WALLS = [[0.55, 0.1, 0.35], [0.15, 0.75, 0.1], [0.15, 0.45, 0.4]];   // grey, cream, sandstone, by main style
+const STYLE_ROOFS = [[0.35, 0.15, 0.5], [0.15, 0.55, 0.3], [0.5, 0.35, 0.15]];   // red, blue, slate, by main style
+const pickW = (w, r) => { let i = 0; for (; i < w.length - 1; i++) { if (r < w[i]) break; r -= w[i]; } return i; };
+// Gives a castle of land-maker 2's plan its new look: a mix of the three styles, its colours, tower shapes, roofs,
+// turrets, a gatehouse with two towers, a garden pool or fountain. The plan's place, size, floor and slope are kept.
+function styleCastle(c) {
+  const R = n => hash3(c.num, n, 311, seed + CASTLE_SALT);
+  const w = [1, 1, 1];
+  if (c.moat) w[0] += 1.2;                     // flat land with a moat: more often a fortress
+  if (c.apron > APRON + 2) w[1] += 1.6;        // high or uneven land: more often a fairy-tale castle on a rock
+  if (c.kind === 'great') w[2] += 1.2;         // the biggest castles: more often a palace
+  const sum = w[0] + w[1] + w[2], main = pickW(w.map(v => v / sum), R(1));
+  const mix = [0, 0, 0];
+  if (R(2) < 0.4) mix[main] = 1;               // a pure style
+  else { const second = (main + 1 + Math.floor(R(3) * 2)) % 3, s = 0.25 + R(4) * 0.3; mix[main] = 1 - s; mix[second] = s; }
+  c.style = 'new'; c.mix = mix; c.main = main;
+  const part = n => pickW(mix, R(n));          // which style one part of the castle follows
+  c.wallM = [T.CSTONE, T.PALE, T.SANDST][pickW(STYLE_WALLS[main], R(5))];
+  c.trim = c.wallM === T.PALE ? T.SANDST : T.PALE;   // window frames and bands in a lighter (or warmer) stone
+  c.roof = [T.ROOF, T.ROOFB, T.SLATE][pickW(STYLE_ROOFS[main], R(6))];
+  c.rock = main === 1 && c.apron > APRON;      // a fairy-tale castle on uneven land stands on a rock base
+  const room = CASTLE_TOP - c.floorY;
+  // Towers: shape and roof from the style each tower follows
+  c.towers.forEach((tw, i) => {
+    const st = part(20 + i);
+    tw.st = st;
+    tw.shape = st === 0 ? 'round' : st === 1 ? (R(40 + i) < 0.6 ? 'round' : 'oct') : (R(40 + i) < 0.5 ? 'square' : 'oct');
+    tw.round = tw.shape === 'round';
+    tw.coneH = st === 1 ? Math.round(tw.R * 2.4 + 3) : st === 0 ? tw.R + 2 : tw.R + 4;
+    if (st === 1) tw.h = Math.round(tw.h * 1.15);   // fairy-tale towers stand taller
+    tw.h = Math.min(tw.h, room - tw.coneH - 4);
+    if (tw.h < 14) { tw.coneH = Math.max(tw.R + 1, room - 18); tw.h = Math.min(tw.h, room - tw.coneH - 4); }
+    tw.top = tw.h - 6;
+    tw.spire = st === 1 || R(60 + i) < 0.3;     // a gold ball and a flag on its tip (drawn as decoration)
+  });
+  // The keep: a pointed roof (hipped, or gables in sections of different heights for a palace)
+  const K = c.keep, kw = K.a1 - K.a0, kd = K.b1 - K.b0;
+  K.gable = part(80) === 2;
+  const half = K.gable ? Math.ceil(kd / 2) : Math.ceil(Math.min(kw, kd) / 2);
+  K.rh = Math.min(half, c.kind === 'great' ? 12 : 99);              // a great castle's main building keeps its height: a less steep roof
+  if (part(81) === 1 && !K.gable) K.rh = Math.ceil(K.rh * 1.3);     // fairy-tale: a steeper roof
+  const most = room - K.rh - 2;
+  if (K.h > most) {   // a lower keep so the roof fits under the castle's height limit (floors every 6 blocks)
+    K.h = Math.max(13, most);
+    K.floors = [];
+    for (let L = 6; L + 6 <= K.h - 1; L += 6) K.floors.push(L);
+    K.top = K.floors[K.floors.length - 1];
+    K.stair.top = K.top; K.stair.doors = [0, ...K.floors];
+    if (K.h + K.rh + 2 > room) K.rh = Math.max(3, room - K.h - 2);
+  }
+  K.k = half / K.rh;   // how many blocks the roof steps in for each block up
+  K.secs = [];
+  const nsec = K.gable ? (kw >= 24 ? 3 : 2) : 1;
+  for (let s = 0; s < nsec; s++) K.secs.push({ a0: K.a0 + Math.round(s * kw / nsec), a1: K.a0 + Math.round((s + 1) * kw / nsec), rh: K.gable && nsec === 3 && s !== 1 ? Math.max(3, K.rh - 2) : K.gable && nsec === 2 && s === 1 ? Math.max(3, K.rh - 2) : K.rh });
+  // Turrets hang from the keep's corners (inset in a tower house, whose keep is the whole footprint)
+  const ins = c.kind === 'tower' ? 1.5 : 0, tr = c.kind === 'tower' ? 1.6 : 2.1;
+  c.turrets = [[K.a0 + ins, K.b0 + ins], [K.a1 - ins, K.b0 + ins], [K.a0 + ins, K.b1 - ins], [K.a1 - ins, K.b1 - ins]]
+    .map(([a, b], i) => ({ a, b, r: tr, y0: K.h - 4, y1: K.h + 2, ch: part(90 + i) === 1 ? 6 : 4 }));
+  // The gatehouse: two towers either side of the gate, an arch and a raised portcullis
+  if (c.kind !== 'tower') {
+    const mid = c.A / 2, gh = c.wallH + 7, gcone = part(95) === 1 ? 7 : 4;
+    c.gateTowers = [mid - 4.5, mid + 4.5].map(a => ({ a, b: 3, R: 2.6, h: gh, cone: gcone }));
+    // A garden pool (palaces and great castles) or a fountain in the courtyard, beside the path
+    const pl = Math.min(c.keep.b0 - 14, c.kind === 'great' ? 26 : 12);
+    if (pl >= 5) {
+      const long = c.main === 2 || c.kind === 'great';
+      const pw = long ? (c.kind === 'great' ? 8 : 4) : 5, side = R(97) < 0.5 ? 1 : -1;
+      const a0 = side > 0 ? Math.floor(mid + 4) : Math.ceil(mid - 4 - pw);
+      c.pool = long ? { a0, a1: a0 + pw, b0: 9, b1: 9 + pl, fountain: false } : { a0, a1: a0 + 5, b0: 9, b1: 14, fountain: true };
+    }
+  } else c.gateTowers = [];
+  const towersTop = Math.max(0, ...c.towers.map(tw => tw.h + tw.coneH + 3));
+  const gateTop = Math.max(0, ...c.gateTowers.map(g => g.h + g.cone + 1));
+  c.height = Math.max(K.h + Math.max(...K.secs.map(s => s.rh)) + 1, ...c.turrets.map(t => t.y1 + t.ch + 1), towersTop, gateTop, c.wallH + 6);
+  if (c.height + c.floorY > CASTLE_TOP + 1) c.height = CASTLE_TOP + 1 - c.floorY;   // never above the limit (a roof tip is cut)
+  return c;
+}
+// Distance from a tower's middle in its own shape: round, square or eight-sided
+function shapeDist(tw, dx, dz) {
+  if (tw.shape === 'square' || (!tw.shape && !tw.round)) return Math.max(Math.abs(dx), Math.abs(dz));
+  if (tw.shape === 'oct') return Math.max(Math.abs(dx), Math.abs(dz), (Math.abs(dx) + Math.abs(dz)) / 1.3);
+  return Math.hypot(dx, dz);
+}
+// A tower of the new look: as before (stairs, doors, top room), with a dark base, framed windows on every level, a band
+// under the roof and a roof that follows its style (a low cone, a steep spire, or a pyramid)
+function towerBlock3(c, tw, a, b, ry) {
+  if (tw.keep) return towerBlock(c, tw, a, b, ry);   // the keep's stair inside the keep is as before
+  const dx = a + 0.5 - tw.a, dz = b + 0.5 - tw.b, d = shapeDist(tw, dx, dz);
+  const door = tw.door !== undefined ? tw.door : (tw.door = Math.atan2(c.B / 2 - tw.b, c.A / 2 - tw.a));
+  const ang = Math.atan2(dz, dx);
+  if (ry >= tw.h) {
+    const rr = (tw.R + 1) * (1 - (ry - tw.h) / tw.coneH);
+    if (d <= rr) return c.roof;
+    return tw.spire && tw.st === 1 && Math.abs(dx) < 0.6 && Math.abs(dz) < 0.6 && ry < tw.h + tw.coneH + 2 ? c.roof : undefined;   // the needle tip
+  }
+  if (d > tw.R) return undefined;
+  if (ry < -1) return T.STONE;
+  if (ry === -1) return T.CSTONE;
+  const K = stairTurn(tw);
+  if (d > tw.R - 1) {
+    for (const L of tw.doors) if (ry >= L && ry <= L + 2 && Math.abs(angDiff(ang, tw.door + stairFracAt(tw, L) * Math.PI * 2)) < 1.1 / tw.R) return T.AIR;
+    if (ry <= 1) return T.DARK;
+    if (ry === tw.h - 2) return c.trim;
+    const level = ry >= tw.top + 1 && ry <= tw.top + 2 ? 1 : ry < tw.top - 1 && ry % 6 >= 3 && ry % 6 <= 4 ? 2 : 0;
+    const frame = ry >= tw.top && ry <= tw.top + 3 ? 1 : ry < tw.top - 1 && ry % 6 >= 2 && ry % 6 <= 5 ? 2 : 0;
+    for (let w = 0; w < 4; w++) {
+      const da = Math.abs(angDiff(ang, door + Math.PI / 4 + w * Math.PI / 2));
+      if (level && da < 0.6 / tw.R) return T.WINDOW;
+      if (frame && da < 1.6 / tw.R) return c.trim;
+    }
+    return c.wallM;
+  }
+  if (ry >= tw.h - 1) return c.wallM;
+  if (ry >= tw.top) return T.AIR;
+  const frac = ((ang - tw.door) / (Math.PI * 2) % 1 + 1) % 1;
+  const h0 = stairH(tw, frac);
+  const last = h0 + Math.floor((tw.top - 1 - h0) / K) * K;
+  if (ry === tw.top - 1) return d <= 1.6 || last < tw.top - 3 ? T.WOOD : T.AIR;
+  if (d <= 1.6) return T.CSTONE;
+  return (ry + 1 - h0) % K === 0 && ry + 1 < tw.top ? T.CSTONE : T.AIR;
+}
+// The keep's pointed roof, r levels above its ceiling. Hipped (shrinks on all four sides), or gables in sections
+// (shrinks front to back only, the ends are walls) with dormer windows on a palace.
+function keepRoof(c, K, a, b, r) {
+  const ib = Math.min(b - K.b0, K.b1 - 1 - b);
+  if (!K.gable) {
+    const inset = Math.min(a - K.a0, K.a1 - 1 - a, ib), k = K.k;
+    if (r >= K.rh || inset < Math.floor(r * k)) return undefined;
+    return inset === Math.floor(r * k) && r % 4 === 2 && (ib === inset ? a : b) % 6 === 3 ? T.WINDOW : c.roof;   // a dormer now and then
+  }
+  const s = K.secs.find(q => a >= q.a0 && a < q.a1);
+  if (!s || r >= s.rh || ib < Math.floor(r * K.k)) return undefined;
+  const end = (a === s.a0 && (s.a0 === K.a0 || (K.secs[K.secs.indexOf(s) - 1] || {}).rh <= r)) || (a === s.a1 - 1 && (s.a1 === K.a1 || (K.secs[K.secs.indexOf(s) + 1] || {}).rh <= r));
+  if (end) return r === 2 && ib >= 3 && Math.abs(b + 0.5 - (K.b0 + K.b1) / 2) < 1 ? T.WINDOW : c.wallM;   // the gable end, with a round window
+  return ib === Math.floor(r * K.k) && r % 4 === 2 && a % 6 === 3 ? T.WINDOW : c.roof;
+}
+function keepBlock3(c, K, a, b, ry) {
+  if (a < K.a0 || a >= K.a1 || b < K.b0 || b >= K.b1) return undefined;
+  const edge = Math.min(a - K.a0, K.a1 - 1 - a, b - K.b0, K.b1 - 1 - b);
+  if (ry >= K.h) return keepRoof(c, K, a, b, ry - K.h);
+  if (ry === K.h - 1) return c.wallM;
+  const s = towerBlock(c, K.stair, a, b, ry);
+  if (s !== undefined) return s;
+  if (ry < -1) return T.STONE;
+  if (ry === -1) return T.WOOD;   // the great hall's floor
+  if (edge < 2) {
+    const mid = (K.a0 + K.a1) / 2, am = Math.abs(a + 0.5 - mid);
+    if (b < K.b0 + 2 && ry <= 2 && am <= 1) return T.AIR;            // the door
+    if (b === K.b0 && ry === 3 && am <= 1) return c.kind === 'tower' ? T.IRON : c.trim;   // over the door: an arch (a tower house: a raised portcullis)
+    if (edge === 1) return c.wallM;
+    if (ry <= 1) return T.DARK;                                       // the base course
+    if (ry === K.h - 3) return c.trim;                                // a band under the roof
+    const along = (b === K.b0 || b === K.b1 - 1) ? a : b, m5 = ((along % 5) + 5) % 5;
+    for (const L of [0, ...K.floors]) {   // windows 2 and 3 blocks over each floor, in a frame of lighter stone
+      if (ry === L + 2 || ry === L + 3) { if (m5 === 2) return T.WINDOW; if (m5 === 1 || m5 === 3) return c.trim; }
+      if ((ry === L + 1 || ry === L + 4) && m5 >= 1 && m5 <= 3 && ry > 1) return c.trim;
+    }
+    return c.wallM;
+  }
+  if (K.floors.includes(ry + 1)) return T.WOOD;
+  if (ry >= K.top && ry <= K.top + 1 && (Math.min(a - K.a0, K.a1 - 1 - a) <= 3) && (Math.min(b - K.b0, K.b1 - 1 - b) <= 3)) return T.GEM;
+  return T.AIR;
+}
+function turretBlock(c, a, b, ry) {
+  for (const t of c.turrets) {
+    const d = Math.hypot(a + 0.5 - t.a, b + 0.5 - t.b);
+    if (ry >= t.y1) { if (d <= t.r * (1 - (ry - t.y1) / t.ch) + 0.2) return c.roof; continue; }
+    if (d <= t.r && ry >= t.y0) return ry === t.y0 ? T.DARK : ry === t.y1 - 2 ? T.WINDOW : c.wallM;
+  }
+  return undefined;
+}
+function courtyardFloor(c, a, b) {
+  const K = c.keep, mid = c.A / 2, km = (K.a0 + K.a1) / 2, P = c.pool;
+  if (P) {
+    if (a >= P.a0 && a < P.a1 && b >= P.b0 && b < P.b1) return T.WATER;
+    if (a >= P.a0 - 1 && a <= P.a1 && b >= P.b0 - 1 && b <= P.b1) return c.trim;   // the pool's rim
+  }
+  if (Math.abs(a + 0.5 - mid) <= 1.5 && b < K.b0 - 4) return T.COBBLE;   // the path from the gate
+  if (b >= K.b0 - 6 && b < K.b0 && a >= Math.min(mid, km) - 3 && a < Math.max(mid, km) + 3) return T.COBBLE;   // the square before the keep
+  const wall = Math.min(a, c.A - 1 - a, b, c.B - 1 - b);
+  if (wall < 6) return T.COBBLE;
+  return T.GRASS;   // garden lawns (hedges and flower beds are drawn on them)
+}
+function structBlock3(c, a, b, ry, towers = c.towers) {
+  for (const tw of towers) { const t = towerBlock3(c, tw, a, b, ry); if (t !== undefined) return t; }
+  const tu = turretBlock(c, a, b, ry);
+  if (tu !== undefined) return tu;
+  const k = keepBlock3(c, c.keep, a, b, ry);
+  if (k !== undefined) return k;
+  if (ry < -1) return T.STONE;
+  if (c.kind === 'tower') return ry === -1 ? T.COBBLE : T.AIR;
+  const da = Math.min(a, c.A - 1 - a), db = Math.min(b, c.B - 1 - b), wall = Math.min(da, db), mid = c.A / 2, am = Math.abs(a + 0.5 - mid);
+  for (const g of c.gateTowers) {   // the gatehouse's two towers
+    const d = Math.hypot(a + 0.5 - g.a, b + 0.5 - g.b);
+    if (ry >= g.h) { if (d <= (g.R + 0.6) * (1 - (ry - g.h) / g.cone)) return c.roof; continue; }
+    if (d <= g.R) return ry <= 1 ? T.DARK : ry === g.h - 3 ? T.WINDOW : ry === g.h - 1 ? c.trim : c.wallM;
+  }
+  if (ry === -1) return wall < 3 || (b < 3 && am <= 1.5) ? T.DARK : courtyardFloor(c, a, b);
+  if (b < 3 && am <= 1.5) {   // the gate: an arch 3 wide, with the portcullis raised in it
+    if (ry <= 2) return T.AIR;
+    if (ry === 3) return b === 1 ? T.IRON : am <= 0.5 ? T.AIR : c.trim;
+    if (ry < c.wallH + 4) return ry === c.wallH && b === 0 && am <= 0.5 ? T.WINDOW : c.wallM;
+    return ry === c.wallH + 4 && b === 0 && a % 2 === 0 ? c.wallM : T.AIR;
+  }
+  if (b < 3 && am <= 6) return ry < c.wallH + 4 ? (b === 0 && ry <= 1 ? T.DARK : c.wallM) : ry === c.wallH + 4 && b === 0 && a % 2 === 0 ? c.wallM : T.AIR;
+  if (wall < 3) {
+    const outer = wall === 0, along = da === wall ? b : a;
+    if (ry < c.wallH) {
+      if (!outer) return c.wallM;
+      if (ry <= 1) return T.DARK;
+      if (ry === c.wallH - 2) return c.trim;
+      const wy = Math.floor(c.wallH / 2), m8 = ((along % 8) + 8) % 8;
+      if ((ry === wy || ry === wy + 1) && m8 === 4) return T.WINDOW;
+      if (((ry === wy || ry === wy + 1) && (m8 === 3 || m8 === 5)) || ((ry === wy - 1 || ry === wy + 2) && m8 >= 3 && m8 <= 5)) return c.trim;
+      return c.wallM;
+    }
+    if (ry === c.wallH) return outer ? c.wallM : T.AIR;
+    if (ry === c.wallH + 1) return outer && along % 2 === 0 ? c.wallM : T.AIR;
+    return T.AIR;
+  }
+  for (const st of c.stairs || []) {
+    const along = st.side === 'back' ? a : b, off = st.side === 'left' ? a : st.side === 'right' ? c.A - 1 - a : c.B - 1 - b;
+    if (off >= 3 && off <= 4 && along >= st.p0 && along < st.p0 + c.wallH - 1) return ry < along - st.p0 + 1 ? c.wallM : T.AIR;
+  }
+  const P = c.pool;
+  if (P && P.fountain && ry <= 1 && Math.abs(a + 0.5 - (P.a0 + P.a1) / 2) < 0.6 && Math.abs(b + 0.5 - (P.b0 + P.b1) / 2) < 0.6) return c.trim;   // the fountain's column
+  return T.AIR;
+}
+const structFor = c => c.style === 'new' ? structBlock3 : structBlock;
+
+// ---- Roads (SPEC-023) ----
+// Every castle in the playable land is a stop. Roads join each castle to its natural neighbours (a relative
+// neighbourhood graph: two castles are joined when no third castle is nearer to both), which always joins every castle
+// to every other, in any direction, with 1 to 4 roads each. Roads between busy castles (3 or 4 roads) are cobbled main
+// roads, 3 wide; the others are packed-earth lanes, 2 wide. Each road finds its way across the land (gentle slopes,
+// round hills, along valleys), is smoothed into curves, and is levelled so it never climbs more than 1 block for 2 along.
+// It crosses water and deep gaps on a wooden bridge with rails. All of it comes from the seed and the castle spacing.
+const ROAD_G = 16, ROAD_START = 36, ROAD_POST = 5;
+let roadNet = null;
+const roadMasks = new Map();   // chunk key -> which columns of the chunk are road (1) or bridge (2): no scenery there
+function castleNetwork() {
+  if (roadNet) return roadNet;
+  const nodes = castlesIn(PMIN, PMIN, PMAX, PMAX), n = nodes.length, P = nodes.map(castleMid);
+  const D = new Float64Array(n * n);
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) D[i * n + j] = Math.hypot(P[i][0] - P[j][0], P[i][1] - P[j][1]);
+  const pairs = [];
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+    const d = D[i * n + j];
+    if (d > castleGap * 4.5) continue;
+    let ok = true;
+    for (let k = 0; k < n && ok; k++) if (k !== i && k !== j && Math.max(D[i * n + k], D[j * n + k]) < d) ok = false;
+    if (ok) pairs.push([i, j, d]);
+  }
+  // At most 4 roads per castle: the longest extra road goes, but only if every castle stays joined
+  const deg = new Array(n).fill(0);
+  for (const [i, j] of pairs) { deg[i]++; deg[j]++; }
+  const joined = list => {
+    if (!n) return true;
+    const adj = Array.from({ length: n }, () => []);
+    for (const [i, j] of list) { adj[i].push(j); adj[j].push(i); }
+    const seen = new Uint8Array(n), q = [0]; seen[0] = 1;
+    while (q.length) for (const v of adj[q.pop()]) if (!seen[v]) { seen[v] = 1; q.push(v); }
+    return seen.every(Boolean);
+  };
+  let edges = pairs.slice().sort((p, q) => q[2] - p[2]);
+  for (const e of edges.slice()) {
+    if (deg[e[0]] <= 4 && deg[e[1]] <= 4) continue;
+    const rest = edges.filter(x => x !== e);
+    if (joined(rest)) { edges = rest; deg[e[0]]--; deg[e[1]]--; }
+  }
+  const busy = i => deg[i] >= 3;
+  roadNet = {
+    nodes, deg,
+    edges: edges.map(([i, j]) => {
+      const [p, q] = castleId(nodes[i]) < castleId(nodes[j]) ? [nodes[i], nodes[j]] : [nodes[j], nodes[i]];
+      const a = gateOut(p), b = gateOut(q), m = Math.max(80, 0.35 * Math.hypot(a[0] - b[0], a[1] - b[1]));
+      return { key: castleId(p) + '>' + castleId(q), from: p, to: q, main: busy(i) && busy(j), box: [Math.min(a[0], b[0]) - m, Math.min(a[1], b[1]) - m, Math.max(a[0], b[0]) + m, Math.max(a[1], b[1]) + m] };
+    }),
+  };
+  return roadNet;
+}
+const gateOut = c => cellToWorld(c, c.A / 2 - 0.5, -(c.margin + 8));
+const roadCastle = (c, x, z, m) => x >= c.fx0 - m && x < c.fx1 + m && z >= c.fz0 - m && z < c.fz1 + m;
+// The way a road takes across the land, found on a grid of ROAD_G blocks, then smoothed and levelled
+function roadPlan(e) {
+  if (e.S) return e.S;
+  const a = gateOut(e.from), b = gateOut(e.to), [x0, z0, x1, z1] = e.box;
+  const nx = Math.ceil((x1 - x0) / ROAD_G) + 1, nz = Math.ceil((z1 - z0) / ROAD_G) + 1;
+  const others = castlesIn(Math.floor(x0), Math.floor(z0), Math.ceil(x1), Math.ceil(z1), 8);
+  const hAt = new Float32Array(nx * nz).fill(NaN), wob = new Float32Array(nx * nz), blocked = new Int8Array(nx * nz).fill(-1);
+  const wx = i => x0 + i * ROAD_G, wz = j => z0 + j * ROAD_G;
+  const raw = id => {   // ground height (and the wander noise) of a grid point, worked out once
+    if (Number.isNaN(hAt[id])) { const x = wx(id % nx), z = wz(Math.floor(id / nx)); hAt[id] = groundY(Math.round(x), Math.round(z)); wob[id] = noise3(x * 0.012, 3.3, z * 0.012, seed + 4401); }
+    return hAt[id];
+  };
+  const height = id => Math.max(WATER_Y - 1, raw(id));
+  const isBlocked = id => {
+    if (blocked[id] < 0) {
+      const x = wx(id % nx), z = wz(Math.floor(id / nx));
+      blocked[id] = !inPlay(x - 4, z - 4) || !inPlay(x + 4, z + 4) || Math.hypot(x - CENTER, z - CENTER) < ROAD_START + 6 ||
+        others.some(c => roadCastle(c, x, z, 6)) ? 1 : 0;
+    }
+    return blocked[id] === 1;
+  };
+  const cell = (x, z) => Math.max(0, Math.min(nx - 1, Math.round((x - x0) / ROAD_G))) + Math.max(0, Math.min(nz - 1, Math.round((z - z0) / ROAD_G))) * nx;
+  const s0 = cell(...a), s1 = cell(...b);
+  // A* search: the cost of a step grows with its slope (steep steps cost a lot more), water costs a bridge,
+  // and a slow noise makes the road wander a little, so it is never a long straight line
+  const g = new Float64Array(nx * nz).fill(Infinity), from = new Int32Array(nx * nz).fill(-1), done = new Uint8Array(nx * nz);
+  const heap = [];
+  const push = (id, f) => { heap.push([f, id]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const pop = () => { const top = heap[0], end = heap.pop(); if (heap.length) { heap[0] = end; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+  const hx = b[0], hz = b[1];
+  g[s0] = 0; push(s0, 0);
+  let found = false, steps = 0;
+  while (heap.length && steps++ < 60000) {
+    const [, id] = pop();
+    if (done[id]) continue;
+    done[id] = 1;
+    if (id === s1) { found = true; break; }
+    const i = id % nx, j = Math.floor(id / nx);
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      if (!di && !dj) continue;
+      const ni = i + di, nj = j + dj;
+      if (ni < 0 || nj < 0 || ni >= nx || nj >= nz) continue;
+      const nid = nj * nx + ni;
+      if (done[nid] || (isBlocked(nid) && nid !== s1)) continue;
+      const len = ROAD_G * (di && dj ? Math.SQRT2 : 1), dh = Math.abs(height(nid) - height(id)), slope = dh / len;
+      const x = wx(ni), z = wz(nj), wet = raw(nid) < WATER_Y;
+      const cost = len * (1 + 5 * slope + (slope > 0.5 ? 25 : 0) + (wet ? 2.5 : 0) + 0.6 * wob[nid]);
+      if (g[id] + cost < g[nid]) { g[nid] = g[id] + cost; from[nid] = id; push(nid, g[nid] + 2.2 * Math.hypot(x - hx, z - hz)); }
+    }
+  }
+  let pts = [];
+  if (found) { for (let id = s1; id >= 0; id = from[id]) pts.push([wx(id % nx), wz(Math.floor(id / nx))]); pts.reverse(); pts[0] = a; pts[pts.length - 1] = b; }
+  else pts = [a, b];
+  // Smooth into curves (corner cutting, three times), keeping both ends
+  for (let k = 0; k < 3; k++) {
+    const out = [pts[0]];
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const [ax, az] = pts[i], [bx, bz] = pts[i + 1];
+      if (i > 0) out.push([ax * 0.75 + bx * 0.25, az * 0.75 + bz * 0.25]);
+      if (i + 2 < pts.length) out.push([ax * 0.25 + bx * 0.75, az * 0.25 + bz * 0.75]);
+    }
+    out.push(pts[pts.length - 1]);
+    pts = out;
+  }
+  pts = [gateStop(e.from), ...pts, gateStop(e.to)];
+  // One sample per block along the road: place, heading, ground and road height
+  const S = { x: [], z: [], dx: [], dz: [], h: [], bridge: [], n: 0, len: 0 };
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, az] = pts[i - 1], [bx, bz] = pts[i], d = Math.hypot(bx - ax, bz - az);
+    if (d < 1e-6) continue;
+    for (let t = i === 1 ? 0 : (S.len % 1 ? 1 - (S.len % 1) : 0); t < d; t += 1) {
+      S.x.push(ax + (bx - ax) * t / d); S.z.push(az + (bz - az) * t / d); S.dx.push((bx - ax) / d); S.dz.push((bz - az) / d);
+    }
+    S.len += d;
+  }
+  S.n = S.x.length;
+  const ground = S.x.map((x, i) => groundY(Math.floor(x), Math.floor(S.z[i])));
+  const t = ground.map(v => Math.max(v, WATER_Y));
+  // Level the road: an average over 15 blocks, then never more than 1 up or down for 2 along
+  const h = t.map((_, i) => { let s = 0, m = 0; for (let k = Math.max(0, i - 7); k <= Math.min(S.n - 1, i + 7); k++) { s += t[k]; m++; } return s / m; });
+  h[0] = t[0]; h[S.n - 1] = t[S.n - 1];
+  for (let i = 1; i < S.n; i++) h[i] = Math.max(h[i - 1] - 0.5, Math.min(h[i - 1] + 0.5, h[i]));
+  for (let i = S.n - 2; i >= 0; i--) h[i] = Math.max(h[i + 1] - 0.5, Math.min(h[i + 1] + 0.5, h[i]));
+  S.h = h.map(Math.round);
+  S.bridge = S.h.map((y, i) => ground[i] < WATER_Y || ground[i] < y - 4);
+  // Which samples fall in which chunk, so a chunk only looks at its own part of the road
+  S.byChunk = new Map();
+  for (let i = 0; i < S.n; i++) for (const [ox, oz] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) {
+    const k = ckey(Math.floor((S.x[i] + ox) / CS), Math.floor((S.z[i] + oz) / CS));
+    let l = S.byChunk.get(k); if (!l) S.byChunk.set(k, l = []);
+    if (l[l.length - 1] !== i) l.push(i);
+  }
+  S.box = [Math.min(...S.x) - 4, Math.min(...S.z) - 4, Math.max(...S.x) + 4, Math.max(...S.z) + 4];
+  e.S = S;
+  return S;
+}
+// The roads whose search box reaches the box [x0, x1) x [z0, z1)
+function roadsNear(x0, z0, x1, z1) {
+  if (maker < 3 || !castlesOn()) return [];
+  return castleNetwork().edges.filter(e => e.box[0] < x1 && e.box[2] > x0 && e.box[1] < z1 && e.box[3] > z0);
+}
+const ROAD_SOFT = new Set([T.AIR, T.WATER, T.GRASS, T.DIRT, T.SAND, T.SNOW]);
+// Lays the roads into a chunk. In land made by the game (limited false) the land is levelled for the road, and bridges
+// stand on posts. In land a player changed (limited true) road and bridge blocks only fill air or water and replace
+// grass, dirt, sand or snow; nothing else is touched, so nothing the child built is lost.
+function paveChunk(cx, cz, data, castles, limited) {
+  const x0 = cx * CS, z0 = cz * CS, k = ckey(cx, cz);
+  const mask = new Uint8Array(CS * CS);
+  let any = false;
+  for (const e of roadsNear(x0 - 4, z0 - 4, x0 + CS + 4, z0 + CS + 4)) {
+    const S = roadPlan(e), list = S.byChunk.get(k);
+    if (!list) continue;
+    const half = e.main ? 1.5 : 1.0, mat = e.main ? T.COBBLE : T.EARTH;
+    for (const i of list) {
+      const y = S.h[i];
+      if (y < 1 || y >= H - 5) continue;
+      for (let w = -half - 0.75; w <= half + 0.76; w += 0.5) {
+        const X = Math.floor(S.x[i] - S.dz[i] * w), Z = Math.floor(S.z[i] + S.dx[i] * w), lx = X - x0, lz = Z - z0;
+        if (lx < 0 || lx >= CS || lz < 0 || lz >= CS) continue;
+        if (castles.some(c => roadCastle(c, X, Z, 0))) continue;   // never into a castle
+        const col = lz * CS + lx, rail = Math.abs(w) > half, at = yy => cellIndex(lx, yy, lz);
+        if (S.bridge[i]) {
+          if (limited) {
+            if (!rail && ROAD_SOFT.has(data[at(y)]) && data[at(y)] !== T.GRASS) data[at(y)] = T.WOOD;
+            if (rail && (data[at(y + 1)] === T.AIR || data[at(y + 1)] === T.WATER)) data[at(y + 1)] = T.WOOD;
+            mask[col] = 2; any = true;
+            continue;
+          }
+          if (mask[col] === 1) continue;   // a road block already laid here: a bridge never cuts it
+          data[at(y)] = T.WOOD;
+          if (rail) {
+            data[at(y + 1)] = T.WOOD;      // the rail
+            if (i % ROAD_POST === 0) for (let yy = y - 1; yy >= 1 && !solid(data[at(yy)]); yy--) data[at(yy)] = T.WOOD;   // a post down to the ground or the bottom of the water
+          } else for (let yy = y + 1; yy <= y + 3 && yy < H; yy++) if (data[at(yy)] !== T.WOOD) data[at(yy)] = T.AIR;
+          mask[col] = 2; any = true;
+          continue;
+        }
+        if (rail || mask[col] === 2) continue;
+        if (limited) {
+          let yy = Math.min(H - 2, y + 3);
+          while (yy > y - 3 && !solid(data[at(yy)])) yy--;
+          if (ROAD_SOFT.has(data[at(yy)]) && solid(data[at(yy)])) data[at(yy)] = mat;
+          else if (data[at(y)] === T.AIR || data[at(y)] === T.WATER) data[at(y)] = mat;
+          mask[col] = 1; any = true;
+          continue;
+        }
+        data[at(y)] = mat;
+        for (let yy = y - 1; yy >= 1 && !solid(data[at(yy)]); yy--) data[at(yy)] = T.DIRT;   // fill under it
+        for (let yy = y + 1; yy < H; yy++) { if (data[at(yy)] === T.AIR && yy > y + 3) break; data[at(yy)] = T.AIR; }   // cut the land over it
+        mask[col] = 1; any = true;
+      }
+    }
+  }
+  if (any) roadMasks.set(k, mask); else roadMasks.delete(k);
+  return any;
+}
+// True if a road passes within m blocks of (x, z) (its middle line, plus its half width)
+function nearRoad(x, z, m) {
+  for (const e of roadsNear(x - m - 4, z - m - 4, x + m + 4, z + m + 4)) {
+    const S = roadPlan(e), half = e.main ? 2 : 1.5;
+    if (x < S.box[0] - m || x > S.box[2] + m || z < S.box[1] - m || z > S.box[3] + m) continue;
+    const seen = new Set();
+    for (const ox of [-m, 0, m]) for (const oz of [-m, 0, m]) {
+      const k = ckey(Math.floor((x + ox) / CS), Math.floor((z + oz) / CS));
+      if (seen.has(k)) continue;
+      seen.add(k);
+      for (const i of S.byChunk.get(k) || []) if (Math.hypot(S.x[i] - x, S.z[i] - z) <= m + half) return true;
+    }
+  }
+  return false;
+}
+const roadAt = (x, z) => { const m = roadMasks.get(ckey(Math.floor(x / CS), Math.floor(z / CS))); return m ? m[(z - Math.floor(z / CS) * CS) * CS + (x - Math.floor(x / CS) * CS)] : 0; };
+// The castles that touch a chunk in the list (by their footprint, slope and moat)
+function castlesTouching(keys) {
+  const ids = new Set();
+  for (const k of keys) { const c = chunks.get(k); if (c) for (const cs of castlesIn(c.cx * CS, c.cz * CS, c.cx * CS + CS, c.cz * CS + CS)) ids.add(castleId(cs)); }
+  return ids;
+}
+// The first time a world is opened in this version: which castles keep their old look, and roads in the changed land
+let upgradedNow = false;
+function upgradeWorld(w) {
+  const keys = [...edited];
+  for (const k of [...chunks.keys()]) if (!edited.has(k)) chunks.delete(k);   // made before the record was read: made again
+  if (!(w && w.maker >= 3)) {
+    if (gen < 2) castleGap = CASTLE_GAP_DEFAULT;   // a world from before 0.6.76 gets castles at the standard spacing, the same on every device
+    maker = 3; oldCastles = new Set(); castleCache.clear(); startTower = undefined; roadNet = null;
+    oldCastles = castlesTouching(keys);
+    roaded = new Set();
+    upgradedNow = true;
+  } else {
+    maker = 3;
+    oldCastles = new Set((w.oldCastles || []).filter(s => typeof s === 'string'));
+    roaded = new Set((w.roaded || []).filter(k => Number.isFinite(k)));
+  }
+  castleCache.clear(); startTower = undefined; roadNet = null; roadCache.clear();
+  for (const k of keys) {
+    const c = chunks.get(k);
+    if (!c) continue;
+    const castles = castlesIn(c.cx * CS, c.cz * CS, c.cx * CS + CS, c.cz * CS + CS);
+    if (!roaded.has(k)) { paveChunk(c.cx, c.cz, c.data, castles, true); roaded.add(k); upgradedNow = true; }
+    else paveMask(c.cx, c.cz, castles);
+  }
+}
+// The road columns of a changed chunk that already has its roads (no blocks are changed: only where scenery is left out)
+function paveMask(cx, cz, castles) {
+  const copy = new Uint8Array(CHUNK_LEN);
+  paveChunk(cx, cz, copy, castles, true);
 }
 
 // Builds one chunk: grass on top, dirt, stone, then caves and gems. Land-maker 2 also carves big caves and builds castles.
@@ -997,10 +1564,11 @@ function makeChunk(cx, cz) {
     }
     for (let y = top + 1; y < WATER_Y; y++) data[cellIndex(lx, y, lz)] = T.WATER;   // water above low ground
   }
-  if (gen >= 2) {
+  if (castlesOn()) {
     const castles = castlesIn(cx * CS, cz * CS, cx * CS + CS, cz * CS + CS);
-    carveCaves(cx, cz, data, tops, new Uint8Array(CHUNK_LEN), castles);
+    if (gen >= 2) carveCaves(cx, cz, data, tops, new Uint8Array(CHUNK_LEN), castles);
     buildCastles(cx, cz, data, tops, castles);
+    if (maker >= 3) paveChunk(cx, cz, data, castles, false);   // roads (0.6.81)
   }
   return data;
 }
@@ -1070,8 +1638,9 @@ function courtyardSpots(c) {
     const i = b * c.A + a;
     if (!memo[i]) {
       const near = c.towers.filter(tw => Math.abs(a + 0.5 - tw.a) <= tw.R + 1.5 && Math.abs(b + 0.5 - tw.b) <= tw.R + 1.5);
-      let ok = structBlock(c, a, b, -1, near) === T.CSTONE;
-      for (let ry = 0; ry < 4 && ok; ry++) { const t = structBlock(c, a, b, ry, near); ok = t === undefined || t === T.AIR; }
+      const sb = structFor(c), fl = sb(c, a, b, -1, near);
+      let ok = solid(fl);
+      for (let ry = 0; ry < 4 && ok; ry++) { const t = sb(c, a, b, ry, near); ok = t === undefined || t === T.AIR; }
       memo[i] = ok ? 1 : 2;
     }
     return memo[i] === 1;
@@ -1166,6 +1735,24 @@ function merchantRoads(x, z, r) {
   }
   return out;
 }
+// 0.6.81 (SPEC-023): merchants ride the real roads. A main road has two carts, a lane one. A road whose way has not been
+// worked out yet is worked out one at a time (one per call), so the game never stops for long.
+function networkRoads(x, z, r) {
+  const out = [];
+  let budget = 1;
+  for (const e of roadsNear(x - r, z - r, x + r, z + r)) {
+    if (!e.S && budget-- <= 0) continue;
+    const S = roadPlan(e);
+    if (!e.carts) {
+      const pts = [];
+      for (let i = 0; i < S.n; i += 3) pts.push([S.x[i], S.z[i]]);
+      pts.push([S.x[S.n - 1], S.z[S.n - 1]]);
+      e.carts = Array.from({ length: e.main ? 2 : 1 }, (_, k) => ({ key: e.key + '#' + k, from: e.from, to: e.to, pts, main: e.main, k }));
+    }
+    out.push(...e.carts);
+  }
+  return out;
+}
 // The length of a road, and the point and heading (radians) at distance s along it
 function roadLength(road) {
   if (road.len === undefined) { road.len = 0; for (let i = 1; i < road.pts.length; i++) road.len += Math.hypot(road.pts[i][0] - road.pts[i - 1][0], road.pts[i][1] - road.pts[i - 1][1]); }
@@ -1184,19 +1771,27 @@ function roadPoint(road, s) {
 // g: the land-maker (2 for new worlds); gap: the castle spacing recorded in the world
 function initWorld(s, g = GEN_NOW, gap = castleGapNext) {
   seed = s; gen = g; castleGap = gapOk(gap) ? gap : CASTLE_GAP_DEFAULT;
-  chunks.clear(); edited.clear(); touched.clear(); mouthCache.clear(); castleCache.clear(); roadCache.clear(); startTower = undefined; viewReset = true;
+  maker = 3; oldCastles = new Set(); roaded = new Set(); roadNet = null; roadMasks.clear(); upgradedNow = false;   // a new world: land-maker 3 from the start
+  eatenTrees.clear();
+  chunks.clear(); edited.clear(); touched.clear(); mouthCache.clear(); castleCache.clear(); roadCache.clear(); startTower = undefined; startPlan = null; viewReset = true;
 }
 
 // Save and share format: the seed plus every chunk that players have changed
 function encodeWorld() {
   const edits = [];
   for (const k of edited) { const c = chunks.get(k); edits.push([c.cx, c.cz, bytesToB64(c.data)]); }
-  // A world made by land-maker 2 records it and its castle spacing; older worlds are written as before
-  return gen >= 2 ? { v: 2, seed, gen, castleGap, edits } : { v: 2, seed, edits };
+  // A world made by land-maker 2 records it and its castle spacing; land-maker 3 (0.6.81) adds its own record: the castles
+  // that keep their old look and the changed chunks that already have their roads. `gen` stays as it was (1 or 2), so an
+  // older version of the game still reads the same land.
+  const w = gen >= 2 ? { v: 2, seed, gen, castleGap, edits } : { v: 2, seed, edits };
+  if (maker >= 3) Object.assign(w, { castleGap, maker: 3, oldCastles: [...oldCastles], roaded: [...edited] });
+  if (eatenTrees.size) w.eaten = [...eatenTrees.values()].map(e => [e.x, e.z, e.day, e.back]);   // trees eaten by dragons (0.6.81)
+  return w;
 }
 function applyWorld(w) {
   // A world with no land-maker record was made before 0.6.76: it keeps land-maker 1, with no new caves or castles
   initWorld(w.seed, w.gen === 2 ? 2 : 1, w.castleGap);
+  maker = 0;   // until the record is read (upgradeWorld below)
   for (const [cx, cz, b64] of w.edits) {
     let data = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
     if (data.length !== CHUNK_LEN && data.length < CHUNK_LEN && data.length % (CS * CS) === 0) {
@@ -1209,6 +1804,8 @@ function applyWorld(w) {
     chunks.set(k, { cx, cz, data });
     edited.add(k);
   }
+  upgradeWorld(w);   // land-maker 3 (0.6.81): the list of old-look castles, and roads laid into the changed land once
+  if (Array.isArray(w.eaten)) for (const r of w.eaten.slice(0, 500)) if (Array.isArray(r) && r.length === 4 && r.every(Number.isInteger)) eatenTrees.set(r[0] + ',' + r[1], { x: r[0], z: r[1], day: r[2], back: r[3] });
 }
 // Worlds from versions before 0.6.34 were 40 x 40 blocks. They are copied into the middle of the new world.
 const OLD_SIZE = 40;
@@ -1216,9 +1813,11 @@ function applyOld(b64, s) {
   const bytes = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
   if (bytes.length !== OLD_SIZE * H * OLD_SIZE) return false;
   initWorld(s, 1);
+  maker = 0;
   for (let x = 0; x < OLD_SIZE; x++) for (let z = 0; z < OLD_SIZE; z++) for (let y = 0; y < H; y++) {
     writeBlock(CENTER + x, y, CENTER + z, bytes[(y * OLD_SIZE + z) * OLD_SIZE + x]);
   }
+  upgradeWorld(null);
   return true;
 }
 // A shared world's text: JSON in the current format; raw bytes from the old 40 x 40 format
@@ -1268,8 +1867,8 @@ function saveGame() {
   try {
     localStorage.setItem(slotKey(activeSlot), JSON.stringify({
       v: 1, at: Date.now(), name: playerName, profile, worldId, inv, gear, qb, recent, sel, pw, skills,
-      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(), quiz: quizStats, levels: quizLevels,
-      drops: [...drops.values()].map(d => [d.x, d.y, d.z, d.id, d.at])
+      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(), quiz: quizStats, levels: quizLevels, dragons: dragonMode,
+      drops: [...drops.values()].filter(d => !d.guard).map(d => [d.x, d.y, d.z, d.id, d.at])
     }));
   } catch (e) {}
 }
@@ -1382,6 +1981,38 @@ const texWood = makeTex((g, S) => {
   for (const [x, y] of [[5, 0], [12, 5], [3, 10]]) g.fillRect(x, y, 1, 4);
 });
 const texSnow = makeTex((g, S) => noise(g, S, 0xeef4f8, 0.05));
+// The new castle and road blocks (0.6.81), drawn in code like the castle blocks of 0.6.76
+const brickTex = (base, line) => makeTex((g, S) => {
+  noise(g, S, base, 0.06);
+  g.fillStyle = shade(line, 0);
+  for (const y of [0, 8]) g.fillRect(0, y, S, 1);
+  for (const [x, y] of [[0, 1], [8, 9]]) g.fillRect(x, y, 1, 7);
+});
+const texPale = brickTex(0xeae3d2, 0xc4bba6), texSandst = brickTex(0xd8b57a, 0xae8a52), texDark = brickTex(0x55575e, 0x393a40);
+const texSlate = roofTex(0x4a5560);
+const texWindow = makeTex((g, S) => {   // dark blue glass in a light stone frame, with two panes and a shine
+  noise(g, S, 0xdcd5c3, 0.04);
+  g.fillStyle = shade(0x23406e, 0); g.fillRect(3, 2, S - 6, S - 4);
+  g.fillStyle = shade(0x3a6aa8, 0); g.fillRect(4, 3, 3, 5);
+  g.fillStyle = shade(0xdcd5c3, -20); g.fillRect(S / 2 - 1, 2, 1, S - 4); g.fillRect(3, S / 2, S - 6, 1);
+});
+const texIron = makeTex((g, S) => {   // iron bars over a dark gap
+  g.fillStyle = '#16181c'; g.fillRect(0, 0, S, S);
+  g.fillStyle = shade(0x4a4f58, 0);
+  for (let x = 1; x < S; x += 4) g.fillRect(x, 0, 2, S);
+  for (const y of [3, 11]) g.fillRect(0, y, S, 2);
+});
+const texCobble = makeTex((g, S) => {   // round grey cobbles with dark gaps
+  g.fillStyle = shade(0x5d5b56, 0); g.fillRect(0, 0, S, S);
+  for (const [x, y, w, h] of [[1, 1, 6, 5], [8, 1, 7, 4], [1, 7, 4, 4], [6, 6, 5, 5], [12, 6, 3, 5], [1, 12, 6, 3], [8, 12, 7, 3]]) {
+    g.fillStyle = shade(0x8a8780, rnd(-0.08, 0.08)); g.fillRect(x, y, w, h);
+  }
+});
+const texEarth = makeTex((g, S) => {   // packed earth with wheel ruts
+  noise(g, S, 0xa27a4e, 0.06);
+  g.fillStyle = shade(0x7e5a34, 0);
+  for (const x of [4, 11]) g.fillRect(x, 0, 1, S);
+});
 const mapMat = map => new THREE.MeshLambertMaterial({ map });
 const waterMat = new THREE.MeshLambertMaterial({ color: 0x2f7fd0, transparent: true, opacity: 0.6 });
 // Six faces per block: +x, -x, +y (top), -y (bottom), +z, -z
@@ -1397,6 +2028,14 @@ const blockMats = {
   [T.ROOF]: Array(6).fill(0).map(() => mapMat(texRoof)),
   [T.ROOFB]: Array(6).fill(0).map(() => mapMat(texRoofB)),
   [T.WOOD]: Array(6).fill(0).map(() => mapMat(texWood)),
+  [T.PALE]: Array(6).fill(0).map(() => mapMat(texPale)),
+  [T.SANDST]: Array(6).fill(0).map(() => mapMat(texSandst)),
+  [T.DARK]: Array(6).fill(0).map(() => mapMat(texDark)),
+  [T.SLATE]: Array(6).fill(0).map(() => mapMat(texSlate)),
+  [T.WINDOW]: Array(6).fill(0).map(() => mapMat(texWindow)),
+  [T.IRON]: Array(6).fill(0).map(() => mapMat(texIron)),
+  [T.COBBLE]: Array(6).fill(0).map(() => mapMat(texCobble)),
+  [T.EARTH]: [mapMat(texDirt), mapMat(texDirt), mapMat(texEarth), mapMat(texDirt), mapMat(texDirt), mapMat(texDirt)],
 };
 
 // ---- Three.js scene ----
@@ -1485,7 +2124,7 @@ const VIEW = 8;                                   // chunks drawn in each direct
 const BUILD_MS = 8;                               // time per frame spent making new chunk meshes
 const blockGeo = new THREE.BoxGeometry(1, 1, 1);
 const m4 = new THREE.Matrix4();
-const drawTypes = [T.GRASS, T.DIRT, T.STONE, T.GEM, T.SAND, T.WATER, T.SNOW, T.CSTONE, T.ROOF, T.ROOFB, T.WOOD];
+const drawTypes = [T.GRASS, T.DIRT, T.STONE, T.GEM, T.SAND, T.WATER, T.SNOW, T.CSTONE, T.ROOF, T.ROOFB, T.WOOD, T.PALE, T.SANDST, T.DARK, T.SLATE, T.WINDOW, T.IRON, T.COBBLE, T.EARTH];
 const worldGroup = new THREE.Group();
 scene.add(worldGroup);
 const chunkMeshes = new Map();   // ckey -> { cx, cz, list: [InstancedMesh], count }
@@ -2041,7 +2680,7 @@ const invCap = () => 8 + pw.inv.lvl * 4;
 const digTime = () => 1.0 * Math.pow(0.92, pw.dig.lvl - 1);
 // Digging by hand (0.6.74): without the pickaxe in hand every block can still be dug, more slowly the harder it is.
 // Sand, snow, dirt and grass take 2 times as long as with the pickaxe, stone 4 times, gems 6 times.
-const handSlow = t => t === T.STONE || t === T.CSTONE ? 4 : t === T.GEM ? 6 : 2;   // castle stone is as hard as stone
+const handSlow = t => t === T.STONE || t === T.CSTONE || t === T.PALE || t === T.SANDST || t === T.DARK || t === T.COBBLE || t === T.IRON ? 4 : t === T.GEM ? 6 : 2;   // castle stone, cobbles and iron are as hard as stone
 const digSlow = t => tplOf(held()) === 'pick' ? 1 : handSlow(t);
 let handDigTold = false;   // "Digging by hand is slow" is said once in a visit
 const fightTime = () => 1.0 * Math.pow(0.92, pw.fight.lvl - 1);
@@ -2278,6 +2917,13 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.81', title: 'Grand castles, roads, guards, dragons and playing together', items: [
+    'Castles are much grander: three styles, tall roofs, towers with spires, windows, gardens and furnished rooms. Your own worlds get them too',
+    'Roads now wind across the land and join every castle. Follow the signposts, cross the bridges, and dig up cobblestones for your own paths!',
+    'Rich merchants now travel with guards on foot, on horses and on hover sleds, and they fight off monsters. More guards means better goods!',
+    'Friendly dragons now fly over the land. Watch them swoop down to munch a tree!',
+    'Playing together is better: in a shared world everyone now sees the same merchants, monsters and treasure, and you can fight side by side',
+    'Grown-ups: the parent area has a new Dragons part: On, Stay high or Off'] },
   { v: '0.6.80', title: 'The game offers each new version', items: [
     'When there is a new version, the game offers it. Tap Update, keep playing, then tap Restart. Your world stays safe'] },
   { v: '0.6.79', title: 'Quiz badges are easy to find', items: [
@@ -2686,7 +3332,7 @@ addEventListener('pointerdown', e => {
 { const app = appPlugin(); if (app) { try { app.addListener('backButton', backAction); } catch (e) { /* older app without the plugin: Back works as before */ } } }
 
 // Castle blocks go into the bag as themselves (0.6.76)
-const BLOCK_ITEM = { [T.CSTONE]: 'castle_stone', [T.ROOF]: 'roof_tile', [T.ROOFB]: 'roof_tile_blue', [T.WOOD]: 'wood_floor' };
+const BLOCK_ITEM = { [T.CSTONE]: 'castle_stone', [T.ROOF]: 'roof_tile', [T.ROOFB]: 'roof_tile_blue', [T.WOOD]: 'wood_floor', [T.PALE]: 'pale_stone', [T.SANDST]: 'sandstone', [T.DARK]: 'dark_stone', [T.SLATE]: 'slate_roof', [T.WINDOW]: 'window', [T.IRON]: 'iron_bars', [T.COBBLE]: 'cobblestone', [T.EARTH]: 'packed_earth' };
 // Finish digging the block at (x,y,z). If the bag is full, the block is dropped on the ground to pick up later.
 function digCell(x, y, z) {
   const t = get(x, y, z);
@@ -2698,7 +3344,7 @@ function digCell(x, y, z) {
   shareBlock(x, y, z, T.AIR);
   const id = (t === T.GRASS || t === T.DIRT || t === T.SAND || t === T.SNOW) ? 'dirt' : t === T.STONE ? 'stone' : BLOCK_ITEM[t] || 'gem';
   if (full) {
-    addDrop(x, y, z, id);
+    putDrop(x, y, z, id);
     say(ITEMS[id].name + ' dropped on the ground. Bag is full: open the bag and tap Drop to make room.', 3500);
   } else {
     if (id === 'gem') say('+1 gem!', 1200);
@@ -2752,11 +3398,17 @@ function restoreDrops(list) {
 function updateDrops(time) {
   for (const [key, d] of drops) {
     if (Date.now() - d.at >= DROP_TIME) { removeDrop(key); dirty = true; continue; } // gone after 5 minutes
+    if (d.guard) { if (Date.now() >= d.gone) removeDrop(key); d.mesh.rotation.y = time * 1.5; continue; }   // a guard collects it (SPEC-021): never the child's
     d.mesh.position.y = d.base + Math.sin(time * 3 + d.x) * 0.08;
     d.mesh.rotation.y = time * 1.5;
     const near = Math.hypot(d.x + 0.5 - px, d.z + 0.5 - pz) < 1.0 && py > d.y - 1 && py < d.y + 2;
     if (!near) continue;
     if (invTotal() >= invCap()) { say('Bag is full. Open the bag and tap Drop to make room for the ' + ITEMS[d.id].name + '.', 2500); continue; }
+    if (sharedOn()) {   // a shared world: the leading device says who gets it (SPEC-024)
+      if (isLeader()) grantPick(key, pid);
+      else if (!d.asked || Date.now() - d.asked > 1500) { d.asked = Date.now(); askPick(key); }
+      continue;
+    }
     addItem(d.id);
     removeDrop(key);
     say('Picked up ' + ITEMS[d.id].name + '!', 1200);
@@ -2781,7 +3433,7 @@ function dropFromBag(id) {
   }
   if (!spot) { say('No room on the ground here. Move a little and try again.', 2500); return false; }
   inv[id]--;
-  addDrop(...spot, id);
+  putDrop(...spot, id);
   sfx('tap');
   say('Dropped ' + ITEMS[id].name + '. It stays on the ground for 5 minutes.', 2500);
   dirty = true;
@@ -2820,6 +3472,8 @@ function placeCell(x, y, z, forceId) {
 
 // ---- Fights: hold on an enemy with the sword to hit it. Enemies never hurt the player. ----
 const enemies = [];
+const enemyTag = Math.random().toString(36).slice(2, 7);   // monsters' names for a shared world (0.6.81): this visit's tag and a count
+let enemySeq = 0;
 let fight = null; // {e, t, id}: the enemy being hit, how long we have been hitting it, and the weapon used
 let swingT = 0, swingCool = 0;   // a swing from a hand button: seconds left to show it, and seconds until the next one (0.6.60)
 const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
@@ -3070,19 +3724,20 @@ function enemyModel(kind) {
   g.scale.setScalar(k.scale);
   return g;
 }
-function spawnEnemy(forceKind) {
+function spawnEnemy(forceKind, near = null) {
+  const cx = near ? near.x : px, cz = near ? near.z : pz;
   for (let tries = 0; tries < 20; tries++) {
-    // Near the player, so enemies appear where the player can see them
-    const x = Math.floor(px) + Math.floor(Math.random() * 40) - 20, z = Math.floor(pz) + Math.floor(Math.random() * 40) - 20;
+    // Near the player (in a shared world, near one of the players), so enemies appear where the player can see them
+    const x = Math.floor(cx) + Math.floor(Math.random() * 40) - 20, z = Math.floor(cz) + Math.floor(Math.random() * 40) - 20;
     let y = H - 1;
     while (y > 0 && get(x, y, z) === T.AIR) y--;
     const ground = get(x, y, z);
     if (!(ground === T.GRASS || ground === T.SNOW || (ground === T.SAND && y >= WATER_Y))) continue;   // dry ground only
-    if (Math.hypot(x + 0.5 - px, z + 0.5 - pz) < 6) continue;
+    if (Math.hypot(x + 0.5 - px, z + 0.5 - pz) < 6 || (near && Math.hypot(x + 0.5 - near.x, z + 0.5 - near.z) < 6)) continue;
     const kind = forceKind || ENEMY_LIST[Math.floor(Math.random() * ENEMY_LIST.length)];
     const group = enemyModel(kind);
     scene.add(group);
-    const en = { group, kind, hp: ENEMY_KINDS[kind].health, base: ENEMY_KINDS[kind].scale, x: x + 0.5, y: y + 1.01, z: z + 0.5, vx: 0, vy: 0, vz: 0, timer: 1, hitP: 0 };
+    const en = { id: enemyTag + (++enemySeq).toString(36), group, kind, hp: ENEMY_KINDS[kind].health, base: ENEMY_KINDS[kind].scale, x: x + 0.5, y: y + 1.01, z: z + 0.5, vx: 0, vy: 0, vz: 0, timer: 1, hitP: 0 };
     group.traverse(c => { c.userData.enemy = en; });
     group.userData.enemy = en; // so a model that loads later can be tagged too
     enemies.push(en);
@@ -3092,8 +3747,16 @@ function spawnEnemy(forceKind) {
 }
 let enemySpawnT = 6;
 function updateSpawns(dt) {
+  if (sharedOn() && !isLeader()) return;   // in a shared world only the leading device brings monsters (SPEC-024)
   enemySpawnT -= dt;
-  if (enemies.length < 6 && enemySpawnT <= 0) { spawnEnemy(); enemySpawnT = 6; }
+  if (!sharedOn()) { if (enemies.length < 6 && enemySpawnT <= 0) { spawnEnemy(); enemySpawnT = 6; } return; }
+  // the leading device: up to 6 monsters near each player (12 at most), each new one near a player who has few
+  const ps = playersHere(), cap = Math.min(12, 6 + 3 * (ps.length - 1));
+  if (enemies.length < cap && enemySpawnT <= 0) {
+    const p = ps.reduce((b, q) => { const n = enemies.filter(en => Math.hypot(en.x - q.x, en.z - q.z) < 40).length; return !b || n < b.n ? { q, n } : b; }, null);
+    spawnEnemy(undefined, p.q.key === pid ? null : p.q);
+    enemySpawnT = 6 / ps.length;
+  }
 }
 
 // Like hits(), but for any size of box
@@ -3163,8 +3826,9 @@ function updateEnemies(dt) {
   // spawnEnemy() puts new ones on the grass.
   for (let i = enemies.length - 1; i >= 0; i--) {
     const en = enemies[i];
+    if (en.mirror) continue;   // drawn from the leading device's messages (SPEC-024)
     en.airT = groundBelow(en.x, en.z, en.y) ? 0 : (en.airT || 0) + dt;
-    if (Math.hypot(en.x - px, en.z - pz) > 90) { scene.remove(en.group); enemies.splice(i, 1); continue; } // far away: leave quietly
+    if ((sharedOn() ? nearestPlayer(en.x, en.z) : Math.hypot(en.x - px, en.z - pz)) > 90) { scene.remove(en.group); enemies.splice(i, 1); continue; } // far from every player: leave quietly
     const why = en.y < 1 ? 'below the island'
       : !inPlay(en.x, en.z) ? 'outside the world'
       : en.airT > 3 ? 'stuck in the air' : '';
@@ -3175,6 +3839,7 @@ function updateEnemies(dt) {
     }
   }
   for (const en of enemies) {
+    if (en.mirror) continue;
     en.timer -= dt;
     if (en.timer <= 0) {
       en.timer = 1.5 + Math.random() * 2.5;
@@ -3311,14 +3976,23 @@ function swingOnce(en, weapon) {
 let lastFightAt = 0;   // when an enemy was last hit: the update window waits until a fight is over (0.6.80)
 function hurtEnemy(en, amount) {
   lastFightAt = Date.now();
-  en.hp -= amount;
   const k = ENEMY_KINDS[en.kind];
-  if (en.hp <= 0) { defeatEnemy(en); return; }
+  if (sharedOn() && !isLeader()) {   // another device leads the shared world: the hit is sent there (SPEC-024)
+    sendHit(en, amount);
+    sfx('hit');
+    say(k.name + ': hit!', 1200);
+    return;
+  }
+  en.hp -= amount;
+  if (sharedOn()) { (en.hitters = en.hitters || new Map()).set(pid, Date.now()); en.lastHitter = pid; }
+  if (en.hp <= 0) { if (sharedOn()) leaderDefeat(en); else defeatEnemy(en); return; }
   sfx('hit');
   say(k.name + ': ' + en.hp + ' health left' + (k.weak.length ? ' (weak to ' + k.weak.join(', ') + ')' : ''), 2000);
 }
 
-function defeatEnemy(en) {
+// how: null (the child defeated it), { guard } (a merchant's guards, SPEC-021) or { shared } (a shared world, SPEC-024)
+function defeatEnemy(en, how = null) {
+  if (!enemies.includes(en)) return;
   enemies.splice(enemies.indexOf(en), 1);
   // Leave the body lying on its side. It is no longer an enemy, so it can't be hit.
   en.group.traverse(c => { c.userData.enemy = null; });
@@ -3336,6 +4010,8 @@ function defeatEnemy(en) {
   en.group.position.set(en.x, startY, en.z);
   corpses.push({ group: en.group, kind: en.kind, t: 0, x: en.x, z: en.z, vy: 0, lift, landed: onBlock, restY: startY });
   const k = ENEMY_KINDS[en.kind];
+  if (how && how.guard) { if (sharedLead()) sendSync('defeat', { id: en.id, x: en.x, y: en.y, z: en.z, s: [], guard: 1 }); guardSpoils(en, k, how); sfx('defeat'); return; }    // guards keep what it drops (SPEC-021)
+  if (how && how.shared) { sharedSpoils(en, k, how); return; }                // a shared world: the gems are split (SPEC-024)
   for (let i = 0; i < k.gems; i++) addItem('gem');
   for (const p of k.parts) if (Math.random() < 0.5) addItem(p);   // parts: ears, hides, horns...
   if (Math.random() < 0.15) addGear(gearFor(k.power));              // gear: weapons and armour
@@ -3686,7 +4362,7 @@ canvas.addEventListener('pointerdown', e => {
   press = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY, moved: false };
   pendingPlace = null;
   // A press on a quiz friend never digs, builds, fights or casts: if it was a tap, the question opens on release (0.6.63)
-  pendingFriend = !!friendAt(e.clientX, e.clientY);
+  pendingFriend = !!(friendAt(e.clientX, e.clientY) || mirrorFriendAt(e.clientX, e.clientY));
   if (pendingFriend) return;
   // A press on a merchant's cart never digs or fights: if it was a tap, the trades open on release (0.6.77)
   pendingMerchant = merchantAt(e.clientX, e.clientY);
@@ -4997,7 +5673,9 @@ function updateCaveLight(dt) {
 // the real blocks when the castle comes within the drawn land.
 const OUTLINE_FAR = 500;
 const outlines = new Map();   // castle -> group
-const outlineMat = new THREE.MeshLambertMaterial({ color: 0xc9c3b6 }), outlineRoof = { [T.ROOF]: new THREE.MeshLambertMaterial({ color: 0xb5452f }), [T.ROOFB]: new THREE.MeshLambertMaterial({ color: 0x5b6f8f }) };
+const outlineMat = new THREE.MeshLambertMaterial({ color: 0xc9c3b6 }), outlineRoof = { [T.ROOF]: new THREE.MeshLambertMaterial({ color: 0xb5452f }), [T.ROOFB]: new THREE.MeshLambertMaterial({ color: 0x5b6f8f }), [T.SLATE]: new THREE.MeshLambertMaterial({ color: 0x4a5560 }) };
+// 0.6.81 (SPEC-020): new-look castles show their own wall colour, tower shapes and pointed roofs from afar too (shapes and colours only: no windows)
+const outlineWall = { [T.CSTONE]: outlineMat, [T.PALE]: new THREE.MeshLambertMaterial({ color: 0xeae3d2 }), [T.SANDST]: new THREE.MeshLambertMaterial({ color: 0xd8b57a }) };
 let outlineT = 0;
 // From the castle's own frame (a, b) back to world blocks
 function fromFrame(c, a, b) {
@@ -5016,21 +5694,39 @@ function makeOutline(c) {
     m.position.set((xa + xb) / 2, c.floorY + (y0 + y1) / 2, (za + zb) / 2);
     g.add(m);
   };
-  const K = c.keep;
+  const K = c.keep, fresh = c.style === 'new', wallMat = fresh ? outlineWall[c.wallM] || outlineMat : outlineMat;
   g.add(outlineHill(c));   // (0.6.77) the castle stands on its hill, never in the air
-  box(K.a0, K.b0, K.a1, K.b1, -1, K.h);
+  box(K.a0, K.b0, K.a1, K.b1, -1, K.h, wallMat);
   if (c.kind !== 'tower') {
-    box(0, 0, c.A, 3, -1, c.wallH + 1); box(0, c.B - 3, c.A, c.B, -1, c.wallH + 1);
-    box(0, 0, 3, c.B, -1, c.wallH + 1); box(c.A - 3, 0, c.A, c.B, -1, c.wallH + 1);
+    box(0, 0, c.A, 3, -1, c.wallH + 1, wallMat); box(0, c.B - 3, c.A, c.B, -1, c.wallH + 1, wallMat);
+    box(0, 0, 3, c.B, -1, c.wallH + 1, wallMat); box(c.A - 3, 0, c.A, c.B, -1, c.wallH + 1, wallMat);
   }
+  const sides = tw => tw.shape === 'oct' ? 8 : tw.shape === 'square' || (!tw.shape && !tw.round) ? 4 : 12;
   for (const tw of c.towers) {
-    const [x, z] = fromFrame(c, tw.a, tw.b);
-    const body = new THREE.Mesh(tw.round ? new THREE.CylinderGeometry(tw.R, tw.R, tw.h + 1, 12) : new THREE.BoxGeometry(2 * tw.R, tw.h + 1, 2 * tw.R), outlineMat);
+    const [x, z] = fromFrame(c, tw.a, tw.b), n = sides(tw), ch = fresh ? tw.coneH : tw.R + 3;
+    const body = new THREE.Mesh(n === 4 ? new THREE.BoxGeometry(2 * tw.R, tw.h + 1, 2 * tw.R) : new THREE.CylinderGeometry(tw.R, tw.R, tw.h + 1, n), wallMat);
     body.position.set(x, c.floorY + (tw.h - 1) / 2, z);
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(tw.R + 1, tw.R + 3, tw.round ? 12 : 4), outlineRoof[c.roof]);
-    cone.position.set(x, c.floorY + tw.h + (tw.R + 3) / 2, z);
-    if (!tw.round) cone.rotation.y = Math.PI / 4;
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(tw.R + 1, ch, n), outlineRoof[c.roof]);
+    cone.position.set(x, c.floorY + tw.h + ch / 2, z);
+    if (n === 4) cone.rotation.y = Math.PI / 4;
     g.add(body, cone);
+  }
+  if (fresh) {
+    // the keep's pointed roof (a four-sided pyramid stretched over the keep), and the gatehouse towers
+    const [x0, z0] = fromFrame(c, K.a0, K.b0), [x1, z1] = fromFrame(c, K.a1, K.b1), rh = Math.max(...K.secs.map(q => q.rh));
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.SQRT1_2, 1, 4), outlineRoof[c.roof]);
+    roof.rotation.y = Math.PI / 4;
+    roof.scale.set(Math.abs(x1 - x0) * 1.02, rh, Math.abs(z1 - z0) * 1.02);
+    roof.position.set((x0 + x1) / 2, c.floorY + K.h + rh / 2, (z0 + z1) / 2);
+    g.add(roof);
+    for (const gt of c.gateTowers) {
+      const [x, z] = fromFrame(c, gt.a, gt.b);
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(gt.R, gt.R, gt.h + 1, 10), wallMat);
+      body.position.set(x, c.floorY + (gt.h - 1) / 2, z);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(gt.R + 0.6, gt.cone, 10), outlineRoof[c.roof]);
+      cone.position.set(x, c.floorY + gt.h + gt.cone / 2, z);
+      g.add(body, cone);
+    }
   }
   return g;
 }
@@ -5238,6 +5934,7 @@ function makeLife(c) {
     bin.at(x, y, z, turn).box(0.14, 2.2, 0.14, 0x3b2a1e, 0, 1.1, 0).box(0.36, 0.36, 0.36, 0x2b2b2b, 0, 2.35, 0);
     bin.add(new THREE.BoxGeometry(0.26, 0.26, 0.26), 0xffd56b, 0, 2.35, 0, 0, 1, 1, 1, 0, 0, true);
   }
+  if (c.style === 'new') castleDecor(c, bin);   // 0.6.81 (SPEC-020): furnished rooms, spires and flags, the garden, signposts
   for (const m of bin.meshes()) group.add(m);
   // Villagers who walk from place to place in the courtyard
   const walkers = c.kind === 'great' ? 5 : c.kind === 'castle' ? 2 : 0;
@@ -5245,10 +5942,125 @@ function makeLife(c) {
     const p = personModel(R(200 + i)), [x, z] = places[i % places.length];
     p.position.set(x + 1.6, y, z + 1.6);
     group.add(p);
-    people.push({ p, ph: i, x: x + 1.6, z: z + 1.6, goal: null, rest: 1 + i * 2, places });
+    people.push({ p, ph: i, x: x + 1.6, z: z + 1.6, goal: null, rest: 1 + i * 2, places, i, cn: c.num });
   }
   scene.add(group);
   return { group, people, y };
+}
+// ---- The new castles' small things (0.6.81, SPEC-020) ----
+// Simple shapes made in code, placed by rule from the castle's plan, like the courtyard life: furniture in every room of the
+// keep (a great hall with long tables, benches and a fireplace; bedrooms, a library, a kitchen and a store room on the
+// floors above; chests in the treasure room), a table and a chest in each tower's top room, gold balls and flags on the
+// spires, hedges and flower beds in the garden, chains on the drawbridge, and a signpost at the gate for each road.
+// None of it is solid, and anything that would stand where a player has dug or built is left out.
+const BANNER_COLS = [0xc0392b, 0x2e6fb5, 0x3f8f4a, 0x8e44ad, 0xd35400];
+const FLOWER_COLS = [0xe74c3c, 0xf1c40f, 0xffffff, 0x9b59b6, 0xff8fb1];
+const ROOM_KINDS = ['bedroom', 'library', 'kitchen', 'store'];
+function castleDecor(c, bin) {
+  const y = c.floorY, turn = frontTurn(c), K = c.keep, R = n => hash3(c.num, n, 517, seed + CASTLE_SALT), H2 = Math.PI / 2;
+  const flag = BANNER_COLS[Math.floor(R(1) * BANNER_COLS.length)], flag2 = BANNER_COLS[(Math.floor(R(1) * BANNER_COLS.length) + 2) % BANNER_COLS.length];
+  const put = (a, b, yy, t = turn) => { const [x, z] = cellToWorld(c, a, b); if (!spotFree(x, yy, z)) return null; bin.at(x, yy, z, t); return bin; };
+  const table = (len = 2.6) => { bin.box(len, 0.1, 1.0, 0x8b5a2b, 0, 0.8, 0); for (const sx of [-len / 2 + 0.2, len / 2 - 0.2]) for (const sz of [-0.35, 0.35]) bin.box(0.1, 0.78, 0.1, 0x6b4423, sx, 0.39, sz); };
+  const bench = (len = 2.4) => { bin.box(len, 0.08, 0.35, 0x7a5230, 0, 0.45, 0); for (const sx of [-len / 2 + 0.2, len / 2 - 0.2]) bin.box(0.08, 0.44, 0.3, 0x6b4423, sx, 0.22, 0); };
+  const chest = (gold = false) => { bin.box(0.9, 0.55, 0.6, 0x8b5a2b, 0, 0.28, 0).box(0.92, 0.2, 0.62, 0x7a4a23, 0, 0.62, 0).box(0.94, 0.06, 0.64, gold ? 0xf2c94c : 0x3b3f46, 0, 0.45, 0).box(0.14, 0.16, 0.05, 0xf2c94c, 0, 0.5, 0.31); };
+  const bed = r => { bin.box(1.0, 0.4, 2.0, 0x7a5230, 0, 0.2, 0).box(0.95, 0.15, 1.9, 0xf4ecd8, 0, 0.47, 0).box(0.98, 0.08, 1.3, BANNER_COLS[Math.floor(r * 5)], 0, 0.56, 0.3).box(0.7, 0.14, 0.35, 0xffffff, 0, 0.6, -0.7).box(1.0, 0.8, 0.1, 0x6b4423, 0, 0.6, -1.0); };
+  const shelf = () => { bin.box(1.8, 2.2, 0.45, 0x6b4423, 0, 1.1, 0); for (let r = 0; r < 4; r++) for (let i = 0; i < 6; i++) bin.box(0.22, 0.4, 0.3, [0xc0392b, 0x2e6fb5, 0x3f8f4a, 0xd35400, 0x8e44ad, 0xe8d18a][(i + r * 2) % 6], -0.65 + i * 0.26, 0.35 + r * 0.5, 0.05); };
+  const pot = () => { bin.cyl(0.25, 0.35, 0x2b2b2b, 0, 0.98, 0, 0, 0, 10).cyl(0.27, 0.04, 0x444444, 0, 1.17, 0, 0, 0, 10); };
+  const barrel = () => { bin.cyl(0.4, 0.9, 0x8b5a2b, 0, 0.45, 0, 0, 0, 12); for (const hy of [0.15, 0.75]) bin.cyl(0.42, 0.06, 0x3b2a1e, 0, hy, 0, 0, 0, 12); };
+  const crate = () => { bin.box(0.85, 0.85, 0.85, 0xb8864b, 0, 0.43, 0).box(0.9, 0.08, 0.9, 0x6b4423, 0, 0.86, 0); };
+  const sack = () => { bin.ball(0.38, 0xd9c79b, 0, 0.35, 0, 1.1).ball(0.12, 0xc4b07f, 0, 0.78, 0); };
+  const fire = () => { bin.box(2.2, 1.9, 0.8, 0x55575e, 0, 0.95, 0).box(1.2, 0.9, 0.82, 0x16181c, 0, 0.55, 0.02).box(2.6, 0.2, 1.0, 0x6d6f76, 0, 1.95, 0.05);
+    bin.add(new THREE.ConeGeometry(0.3, 0.6, 8), 0xff9a2a, 0, 0.42, 0.25, 0, 1, 1, 1, 0, 0, true).add(new THREE.ConeGeometry(0.18, 0.4, 8), 0xffe08a, 0.25, 0.32, 0.25, 0, 1, 1, 1, 0, 0, true); };
+  const banner = (col, shape) => { bin.box(1.2, 2.2, 0.05, col, 0, 0, 0); if (shape === 0) bin.box(1.21, 0.4, 0.06, 0xf4ecd8, 0, 0, 0); else if (shape === 1) bin.box(0.5, 0.5, 0.06, 0xf2c94c, 0, 0.2, 0, 0, 0, Math.PI / 4); else bin.cyl(0.28, 0.06, 0xf2c94c, 0, 0.2, 0.01, H2, 0, 14); };
+  // The keep's rooms, floor by floor (the treasure room at the top gets chests)
+  const kmid = (K.a0 + K.a1) / 2, kb = (K.b0 + K.b1) / 2;
+  const floors = [0, ...K.floors];
+  floors.forEach((L, fi) => {
+    const yy = y + L, kind = fi === 0 ? 'hall' : L === K.top ? 'treasure' : ROOM_KINDS[(fi - 1 + Math.floor(R(2) * 4)) % 4];
+    let n = 0;
+    const most = c.kind === 'great' ? 16 : c.kind === 'castle' ? 9 : 5;
+    for (let b = K.b0 + 3; b < K.b1 - 3 && n < most; b += 3) for (let a = K.a0 + 3; a < K.a1 - 3 && n < most; a += 3) {
+      if (Math.hypot(a + 0.5 - kmid, b + 0.5 - kb) < 7.5) continue;                    // the stair tower
+      if (b < K.b0 + 6 && Math.abs(a + 0.5 - kmid) < 3) continue;                      // the way in from the door
+      const wallA = a <= K.a0 + 3 || a >= K.a1 - 4, side = a < kmid ? 1 : -1, r = hash3(a, b, L, c.num);
+      const t = wallA ? turn + side * H2 : turn;
+      if (kind === 'treasure') { if (wallA || r < 0.4) { if (put(a, b, yy, t)) { chest(true); n++; } } continue; }
+      if (!put(a, b, yy, t)) continue;
+      n++;
+      if (kind === 'hall') { if (wallA && r < 0.2) fire(); else { table(); bin.at(...cellToWorld(c, a, b - 0.9), yy, turn); bench(); bin.at(...cellToWorld(c, a, b + 0.9), yy, turn); bench(); } }
+      else if (kind === 'bedroom') { if (wallA) bed(r); else chest(); }
+      else if (kind === 'library') { if (wallA) shelf(); else { table(1.6); } }
+      else if (kind === 'kitchen') { if (wallA && r < 0.35) fire(); else if (r < 0.6) { table(1.8); pot(); } else barrel(); }
+      else { if (r < 0.4) crate(); else if (r < 0.7) barrel(); else sack(); }
+    }
+    // banners on the great hall's walls
+    if (kind === 'hall') for (const s2 of [-1, 1]) { const [x, z] = cellToWorld(c, s2 < 0 ? K.a0 + 1.6 : K.a1 - 1.6, kb + 3); bin.at(x, yy + 2.6, z, turn + s2 * H2); banner(flag, Math.floor(R(3) * 3)); }
+  });
+  // Each tower's top room: a table and a chest
+  for (const tw of c.towers) {
+    const off = tw.R - 2.6, dirA = Math.cos(tw.door + Math.PI), dirB = Math.sin(tw.door + Math.PI);
+    if (put(tw.a - 0.5, tw.b - 0.5, y + tw.top)) table(1.4);
+    if (put(tw.a - 0.5 + dirA * off, tw.b - 0.5 + dirB * off, y + tw.top)) chest();
+  }
+  // Gold balls and flags on the spires and the keep's ridge (plain colours, no real coat of arms)
+  const flagAt = (a, b, top, big) => {
+    const [x, z] = cellToWorld(c, a - 0.5, b - 0.5);
+    bin.at(x, top, z, turn).ball(big ? 0.45 : 0.32, 0xf2c94c, 0, 0.2, 0, 1, false).cyl(0.06, big ? 3.2 : 2.2, 0x3b2a1e, 0, (big ? 3.2 : 2.2) / 2 + 0.3, 0);
+    bin.box(big ? 1.6 : 1.1, big ? 0.9 : 0.6, 0.05, flag, (big ? 1.6 : 1.1) / 2 + 0.05, big ? 3.0 : 2.1, 0).box(big ? 1.62 : 1.12, 0.18, 0.06, flag2, (big ? 1.6 : 1.1) / 2 + 0.05, big ? 3.0 : 2.1, 0);
+  };
+  const tallest = Math.max(0, ...c.towers.map(t => t.h + t.coneH));
+  for (const tw of c.towers) if (tw.spire || tw.h + tw.coneH === tallest) flagAt(tw.a, tw.b, y + tw.h + tw.coneH + (tw.st === 1 ? 1.5 : -0.3), tw.h + tw.coneH === tallest);
+  flagAt(kmid, kb, y + K.h + Math.max(...K.secs.map(q => q.rh)) - 0.5, true);
+  for (const gt of c.gateTowers || []) flagAt(gt.a, gt.b, y + gt.h + gt.cone - 0.3, false);
+  // The garden: hedges along the path, flower beds on the lawns, the fountain's spray
+  if (c.kind !== 'tower') {
+    const mid = c.A / 2;
+    for (let b = 6; b < K.b0 - 6; b++) {
+      if (b % 7 === 3) continue;   // gaps to walk through
+      for (const sx of [-2.7, 2.7]) { const [x, z] = cellToWorld(c, mid - 0.5 + sx, b); if (spotFree(x, y, z) && get(Math.floor(x), y - 1, Math.floor(z)) === T.GRASS) bin.at(x, y, z, turn).box(0.7, 0.9, 1.02, 0x2f7d32, 0, 0.45, 0); }
+    }
+    for (let b = 7; b < c.B - 7; b += 4) for (let a = 7; a < c.A - 7; a += 4) {
+      const r = hash3(a, b, c.num, seed + 523);
+      if (r > 0.18) continue;
+      const [x, z] = cellToWorld(c, a, b);
+      if (!spotFree(x, y, z) || get(Math.floor(x), y - 1, Math.floor(z)) !== T.GRASS) continue;
+      bin.at(x, y, z, turn).box(1.6, 0.15, 1.0, 0x5a3a20, 0, 0.08, 0);
+      for (let i = 0; i < 6; i++) bin.ball(0.13, FLOWER_COLS[(i + Math.floor(r * 50)) % FLOWER_COLS.length], -0.6 + (i % 3) * 0.6, 0.3, i < 3 ? -0.25 : 0.25);
+    }
+    const P = c.pool;
+    if (P && P.fountain) {
+      const [x, z] = cellToWorld(c, (P.a0 + P.a1) / 2 - 0.5, (P.b0 + P.b1) / 2 - 0.5);
+      bin.at(x, y + 2, z, 0).add(new THREE.ConeGeometry(0.9, 1.4, 12, 1, true), 0xcfe9ff, 0, 0.5, 0, 0, 1, -1, 1, 0, 0, true).ball(0.25, 0xe8f6ff, 0, 0.2, 0, 1, true);
+    }
+    if (c.moat) for (const sx of [-1.6, 1.6]) {   // the drawbridge's chains, from the gatehouse down to the far end of the bridge
+      const [x0, z0] = cellToWorld(c, mid - 0.5 + sx, -0.2), [x1, z1] = cellToWorld(c, mid - 0.5 + sx, -3.5), y0 = y + c.wallH - 1, y1 = y + 0.2;
+      const len = Math.hypot(x1 - x0, y1 - y0, z1 - z0);
+      bin.at((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, turn).cyl(0.06, len, 0x3b3f46, 0, 0, 0, Math.atan2(Math.hypot(x1 - x0, z1 - z0), y0 - y1), 0, 6);
+    }
+  }
+  // A signpost at the gate: one arrow for each road, with a little castle picture and no words
+  if (maker >= 3) {
+    const [gx, gz] = gateStop(c), roads = castleNetwork().edges.filter(e => e.from === c || e.to === c);
+    const gy = landTopNow(gx + 2.5, gz);
+    if (roads.length && gy) {
+      bin.at(gx + 2.5, gy, gz, 0).box(0.16, 2.6, 0.16, 0x6b4423, 0, 1.3, 0);
+      roads.forEach((e, i) => {
+        const S = e.S || roadPlan(e), far = e.from === c ? Math.min(S.n - 1, 25) : Math.max(0, S.n - 26), near = e.from === c ? 0 : S.n - 1;
+        const dir = Math.atan2(S.x[far] - S.x[near], S.z[far] - S.z[near]);
+        bin.at(gx + 2.5, gy + 1.5 + i * 0.42, gz, dir - H2);
+        bin.box(1.3, 0.3, 0.06, 0xc49455, 0.6, 0, 0).box(0.32, 0.32, 0.06, 0xc49455, 1.25, 0, 0, 0, 0, Math.PI / 4);
+        bin.box(0.16, 0.14, 0.07, 0x55575e, 0.35, 0, 0).box(0.07, 0.22, 0.07, 0x55575e, 0.22, 0.03, 0).box(0.07, 0.22, 0.07, 0x55575e, 0.48, 0.03, 0).box(0.06, 0.08, 0.08, 0xb5452f, 0.35, 0.1, 0);
+      });
+    }
+  }
+}
+// The top of the land under (x, z) when that chunk is made, or 0
+function landTopNow(x, z) {
+  const X = Math.floor(x), Z = Math.floor(z);
+  if (!chunks.has(ckey(Math.floor(X / CS), Math.floor(Z / CS)))) return 0;
+  let y = H - 1;
+  while (y > 0 && !solid(get(X, y, Z))) y--;
+  return y + 1;
 }
 // A villager can walk straight from (x0, z0) to (x1, z1): open floor all the way, nothing in the way
 function lifeWayClear(x0, z0, x1, z1, y) {
@@ -5270,22 +6082,20 @@ function updateCastleLife(dt) {
   for (const L of lifeGroups.values()) for (const v of L.people) {
     v.ph += dt * (v.still ? 1 : 7);
     if (v.still) { posePerson(v.p, false, v.ph); continue; }
-    if (paused) continue;
-    if (!v.goal) {
-      v.rest -= dt;
-      posePerson(v.p, false, v.ph);
-      if (v.rest > 0) continue;
-      const [gx, gz] = v.places[Math.floor(Math.random() * v.places.length)], tx = gx + (Math.random() < 0.5 ? -1.8 : 1.8), tz = gz + (Math.random() < 0.5 ? -1.8 : 1.8);
-      if (lifeWayClear(v.x, v.z, tx, tz, L.y)) v.goal = [tx, tz]; else v.rest = 1;
-      continue;
+    // 0.6.81 (SPEC-024): each villager's walk comes from the castle, the villager and a clock every device shares, so
+    // in a shared world every player sees the same villager at the same stall. Every 9 seconds it may walk to another place.
+    const t = sharedNow() / 1000 + v.i * 3.1, k = Math.floor(t / 9), f = t - k * 9;
+    if (v.k !== k) {
+      const at = j => { const P = v.places[Math.floor(hash3(v.cn, v.i, j, 77) * v.places.length)]; return [P[0] + (hash3(v.cn, v.i, j, 78) < 0.5 ? -1.8 : 1.8), P[1] + (hash3(v.cn, v.i, j, 79) < 0.5 ? -1.8 : 1.8)]; };
+      const a = at(k), b = at(k + 1);
+      v.k = k; v.leg = lifeWayClear(a[0], a[1], b[0], b[1], L.y) ? [a, b] : [a, a];
     }
-    const dx = v.goal[0] - v.x, dz = v.goal[1] - v.z, d = Math.hypot(dx, dz);
-    if (d < 0.1) { v.goal = null; v.rest = 3 + Math.random() * 5; continue; }
-    const step = Math.min(d, 1.4 * dt);
-    v.x += dx / d * step; v.z += dz / d * step;
+    const [[ax, az], [bx, bz]] = v.leg, d = Math.hypot(bx - ax, bz - az), walking = f * 1.4 < d;
+    const u = d ? Math.min(1, f * 1.4 / d) : 1;
+    v.x = ax + (bx - ax) * u; v.z = az + (bz - az) * u;
     v.p.position.set(v.x, L.y, v.z);
-    v.p.rotation.y = Math.atan2(dx, dz);
-    posePerson(v.p, true, v.ph);
+    if (walking) v.p.rotation.y = Math.atan2(bx - ax, bz - az);
+    posePerson(v.p, walking, v.ph);
   }
 }
 
@@ -5299,6 +6109,7 @@ const MERCH_SPEED = 5, MERCH_WAIT = 15, MERCH_STOP = 7, MERCH_GO = 11, MERCH_REA
 // child waits at most this many seconds of play without a trade, then rides on. It stops for the child again only after
 // the child has been more than MERCH_GO blocks away from it, so a child who stays by a castle gate still sees them come and go.
 const MERCH_PATIENCE = 20;
+let cartsMax = 6;   // the most hover carts drawn at once (owner's setting carts_max, 0.6.81, SPEC-023)
 const merchants = new Map();   // road key -> merchant
 let merchT = 0;
 function merchantCart(seedN) {
@@ -5348,7 +6159,7 @@ const chunkDrawn = (x, z) => chunkMeshes.has(ckey(Math.floor(x / CS), Math.floor
 const tradeMerchant = () => tradePanel ? tradePanel.m : null;
 // One step of a merchant: whether it stops for the child, and its way along the road (L long). dist: blocks to the child.
 function merchantStep(m, L, dist, shown, dt) {
-  const trading = m === tradeMerchant();
+  const trading = m === tradeMerchant() || !!m.othersTrading;   // in a shared world: any child trading with it (SPEC-024)
   if (dist >= MERCH_GO) m.passing = false;   // the child walked away: next time it stops again
   const wasStopped = m.stopped;
   m.stopped = shown && (trading || (!m.passing && (dist < MERCH_STOP || (m.stopped && dist < MERCH_GO))));
@@ -5358,10 +6169,11 @@ function merchantStep(m, L, dist, shown, dt) {
     if (m.stopT >= MERCH_PATIENCE) { m.passing = true; m.stopped = false; m.stopT = 0; }   // no trade: it rides on
   }
   if (wasStopped && !m.stopped && m.passing && dist < MERCH_GO) say('The merchant waves and rides on.', 2000);
-  if (!paused && !m.stopped) {
+  if (m.mirror) return;   // in a shared world, another device leads this cart (SPEC-024)
+  if ((!paused || sharedLead()) && !m.stopped && !m.fighting) {   // a cart whose guards are fighting waits for them (SPEC-021)
     if (m.wait > 0) m.wait -= dt;
     else {
-      m.s += m.dir * MERCH_SPEED * dt;
+      m.s += m.dir * (m.speed || MERCH_SPEED) * dt;
       if (m.s >= L) { m.s = L; m.dir = -1; m.wait = MERCH_WAIT; }
       else if (m.s <= 0) { m.s = 0; m.dir = 1; m.wait = MERCH_WAIT; }
     }
@@ -5371,23 +6183,36 @@ function updateMerchants(dt) {
   merchT -= dt;
   if (merchT <= 0) {
     merchT = 2;
-    const roads = merchantRoads(px, pz, MERCH_ROADS), keep = new Set(roads.map(r => r.key));
-    for (const [k, m] of merchants) if (!keep.has(k) && m !== tradeMerchant()) { dropGroup(m.group); merchants.delete(k); }
+    const roads = maker >= 3 ? networkRoads(px, pz, MERCH_ROADS) : merchantRoads(px, pz, MERCH_ROADS);
+    if (maker >= 3 && sharedLead()) for (const o of others.values()) roads.push(...networkRoads(o.x, o.z, MERCH_ROADS));   // the leading device runs the carts near every player (SPEC-024)
+    const keep = new Set(roads.map(r => r.key));
+    for (const [k, m] of merchants) if (!keep.has(k) && m !== tradeMerchant() && !m.shared) { dropGroup(m.group); dropEscort(m); merchants.delete(k); }
     for (const road of roads) if (!merchants.has(road.key)) {
-      const n = Math.floor(hash3(road.from.num, road.to.num, 3, seed) * 1e6), group = merchantCart(n);
+      const n = Math.floor(hash3(road.from.num, road.to.num, 3 + (road.k || 0) * 101, seed) * 1e6), group = merchantCart(n);
       group.visible = false;
       scene.add(group);
-      merchants.set(road.key, { road, n, group, s: Math.random() * roadLength(road), dir: Math.random() < 0.5 ? 1 : -1, wait: 0, y: null, yaw: null, stopped: false, offers: merchantOffers(n) });
+      const m = { road, n, group, s: Math.random() * roadLength(road), dir: Math.random() < 0.5 ? 1 : -1, wait: 0, y: null, yaw: null, stopped: false, offers: merchantOffers(n) };
+      makeEscort(m);
+      merchants.set(road.key, m);
     }
   }
   const now = performance.now() / 1000;
+  // At most the owner's number of carts on screen at once (game setting carts_max, 0.6.81): the closest ones
+  const near = [];
+  for (const m of merchants.values()) { const h = roadPoint(m.road, m.s); m.dist = Math.hypot(h.x - px, h.z - pz); if (chunkDrawn(h.x, h.z)) near.push(m); }
+  near.sort((p, q) => p.dist - q.dist);
+  const drawn = new Set(near.slice(0, cartsMax));
+  if (tradeMerchant()) drawn.add(tradeMerchant());
   for (const m of merchants.values()) {
     const L = roadLength(m.road), here = roadPoint(m.road, m.s), dist = Math.hypot(here.x - px, here.z - pz);
-    const shown = chunkDrawn(here.x, here.z);
-    merchantStep(m, L, dist, shown, dt);
+    const shown = drawn.has(m);
+    if (sharedLead()) {   // it stops for whichever child is near, and waits while any child trades with it
+      m.othersTrading = [...others.values()].some(o => o.tk === m.road.key);
+      merchantStep(m, L, nearestPlayer(here.x, here.z), shown || nearestPlayer(here.x, here.z) < MERCH_GO, dt);
+    } else merchantStep(m, L, dist, shown, dt);
     const g = m.group, u = g.userData;
     g.visible = shown;
-    if (!shown) { m.y = null; continue; }
+    if (!shown) { m.y = null; updateEscort(m, here, dt, dist, false, now); continue; }
     const p = roadPoint(m.road, m.s), ground = landTop(p.x, p.z) + 1.0;
     m.y = m.y === null ? ground : m.y + (Math.max(ground, m.y - 6 * dt) - m.y) * Math.min(1, dt * 5);   // rises over a bump, sinks gently
     const yaw = m.dir > 0 ? p.dir : p.dir + Math.PI;
@@ -5400,20 +6225,467 @@ function updateMerchants(dt) {
     u.bubble.visible = m.stopped && dist < MERCH_GO;
     u.bubble.position.y = 3.4 + Math.sin(now * 3) * 0.06;
     posePerson(u.rider, false, now * 2 + m.n);
+    updateEscort(m, p, dt, dist, shown, now);
     if (m.stopped && dist < MERCH_STOP && !m.greeted) { m.greeted = true; say('A merchant! Tap the cart to trade.', 2500); }
     if (dist > 30) m.greeted = false;
   }
 }
-// The merchant whose cart is under the screen point (x, y), or null
+
+// ---- Guards ride and march with rich merchants (0.6.81, SPEC-021) ----
+// The richer a merchant's goods (the gem prices of everything it sells), the more guards travel with its cart, up to the
+// owner's most (game settings guard_max and guard_step1 to guard_step4, read when the game opens; steps 5 and 6 are each
+// 8 gems more than the step before). The mix comes from the merchant's own number, so it is the same on every device:
+// riders on horses or on one-person hover sleds keep the cart's pace; foot guards march beside it, and the cart then
+// goes at walking pace; a lookout sits on the back of some carts with 2 or more guards; carts with 4 or more have a
+// captain on a hover disc with a tall banner. Guards fight monsters that come within 8 blocks of their cart and keep
+// what the monsters drop. They are friendly and not solid, and the child's sword and fireballs pass through them.
+const GUARD_START = { max: 4, steps: [30, 40, 50, 58] };
+let guardMax = GUARD_START.max, guardSteps = GUARD_START.steps.slice(), guardV = 0;
+const GUARD_RANGE = 8, GUARD_LEASH = 12, GUARD_FOOT_SPEED = 2.5;
+const GUARD_LINES = ['Halt, traveller! Trade fairly.', 'Safe travels!', 'Good day! The merchant has fine wares.', 'Stay close to the road, friend.', 'All is well on this road.'];
+const HORSE_COATS = [0x7a4a2a, 0x3b2a1e, 0xd9c7a0, 0x9a9a9a, 0xb5793f];
+// The owner's numbers, checked: the most guards 0 to 6; each step 1 to 500 and bigger than the one before
+function setGuardSteps(map) {
+  const max = map && map.guard_max, st = [1, 2, 3, 4].map(i => map && map['guard_step' + i]);
+  const ok = Number.isInteger(max) && max >= 0 && max <= 6 && st.every((v, i) => Number.isInteger(v) && v >= 1 && v <= 500 && (i === 0 || v > st[i - 1]));
+  guardMax = ok ? max : GUARD_START.max;
+  guardSteps = (ok ? st : GUARD_START.steps).slice();
+  while (guardSteps.length < 6) guardSteps.push(guardSteps[guardSteps.length - 1] + 8);
+  guardV++;
+}
+// How many guards a merchant with goods worth `worth` gems has
+const guardCount = worth => { let n = 0; while (n < guardMax && worth >= guardSteps[n]) n++; return n; };
+// The escort of a merchant: [{ kind: 'foot' | 'horse' | 'sled' | 'lookout' | 'captain', slot: [x, z] }]
+function escortPlan(n, count) {
+  const out = [], R = i => hash3(n, i, 41, 43);
+  if (!count) return out;
+  if (count >= 4) out.push({ kind: 'captain' });
+  if (count >= 2 && R(1) < 0.5) out.push({ kind: 'lookout' });
+  const footFirst = R(2) < 0.5;
+  while (out.length < count) {
+    const i = out.length, r = R(10 + i);
+    out.push({ kind: footFirst && !out.some(g => g.kind === 'foot') ? 'foot' : r < 0.3 ? 'foot' : r < 0.65 ? 'horse' : 'sled' });
+  }
+  // Places around the cart (its own frame: +z ahead): the captain leads, riders ahead and behind, foot guards at the sides
+  let ahead = 0, behind = 0, side = 0;
+  for (const g of out) {
+    if (g.kind === 'captain') g.slot = [0, 8];
+    else if (g.kind === 'lookout') g.slot = [0, -1.25];
+    else if (g.kind === 'foot') { g.slot = [side % 2 ? -3 : 3, -1 + Math.floor(side / 2) * 2.5]; side++; }
+    else if ((ahead <= behind)) { g.slot = [ahead % 2 ? 1.6 : -1.6, 4.5 + Math.floor(ahead / 2) * 2.5]; ahead++; }
+    else { g.slot = [behind % 2 ? 1.6 : -1.6, -4.8 - Math.floor(behind / 2) * 2.5]; behind++; }
+  }
+  return out;
+}
+// A guard: a villager's shape with a helmet, a tunic in the merchant's canopy colours, a spear and a round shield
+function guardPerson(n, c1, c2, sitting) {
+  const p = personModel(hash3(n, 3, 5, 7), sitting), u = p.userData;
+  p.traverse(o => { if (o.isMesh && o.geometry.type === 'CylinderGeometry' && o.position.y > 0.9 && o.position.y < 1.2 && o.parent === p) o.material = lifeMat(c1); });
+  // take off the villager's hat; put a helmet on
+  for (const o of [...p.children]) if (o.isMesh && o.position.y > 1.7) p.remove(o);
+  const helm = new THREE.Mesh(new THREE.SphereGeometry(0.245, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), lifeMat(0x9aa3ad)); helm.position.set(0, 1.62, -0.01); p.add(helm);
+  const crest = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.16, 0.36), lifeMat(c2)); crest.position.set(0, 1.9, -0.02); p.add(crest);
+  const sash = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.12, 0.05), lifeMat(c2)); sash.position.set(0, 1.12, 0.22); sash.rotation.z = 0.5; p.add(sash);
+  const spear = new THREE.Group();
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1.9, 6), lifeMat(0x6b4423)); shaft.position.y = -0.1; spear.add(shaft);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.22, 6), lifeMat(0xdfe6ee)); tip.position.y = 0.95; spear.add(tip);
+  spear.position.set(0, -0.55, 0.05); u.armR.add(spear);
+  const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.05, 14), lifeMat(c1)); shield.rotation.z = Math.PI / 2; shield.position.set(-0.08, -0.45, 0.05); u.armL.add(shield);
+  const boss = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.07, 10), lifeMat(c2)); boss.rotation.z = Math.PI / 2; boss.position.set(-0.11, -0.45, 0.05); u.armL.add(boss);
+  u.spear = spear;
+  return p;
+}
+// An original simple horse made in code: a round body, a neck and head, a mane and tail, and four legs that step
+function horseModel(coat) {
+  const g = new THREE.Group(), dark = 0x2b1f17, mesh = (geo, col, x, y, z, to = g) => { const m = new THREE.Mesh(geo, lifeMat(col)); m.position.set(x, y, z); to.add(m); return m; };
+  const body = mesh(new THREE.SphereGeometry(0.5, 14, 10), coat, 0, 1.15, 0); body.scale.set(0.85, 0.8, 1.55);
+  const neck = mesh(new THREE.CylinderGeometry(0.17, 0.24, 0.7, 10), coat, 0, 1.55, 0.62); neck.rotation.x = 0.6;
+  const head = mesh(new THREE.BoxGeometry(0.28, 0.3, 0.55), coat, 0, 1.85, 0.92); head.rotation.x = 0.35;
+  mesh(new THREE.BoxGeometry(0.24, 0.2, 0.2), 0x5a3a2a, 0, 1.73, 1.16);
+  for (const s of [-1, 1]) { mesh(new THREE.SphereGeometry(0.04, 8, 6), 0x111111, s * 0.13, 1.92, 0.98); mesh(new THREE.ConeGeometry(0.05, 0.14, 6), coat, s * 0.08, 2.07, 0.8); }
+  const mane = mesh(new THREE.BoxGeometry(0.06, 0.5, 0.3), dark, 0, 1.72, 0.55); mane.rotation.x = 0.6;
+  const tail = mesh(new THREE.CylinderGeometry(0.06, 0.02, 0.6, 6), dark, 0, 1.05, -0.82); tail.rotation.x = -0.5;
+  mesh(new THREE.BoxGeometry(0.62, 0.08, 0.6), 0x7a3b2a, 0, 1.52, -0.05);   // the saddle cloth
+  const legs = [];
+  for (const [x, z] of [[-0.24, 0.5], [0.24, 0.5], [-0.24, -0.5], [0.24, -0.5]]) {
+    const p = new THREE.Group(); p.position.set(x, 0.95, z); g.add(p);
+    mesh(new THREE.CylinderGeometry(0.07, 0.06, 0.9, 8), coat, 0, -0.45, 0, p);
+    mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.1, 8), dark, 0, -0.9, 0, p);
+    legs.push(p);
+  }
+  g.userData = { legs, horse: true };
+  return g;
+}
+// A one-person hover sled, or the captain's bigger disc with its banner
+function sledModel(c1, c2, captain) {
+  const g = new THREE.Group(), bin = shapeBin().at(0, 0, 0, 0);
+  if (captain) {
+    bin.cyl(1.0, 0.18, 0x55606e, 0, 0.1, 0, 0, 0, 18).cyl(1.04, 0.08, 0xc9a23a, 0, 0.2, 0, 0, 0, 18);
+    bin.box(0.06, 3.6, 0.06, 0x3b2a1e, -0.7, 2.0, -0.3).box(0.9, 1.3, 0.04, c1, -0.24, 3.0, -0.3).box(0.92, 0.25, 0.05, c2, -0.24, 3.0, -0.3).ball(0.1, 0xf2c94c, -0.7, 3.85, -0.3);
+  } else bin.box(0.8, 0.15, 1.5, 0x55606e, 0, 0.1, 0).box(0.84, 0.06, 1.54, c2, 0, 0.2, 0).box(0.7, 0.5, 0.08, c1, 0, 0.45, 0.72).box(0.08, 0.6, 0.08, 0x3b2a1e, 0, 0.5, 0.6);
+  for (const m of bin.meshes()) g.add(m);
+  const glow = new THREE.Mesh(new THREE.CircleGeometry(captain ? 0.6 : 0.35, 14), new THREE.MeshBasicMaterial({ color: 0x7df9ff, transparent: true, opacity: 0.8 }));
+  glow.rotation.x = Math.PI / 2; glow.position.y = -0.02; g.add(glow);
+  g.userData = { glow };
+  return g;
+}
+// Makes the escort of a merchant: the plan, and one shape per guard (with its horse or sled)
+function makeEscort(m) {
+  const [c1, c2] = AWNING[Math.floor(hash3(m.n, 1, 2, 3) * AWNING.length)];
+  m.escortV = guardV;
+  m.guards = escortPlan(m.n, guardCount(offersWorth(m.offers))).map((p, i) => {
+    const root = new THREE.Group(), sit = p.kind === 'horse' || p.kind === 'lookout';
+    const person = guardPerson(m.n * 7 + i, c1, c2, sit);
+    let mount = null;
+    if (p.kind === 'horse') { mount = horseModel(HORSE_COATS[Math.floor(hash3(m.n, i, 9, 1) * HORSE_COATS.length)]); root.add(mount); person.position.y = 0.9; }
+    else if (p.kind === 'sled' || p.kind === 'captain') { mount = sledModel(c1, c2, p.kind === 'captain'); root.add(mount); person.position.y = 0.25; if (p.kind === 'captain') person.scale.setScalar(1.08); }
+    root.add(person);
+    root.visible = false;
+    scene.add(root);
+    return { ...p, i, root, person, mount, x: null, z: null, y: null, yaw: 0, ph: i, target: null, cool: 0, fetch: null };
+  });
+  m.speed = m.guards.some(g => g.kind === 'foot') ? GUARD_FOOT_SPEED : MERCH_SPEED;
+}
+function dropEscort(m) { for (const g of m.guards || []) dropGroup(g.root); m.guards = []; }
+// The place a guard keeps around its cart, in the world
+function slotAt(m, g, p) {
+  const c = Math.cos(m.yaw), s = Math.sin(m.yaw);
+  return [p.x + g.slot[0] * c + g.slot[1] * s, p.z - g.slot[0] * s + g.slot[1] * c];
+}
+// One step of a cart's escort: guards keep their places, go for monsters near the cart, and face the child when it stops
+function updateEscort(m, p, dt, dist, shown, now) {
+  if (m.escortV !== guardV) { dropEscort(m); makeEscort(m); }
+  const gs = m.guards;
+  if (!gs.length) { m.fighting = false; return; }
+  // Monsters near the cart: the nearest guards go for the nearest one (in a shared world only the leading device decides)
+  const leads = !sharedOn() || isLeader();
+  let foe = null;
+  if (leads && shown) {
+    let bd = GUARD_RANGE;
+    for (const en of enemies) { const d = Math.hypot(en.x - p.x, en.z - p.z); if (d < bd) { bd = d; foe = en; } }
+  }
+  m.fighting = !!foe;
+  const fighters = foe ? gs.filter(g => g.kind !== 'lookout').sort((a, b) => Math.hypot(a.x - foe.x, a.z - foe.z) - Math.hypot(b.x - foe.x, b.z - foe.z)).slice(0, 2) : [];
+  for (const g of gs) {
+    g.root.visible = shown;
+    if (!shown) { g.x = null; continue; }
+    let [tx, tz] = slotAt(m, g, p);
+    if (g.x === null) { g.x = tx; g.z = tz; }
+    const fighting = fighters.includes(g) && Math.hypot(foe.x - p.x, foe.z - p.z) < GUARD_LEASH;
+    if (g.fetch) {   // walking to pick up what a monster dropped
+      [tx, tz] = g.fetch.at;
+      if (now >= g.fetch.until) g.fetch = null;
+    } else if (fighting) {
+      const d = Math.hypot(foe.x - g.x, foe.z - g.z);
+      tx = foe.x - (foe.x - g.x) / (d || 1) * 1.2; tz = foe.z - (foe.z - g.z) / (d || 1) * 1.2;
+      g.cool -= dt;
+      if (d < 1.9 && g.cool <= 0) {
+        g.cool = 0.9;
+        guardStrike(g, foe, m);
+      }
+    }
+    if (g.kind === 'lookout') { [tx, tz] = slotAt(m, g, p); g.x = tx; g.z = tz; }
+    const dx = tx - g.x, dz = tz - g.z, d = Math.hypot(dx, dz), speed = g.kind === 'foot' ? 5 : 8;
+    const moving = d > 0.05;
+    if (moving) { const step = Math.min(d, speed * dt * (d > 4 ? 2 : 1)); g.x += dx / d * step; g.z += dz / d * step; }
+    const ground = g.kind === 'lookout' ? m.y + 0.65 : g.kind === 'sled' || g.kind === 'captain' ? landTop(g.x, g.z) + 0.6 + Math.sin(now * 2 + g.i) * 0.06 : landTop(g.x, g.z);
+    g.y = g.y === null ? ground : g.y + (ground - g.y) * Math.min(1, dt * 8);
+    let yaw = moving && d > 0.3 ? Math.atan2(dx, dz) : m.yaw;
+    if (m.stopped && !fighting && dist < MERCH_GO) yaw = Math.atan2(px - g.x, pz - g.z);   // the cart stopped for the child: they face the child
+    if (fighting) yaw = Math.atan2(foe.x - g.x, foe.z - g.z);
+    if (g.kind === 'lookout') yaw = m.yaw + Math.PI + Math.sin(now * 0.7 + m.n) * 1.2;   // looks around
+    g.yaw += angDiff(yaw, g.yaw) * Math.min(1, dt * 6);
+    g.root.position.set(g.x, g.y, g.z);
+    g.root.rotation.y = g.yaw;
+    g.ph += dt * (moving ? (g.kind === 'horse' && d > 2 ? 14 : 8) : 1);
+    if (g.kind === 'foot') posePerson(g.person, moving, g.ph); else posePerson(g.person, false, g.ph);
+    if (g.mount && g.mount.userData.horse) g.mount.userData.legs.forEach((l, i) => { l.rotation.x = moving ? Math.sin(g.ph + (i % 2 ? Math.PI : 0) + (i > 1 ? Math.PI / 2 : 0)) * 0.5 : 0; });
+    if (g.mount && g.mount.userData.glow) g.mount.userData.glow.material.opacity = 0.6 + 0.3 * Math.sin(now * 6 + g.i);
+    if (fighting && g.person.userData.spear) g.person.userData.armR.rotation.x = -1.2 + Math.max(0, g.cool - 0.6) * 4;
+  }
+  // When the cart stops for the child, the guard nearest the child says one fixed line
+  if (m.stopped && dist < MERCH_STOP && !m.guardSaid && !foe) {
+    m.guardSaid = true;
+    setTimeout(() => say('Guard: "' + GUARD_LINES[Math.floor(hash3(m.n, 5, 5, 5) * GUARD_LINES.length)] + '"', 2500), 2600);
+  }
+  if (dist > 30) m.guardSaid = false;
+}
+// A guard's spear hits a monster: the same sparks as the child's sword, and the monster is defeated in the same way
+function guardStrike(g, en, m) {
+  if (!enemies.includes(en)) return;
+  fireBurst(en.x, en.y + 0.8, en.z, 0.4);
+  en.hp -= 3;
+  if (Math.hypot(en.x - px, en.z - pz) < 20) sfx('hit');
+  if (en.hp <= 0) defeatEnemy(en, { guard: true, m, g });
+}
+// What a monster defeated by guards drops lies on the ground for a moment; the nearest guard collects it and it is gone.
+// The child can never pick it up, so luring monsters to carts earns nothing.
+function guardSpoils(en, k, how) {
+  const now = performance.now() / 1000;
+  const parts = k.parts.filter((p, i) => hash3(Math.floor(en.x * 10), i, Math.floor(en.z * 10), 77) < 0.5);
+  const x = Math.floor(en.x), z = Math.floor(en.z);
+  let y = Math.floor(en.y + 0.01);
+  parts.forEach((id, i) => {
+    const key = (x + i) + ',' + y + ',' + z;
+    if (drops.has(key)) return;
+    addDrop(x + i, y, z, id);
+    const d = drops.get(key);
+    if (d) { d.guard = true; d.gone = Date.now() + 1800; }
+  });
+  if (how.g) how.g.fetch = { at: [en.x, en.z], until: now + 1.8 };
+  if (Math.hypot(en.x - px, en.z - pz) < 25) say('The guards drove off the ' + k.name + '!', 1800);
+}
+
+// ---- Wild dragons fly over the land and come down to eat trees (0.6.81, SPEC-022) ----
+// Friendly dragons made in code (a round body, a short snout, small horns, big wings about 8 blocks across, no teeth, no
+// fire). Each square of DRAGON_CELL blocks may have one, circling high over it; where each one is comes from the seed and
+// a clock all devices share, so every player in a shared world sees the same dragons without any message. About every
+// 3 minutes one dragon comes down beside a tree near a child, eats it (it shrinks away and leaves a stump), and flies
+// back up. The tree grows back after 1 or 2 days (see eatenTrees). Dragons are not monsters: nothing hits them, and they
+// never come for the child. The parent area has a Dragons control: On, Stay high (they never come down) or Off.
+const DRAGON_CELL = 170, DRAGON_SEE = 240, DRAGON_MOST = 3;
+const DRAGON_COLS = [[0x55b955, 0xbfe8a0], [0x4a86d8, 0xb9d8ff], [0xf08a24, 0xffd59a], [0x8e5cc4, 0xe0c4ff]];
+const DRAGON_MODES = ['on', 'high', 'off'];
+let dragonMode = 'on';          // the parent's choice, kept with the saved game
+let dragonsTestOff = false;     // the builder's switch for the frame-rate check (?perf=1): no dragons at all
+const dragonCache = new Map();  // cell -> the dragon of that square, or null
+const dragonShapes = new Map(); // dragon id -> { group, wingL, wingR }
+let dragonEat = null;           // the dragon coming down to eat, and its tree: { id, tx, ty, tz, lx, ly, lz, t0, marked }
+let dragonWait = 120 + Math.random() * 120;   // seconds until a dragon may come down (2 to 4 minutes)
+let dragonTold = false;         // the first time a dragon eats in this visit, the message strip says so
+let crownFx = null;             // the tree's top shrinking away while it is eaten
+function dragonOf(gx, gz) {
+  const key = gx * 100003 + gz;
+  if (dragonCache.has(key)) return dragonCache.get(key);
+  let d = null;
+  if (hash3(gx, 1, gz, seed + 6101) < 0.75) {
+    const R = n => hash3(gx, n, gz, seed + 6101);
+    const cx = CENTER + (gx + 0.5) * DRAGON_CELL, cz = CENTER + (gz + 0.5) * DRAGON_CELL, r = 40 + R(2) * 35;
+    // the ground under its circle, every 1/32 of a turn, and the castles near it: it flies 25 to 40 blocks above the land
+    // under it, and rises over a castle's towers long before it reaches them
+    const ring = [];
+    for (let i = 0; i < 32; i++) { const a = i / 32 * Math.PI * 2; ring.push(Math.max(WATER_Y, groundY(Math.round(cx + Math.cos(a) * r), Math.round(cz + Math.sin(a) * r)))); }
+    const castles = castlesIn(Math.floor(cx - r - 40), Math.floor(cz - r - 40), Math.ceil(cx + r + 40), Math.ceil(cz + r + 40));
+    d = { id: gx + ':' + gz, cx, cz, r, w: (0.05 + R(3) * 0.04) * (R(4) < 0.5 ? -1 : 1), ph: R(5) * Math.PI * 2, up: 25 + R(6) * 15, ring, castles, col: DRAGON_COLS[Math.floor(R(7) * DRAGON_COLS.length)] };
+  }
+  dragonCache.set(key, d);
+  return d;
+}
+// Where a dragon is at time t (seconds on the shared clock), flying its circle
+function dragonFly(d, t) {
+  const a = d.ph + d.w * t, x = d.cx + Math.cos(a) * d.r, z = d.cz + Math.sin(a) * d.r;
+  // the land under it (smoothed between the 32 points of its ring), and any castle near (falling away over 40 blocks)
+  const u = (((a / (Math.PI * 2)) % 1) + 1) % 1 * 32, i = Math.floor(u), f = u - i;
+  let base = d.ring[i % 32] * (1 - f) + d.ring[(i + 1) % 32] * f;
+  for (const c of d.castles) { const gap = Math.hypot(Math.max(c.fx0 - x, 0, x - c.fx1), Math.max(c.fz0 - z, 0, z - c.fz1)); base = Math.max(base, c.floorY + c.height - 15 - gap * 0.6); }
+  return { x, z, y: Math.min(H + 30, base + d.up + Math.sin(t * 0.3 + d.ph) * 3), yaw: a + (d.w > 0 ? 0 : Math.PI) };
+}
+const lerp = (a, b, f) => a + (b - a) * f;
+// Where a dragon is while it comes down to eat: down in a spiral (0 to 8 s), eating (8 to 13), sitting (13 to 15), back up (15 to 20)
+function dragonAt(d, t) {
+  const E = dragonEat, high = dragonMode !== 'on';
+  if (!E || E.id !== d.id || high) return { ...dragonFly(d, t), state: 'fly' };
+  const tau = t - E.t0;
+  if (tau < 0 || tau >= 20) return { ...dragonFly(d, t), state: 'fly' };
+  const face = Math.atan2(E.tx - E.lx, E.tz - E.lz);
+  if (tau < 8) {
+    const from = dragonFly(d, E.t0), f = tau / 8, s = f * f * (3 - 2 * f), sp = (1 - f) * 12, a = f * Math.PI * 3;
+    return { x: lerp(from.x, E.lx, s) + Math.cos(a) * sp, z: lerp(from.z, E.lz, s) + Math.sin(a) * sp, y: lerp(from.y, E.ly, s), yaw: a + Math.PI / 2, state: 'down' };
+  }
+  if (tau < 15) return { x: E.lx, y: E.ly, z: E.lz, yaw: face, state: tau < 13 ? 'eat' : 'sit' };
+  const to = dragonFly(d, t), f = (tau - 15) / 5, s = f * f;
+  return { x: lerp(E.lx, to.x, s), z: lerp(E.lz, to.z, s), y: lerp(E.ly, to.y, s), yaw: Math.atan2(to.x - E.lx, to.z - E.lz), state: 'up' };
+}
+// An original friendly dragon: round body and belly, short snout with nostrils, big round eyes, small horns, a spiky
+// ridge of soft bumps, a tail, and two big wings that flap (pivots at the shoulders)
+function dragonModel([col, belly]) {
+  const g = new THREE.Group(), bin = shapeBin().at(0, 0, 0, 0);
+  bin.ball(1.3, col, 0, 0, 0, 0.85).ball(1.0, belly, 0, -0.35, 0.35, 0.6);          // body and belly
+  bin.ball(0.75, col, 0, 0.75, 1.55).ball(0.45, col, 0, 0.55, 2.2, 0.8);            // head and short snout
+  bin.ball(0.07, 0x2b1f17, -0.18, 0.62, 2.6).ball(0.07, 0x2b1f17, 0.18, 0.62, 2.6); // nostrils
+  for (const s of [-1, 1]) {
+    bin.ball(0.2, 0xffffff, s * 0.38, 1.0, 2.0).ball(0.11, 0x1a1a1a, s * 0.4, 1.02, 2.16);   // eyes
+    bin.add(new THREE.ConeGeometry(0.13, 0.45, 8), 0xf4ecd8, s * 0.35, 1.45, 1.35, 0, 1, 1, 1, -0.4, s * 0.25);   // small horns
+    bin.ball(0.25, col, s * 0.6, -0.95, 0.5, 1.2).ball(0.25, col, s * 0.6, -0.95, -0.5, 1.2);   // feet
+  }
+  for (let i = 0; i < 4; i++) bin.ball(0.16, belly, 0, 1.0 - i * 0.12, 0.9 - i * 0.6);     // soft bumps along the back
+  for (let i = 0; i < 5; i++) bin.ball(0.5 - i * 0.08, col, 0, -0.2 - i * 0.05, -1.2 - i * 0.55);   // the tail
+  bin.add(new THREE.ConeGeometry(0.25, 0.5, 4), belly, 0, -0.45, -4.0, 0, 1, 1, 1, -Math.PI / 2, 0);
+  for (const m of bin.meshes()) g.add(m);
+  // wings: a rounded membrane (drawn as a flat shape) on a pivot at each shoulder, about 8 blocks across with both open
+  const wing = s => {
+    const p = new THREE.Group(); p.position.set(s * 0.8, 0.5, 0.1);
+    const sh = new THREE.Shape();
+    sh.moveTo(0, 0.4); sh.quadraticCurveTo(1.6, 1.6, 3.4, 0.9); sh.quadraticCurveTo(3.0, 0.2, 3.3, -0.4); sh.quadraticCurveTo(2.4, -0.3, 2.2, -1.0);
+    sh.quadraticCurveTo(1.4, -0.6, 1.1, -1.2); sh.quadraticCurveTo(0.6, -0.5, 0, -0.6); sh.lineTo(0, 0.4);
+    const geo = new THREE.ShapeGeometry(sh, 6);
+    const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: belly, side: THREE.DoubleSide }));
+    m.rotation.x = -Math.PI / 2; m.scale.set(s, 1, 1);
+    const bone = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 3.4, 6), lifeMat(col)); bone.rotation.z = Math.PI / 2; bone.position.set(s * 1.7, 0, -0.6);
+    p.add(m, bone);
+    g.add(p);
+    return p;
+  };
+  g.userData = { wingL: wing(-1), wingR: wing(1) };
+  g.scale.setScalar(1.1);
+  return g;
+}
+// The dragons near this child (at most 3), nearest first
+function dragonsNear() {
+  const out = [], g0x = Math.floor((px - CENTER) / DRAGON_CELL), g0z = Math.floor((pz - CENTER) / DRAGON_CELL), n = Math.ceil(DRAGON_SEE / DRAGON_CELL) + 1;
+  const t = sharedNow() / 1000;
+  for (let gx = g0x - n; gx <= g0x + n; gx++) for (let gz = g0z - n; gz <= g0z + n; gz++) {
+    const d = dragonOf(gx, gz);
+    if (!d) continue;
+    const p = dragonAt(d, t), dist = Math.hypot(p.x - px, p.z - pz);
+    if (dist < DRAGON_SEE && inPlay(p.x, p.z)) out.push({ d, p, dist });
+  }
+  out.sort((a, b) => a.dist - b.dist);
+  if (dragonEat) { const e = out.find(o => o.d.id === dragonEat.id); if (e && out.indexOf(e) >= DRAGON_MOST) { out.splice(out.indexOf(e), 1); out.unshift(e); } }   // the eating one is always drawn
+  return out.slice(0, DRAGON_MOST);
+}
+// Which device picks when a dragon comes down: alone, this one (if its dragons are On); in a shared world, the first
+// device in joining order whose dragons are On (a device set to Off or Stay high never picks)
+function dragonPicker() {
+  if (dragonMode !== 'on' || dragonsTestOff) return false;
+  if (!sharedOn()) return true;
+  const st = channel.presenceState(), list = [[joinedAt, pid, dragonMode]];
+  for (const key of Object.keys(st)) { if (key === pid) continue; const m = st[key][st[key].length - 1]; if (m && Number.isFinite(m.since) && Date.now() - (heard.get(key) || 0) <= SYNC_QUIET) list.push([m.since, key, m.dr || 'on']); }
+  list.sort((a, b) => a[0] - b[0] || (a[1] < b[1] ? -1 : 1));
+  const first = list.find(r => r[2] === 'on');
+  return !!first && first[1] === pid;
+}
+const TREE_KINDS = ['common', 'pine', 'palm'];
+// A tree 15 to 60 blocks from a child, in view, on open ground, not in or by a castle, and not within 8 blocks of any child
+function pickTree() {
+  const ps = playersHere(), p = ps[Math.floor(Math.random() * ps.length)], v3 = viewDir(innerWidth / 2, innerHeight / 2), vl = Math.hypot(v3.x, v3.z) || 1, view = { x: v3.x / vl, z: v3.z / vl };
+  for (let tries = 0; tries < 160; tries++) {
+    const a = Math.random() * Math.PI * 2, r = 15 + Math.random() * 45, x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+    if (p.key === pid && view && (Math.cos(a) * view.x + Math.sin(a) * view.z) < 0.3) continue;   // in front of the child
+    if (!chunks.has(ckey(Math.floor(x / CS), Math.floor(z / CS))) || castleCovers(x, z, 8)) continue;
+    let y = H - 1; while (y > 0 && !solid(get(x, y, z))) y--;
+    if (get(x, y + 1, z) !== T.AIR) continue;
+    const dec = decorAt(x, y, z);
+    if (!dec || !TREE_KINDS.includes(dec.kind)) continue;
+    // where it lands: 3 blocks from the tree, on open ground, never near a child
+    const la = Math.random() * Math.PI * 2, lx = x + 0.5 + Math.cos(la) * 3, lz = z + 0.5 + Math.sin(la) * 3;
+    let ly = H - 1; while (ly > 0 && !solid(get(Math.floor(lx), ly, Math.floor(lz)))) ly--;
+    if (Math.abs(ly - y) > 3 || ps.some(q => Math.hypot(q.x - lx, q.z - lz) < 8 || Math.hypot(q.x - x, q.z - z) < 8)) continue;
+    return { tx: x, ty: y, tz: z, lx, ly: ly + 1, lz };
+  }
+  return null;
+}
+function startEat(e) {
+  dragonEat = { ...e, marked: false };
+  if (sharedOn()) sendSync('eat', e);
+}
+function onEat(p) {
+  if (!p || typeof p.id !== 'string' || ![p.tx, p.ty, p.tz, p.lx, p.ly, p.lz, p.t0].every(Number.isFinite) || !inBounds(p.tx, p.ty, p.tz)) return;
+  dragonEat = { id: p.id, tx: p.tx, ty: p.ty, tz: p.tz, lx: p.lx, ly: p.ly, lz: p.lz, t0: p.t0, marked: false };
+}
+function updateDragons(dt) {
+  const t = sharedNow() / 1000;
+  const E = dragonEat;
+  if (E && !E.marked && t - E.t0 >= 8) {   // it has landed and starts eating: the tree becomes a stump (for every player)
+    E.marked = true;
+    eatTree(E.tx, E.tz);
+    const near = Math.hypot(E.tx - px, E.tz - pz) < 80;
+    if (near && dragonMode !== 'off') {
+      leafBurst(E.tx + 0.5, E.ty + 3, E.tz + 0.5);
+      crownFx = makeCrown(E.tx + 0.5, E.ty + 1, E.tz + 0.5);
+      if (dragonMode === 'on' && !dragonTold) { dragonTold = true; say('Look! A dragon is eating a tree!', 3500); }
+    }
+  }
+  if (E && t - E.t0 >= 20) dragonEat = null;
+  if (crownFx) {
+    crownFx.t += dt;
+    const s = Math.max(0, 1 - crownFx.t / 5);
+    crownFx.g.scale.setScalar(s);
+    if (dragonEat && dragonEat.marked && crownFx.t < 5 && Math.floor(crownFx.t / 0.6) !== crownFx.k) { crownFx.k = Math.floor(crownFx.t / 0.6); if (Math.hypot(crownFx.g.position.x - px, crownFx.g.position.z - pz) < 40) sfx('dig'); if (Math.random() < 0.5) leafBurst(crownFx.g.position.x, crownFx.g.position.y + 2 * s, crownFx.g.position.z); }
+    if (s <= 0) { dropGroup(crownFx.g); crownFx = null; }
+  }
+  // Every few minutes of play one dragon comes down (picked on one device only, see dragonPicker)
+  if (!paused && !dragonEat && dragonPicker()) {
+    dragonWait -= dt;
+    if (dragonWait <= 0) {
+      dragonWait = 120 + Math.random() * 120;
+      const tree = pickTree();
+      if (tree) {
+        const ds = dragonsNear().filter(o => o.p.state === 'fly');
+        if (ds.length) {
+          const best = ds.reduce((b, o) => Math.hypot(o.p.x - tree.tx, o.p.z - tree.tz) < Math.hypot(b.p.x - tree.tx, b.p.z - tree.tz) ? o : b);
+          startEat({ id: best.d.id, ...tree, t0: t + 0.5 });
+        }
+      }
+    }
+  }
+  // Draw the dragons near this child
+  const show = dragonMode !== 'off' && !dragonsTestOff ? dragonsNear() : [], keep = new Set(show.map(o => o.d.id));
+  for (const [id, s] of dragonShapes) if (!keep.has(id)) { dropGroup(s.group); dragonShapes.delete(id); }
+  for (const { d } of show) {
+    let s = dragonShapes.get(d.id);
+    if (!s) { const group = dragonModel(d.col); scene.add(group); s = { group, ...group.userData }; dragonShapes.set(d.id, s); }
+    const p = dragonAt(d, t);
+    s.group.position.set(p.x, p.y + (p.state === 'eat' || p.state === 'sit' ? 1.2 : 0), p.z);
+    s.group.rotation.y += angDiff(p.yaw, s.group.rotation.y) * Math.min(1, dt * 3);
+    // flapping now and then in the sky; folded wings on the ground; munching nods while eating
+    const flap = p.state === 'eat' || p.state === 'sit' ? -1.2 : p.state === 'fly' ? (Math.sin(t * 0.5 + d.ph) > 0.3 ? Math.sin(t * 6) * 0.6 : 0.1) : Math.sin(t * 7) * 0.7;
+    s.wingL.rotation.z = flap; s.wingR.rotation.z = -flap;
+    s.group.rotation.x = p.state === 'eat' ? 0.25 + Math.sin(t * 8) * 0.12 : 0;
+  }
+}
+// Green leaves that fly off the tree
+function leafBurst(x, y, z) {
+  for (let i = 0; i < 10; i++) {
+    const mat = new THREE.MeshBasicMaterial({ color: i % 2 ? 0x4caf50 : 0x8bc34a, transparent: true, opacity: 1 });
+    const m = new THREE.Mesh(fireGeo, mat);
+    m.scale.setScalar(0.18);
+    m.position.set(x, y, z);
+    scene.add(m);
+    const a = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 2.5;
+    sparks.push({ m, mat, x, y, z, vx: Math.cos(a) * sp, vy: 1 + Math.random() * 3, vz: Math.sin(a) * sp, t: 0 });
+  }
+}
+// The tree's top while it is eaten: a green crown on a trunk that shrinks away in about 5 seconds
+function makeCrown(x, y, z) {
+  const g = new THREE.Group(), bin = shapeBin().at(0, 0, 0, 0);
+  bin.cyl(0.25, 2.2, 0x6b4423, 0, 1.1, 0).ball(1.4, 0x3f8f4a, 0, 2.9, 0).ball(1.0, 0x4caf50, 0.6, 3.4, 0.3).ball(0.9, 0x4caf50, -0.5, 3.6, -0.3);
+  for (const m of bin.meshes()) g.add(m);
+  g.position.set(x, y, z);
+  scene.add(g);
+  return { g, t: 0, k: -1 };
+}
+// A tree is eaten: it becomes a stump in the world's list (saved with the world), and its land is drawn again
+function eatTree(x, z) {
+  eatTreeInWorld(x, z, dayNum());
+  const cx = Math.floor(x / CS), cz = Math.floor(z / CS);
+  touched.set(ckey(cx, cz), { cx, cz });
+  dirty = true;
+  if (sharedLead() || !sharedOn()) worldDirty = !!worldId;   // a shared world's record keeps the list
+  saveGame();
+}
+function eatenList() { return [...eatenTrees.values()].map(e => [e.x, e.z, e.day, e.back]); }
+function mergeEaten(list) {
+  for (const r of list.slice(0, 500)) if (Array.isArray(r) && r.slice(0, 4).every(Number.isInteger) && !eatenTrees.has(r[0] + ',' + r[1])) {
+    eatenTrees.set(r[0] + ',' + r[1], { x: r[0], z: r[1], day: r[2], back: r[3] });
+    const cx = Math.floor(r[0] / CS), cz = Math.floor(r[1] / CS);
+    touched.set(ckey(cx, cz), { cx, cz });
+  }
+  dirty = true;
+}
+// The merchant whose cart (or one of its guards) is under the screen point (x, y), or null
 function merchantAt(x, y) {
   for (const m of merchants.values()) {
     if (!m.group.visible) continue;
-    const mid = m.group.position.clone(); mid.y += 1.2;
-    const c = mid.clone().project(camera);
-    if (c.z >= 1) continue;
-    const sx = (c.x + 1) / 2 * innerWidth, sy = (1 - c.y) / 2 * innerHeight;
-    const r = Math.max(44, 2.0 * (innerHeight / 2 / Math.tan(camera.fov * Math.PI / 360)) / camera.position.distanceTo(mid));
-    if (Math.hypot(x - sx, y - sy) <= r) return m;
+    for (const obj of [m.group, ...(m.guards || []).map(g => g.root)]) {   // tapping a guard does the same as tapping the cart (SPEC-021)
+      if (!obj.visible) continue;
+      const mid = obj.position.clone(); mid.y += obj === m.group ? 1.2 : 1.0;
+      const c = mid.clone().project(camera);
+      if (c.z >= 1) continue;
+      const sx = (c.x + 1) / 2 * innerWidth, sy = (1 - c.y) / 2 * innerHeight;
+      const r = Math.max(obj === m.group ? 44 : 30, (obj === m.group ? 2.0 : 1.0) * (innerHeight / 2 / Math.tan(camera.fov * Math.PI / 360)) / camera.position.distanceTo(mid));
+      if (Math.hypot(x - sx, y - sy) <= r) return m;
+    }
   }
   return null;
 }
@@ -5429,6 +6701,11 @@ const BUYS = [
   { give: [['gem', 8]], gear: 'leather_armor' }, { give: [['gem', 15]], gear: 'iron_sword' }, { give: [['gem', 15]], gear: 'iron_helmet' },
   { give: [['gem', 30]], gear: 'gold_sword' },
 ];
+// The six new castle blocks (0.6.81, SPEC-020): every merchant also sells one of them, at castle-stone prices
+const CASTLE_BLOCK_BUYS = [
+  { give: [['gem', 3]], get: ['pale_stone', 10] }, { give: [['gem', 3]], get: ['sandstone', 10] }, { give: [['gem', 3]], get: ['dark_stone', 10] },
+  { give: [['gem', 3]], get: ['slate_roof', 10] }, { give: [['gem', 3]], get: ['window', 6] }, { give: [['gem', 3]], get: ['iron_bars', 6] },
+];
 function merchantOffers(n) {
   const out = [{ parts: true }, SELLS[Math.floor(hash3(n, 1, 7, 7) * SELLS.length)]];
   const gearList = BUYS.filter(b => b.gear), all = BUYS.slice();
@@ -5436,12 +6713,37 @@ function merchantOffers(n) {
   out.push(first);
   all.splice(all.indexOf(first), 1);
   for (let i = 0; out.length < 6 && all.length; i++) out.push(all.splice(Math.floor(hash3(n, 3 + i, 7, 7) * all.length), 1)[0]);
+  out.push(CASTLE_BLOCK_BUYS[Math.floor(hash3(n, 9, 7, 7) * CASTLE_BLOCK_BUYS.length)]);   // one of the new castle blocks (0.6.81)
   return out;
 }
+// ---- Merchant prices set by the owner in the admin page (0.6.81, SPEC-020) ----
+// One game setting per thing merchants sell or buy: mp_<thing> (the child buys) or ms_<thing> (the child sells),
+// value = gem price x 100 + amount (amount 1 to 64, price 1 to 500 gems); mp_parts is the gems paid for each monster part.
+// A merchant's list of goods never changes, only its prices and amounts. Without the internet the starting values are used.
+let PART_GEMS = 1;
+const priceKey = o => o.parts ? 'mp_parts' : o.gear ? 'mp_' + o.gear : o.get && o.get[0] !== 'gem' ? 'mp_' + o.get[0] : 'ms_' + o.give[0][0];
+const ALL_OFFERS = [...SELLS, ...BUYS, ...CASTLE_BLOCK_BUYS];
+const priceOf = o => o.parts ? PART_GEMS * 100 + 1 : o.gear ? o.give[0][1] * 100 + 1 : o.get[0] !== 'gem' ? o.give[0][1] * 100 + o.get[1] : o.get[1] * 100 + o.give[0][1];
+const PRICE_START = Object.fromEntries([{ parts: true }, ...ALL_OFFERS].map(o => [priceKey(o), priceOf(o)]));
+const priceOk = v => Number.isInteger(v) && v % 100 >= 1 && v % 100 <= 64 && Math.floor(v / 100) >= 1 && Math.floor(v / 100) <= 500;
+function setPrices(map) {
+  for (const k of Object.keys(PRICE_START)) {
+    const v = priceOk(map[k]) ? map[k] : PRICE_START[k], gems = Math.floor(v / 100), amount = v % 100;
+    if (k === 'mp_parts') { PART_GEMS = gems; continue; }
+    for (const o of ALL_OFFERS) {
+      if (priceKey(o) !== k) continue;
+      if (o.gear) o.give = [['gem', gems]];
+      else if (o.get[0] !== 'gem') { o.give = [['gem', gems]]; o.get = [o.get[0], amount]; }
+      else { o.give = [[o.give[0][0], amount]]; o.get = ['gem', gems]; }
+    }
+  }
+}
+// What a merchant's goods are worth: the gem prices of everything it sells (for its guards, SPEC-021)
+const offersWorth = offers => offers.reduce((a, o) => a + (!o.parts && o.give[0][0] === 'gem' ? o.give[0][1] : 0), 0);
 const partsHeld = () => MONSTER_PARTS.reduce((a, k) => a + (inv[k] || 0), 0);
 // What a trade takes and gives: { give: [[id, n]], get: [id, n] or null, gear: template or null, room: change in the bag count }
 function tradeTerms(o) {
-  if (o.parts) { const n = partsHeld(); return { give: MONSTER_PARTS.filter(k => inv[k] > 0).map(k => [k, inv[k]]), get: ['gem', n], gear: null, room: 0, none: n === 0 }; }
+  if (o.parts) { const n = partsHeld(); return { give: MONSTER_PARTS.filter(k => inv[k] > 0).map(k => [k, inv[k]]), get: ['gem', n * PART_GEMS], gear: null, room: 0, none: n === 0 }; }
   const out = o.give.reduce((a, [, n]) => a + n, 0), inn = o.gear ? 1 : o.get[1];
   return { give: o.give, get: o.gear ? null : o.get, gear: o.gear || null, room: inn - out, none: false };
 }
@@ -5469,7 +6771,7 @@ function doTrade(i) {
 function tradeRowHtml(o, i) {
   const t = tradeTerms(o), pic = id => `<span class="ti" style="background-image:url(${itemIcon(id)})"></span>`;
   const left = o.parts ? `${pic(MONSTER_PARTS.find(k => inv[k] > 0) || 'goblin_ear')}<span>All monster parts (${partsHeld()})</span>` : t.give.map(([id, n]) => `${pic(id)}<span>${n} ${esc(ITEMS[id].name)}</span>`).join('');
-  const right = o.parts ? `${pic('gem')}<span>1 Gem each</span>` : t.gear ? `${pic(t.gear)}<span>${esc(GEAR[t.gear].name)}</span>` : `${pic(t.get[0])}<span>${t.get[1]} ${esc(ITEMS[t.get[0]].name)}</span>`;
+  const right = o.parts ? `${pic('gem')}<span>${PART_GEMS} Gem${PART_GEMS > 1 ? 's' : ''} each</span>` : t.gear ? `${pic(t.gear)}<span>${esc(GEAR[t.gear].name)}</span>` : `${pic(t.get[0])}<span>${t.get[1]} ${esc(ITEMS[t.get[0]].name)}</span>`;
   return `<div class="trow"><div class="tside">${left}</div><span class="tarrow">&#10140;</span><div class="tside">${right}</div><button class="tbuy${tradeCan(o) ? ' off' : ''}" data-t="${i}">Trade</button></div>`;
 }
 function renderTrade(note = '') {
@@ -5513,13 +6815,16 @@ function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05);
   last = now;
   if (!paused) update(dt);
+  else if (sharedLead()) { try { updateEnemies(dt); updateSpawns(dt); } catch (e) { logError(e, 'shared world'); } }   // the leading device keeps the world going while its child reads a question (SPEC-024)
   updateOthers(dt);
+  try { updateMirrors(dt); updateFriendMirrors(dt); } catch (e) { logError(e, 'shared world'); }
   try { updateView(); } catch (e) { logError(e, 'rebuild'); }
   dirty = false;
   updateSky(dt);
   updateCaveLight(dt);
   updateOutlines(dt);
   try { updateCastleLife(dt); updateMerchants(dt); } catch (e) { logError(e, 'castle life'); }
+  try { updateDragons(dt); } catch (e) { logError(e, 'dragons'); }
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
@@ -5544,6 +6849,7 @@ if (saved) {
   restoreDrops(saved.drops);
   quizStats = quizStatsFrom(saved.quiz);
   quizLevels = quizLevelsFrom(saved.levels);
+  if (DRAGON_MODES.includes(saved.dragons)) dragonMode = saved.dragons;   // the parent's Dragons choice (0.6.81)
   if (worldLoaded) say('Welcome back, ' + playerName + '!', 2500);
 }
 // Start with some enemies near the player. This runs after the saved position is restored, so they appear where the player is.
@@ -5595,7 +6901,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.80';
+const VERSION = '0.6.81';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -5621,6 +6927,26 @@ fetch(SB_URL + '/rest/v1/game_settings?key=like.quiz_m*&select=key,value', { hea
     if (!Array.isArray(rows)) return;
     const v = [1, 2, 3, 4, 5].map(i => { const row = rows.find(x => x && x.key === 'quiz_m' + i); return row ? row.value : null; });
     setQuizBadges(v);
+  })
+  .catch(() => {});
+// The owner's settings for merchants, their guards and the carts on screen (0.6.81, SPEC-020, SPEC-021, SPEC-023):
+// read when the game opens and kept on this device; without the internet the last values (or the starting ones) are used.
+// Only the settings are asked for: nothing about the player is sent.
+function applyOwnerSettings(map) {
+  if (!map || typeof map !== 'object') return;
+  setPrices(map);
+  cartsMax = Number.isInteger(map.carts_max) && map.carts_max >= 1 && map.carts_max <= 20 ? map.carts_max : 6;
+  setGuardSteps(map);
+}
+try { applyOwnerSettings(JSON.parse(localStorage.getItem('kidsgame.ownerSettings') || '{}')); } catch (e) { applyOwnerSettings({}); }
+fetch(SB_URL + '/rest/v1/game_settings?select=key,value', { headers: { apikey: SB_KEY } })
+  .then(r => r.ok ? r.json() : null)
+  .then(rows => {
+    if (!Array.isArray(rows)) return;
+    const map = {};
+    for (const row of rows) if (row && typeof row.key === 'string' && (/^m[ps]_/.test(row.key) || /^guard_/.test(row.key) || row.key === 'carts_max')) map[row.key] = row.value;
+    applyOwnerSettings(map);
+    try { localStorage.setItem('kidsgame.ownerSettings', JSON.stringify(map)); } catch (e) {}
   })
   .catch(() => {});
 const sbReady = import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm')
@@ -5700,6 +7026,7 @@ let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6
     '<button id="cloudOut" style="display:none;width:100%;background:transparent;color:#fff;border:1px solid #556;border-radius:10px;padding:8px;cursor:pointer">Sign out</button>' +
     '</div>' +
     '<div id="learnLevel" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
+    '<div id="dragonCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="quizReport" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="devLog" style="max-height:30vh;overflow:auto;margin-bottom:10px"></div>' +
     '<button id="parentClose" style="background:transparent;color:#fff;border:1px solid #556;border-radius:10px;padding:8px 14px;cursor:pointer">Close</button></div>';
@@ -5739,6 +7066,22 @@ let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6
         : `<button id="learnRestart" style="${learnBtn}width:100%;background:transparent;padding:10px;margin-top:12px;font-weight:600">Start levels again</button>`) +
       '<div style="font-size:12px;opacity:.75;margin-top:6px">Kept in this saved game. They are in your cloud save if cloud save is on.</div>';
   }
+  // Dragons (0.6.81, SPEC-022): On, Stay high (they fly but never come down) or Off. In the parent area only.
+  function renderDragons() {
+    const names = { on: 'On', high: 'Stay high', off: 'Off' };
+    document.getElementById('dragonCtl').innerHTML = '<div style="font-size:15px;font-weight:700;margin-bottom:4px">Dragons</div>' +
+      '<div style="font-size:12px;opacity:.75;margin-bottom:8px">Friendly dragons fly over the land and sometimes come down to eat a tree. Stay high keeps them in the sky; Off removes them. Trees already eaten still grow back.</div>' +
+      `<div style="display:flex;gap:6px">${DRAGON_MODES.map(m => `<button data-dragon="${m}" aria-pressed="${m === dragonMode}" style="${learnBtn}flex:1;padding:10px;background:${m === dragonMode ? '#3b6fd8' : 'transparent'};font-weight:${m === dragonMode ? 700 : 400}">${m === dragonMode ? '&#10003; ' : ''}${names[m]}</button>`).join('')}</div>` +
+      '<div style="font-size:12px;opacity:.75;margin-top:6px">Kept in this saved game.</div>';
+  }
+  renderDragons();
+  document.getElementById('dragonCtl').addEventListener('click', e => {
+    const b = e.target.closest('[data-dragon]');
+    if (!b) return;
+    dragonMode = b.dataset.dragon;
+    saveGame();
+    renderDragons();
+  });
   const learnEl = document.getElementById('learnLevel');
   learnEl.addEventListener('click', e => {
     const band = e.target.closest('[data-band]'), step = e.target.closest('[data-step]');
@@ -5912,8 +7255,12 @@ function updateOthers(dt) {
     o.g.rotation.y = o.yaw;
   }
 }
+let metaN = 0;
 function myMeta() {
-  return { name: playerName, race: profile && profile.race, sex: profile && profile.sex, x: px, y: py, z: pz, yaw: avatar.rotation.y };
+  // 0.6.81 (SPEC-024): when this device joined (the first one leads), a counter (so a device that goes quiet is noticed),
+  // this child's quiz friend or Vital as a character (kind, place, turn only: nothing it says to the child), and the cart it trades with
+  const f = friend && friend.state !== 'leave' && !friend.borrowed ? [friend.kind, Math.round(friend.x * 10) / 10, Math.round(friend.y * 10) / 10, Math.round(friend.z * 10) / 10, Math.round(friend.group.rotation.y * 100) / 100] : null;
+  return { name: playerName, race: profile && profile.race, sex: profile && profile.sex, x: px, y: py, z: pz, yaw: avatar.rotation.y, since: joinedAt, n: ++metaN % 1000, f, tk: tradeMerchant() ? tradeMerchant().road.key : null, dr: dragonMode };
 }
 function onPresence() {
   if (!channel) return;
@@ -5925,9 +7272,10 @@ function onPresence() {
     const m = metas && metas[metas.length - 1];
     if (!m) continue;
     seen.add(key);
+    if (m.n !== (others.get(key) || {}).n) heard.set(key, Date.now());
     let o = others.get(key);
     if (!o) { o = makeOther(key, m); others.set(key, o); }
-    Object.assign(o, { name: m.name, x: m.x, y: m.y, z: m.z, yaw: m.yaw });
+    Object.assign(o, { name: m.name, x: m.x, y: m.y, z: m.z, yaw: m.yaw, n: m.n, tk: typeof m.tk === 'string' ? m.tk : null });
   }
   for (const [key, o] of others) if (!seen.has(key)) { scene.remove(o.g); others.delete(key); }
 }
@@ -5945,19 +7293,25 @@ function connectWorld() {
   const ch = sb.channel('world-' + worldId, { config: { presence: { key: pid }, broadcast: { self: false } } });
   ch.on('broadcast', { event: 'block' }, ({ payload }) => {
     const p = payload || {};
-    if (!inBounds(p.x, p.y, p.z) || !Number.isInteger(p.t) || p.t < 0 || p.t > 4) return;
+    if (!inBounds(p.x, p.y, p.z) || !Number.isInteger(p.t) || p.t < 0 || p.t > T_MAX) return;   // every block kind (before 0.6.81 only the first five came through)
     setBlock(p.x, p.y, p.z, p.t);
   });
   ch.on('presence', { event: 'sync' }, onPresence);
+  // 0.6.81 (SPEC-024): the state of game things, from the leading device and to it (never text or anything about a child)
+  const on = (ev, fn) => ch.on('broadcast', { event: ev }, ({ payload }) => { try { if (payload && typeof payload.from === 'string') fn(payload, payload.from); } catch (e) { logError(e, 'shared world'); } });
+  on('ws', onWorldState); on('hit', onHit); on('defeat', onDefeat); on('drop', onDrop); on('pick', onPick); on('taken', onTaken);
+  on('drops', onDropsList); on('snapreq', onSnapReq); on('snap', onSnap); on('eat', onEat);
   ch.subscribe(status => {
     if (status === 'SUBSCRIBED') { channelJoined = true; Promise.resolve(ch.track(myMeta())).catch(() => {}); }
     else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { channelJoined = false; logError(status, 'realtime'); }
   });
   channel = ch;
 }
+// 0.6.81: twice a second (was five times). Supabase's free plan allows 20 presence messages a second for the whole
+// project, so five a second let only four players play at once; the other players' moves are smoothed anyway.
 setInterval(() => {
   if (channel && channelJoined && profile) Promise.resolve(channel.track(myMeta())).catch(() => {});
-}, 200);
+}, 500);
 setInterval(async () => {
   if (!sb || !worldId || !worldDirty) return;
   worldDirty = false;
@@ -5970,6 +7324,307 @@ setInterval(async () => {
   const { data } = await sb.rpc('world_get', { p_code: worldId }).maybeSingle();
   if (data && data.grid && data.updated_at !== lastStamp) { lastStamp = data.updated_at; loadShared(data.grid, worldId); dirty = true; }
 }, 30000);
+
+
+// ---- A shared world is the same for every player (0.6.81, SPEC-024) ----
+// Before, a shared world shared only the blocks and where the players were. Now one device leads the world: the first
+// player in it (the earliest to join, by the time it joined). It moves the monsters, the merchant carts and their guards,
+// decides fights, gives out what is dropped, and picks when a dragon comes down to eat; it sends that over the world's live
+// channel, at most about 3 times a second. The others draw what it sends. Villagers and dragons' flights are worked out on
+// every device from the world's seed and a shared clock (the leading device's clock, sent with each message), so they
+// need no messages. When the leading device leaves or goes quiet for 4 seconds, the next player leads, with the same
+// monsters and carts. A child whose connection drops plays on alone; when it comes back it is brought back in step.
+// Only the state of game things is sent (places, life, who picked something up): never text, names typed by a child, or
+// anything about the child. The bag, gems, gear, powers, learning level, questions and answers stay on each device.
+const SYNC_MS = 330, SYNC_QUIET = 4000, SHARE_NEAR = 16, SHARE_WINDOW = 30000;
+const joinedAt = Date.now();
+let syncClock = 0;              // the leading device's clock minus this device's (0 when leading or alone)
+let leaderKey = null;           // the presence key of the leading device
+let wasShared = false;
+const heard = new Map();        // presence key -> when its last update came (a device that goes quiet stops leading)
+const sharedNow = () => Date.now() + syncClock;
+// True when other players are in this shared world and the live channel is working
+const sharedOn = () => !!(channel && channelJoined && others.size > 0);
+const isLeader = () => !sharedOn() || leaderKey === pid;
+const sharedLead = () => sharedOn() && leaderKey === pid;
+function chooseLeader() {
+  const st = channel ? channel.presenceState() : {}, now = Date.now();
+  const list = [[joinedAt, pid]];
+  for (const key of Object.keys(st)) {
+    if (key === pid) continue;
+    const metas = st[key], m = metas && metas[metas.length - 1];
+    if (!m || !Number.isFinite(m.since)) continue;
+    if (now - (heard.get(key) || 0) > SYNC_QUIET) continue;   // gone quiet: it does not lead
+    list.push([m.since, key]);
+  }
+  list.sort((a, b) => a[0] - b[0] || (a[1] < b[1] ? -1 : 1));
+  const before = leaderKey;
+  leaderKey = list[0][1];
+  if (before !== leaderKey) onLeaderChange(before);
+}
+function onLeaderChange(before) {
+  if (leaderKey === pid) {
+    // this device leads now: the monsters and carts it was drawing are its own, in the same places
+    for (const en of enemies) en.mirror = false;
+    for (const m of merchants.values()) { m.mirror = false; m.shared = false; }
+    syncClock = 0;
+  } else if (before === pid || before === null) {
+    // another device leads: its monsters replace this device's own, and this device's drops go to it
+    for (const en of [...enemies]) if (!en.mirror) { scene.remove(en.group); enemies.splice(enemies.indexOf(en), 1); }
+    sendSync('drops', { d: [...drops.values()].filter(d => !d.guard).map(d => [d.x, d.y, d.z, d.id, d.at]) });
+    sendSync('snapreq', {});
+  }
+}
+function sendSync(event, payload) {
+  if (!channel || !channelJoined) return;
+  Promise.resolve(channel.send({ type: 'broadcast', event, payload: { ...payload, from: pid } })).catch(() => {});
+}
+// Whoever is near: this child and the others in the world, [{ key, x, z }]
+function playersHere() {
+  const out = [{ key: pid, x: px, z: pz }];
+  for (const [key, o] of others) out.push({ key, x: o.x, z: o.z });
+  return out;
+}
+const nearestPlayer = (x, z) => playersHere().reduce((b, p) => Math.min(b, Math.hypot(p.x - x, p.z - z)), Infinity);
+// The leading device's message: monsters [id, kind, x, y, z, yaw, hp] and carts [key, s, dir, wait, stopped, fighting]
+function syncTick() {
+  if (!sharedOn()) {
+    if (wasShared) {   // alone again (the others left, or the connection dropped): play on with what is here
+      wasShared = false; leaderKey = null; syncClock = 0;
+      for (const en of enemies) en.mirror = false;
+      for (const m of merchants.values()) { m.mirror = false; m.shared = false; }
+    }
+    return;
+  }
+  wasShared = true;
+  chooseLeader();
+  if (!sharedLead()) return;
+  const r1 = v => Math.round(v * 10) / 10;
+  const mons = enemies.filter(en => !en.mirror).map(en => [en.id, en.kind, r1(en.x), r1(en.y), r1(en.z), Math.round(en.group.rotation.y * 100) / 100, en.hp]);
+  const carts = [];
+  for (const m of merchants.values()) if (nearestPlayer(...(p => [p.x, p.z])(roadPoint(m.road, m.s))) < MERCH_ROADS / 2) carts.push([m.road.key, r1(m.s), m.dir, r1(m.wait), m.stopped ? 1 : 0, m.fighting ? 1 : 0]);
+  sendSync('ws', { t: Date.now(), m: mons, c: carts.slice(0, 16) });
+}
+setInterval(() => { try { syncTick(); } catch (e) { logError(e, 'sync'); } }, SYNC_MS);
+// A message from the leading device: this device draws its monsters and carts
+function onWorldState(p, from) {
+  if (sharedLead() || from !== leaderKey || !p || !Array.isArray(p.m)) return;
+  if (Number.isFinite(p.t)) syncClock += ((p.t - Date.now()) - syncClock) * (syncClock === 0 ? 1 : 0.2);
+  const seen = new Set();
+  for (const row of p.m.slice(0, 24)) {
+    if (!Array.isArray(row) || row.length < 7 || !ENEMY_KINDS[row[1]] || ![2, 3, 4, 5].every(i => Number.isFinite(row[i]))) continue;
+    const [id, kind, x, y, z, yaw, hp] = row;
+    seen.add(id);
+    let en = enemies.find(e => e.id === id);
+    if (!en) en = mirrorEnemy(id, kind, x, y, z);
+    Object.assign(en, { mirror: true, tx: x, ty: y, tz: z, tyaw: yaw, hp: Math.max(0, Math.min(ENEMY_KINDS[kind].health, hp)) });
+  }
+  for (const en of [...enemies]) if (en.mirror && !seen.has(en.id)) { scene.remove(en.group); enemies.splice(enemies.indexOf(en), 1); }
+  for (const row of (p.c || []).slice(0, 16)) {
+    if (!Array.isArray(row) || typeof row[0] !== 'string' || !Number.isFinite(row[1])) continue;
+    const m = merchants.get(row[0]) || mirrorCart(row[0]);
+    if (!m) continue;
+    Object.assign(m, { mirror: true, shared: true, ts: row[1], dir: row[2] < 0 ? -1 : 1, wait: row[3], stopped: !!row[4], fighting: !!row[5] });
+  }
+}
+function mirrorEnemy(id, kind, x, y, z) {
+  const group = enemyModel(kind);
+  scene.add(group);
+  const en = { id, group, kind, hp: ENEMY_KINDS[kind].health, base: ENEMY_KINDS[kind].scale, x, y, z, vx: 0, vy: 0, vz: 0, timer: 1, hitP: 0, mirror: true };
+  group.traverse(c => { c.userData.enemy = en; });
+  group.userData.enemy = en;
+  enemies.push(en);
+  return en;
+}
+// A cart the leading device has and this one does not have yet (it is on a road near another player)
+function mirrorCart(key) {
+  const [ek, k] = key.split('#'), e = castleNetwork().edges.find(x => x.key === ek);
+  if (!e) return null;
+  networkRoads(...gateOut(e.from), 1);   // makes the road's carts if they are not made yet
+  if (!e.S) roadPlan(e);
+  if (!e.carts) networkRoads(...gateOut(e.from), 1);
+  const road = (e.carts || []).find(r => r.key === key);
+  if (!road || merchants.has(key)) return merchants.get(key) || null;
+  const n = Math.floor(hash3(road.from.num, road.to.num, 3 + (road.k || 0) * 101, seed) * 1e6), group = merchantCart(n);
+  group.visible = false;
+  scene.add(group);
+  const m = { road, n, group, s: 0, dir: 1, wait: 0, y: null, yaw: null, stopped: false, offers: merchantOffers(n), mirror: true, shared: true };
+  makeEscort(m);
+  merchants.set(key, m);
+  return m;
+}
+// A mirrored monster or cart glides to where the leading device has it
+function updateMirrors(dt) {
+  const a = Math.min(1, dt * 8);
+  for (const en of enemies) {
+    if (!en.mirror || en.tx === undefined) continue;
+    if (Math.hypot(en.tx - en.x, en.tz - en.z) > 8) { en.x = en.tx; en.y = en.ty; en.z = en.tz; }
+    const moving = Math.hypot(en.tx - en.x, en.tz - en.z) > 0.05;
+    en.x += (en.tx - en.x) * a; en.y += (en.ty - en.y) * a; en.z += (en.tz - en.z) * a;
+    en.group.position.set(en.x, en.y, en.z);
+    en.group.rotation.y += angDiff(en.tyaw, en.group.rotation.y) * a;
+    const now = performance.now() / 1000, ph = now * 8 + en.x * 3, limbs = en.group.userData.limbs, rig = en.group.userData.rig;
+    if (rig) poseRig(rig, moving, ph, now, en.hitP);
+    else if (limbs) { const s = moving ? Math.sin(ph) : 0; limbs.legs.forEach((l, i) => { l.rotation.x = (i ? s : -s) * 0.6; }); limbs.arms.forEach((r, i) => { r.rotation.x = (i ? -s : s) * 0.5; }); }
+  }
+  for (const m of merchants.values()) if (m.mirror && Number.isFinite(m.ts)) {
+    const L = roadLength(m.road);
+    if (Math.abs(m.ts - m.s) > 20) m.s = m.ts; else m.s += (m.ts - m.s) * a;
+    m.s = Math.max(0, Math.min(L, m.s));
+  }
+}
+// A hit on a monster from this device, when another device leads: it is sent, and the leading device takes the life
+function sendHit(en, amount) { sendSync('hit', { id: en.id, d: Math.max(0, Math.min(99, amount | 0)), at: Date.now() }); }
+function onHit(p, from) {
+  if (!sharedLead() || !p) return;
+  const en = enemies.find(e => e.id === p.id);
+  if (!en || !Number.isFinite(p.d)) return;
+  (en.hitters = en.hitters || new Map()).set(from, Date.now());
+  en.lastHitter = from;
+  en.hp -= p.d;
+  if (en.hp <= 0) leaderDefeat(en);
+}
+// The leading device defeats a monster: every child who hit it in its last 30 seconds gets an equal share of its gems
+// (the odd gem to the one who landed the last hit); a child more than 16 blocks away finds the share on the ground.
+// The monster's parts drop where it was defeated, for whoever picks them up first.
+function leaderDefeat(en) {
+  const k = ENEMY_KINDS[en.kind], now = Date.now();
+  const hitters = [...(en.hitters || new Map())].filter(([, t]) => now - t <= SHARE_WINDOW).map(([key]) => key);
+  if (!hitters.length) hitters.push(en.lastHitter || pid);
+  const last = en.lastHitter && hitters.includes(en.lastHitter) ? en.lastHitter : hitters[0];
+  const shares = splitShares(k.gems, hitters, last, playersHere(), en.x, en.z);
+  const parts = k.parts.filter(() => Math.random() < 0.5);
+  sendSync('defeat', { id: en.id, x: en.x, y: en.y, z: en.z, s: shares, last });
+  defeatEnemy(en, { shared: true, shares, last, parts, lead: true });
+}
+// [[key, gems, power points, near (1) or far (0)]]: equal shares, the odd gem to the last hitter
+function splitShares(gems, hitters, last, players, x, z) {
+  const each = Math.floor(gems / hitters.length), odd = gems - each * hitters.length, ptsEach = Math.max(1, Math.floor(2 / hitters.length));
+  const pos = new Map(players.map(p => [p.key, p]));
+  return hitters.map(key => { const p = pos.get(key), near = !!p && Math.hypot(p.x - x, p.z - z) <= SHARE_NEAR; return [key, each + (key === last ? odd : 0), ptsEach, near ? 1 : 0]; });
+}
+function onDefeat(p) {
+  if (sharedLead() || !p) return;
+  const en = enemies.find(e => e.id === p.id);
+  if (!en || !Array.isArray(p.s)) return;
+  en.x = p.x; en.y = p.y; en.z = p.z;
+  if (p.guard) { defeatEnemy(en, { guard: true }); return; }   // the guards defeated it (SPEC-021)
+  defeatEnemy(en, { shared: true, shares: p.s, last: p.last, parts: [], lead: false });
+}
+// What a defeated monster gives in a shared world: this child's share into the bag (when near), and on the leading device
+// the far children's shares and the parts as things on the ground
+function sharedSpoils(en, k, how) {
+  const mine = how.shares.find(s => s[0] === pid);
+  if (mine && mine[3]) {
+    for (let i = 0; i < mine[1]; i++) addItem('gem');
+    gain('fight', mine[2]);
+    say(k.name + ' defeated together! +' + mine[1] + ' gem' + (mine[1] === 1 ? '' : 's'), 1800);
+    if (how.last === pid && Math.random() < 0.15) addGear(gearFor(k.power));
+  } else if (mine) say(k.name + ' defeated! Your share is on the ground where it was.', 2500);
+  if (how.lead) {
+    const x = Math.floor(en.x), y = Math.floor(en.y + 0.01), z = Math.floor(en.z);
+    for (const s of how.shares) if (!s[3]) for (let i = 0; i < s[1]; i++) putDropNear(x, y, z, 'gem');
+    for (const id of how.parts) putDropNear(x, y, z, id);
+  }
+  sfx('defeat');
+  logEvent('enemy_defeated', en.kind);
+}
+// A thing on the ground that everyone sees: made here, and sent to the others in a shared world
+function putDrop(x, y, z, id, at = Date.now()) {
+  addDrop(x, y, z, id, at);
+  if (sharedOn()) sendSync('drop', { x, y, z, id, at });
+}
+function putDropNear(x, y, z, id) {
+  for (const [dx, dz] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1], [2, 0], [-2, 0], [0, 2], [0, -2]]) {
+    for (const dy of [0, 1, -1]) {
+      const X = x + dx, Y = y + dy, Z = z + dz;
+      if (!inBounds(X, Y, Z) || solid(get(X, Y, Z)) || drops.has(X + ',' + Y + ',' + Z)) continue;
+      if (drops.size >= MAX_DROPS) return;
+      putDrop(X, Y, Z, id);
+      return;
+    }
+  }
+}
+const dropOk = p => p && inBounds(p.x, p.y, p.z) && ITEMS[p.id] && Number.isFinite(p.at);
+function onDrop(p) { if (dropOk(p) && drops.size < MAX_DROPS) addDrop(p.x, p.y, p.z, p.id, Math.min(Date.now(), p.at)); }
+// Picking up in a shared world: the leading device says who gets it, so exactly one child does, and it is gone for all
+function askPick(key) { sendSync('pick', { k: key }); }
+function grantPick(key, by) {
+  const d = drops.get(key);
+  if (!d || d.guard) return;
+  removeDrop(key);
+  sendSync('taken', { k: key, by });
+  if (by === pid) takeDrop(d);
+}
+function onPick(p, from) { if (sharedLead() && p && typeof p.k === 'string') grantPick(p.k, from); }
+function onTaken(p) {
+  if (!p || typeof p.k !== 'string') return;
+  const d = drops.get(p.k);
+  if (!d) return;
+  removeDrop(p.k);
+  if (p.by === pid) takeDrop(d);
+}
+function takeDrop(d) {
+  if (invTotal() >= invCap()) { sendSync('drop', { x: d.x, y: d.y, z: d.z, id: d.id, at: d.at }); addDrop(d.x, d.y, d.z, d.id, d.at); return; }   // no room after all: it goes back on the ground
+  addItem(d.id);
+  say('Picked up ' + ITEMS[d.id].name + '!', 1200);
+}
+// A device that joins sends its own drops to the leading device, which adds them and sends everyone the full list
+function onDropsList(p) {
+  if (!sharedLead() || !p || !Array.isArray(p.d)) return;
+  for (const r of p.d.slice(0, MAX_DROPS)) if (Array.isArray(r)) onDrop({ x: r[0], y: r[1], z: r[2], id: r[3], at: r[4] });
+}
+function onSnapReq() {
+  if (!sharedLead()) return;
+  sendSync('snap', { d: [...drops.values()].filter(d => !d.guard).map(d => [d.x, d.y, d.z, d.id, d.at]), e: eatenList() });
+}
+function onSnap(p, from) {
+  if (sharedLead() || from !== leaderKey || !p || !Array.isArray(p.d)) return;
+  const keep = new Set();
+  for (const r of p.d.slice(0, MAX_DROPS)) if (Array.isArray(r) && dropOk({ x: r[0], y: r[1], z: r[2], id: r[3], at: r[4] })) { keep.add(r[0] + ',' + r[1] + ',' + r[2]); if (!drops.has(r[0] + ',' + r[1] + ',' + r[2])) addDrop(r[0], r[1], r[2], r[3], r[4]); }
+  for (const k of [...drops.keys()]) if (!keep.has(k) && !drops.get(k).guard) removeDrop(k);
+  if (Array.isArray(p.e)) mergeEaten(p.e);
+}
+// The quiz friends and Vital of the other children: seen by everyone, in the same place. Tapping another child's quiz
+// friend gives this child its own question, on its own screen; another child's Vital only talks to that child.
+const friendMirrors = new Map();   // presence key -> { kind, group, x, y, z, yaw }
+function updateFriendMirrors(dt) {
+  const st = channel ? channel.presenceState() : {}, seen = new Set();
+  for (const [key] of others) {
+    const metas = st[key], m = metas && metas[metas.length - 1];
+    const f = m && Array.isArray(m.f) && m.f.length >= 5 && (m.f[0] === 'vital' || FRIEND_KINDS.includes(m.f[0])) && [1, 2, 3, 4].every(i => Number.isFinite(m.f[i])) ? m.f : null;
+    if (!f) continue;
+    seen.add(key);
+    let o = friendMirrors.get(key);
+    if (o && o.kind !== f[0]) { scene.remove(o.group); o = null; }
+    if (!o) { const group = friendModel(f[0]); scene.add(group); o = { kind: f[0], group, x: f[1], y: f[2], z: f[3], yaw: f[4] }; friendMirrors.set(key, o); }
+    const a = Math.min(1, dt * 8);
+    o.x += (f[1] - o.x) * a; o.y += (f[2] - o.y) * a; o.z += (f[3] - o.z) * a; o.yaw += angDiff(f[4], o.yaw) * a;
+    o.group.position.set(o.x, o.y, o.z);
+    o.group.rotation.y = o.yaw;
+    // this child's own copy of the same friend stands in the same place: the other one is not drawn twice
+    o.group.visible = !(friend && friend.kind === o.kind && Math.hypot(friend.x - o.x, friend.z - o.z) < 1.5);
+  }
+  for (const [key, o] of friendMirrors) if (!seen.has(key)) { scene.remove(o.group); friendMirrors.delete(key); }
+}
+// A tap on another child's quiz friend: this child gets its own friend in the same place, with its own question
+function mirrorFriendAt(x, y) {
+  if (friend) return null;
+  for (const o of friendMirrors.values()) {
+    if (o.kind === 'vital' || !o.group.visible) continue;
+    const mid = new THREE.Vector3(o.x, o.y + 0.6, o.z), c = mid.clone().project(camera);
+    if (c.z >= 1) continue;
+    const sx = (c.x + 1) / 2 * innerWidth, sy = (1 - c.y) / 2 * innerHeight;
+    const r = Math.max(44, 0.9 * (innerHeight / 2 / Math.tan(camera.fov * Math.PI / 360)) / camera.position.distanceTo(mid));
+    if (Math.hypot(x - sx, y - sy) > r) continue;
+    const group = friendModel(o.kind);
+    group.position.set(o.x, o.y, o.z);
+    scene.add(group);
+    friend = { kind: o.kind, group, x: o.x, y: o.y, z: o.z, state: 'wait', age: 0, leaveT: 0, q: null, wrong: 0, guide: false, borrowed: true };
+    return friend;
+  }
+  return null;
+}
 
 async function joinExisting(code) {
   await sbReady;
@@ -6437,6 +8092,20 @@ window.gameTest = {
   friendBubbleScreen: () => { const b = friendBubblePoint(); return b ? [b.x, b.y, b.r] : null; },
   friendScreen: () => { const v = new THREE.Vector3(friend.x, friend.y + 0.6, friend.z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight, v.z < 1]; },
   clearEnemies: () => { for (const en of enemies) scene.remove(en.group); enemies.length = 0; },
+  // 0.6.81: castles, roads, guards, dragons and shared worlds
+  castleAt: (x, z) => { const c = castlesIn(Math.floor(x), Math.floor(z), Math.floor(x) + 1, Math.floor(z) + 1)[0]; return c ? { kind: c.kind, style: c.style, main: c.main, wallM: c.wallM, roof: c.roof, sx: c.sx, sz: c.sz, W: c.W, D: c.D, floorY: c.floorY } : null; },
+  T, blockAt: (x, y, z) => get(x, y, z), roadNet: () => castleNetwork().edges.map(e => ({ key: e.key, main: e.main })),
+  roadSample: i => { const e = castleNetwork().edges[i]; const S = roadPlan(e); const j = Math.floor(S.n / 2); return { x: S.x[j], z: S.z[j], h: S.h[j], main: e.main, bridge: S.bridge[j] }; },
+  teleport: (x, y, z) => { px = x; py = y; pz = z; vy = 0; },
+  get cartsMax() { return cartsMax; }, applyOwnerSettings, priceKey, PRICE_START, offersWorth, guardCount, escortPlan, setGuardSteps,
+  get guardMax() { return guardMax; }, get guardSteps() { return guardSteps.slice(); },
+  merchants: () => [...merchants.values()].map(m => ({ key: m.road.key, shown: m.group.visible, guards: (m.guards || []).map(g => g.kind), speed: m.speed || MERCH_SPEED, worth: offersWorth(m.offers), offers: m.offers.length, x: m.group.position.x, z: m.group.position.z, stopped: m.stopped, fighting: !!m.fighting, guardShown: (m.guards || []).filter(g => g.root.visible).length })),
+  merchantOffers, CASTLE_BLOCK_BUYS: () => CASTLE_BLOCK_BUYS.map(o => o.get[0]),
+  get dragonMode() { return dragonMode; }, setDragonMode: m => { dragonMode = m; }, set dragonsTestOff(v) { dragonsTestOff = !!v; },
+  dragons: () => [...dragonShapes.keys()], dragonsNear: () => dragonsNear().map(o => ({ id: o.d.id, x: o.p.x, y: o.p.y, z: o.p.z, state: o.p.state, dist: o.dist })),
+  get dragonEat() { return dragonEat; }, pickTree, startEat, eatTree, eatenList, treeLook, dayNum,
+  dragonWaitNow: () => { dragonWait = 0; },
+  splitShares, sharedOn, isLeader, get sharedNow() { return sharedNow(); }, guardSpoils, defeatEnemy, get dropList() { return [...drops.values()].map(d => ({ x: d.x, y: d.y, z: d.z, id: d.id, guard: !!d.guard })); },
   askKind: kind => { if (friend) { friend.q = makeQuestion(kind); friend.wrong = 0; friend.spell = []; friend.fixed = 0; friend.help = 0; friend.hints = 0; } },   // gives the friend on screen a question of one kind
   walkAway: blocks => { px += blocks; let y = H - 1; while (y > 0 && !solid(get(Math.floor(px), y, Math.floor(pz)))) y--; py = y + 1.01; vy = 0; },   // puts the character this many blocks to the side, on the ground FRIEND: { GAP: FRIEND_GAP, FIRST: FRIEND_FIRST, AFTER_SOLVE: FRIEND_AFTER_SOLVE, STOP: FRIEND_STOP, STAY: FRIEND_STAY, FAR: FRIEND_FAR, CLEAR: FRIEND_MONSTER_CLEAR },
   // Where an enemy's middle is on the screen: [x, y] (y from the top), and whether it is in front of the camera

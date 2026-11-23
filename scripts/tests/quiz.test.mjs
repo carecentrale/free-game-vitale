@@ -157,7 +157,10 @@ test('no question or answer is stored, logged or sent; the device keeps only the
   assert.deepEqual(save.match(/\b\w*(?:quiz|friend)\w*/gi), ['quiz', 'quizStats', 'quizLevels'], 'the saved game holds more about the quiz than the counts and the learning levels (0.6.72)');
   // and a friend is not part of what is sent to a shared world
   const meta = game.slice(game.indexOf('function myMeta()'), game.indexOf('function onPresence()'));
-  assert.ok(!/quiz|friend/i.test(meta), 'a friend is sent to the shared world');
+  // 0.6.81 (SPEC-024, owner's rule of 22 Nov 2026): the friend (or Vital) is seen by everyone as a character, so its
+  // kind, place and turn are sent; never its question, answer, hints, tips, the child's level or anything the child typed
+  assert.ok(!/friend\.q\b|quiz(Levels|Stats|On)|question|answer|hint|tip|level/i.test(meta), 'only the character is sent to the shared world, never its questions or tips');
+  assert.ok(/friend\.kind, Math\.round\(friend\.x/.test(meta), 'the friend is sent as a character: kind and place');
 });
 
 test('tap only: the question panel has no place to type, no timer and no countdown', () => {

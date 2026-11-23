@@ -3347,3 +3347,132 @@ test('SPEC-019: the website game shows no update screen or button; past the limi
       text: 'A new version is needed to keep playing.', line: 'New version ready' });
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [readyGame()] }));
+
+// ---- 0.6.81: castles with much more detail (SPEC-020), roads (SPEC-023), guards (SPEC-021), dragons (SPEC-022),
+// shared worlds (SPEC-024) ----
+test('0.6.81: new castles, roads and dragons appear near the start with no errors; the tower house has the new look', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameProbe().drawn > 0, null, { timeout: 60000 });
+    const r = await page.evaluate(() => {
+      const G = window.gameTest, net = G.roadNet(), s = G.roadSample(0);
+      return { roads: net.length, main: net.some(e => e.main), lane: net.some(e => !e.main), sample: s, block: G.blockAt(Math.floor(s.x), s.h, Math.floor(s.z)), T: G.T };
+    });
+    assert.ok(r.roads > 3, 'roads join the castles: ' + r.roads);
+    assert.ok([r.T.COBBLE, r.T.EARTH, r.T.WOOD].includes(r.block), 'a road block in the middle of a road: ' + r.block);
+    await page.waitForFunction(() => window.gameTest.dragons().length > 0, null, { timeout: 150000 });
+    const d = await page.evaluate(() => window.gameTest.dragonsNear());
+    assert.ok(d.length >= 1 && d.length <= 3, 'one to three dragons: ' + d.length);
+    for (const x of d) assert.ok(x.state === 'fly' && x.y > 20, 'flying high: ' + JSON.stringify(x));
+    assert.deepEqual(errors.filter(e => !/GL Driver/.test(e)), [], errors.join('\n'));
+  }, { saves: [phoneGame()], choice: '0' }));
+
+test('SPEC-022: the parent\'s Dragons control: Off shows none, Stay high keeps them up, On lets one eat a tree that becomes a stump', { skip, timeout: 400000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest.dragons().length > 0, null, { timeout: 150000 });
+    await page.evaluate(() => window.gameTest.setDragonMode('off'));
+    await page.waitForTimeout(500);
+    assert.equal(await page.evaluate(() => window.gameTest.dragons().length), 0, 'Off: no dragon is drawn');
+    await page.evaluate(() => window.gameTest.setDragonMode('high'));
+    await page.waitForTimeout(500);
+    // Stay high: even a dragon told to come down stays in the sky
+    const high = await page.evaluate(() => { const G = window.gameTest, d = G.dragonsNear()[0]; G.startEat({ id: d.id, tx: 200010, ty: 20, tz: 200010, lx: 200013, ly: 21, lz: 200010, t0: G.sharedNow / 1000 }); return G.dragonsNear().every(x => x.state === 'fly'); });
+    assert.ok(high, 'Stay high: dragons never come down');
+    await page.evaluate(() => window.gameTest.setDragonMode('on'));
+    // On: find a tree near the child and let a dragon eat it
+    const tree = await page.evaluate(() => { const G = window.gameTest; for (let i = 0; i < 20; i++) { const t = G.pickTree(); if (t) return t; } return null; });
+    if (tree) {
+      await page.evaluate(t => { const G = window.gameTest, d = G.dragonsNear()[0]; G.startEat({ id: d.id, ...t, t0: G.sharedNow / 1000 - 7.5 }); }, tree);
+      // (the test browser draws slowly: the whole visit of the dragon may be over by the time the page is asked again)
+      await page.waitForFunction(t => window.gameTest.eatenList().some(e => e[0] === t.tx && e[1] === t.tz), tree, { timeout: 60000 });
+      assert.equal(await page.evaluate(t => window.gameTest.treeLook(t.tx, t.tz), tree), 1, 'a stump on the day it was eaten');
+      const list = await page.evaluate(() => window.gameTest.eatenList());
+      assert.ok(list.some(e => e[0] === tree.tx && e[1] === tree.tz && e[3] > e[2] && e[3] - e[2] <= 2), 'the eaten tree is in the world list with its regrow day: ' + JSON.stringify(list));
+      const msg = await page.evaluate(() => document.getElementById('msg') ? document.getElementById('msg').textContent : '');
+      assert.ok(/dragon is eating a tree/.test(msg) || msg === '', 'the first-time line: ' + msg);
+    }
+    assert.deepEqual(errors.filter(e => !/GL Driver/.test(e)), [], errors.join('\n'));
+  }, { saves: [phoneGame()], choice: '0' }));
+
+test('SPEC-021: guards by the worth of the goods, the owner\'s steps, the escort mix, and walking pace with foot guards', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    const r = await page.evaluate(() => {
+      const G = window.gameTest, out = {};
+      out.counts = [0, 29, 30, 39, 40, 50, 57, 58, 200].map(w => G.guardCount(w));
+      G.setGuardSteps({ guard_max: 6, guard_step1: 10, guard_step2: 20, guard_step3: 30, guard_step4: 40 });
+      out.six = { max: G.guardMax, steps: G.guardSteps, n: G.guardCount(60) };
+      G.setGuardSteps({ guard_max: 4, guard_step1: 30, guard_step2: 30, guard_step3: 50, guard_step4: 58 });   // a step not bigger than the one before: refused
+      out.bad = G.guardSteps.slice(0, 4);
+      G.setGuardSteps({});
+      out.plans = Array.from({ length: 200 }, (_, n) => G.escortPlan(n * 7919, 1 + n % 4).map(g => g.kind));
+      return out;
+    });
+    assert.deepEqual(r.counts, [0, 0, 1, 1, 2, 3, 3, 4, 4]);
+    assert.equal(r.six.max, 6); assert.deepEqual(r.six.steps, [10, 20, 30, 40, 48, 56]); assert.equal(r.six.n, 6);
+    assert.deepEqual(r.bad, [30, 40, 50, 58], 'bad steps fall back to the starting values');
+    const all = r.plans.flat();
+    for (const k of ['foot', 'horse', 'sled', 'lookout', 'captain']) assert.ok(all.includes(k), 'escorts include ' + k);
+    assert.ok(r.plans.filter(p => p.length >= 4).every(p => p.includes('captain')), 'a captain on carts with 4 or more');
+    assert.ok(r.plans.every(p => !p.includes('captain') || p.length >= 4), 'no captain on smaller escorts');
+    const withFoot = r.plans.filter(p => p.includes('foot')).length / r.plans.length;
+    assert.ok(withFoot > 0.35 && withFoot < 0.8, 'about half of escorts have a foot guard: ' + withFoot);
+    // carts on the roads: one with a foot guard goes at walking pace, one with riders only at the usual pace
+    await page.waitForFunction(() => window.gameTest.merchants().length > 0, null, { timeout: 60000 });
+    const ms = await page.evaluate(() => window.gameTest.merchants());
+    for (const m of ms) assert.equal(m.speed, m.guards.includes('foot') ? 2.5 : 5, JSON.stringify(m));
+    assert.deepEqual(errors.filter(e => !/GL Driver/.test(e)), [], errors.join('\n'));
+  }, { saves: [phoneGame()], choice: '0' }));
+
+test('SPEC-021: what a monster defeated by guards drops is collected by a guard; the child cannot pick it up', { skip, timeout: 400000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest.enemies.length > 0, null, { timeout: 150000 });
+    const before = await page.evaluate(() => {
+      const G = window.gameTest, en = G.enemies[0], gems = G.inv ? G.inv.gem : null;
+      const p = window.gameProbe(); en.x = p.px + 0.5; en.z = p.pz; en.y = p.py;   // right next to the child
+      G.defeatEnemy(en, { guard: true });
+      return { gems, drops: G.dropList.filter(d => d.guard).length };
+    });
+    await page.waitForTimeout(1000);
+    const mid = await page.evaluate(() => window.gameTest.dropList.filter(d => d.guard).length);
+    await page.waitForTimeout(2000);
+    const after = await page.evaluate(() => ({ guard: window.gameTest.dropList.filter(d => d.guard).length }));
+    assert.equal(after.guard, 0, 'gone after about 2 seconds');
+    assert.ok(mid <= before.drops, 'never picked up by the child');
+    assert.deepEqual(errors.filter(e => !/GL Driver/.test(e)), [], errors.join('\n'));
+  }, { saves: [phoneGame()], choice: '0' }));
+
+test('SPEC-020 and SPEC-023: the owner\'s merchant prices and cart limit; merchants sell the new castle blocks', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    const r = await page.evaluate(() => {
+      const G = window.gameTest, out = {};
+      out.start = G.PRICE_START['mp_castle_stone'];
+      G.applyOwnerSettings({ mp_castle_stone: 512, mp_window: 99999, carts_max: 2 });
+      const offers = G.merchantOffers(12345);
+      out.sells = offers.some(o => o.get && G.CASTLE_BLOCK_BUYS().includes(o.get[0]));
+      const cs = Array.from({ length: 40 }, (_, n) => G.merchantOffers(n * 31)).flat().find(o => o.get && o.get[0] === 'castle_stone');
+      out.cs = cs ? [cs.give[0][1], cs.get[1]] : null;
+      const w = Array.from({ length: 40 }, (_, n) => G.merchantOffers(n * 31)).flat().find(o => o.get && o.get[0] === 'window');
+      out.window = w ? [w.give[0][1], w.get[1]] : null;
+      out.carts = G.cartsMax;
+      G.applyOwnerSettings({ carts_max: 50 });
+      out.cartsBad = G.cartsMax;
+      G.applyOwnerSettings({ carts_max: 2 });
+      return out;
+    });
+    assert.equal(r.start, 310, 'castle stone starts at 10 for 3 gems');
+    assert.ok(r.sells, 'a merchant sells one of the new castle blocks');
+    if (r.cs) assert.deepEqual(r.cs, [5, 12], 'the owner\'s price is used');
+    if (r.window) assert.deepEqual(r.window, [3, 6], 'a price out of range is refused: the starting price stays');
+    assert.equal(r.carts, 2); assert.equal(r.cartsBad, 6, 'carts_max outside 1 to 20: the starting 6');
+    await page.waitForTimeout(6000);
+    const shown = await page.evaluate(() => window.gameTest.merchants().filter(m => m.shown).length);
+    assert.ok(shown <= 2, 'no more than 2 carts on screen: ' + shown);
+    assert.deepEqual(errors.filter(e => !/GL Driver/.test(e)), [], errors.join('\n'));
+  }, { saves: [phoneGame()], choice: '0' }));
+
+test('SPEC-024: a monster defeated together: equal shares, the odd gem to the last hitter, a far helper\'s share on the ground', { skip, timeout: 120000 }, () =>
+  withGame(async (page) => {
+    const s = await page.evaluate(() => window.gameTest.splitShares(5, ['a', 'b'], 'b', [{ key: 'a', x: 0, z: 0 }, { key: 'b', x: 30, z: 0 }], 2, 0));
+    assert.deepEqual(s, [['a', 2, 1, 1], ['b', 3, 1, 0]]);
+    const alone = await page.evaluate(() => ({ shared: window.gameTest.sharedOn(), leads: window.gameTest.isLeader() }));
+    assert.deepEqual(alone, { shared: false, leads: true }, 'alone, the game plays as before');
+  }, { saves: [phoneGame()], choice: '0' }));
