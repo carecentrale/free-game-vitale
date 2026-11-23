@@ -2,6 +2,27 @@
 
 Weekly check of the build laptop (LAPTOP-N8LD8GM1): build watcher, recent runs, Play key, git, disk, and ideas to make builds faster and steadier. Newest section first. Recommendations stay listed until marked done.
 
+## 2026-11-22 (weekly tune-up, done from the cloud)
+
+Since 20 Nov, chats do not use the laptop (CLAUDE.md, "Where the builder works"), so this tune-up only used GitHub. Not checked this week: watcher-alive.txt, watcher-errors.log, history.log, errors.log, test times, git state of the laptop folder in detail, disk sizes, `tidy` (none of these can be read or sent through GitHub).
+
+**Health: not healthy: the laptop cannot update the game.**
+
+- Watcher: alive. A `check` sent through GitHub at 20:36 laptop time was answered within a minute.
+- Play key: `check` OK (20:37 laptop time), nothing uploaded.
+- Builds through GitHub: one so far, `quick` at 18:29 laptop time on 22 Nov. **FAILED in 4 seconds: "The update from GitHub did not work", nothing built.** The laptop's game folder is still at 6357e78 (0.6.76, 20 Nov), 13 commits behind origin/main (5694922, 0.6.80). `git pull --ff-only` stops, most likely because of local changes or local commits left in the game folder from earlier laptop sessions. So 0.6.77 to 0.6.80 have not been built for Play.
+- GitHub tests (CI) on main: all green this week (0.6.74 to 0.6.80).
+- Git on GitHub: dev contains main and is 2 commits ahead (migrations work).
+
+**Fixed:** nothing (the fix needs the laptop).
+
+**Needs Nicola:** on the laptop, open the game folder and look at why the update fails (run `update-game.bat`, or ask a Claude chat to do it with laptop access just for this). The end of `build-requests\last.log` names the cause. Then send `quick` again.
+
+**Recommendations**
+1. Post the cause with a failed result: when the update from GitHub fails, add one short, safe line to `build-status` (for example "local changes in: CHANGELOG.md" or "local commits not on GitHub: 2"), no log text. Cloud chats could then see why without the laptop. Needs Nicola's OK to change the watcher.
+2. Let `status` through GitHub post a few safe numbers (watcher age, free disk, folder size of `releases\`, git ahead/behind/dirty). Weekly tune-ups could then run fully from the cloud, as the 20 Nov rule requires. Needs Nicola's OK to change the watcher.
+3. Update the weekly tune-up task's prompt: it still tells Claude to use `device_bash` on the laptop, which the 20 Nov rule forbids. Needs Nicola.
+
 ## 2026-11-17: the build tools left the game folder
 
 Nicola's decision: tools that only help to build the game are not part of the game folder. Moved to `Desktop\Claude tools for access\drenerics-build\` and removed from git: the build watcher, `build-android.ps1`, `upload-play.mjs` and its test, `machine-status.ps1`, `install-build-watcher.ps1`, `remote-build.sh`, all the build `.bat` files, and the folders `build-requests\`, `build-android-work\` and `releases\`. Their last versions in git are in commit efd5f65. File names in the older sections below (`scripts/...`) are the old places.
