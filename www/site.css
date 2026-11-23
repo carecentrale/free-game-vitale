@@ -1,0 +1,165 @@
+/* One look for the whole website (SPEC-012). Used by every page except the game (/play/) and the parent stats page.
+   Colours come from the logo: sky blue, grass green, gem purple, sun yellow. Dark mode follows the device.
+   No web fonts, no outside files. Keep under 20 KB (scripts/tests/site-look.test.mjs checks it). */
+:root{
+  --bg:#f5f8fc;--card:#fff;--ink:#17202e;--muted:#4c586b;--line:#d9e1ec;
+  --sky:#1f5fa8;--sky-soft:#e4effb;--grass:#1f7a45;--grass-ink:#fff;--gem:#6a3fb8;--gem-soft:#efe8fb;--sun:#f5c542;--sun-soft:#fff6d6;
+  --key:#eef2f8;--focus:#6a3fb8;--radius:14px;--gap:20px;
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f1522;--card:#18202f;--ink:#e9eef7;--muted:#a7b2c6;--line:#2c3850;
+  --sky:#8cc0ff;--sky-soft:#1a2a44;--grass:#5fcf8b;--grass-ink:#08200f;--gem:#c3a6ff;--gem-soft:#251d3d;--sun:#f5c542;--sun-soft:#2e2814;
+  --key:#232d42;--focus:#f5c542;
+}}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow-wrap:anywhere}
+@media (max-width:600px){body{font-size:17px}}
+img{max-width:100%;height:auto}
+a{color:var(--sky);text-decoration:underline;text-underline-offset:2px}
+a:hover{text-decoration-thickness:2px}
+:focus-visible{outline:3px solid var(--focus);outline-offset:3px;border-radius:6px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+html{scroll-behavior:smooth}
+.skip{position:absolute;left:-9999px;top:0}
+.skip:focus{left:12px;top:12px;z-index:50;background:var(--card);padding:10px 14px}
+
+/* Top bar */
+.topbar{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--line)}
+.topbar .in{max-width:1120px;margin:0 auto;padding:6px 16px;display:flex;align-items:center;gap:14px;min-height:60px}
+.brand{display:flex;align-items:center;gap:10px;color:var(--ink);text-decoration:none;font-weight:700;min-height:44px;margin-right:auto}
+.brand img{width:44px;height:44px;border-radius:10px}
+.menu{display:none}
+.links{display:flex;gap:4px;list-style:none;margin:0;padding:0}
+.links a{display:flex;align-items:center;min-height:44px;padding:0 12px;border-radius:10px;color:var(--ink);text-decoration:none;font-weight:600}
+.links a:hover{background:var(--sky-soft)}
+.links a[aria-current="page"]{color:var(--sky);box-shadow:inset 0 -3px 0 var(--sky)}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 24px;border-radius:999px;font:inherit;font-weight:700;text-decoration:none;border:2px solid transparent;cursor:pointer}
+.btn-play{background:var(--grass);color:var(--grass-ink)}
+.btn-play:hover{filter:brightness(1.08)}
+.btn-big{min-height:56px;font-size:1.15em;padding:0 34px}
+.btn-line{background:transparent;color:var(--sky);border-color:var(--sky)}
+.topbar .btn-play{min-height:44px;padding:0 20px}
+@media (max-width:760px){
+  .topbar .in{flex-wrap:wrap;gap:8px}
+  .brand span{font-size:16px}
+  .desk{display:none}
+  .menu{display:block;order:3}
+  .menu>summary{display:flex;align-items:center;min-height:44px;padding:0 14px;border:2px solid var(--line);border-radius:10px;cursor:pointer;font-weight:600;list-style:none}
+  .menu>summary::-webkit-details-marker{display:none}
+  .menu .links{display:none}
+  .menu[open] .links{display:flex;flex-direction:column;position:absolute;left:0;right:0;top:100%;background:var(--card);border-bottom:1px solid var(--line);padding:8px 16px 14px}
+  .topbar .in{position:relative}
+  .topbar .btn-play{order:2}
+}
+@media (max-width:360px){.brand span{display:none}}
+
+/* Page body */
+main{display:block}
+.page{max-width:calc(70ch + 32px);margin:0 auto;padding:28px 16px 56px}
+.wide{max-width:1120px;margin:0 auto;padding:0 16px}
+h1,h2,h3{line-height:1.25}
+h1{font-size:clamp(30px,5vw,44px);margin:6px 0 10px}
+h2{font-size:clamp(23px,3.4vw,30px);margin:36px 0 10px}
+h3{font-size:20px;margin:22px 0 8px}
+p,li{max-width:70ch}
+.muted{color:var(--muted);font-size:.9em}
+.card,.box,section.note{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 20px;margin:18px 0}
+.tip{background:var(--sun-soft);border-left:5px solid var(--sun);border-radius:10px;padding:10px 14px;margin:14px 0}
+kbd{background:var(--key);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font:inherit;font-size:.88em;white-space:nowrap}
+.scroll,.tablewrap{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;background:var(--card);font-size:.92em}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600}
+input,select,textarea,button{font:inherit;color:inherit}
+input,select,textarea{width:100%;padding:12px;border-radius:10px;border:2px solid var(--line);background:var(--bg);min-height:48px}
+form .err{color:#b3261e;font-size:.9em;margin:2px 0 0}
+@media (prefers-color-scheme:dark){form .err{color:#ffb4ab}}
+.tag{display:inline-block;background:var(--sun);color:#3a2c00;border-radius:999px;padding:2px 12px;font-size:.8em;font-weight:700}
+
+/* Release notes */
+.ver{display:inline-block;background:var(--sky);color:var(--card);border-radius:8px;padding:0 8px;margin-right:6px;font-size:.85em}
+section.note h2{font-size:20px;margin:0 0 6px}
+section.note ul{margin:0;padding-left:22px}
+
+/* Footer */
+.foot{border-top:1px solid var(--line);background:var(--card);margin-top:40px}
+.foot .in{max-width:1120px;margin:0 auto;padding:18px 16px 28px}
+.foot ul{display:flex;flex-wrap:wrap;gap:4px 8px;list-style:none;margin:0 0 6px;padding:0}
+.foot a{display:inline-flex;align-items:center;min-height:44px;padding:0 8px;color:var(--ink)}
+.foot p{margin:0 8px;color:var(--muted);font-size:.9em}
+
+/* Home page */
+.hero{background:linear-gradient(180deg,var(--sky-soft),var(--bg));padding:34px 0 28px}
+.hero .wide{display:grid;grid-template-columns:1fr 1.15fr;gap:32px;align-items:center}
+.hero .logo{width:min(320px,70%);margin-bottom:6px}
+.hero .lead{font-size:1.1em}
+.row{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin:18px 0 10px}
+.shot{border-radius:var(--radius);border:1px solid var(--line);background:var(--card);display:block;width:100%}
+.band{padding:24px 0}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:center}
+.feature{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.feature .shot{border:0;border-radius:0}
+.feature h3{margin:12px 16px 4px}
+.feature p{margin:0 16px 16px}
+.points{list-style:none;padding:0;margin:14px 0}
+.points li{padding-left:34px;position:relative;margin:8px 0}
+.points li::before{content:"";position:absolute;left:4px;top:.35em;width:18px;height:18px;border-radius:5px;background:var(--grass)}
+.eyebrow{color:var(--gem);font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:.82em;margin:0}
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cards .card{margin:0}
+.cards h3{margin:0 0 4px;font-size:18px}
+.cards p{margin:0}
+.private{background:var(--grass);color:var(--grass-ink);border-radius:var(--radius);padding:22px 26px;display:flex;gap:22px;align-items:center}
+.private a{color:inherit}
+.code{font:700 1.6em/1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.18em;background:rgba(255,255,255,.18);border-radius:10px;padding:12px 14px;white-space:nowrap}
+.soon{background:var(--gem-soft);border:2px dashed var(--gem);border-radius:var(--radius);padding:20px 24px}
+.labels{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:12px 0}
+.labels li{background:var(--sky-soft);border-radius:999px;padding:6px 14px;font-size:.92em}
+.news{list-style:none;padding:0;margin:12px 0}
+.news a{display:flex;gap:10px;align-items:baseline;min-height:44px;padding:8px 0;border-bottom:1px solid var(--line);color:var(--ink);text-decoration:none}
+.news a:hover b{text-decoration:underline}
+.end{text-align:center;padding:36px 0 10px}
+.end .row{justify-content:center}
+@media (max-width:900px){.grid4{grid-template-columns:1fr 1fr}}
+@media (max-width:760px){
+  .hero .wide,.grid2{grid-template-columns:1fr}
+  .cards{grid-template-columns:1fr}
+  .private{flex-direction:column;align-items:flex-start}
+}
+@media (max-width:480px){.grid4{grid-template-columns:1fr}}
+
+/* How to play guide (SPEC-014) */
+.guide{max-width:1120px;margin:0 auto;padding:24px 16px 56px;display:grid;grid-template-columns:260px minmax(0,1fr);gap:32px;align-items:start}
+.guide .side{position:sticky;top:76px;max-height:calc(100vh - 92px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:10px 14px}
+.guide .side h2,.jump h2{font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:var(--gem);margin:12px 0 4px;border:0;padding:0}
+.guide .side ol,.jump ol{list-style:none;margin:0;padding:0}
+.guide .side a,.jump a{display:flex;min-height:36px;align-items:center;padding:2px 6px;border-radius:8px;text-decoration:none;color:var(--ink);font-size:16px}
+.guide .side a:hover,.jump a:hover{background:var(--sky-soft)}
+.jump{display:none;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);margin:14px 0}
+.jump>summary{min-height:48px;display:flex;align-items:center;padding:0 16px;font-weight:700;cursor:pointer}
+.jump>div{padding:0 16px 12px}
+.jump a{min-height:44px}
+.part{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:4px 22px 16px;margin:20px 0;scroll-margin-top:80px}
+.part>h2{margin-top:16px}
+.part.grown{background:var(--gem-soft);border-color:var(--gem)}
+.top{display:inline-flex;min-height:44px;align-items:center;font-size:.9em}
+.ctl{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:14px 0}
+.ctl figure{margin:0}
+.ctl figcaption{font-size:.9em;color:var(--muted)}
+@media (max-width:900px){
+  .guide{grid-template-columns:1fr}
+  .guide .side{display:none}
+  .jump{display:block}
+  .ctl{grid-template-columns:1fr}
+}
+
+/* Teachers page (SPEC-032) */
+.form{display:grid;gap:14px;max-width:560px}
+.check{display:flex;gap:10px;align-items:flex-start}
+.check input{width:24px;height:24px;min-height:24px;margin-top:4px;flex:none}
+.codebox{display:flex;gap:8px}
+.codebox input{width:3em;text-align:center;font-size:1.3em;padding:10px 0}
+[hidden]{display:none!important}

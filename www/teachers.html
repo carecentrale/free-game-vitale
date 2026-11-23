@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>For teachers and schools: Adventurers of Drenerics</title>
+<meta name="description" content="Coming soon: a teacher area where teachers add their own quiz questions and each class plays in its own private world.">
+<!-- site-head -->
+<link rel="stylesheet" href="/site.css">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" type="image/png" href="/icon-96.png" sizes="96x96">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Adventurers of Drenerics">
+<meta property="og:title" content="For teachers and schools: Adventurers of Drenerics">
+<meta property="og:description" content="Coming soon: a teacher area where teachers add their own quiz questions and each class plays in its own private world.">
+<meta property="og:url" content="https://free-game-vitale.vercel.app/teachers.html">
+<meta property="og:image" content="https://free-game-vitale.vercel.app/preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The Adventurers of Drenerics logo: a floating block island with a castle">
+<meta name="twitter:card" content="summary_large_image">
+<!-- /site-head -->
+</head>
+<body>
+<!-- site-header -->
+<a class="skip" href="#main">Skip to the page</a>
+<header class="topbar"><div class="in">
+  <a class="brand" href="/"><img src="/icon-96.png" alt="" width="44" height="44"><span>Adventurers of Drenerics</span></a>
+  <nav class="desk" aria-label="Site"><ul class="links"><li><a href="/how-to-play.html">How to play</a></li><li><a href="/release-notes.html">What is new</a></li><li><a href="/contact.html">Contact</a></li></ul></nav>
+  <details class="menu"><summary>Menu</summary><nav aria-label="Site"><ul class="links"><li><a href="/how-to-play.html">How to play</a></li><li><a href="/release-notes.html">What is new</a></li><li><a href="/contact.html">Contact</a></li></ul></nav></details>
+  <a class="btn btn-play" href="/play/">Play</a>
+</div></header>
+<!-- /site-header -->
+<!-- For teachers and schools (SPEC-032). Linked from the home page's teachers strip only, not from the top bar or the
+     footer, until the teacher area opens. Future features in the future tense. The form keeps nothing until the email
+     is checked with a code (supabase/functions/teacher-interest). No cookie, no captcha, no tracking, no outside link. -->
+<main id="main" class="page">
+  <span class="tag">Coming soon</span>
+  <h1>For teachers and schools</h1>
+  <p>A block-building adventure your class can learn in. Teachers will add their own questions, and each class will play in its own private world. The teacher area is not open yet.</p>
+
+  <h2>What teachers will be able to do</h2>
+  <div class="cards">
+    <div class="card"><h3>Your own quiz questions</h3><p>Write quiz questions for your class. The quiz friends ask them while your students play.</p></div>
+    <div class="card"><h3>A private world for each class</h3><p>Each class gets its own world with a longer 8-character code. Nobody can find it in a list or join without the code.</p></div>
+    <div class="card"><h3>A fresh start every school year</h3><p>Class worlds are cleared at the end of each school year, so nothing is kept longer than it needs to be.</p></div>
+    <div class="card"><h3>Learning that follows each child</h3><p>Quiz friends ask maths and word questions at each child's own level, from 1 to 100.</p></div>
+  </div>
+
+  <h2>Who can join</h2>
+  <p>Teachers at schools in Canada and the United States. We check that you teach at a school before your teacher account opens, and again every year.</p>
+
+  <h2>What we never ask for</h2>
+  <p>No student names and no class lists. Children never sign in. Parents add their own child to a class.</p>
+
+  <h2 id="signup">Want to know when it opens?</h2>
+  <p>Leave your details and we will email you when the teacher area opens. We check your email with a code first.</p>
+
+  <form id="tForm" class="form card" novalidate>
+    <div><label for="tName"><b>Your name</b></label><input id="tName" maxlength="80" autocomplete="name"><p class="err" id="tNameErr" hidden>Please write your name.</p></div>
+    <div><label for="tSchool"><b>School name</b></label><input id="tSchool" maxlength="80" autocomplete="organization"><p class="err" id="tSchoolErr" hidden>Please write your school's name.</p></div>
+    <div><label for="tCountry"><b>Country</b></label><select id="tCountry"><option value="">Choose one</option><option value="CA">Canada</option><option value="US">United States</option></select><p class="err" id="tCountryErr" hidden>Please choose a country.</p></div>
+    <div><label for="tEmail"><b>School email</b></label><input id="tEmail" type="email" maxlength="200" autocomplete="email"><p class="err" id="tEmailErr" hidden>Please write a school email address.</p></div>
+    <div><label class="check"><input id="tAdult" type="checkbox"><span>I am a teacher or school staff member, 18 or older.</span></label><p class="err" id="tAdultErr" hidden>Please tick this box.</p></div>
+    <div><label class="check"><input id="tConsent" type="checkbox"><span id="tConsentText">Email me when the teacher area opens, and send me news for teachers about Drenerics. I can unsubscribe at any time.</span></label><p class="err" id="tConsentErr" hidden>Please tick this box.</p></div>
+    <button class="btn btn-play" type="submit">Send me a code</button>
+    <p class="muted" style="margin:0">We only use these details to tell you about the teacher area and send news for teachers. See our <a href="/privacy.html#teachers">privacy page</a>.</p>
+    <p class="err" id="tFormMsg" role="alert" hidden></p>
+  </form>
+
+  <form id="tCode" class="form card" novalidate hidden>
+    <p style="margin:0">Check your email. We sent a 6-digit code to <b id="tSentTo"></b>. Enter it here.</p>
+    <div class="codebox" role="group" aria-label="6-digit code">
+      <input inputmode="numeric" maxlength="1" aria-label="Digit 1"><input inputmode="numeric" maxlength="1" aria-label="Digit 2"><input inputmode="numeric" maxlength="1" aria-label="Digit 3"><input inputmode="numeric" maxlength="1" aria-label="Digit 4"><input inputmode="numeric" maxlength="1" aria-label="Digit 5"><input inputmode="numeric" maxlength="1" aria-label="Digit 6">
+    </div>
+    <button class="btn btn-play" type="submit">Confirm</button>
+    <div class="row" style="margin:0"><button class="btn btn-line" type="button" id="tResend">Send a new code</button><button class="btn btn-line" type="button" id="tChange">Change email</button></div>
+    <p class="err" id="tCodeMsg" role="alert" hidden></p>
+  </form>
+
+  <div id="tDone" class="card" hidden role="status"><p style="margin:0"><b>Thank you! You are on the list.</b> We will email you when the teacher area opens.</p></div>
+</main>
+<!-- site-footer -->
+<footer class="foot"><div class="in">
+  <ul><li><a href="/how-to-play.html">How to play</a></li><li><a href="/release-notes.html">What is new</a></li><li><a href="/privacy.html">Privacy</a></li><li><a href="/terms.html">Terms</a></li><li><a href="/contact.html">Contact</a></li></ul>
+  <p>For kids, families and players of every age.</p>
+</div></footer>
+<!-- /site-footer -->
+<script src="/teachers.js" defer></script>
+</body>
+</html>

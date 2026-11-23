@@ -4,53 +4,144 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Adventurers of Drenerics</title>
-<meta name="description" content="Adventurers of Drenerics is a block-building adventure for children and families. Dig, build, collect gems and explore, in your browser.">
-<style>
-  :root{--bg:#1d2a3d;--ink:#f4f7fb;--muted:#c6d2e4;--accent:#5aa0ff;--accent2:#3b6fd8}
-  body{margin:0;min-height:100vh;background:linear-gradient(180deg,#8fd0f0 0%,#1d2a3d 75%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px;box-sizing:border-box;text-align:center}
-  h1{font-size:clamp(30px,6vw,48px);margin:0 0 8px;text-shadow:0 3px 10px rgba(0,0,0,.35)}
-  p.lead{font-size:clamp(17px,2.6vw,21px);color:var(--muted);max-width:620px;margin:0 auto 28px;line-height:1.5}
-  .play{display:inline-block;background:var(--accent2);color:#fff;text-decoration:none;font-size:22px;font-weight:700;padding:16px 40px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.3)}
-  .play:hover,.play:focus{background:var(--accent)}
-  .buttons{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;align-items:center}
-  .gplay{display:inline-flex;align-items:center;gap:12px;background:#000;color:#fff;text-decoration:none;padding:10px 22px;border-radius:14px;border:1px solid #a6a6a6;box-shadow:0 6px 18px rgba(0,0,0,.3);text-align:left}
-  .gplay:hover,.gplay:focus{background:#222}
-  .gplay svg{width:30px;height:32px;flex:none}
-  .gplay small{display:block;font-size:12px;letter-spacing:.04em;text-transform:uppercase;line-height:1.1}
-  .testing{margin:10px auto 0;font-size:14px;color:var(--muted);max-width:420px;line-height:1.4}
-  .gplay b{display:block;font-size:21px;line-height:1.15;font-weight:600}
-  ul.points{list-style:none;padding:0;margin:28px 0 0;display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:680px}
-  ul.points li{background:rgba(255,255,255,.12);border-radius:10px;padding:8px 14px;font-size:15px}
-  .more{margin:22px 0 0;font-size:17px}
-  .more a{color:#fff;font-weight:600;margin:0 10px}
-  .small{margin-top:36px;font-size:13px;color:var(--muted);max-width:560px;line-height:1.5}
-</style>
+<meta name="description" content="A block-building adventure for children and families. Dig, build, collect gems and explore, in your browser.">
+<!-- site-head -->
+<link rel="stylesheet" href="/site.css">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" type="image/png" href="/icon-96.png" sizes="96x96">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Adventurers of Drenerics">
+<meta property="og:title" content="Adventurers of Drenerics">
+<meta property="og:description" content="A block-building adventure for children and families. Dig, build, collect gems and explore, in your browser.">
+<meta property="og:url" content="https://free-game-vitale.vercel.app/">
+<meta property="og:image" content="https://free-game-vitale.vercel.app/preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The Adventurers of Drenerics logo: a floating block island with a castle">
+<meta name="twitter:card" content="summary_large_image">
+<!-- /site-head -->
 </head>
 <body>
-  <img src="/logo.png" alt="Adventurers of Drenerics: a floating block island with a castle, a sword and a purple gem" width="600" height="250" style="max-width:86vw;height:auto;margin:0 0 8px;filter:drop-shadow(0 8px 18px rgba(0,0,0,.35))">
-  <h1 style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Adventurers of Drenerics</h1>
-  <p class="lead">A block-building adventure. Dig into the ground, build your own places, collect gems, grow stronger and explore a world with friends.</p>
+<!-- site-header -->
+<a class="skip" href="#main">Skip to the page</a>
+<header class="topbar"><div class="in">
+  <a class="brand" href="/"><img src="/icon-96.png" alt="" width="44" height="44"><span>Adventurers of Drenerics</span></a>
+  <nav class="desk" aria-label="Site"><ul class="links"><li><a href="/how-to-play.html">How to play</a></li><li><a href="/release-notes.html">What is new</a></li><li><a href="/contact.html">Contact</a></li></ul></nav>
+  <details class="menu"><summary>Menu</summary><nav aria-label="Site"><ul class="links"><li><a href="/how-to-play.html">How to play</a></li><li><a href="/release-notes.html">What is new</a></li><li><a href="/contact.html">Contact</a></li></ul></nav></details>
+  <a class="btn btn-play" href="/play/">Play</a>
+</div></header>
+<!-- /site-header -->
+<!-- Home page (SPEC-013). Every sentence here must be true of the game on the day it ships and match the guide and the
+     privacy page. Cards for features that are not in the game yet stay out (Mirelo: SPEC-028; teachers' own quiz
+     questions: the teacher portal). The Google Play badge stays out until the game is public on Google Play.
+     No ads, no prices, no purchases. scripts/tests/site-look.test.mjs checks these rules. -->
+<main id="main">
+  <section class="hero">
+    <div class="wide">
+      <div>
+        <img class="logo" src="/logo.png" alt="Adventurers of Drenerics" width="1200" height="500">
+        <h1>Dig, build and explore a world of blocks</h1>
+        <p class="lead">A block-building adventure for kids, families and anyone who loves to build. Play alone or in the same world as your friends.</p>
+        <div class="row">
+          <a class="btn btn-play btn-big" href="/play/">Play now</a>
+          <a href="/how-to-play.html">How to play</a>
+        </div>
+        <p class="muted">Play free in your browser on tablets, phones and computers, or get the Android app. No sign-in needed.</p>
+      </div>
+      <img class="shot" src="/home/hero.webp" width="1200" height="750" fetchpriority="high" alt="The player's character standing on green hills made of blocks">
+    </div>
+  </section>
 
-  <div class="buttons">
-    <a class="play" href="/play/">Play now</a>
-    <a class="gplay" href="https://play.google.com/store/apps/details?id=com.drenerics.adventurers" target="_blank" rel="noopener" aria-label="Get it on Google Play">
-      <svg viewBox="0 0 30 32" aria-hidden="true"><path fill="#00d7fe" d="M1.4.6C1 1 .8 1.6.8 2.4v27.2c0 .8.2 1.4.6 1.8l.1.1L16.7 16.3v-.4L1.5.5z"/><path fill="#ffce00" d="M21.8 21.4l-5.1-5.1v-.4l5.1-5.1.1.1 6 3.4c1.7 1 1.7 2.6 0 3.6l-6 3.4z"/><path fill="#ff3a44" d="M21.9 21.3L16.7 16.1 1.4 31.4c.6.6 1.5.7 2.6.1l17.9-10.2"/><path fill="#00f076" d="M21.9 10.9L4 .7C2.9.1 2 .2 1.4.8l15.3 15.3z"/></svg>
-      <span><small>Get it on</small><b>Google Play</b></span>
-    </a>
-  </div>
-  <p class="testing">The Android app is still in testing: for now the Google Play page only opens for invited testers.</p>
+  <section class="band">
+    <div class="wide">
+      <h2>What you can do</h2>
+      <div class="grid4">
+        <div class="feature"><img class="shot" src="/home/dig.webp" width="640" height="400" loading="lazy" alt="A small wall of dirt and stone that the player built on the grass"><h3>Dig and build</h3><p>Dig into the ground and build your own places with what you find.</p></div>
+        <div class="feature"><img class="shot" src="/home/gems.webp" width="640" height="400" loading="lazy" alt="The Powers panel: quiz badges and the levels for digging, building, the bag, fighting and magic"><h3>Find gems and grow stronger</h3><p>Collect gems, gain levels and learn magic.</p></div>
+        <div class="feature"><img class="shot" src="/home/friends.webp" width="640" height="400" loading="lazy" alt="A quiz friend has walked up to the player, with a question mark over its head"><h3>Meet Vital and the quiz friends</h3><p>Vital the elephant shows you how to play. Quiz friends ask maths and word questions for gems.</p></div>
+        <div class="feature"><img class="shot" src="/home/together.webp" width="640" height="400" loading="lazy" alt="The map of the land around the player, seen from above"><h3>Play with friends</h3><p>Share a 4-letter code and play together in your own private world.</p></div>
+      </div>
+    </div>
+  </section>
 
-  <p class="more"><a href="/how-to-play.html">How to play</a> <a href="/release-notes.html">What is new</a></p>
+  <section class="band">
+    <div class="wide grid2">
+      <div>
+        <p class="eyebrow">Learn while playing</p>
+        <h2>Transform screen time into learning</h2>
+        <p>Quiz friends walk up during play with a maths or word question. The questions follow your child's level, so they stay just hard enough, and a right answer earns gems for the adventure.</p>
+        <ul class="points">
+          <li>100 maths levels and 100 word levels</li>
+          <li>Levels follow your child and never go down</li>
+          <li>No timers on questions, no pressure</li>
+          <li>See your child's levels in the parent area</li>
+        </ul>
+      </div>
+      <img class="shot" src="/home/quiz.webp" width="900" height="562" loading="lazy" alt="A quiz friend's maths question in the game, with three big answer buttons">
+    </div>
+  </section>
 
-  <ul class="points">
-    <li>Plays in your browser</li>
-    <li>Works on tablets, phones and computers</li>
-    <li>No sign-in needed to play</li>
-  </ul>
+  <section class="band">
+    <div class="wide">
+      <p class="eyebrow">For parents and teachers</p>
+      <h2>Fun at any age, with parents and teachers in control</h2>
+      <p>See what your child is learning, choose the level, decide what is switched on, and choose who plays in your world.</p>
+      <div class="grid2">
+        <img class="shot" src="/home/report.webp" width="900" height="562" loading="lazy" alt="The learning report and learning level in the parent area, from a test game">
+        <div class="cards">
+          <div class="card"><h3>Learning report</h3><p>See how many maths and word questions your child answered, how many were right the first time, and how many hints they used.</p></div>
+          <div class="card"><h3>Choose the level</h3><p>Leave the level on Auto, keep it within a band between 1 and 100, or set it yourself. You can start again at any time.</p></div>
+          <div class="card"><h3>Guides inside the game</h3><p>Vital the elephant teaches new players how to play, one tip at a time.</p></div>
+          <div class="card"><h3>Parent controls</h3><p>Switch quiz friends and Vital's tips on or off in Settings. The dragons, the learning level and the cloud save are in the parent area, which children do not open by accident, and saving to the cloud needs a grown-up's sign-in.</p></div>
+        </div>
+      </div>
 
-  <p class="small"><b>What you need to play:</b> the Android app needs Android 7.0 or newer; in a browser, a recent Chrome, Edge, Firefox or Safari. On older or slower devices the game may run slowly.</p>
+      <div class="private" style="margin-top:28px">
+        <span class="code" aria-hidden="true">&#128274; ABCD</span>
+        <div>
+          <h3 style="margin-top:0">Private worlds, never public</h3>
+          <p style="margin:0">Every world is private. Nobody can find it in a list or join it without its 4-letter code, so children only play with the people you invite. A teacher can start a world for the class and share the code with the students.</p>
+        </div>
+      </div>
 
-  <p class="small">Made for children and families. Players cannot chat with each other, and names are chosen from a list.</p>
-  <p class="small"><a href="/how-to-play.html" style="color:var(--muted)">How to play</a> &middot; <a href="/release-notes.html" style="color:var(--muted)">Release notes</a> &middot; <a href="/privacy.html" style="color:var(--muted)">Privacy</a> &middot; <a href="/terms.html" style="color:var(--muted)">Terms</a> &middot; <a href="/contact.html" style="color:var(--muted)">Contact and suggestion box</a></p>
+      <div class="soon" style="margin-top:22px">
+        <span class="tag">Coming soon</span>
+        <h3>For teachers and schools</h3>
+        <p>Approved teachers will add their own quiz questions for their class, and the quiz friends will ask them in the game. Each class gets its own private world with a longer 8-character code.</p>
+        <a class="btn btn-line" href="/teachers.html">For teachers</a>
+      </div>
+
+      <h3>What grown-ups control</h3>
+      <ul class="labels">
+        <li>Learning level</li><li>Quiz friends on or off</li><li>Vital's tips on or off</li><li>Dragons on, high or off</li><li>Cloud save</li><li>Who gets the world code</li>
+      </ul>
+      <p><a href="/how-to-play.html#grownups">All parental controls</a> &middot; <a href="/privacy.html">Privacy</a></p>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="wide">
+      <h2>What is new</h2>
+      <!-- whats-new -->
+<ul class="news"><li><a href="/release-notes.html#v0.6.88"><span class="ver">0.6.88</span> <b>Share the game, the Activity log and a new website</b></a></li><li><a href="/release-notes.html#v0.6.87"><span class="ver">0.6.87</span> <b>Playing together: no more starting in the ground, an activity log and a map</b></a></li><li><a href="/release-notes.html#v0.6.86"><span class="ver">0.6.86</span> <b>Real bridges</b></a></li></ul>
+<!-- /whats-new -->
+      <p><a href="/release-notes.html">See all changes</a></p>
+    </div>
+  </section>
+
+  <section class="end">
+    <div class="wide">
+      <h2>Ready for an adventure?</h2>
+      <div class="row"><a class="btn btn-play btn-big" href="/play/">Play now</a></div>
+    </div>
+  </section>
+</main>
+<!-- site-footer -->
+<footer class="foot"><div class="in">
+  <ul><li><a href="/how-to-play.html">How to play</a></li><li><a href="/release-notes.html">What is new</a></li><li><a href="/privacy.html">Privacy</a></li><li><a href="/terms.html">Terms</a></li><li><a href="/contact.html">Contact</a></li></ul>
+  <p>For kids, families and players of every age.</p>
+</div></footer>
+<!-- /site-footer -->
 </body>
 </html>

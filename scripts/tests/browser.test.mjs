@@ -3612,3 +3612,46 @@ test('0.6.87: the player count at the top left, the world\'s log bubble, and the
     assert.equal(await page.evaluate(() => window.gameTest.mapOpen), false, 'a tap on the map closes it');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [fightLevel2Game()] }));
+
+// ---- Share the game (0.6.88, SPEC-030) ----
+test('share the game: the button is in the parent area; a tap opens the share window with the fixed text and address and adds 500 gems once; a second tap adds nothing; with the reward off no gems', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors, requests) => {
+    await page.evaluate(() => {
+      window.__shared = [];
+      navigator.share = d => { window.__shared.push(d); return Promise.resolve(); };
+    });
+    const gems = () => page.evaluate(() => window.gameTest.inv.gem || 0);
+    const before = await gems();
+    assert.equal(await page.evaluate(() => !!document.getElementById('shareBtn') && getComputedStyle(document.getElementById('parentArea')).display), 'none', 'the button sits in the closed parent area');
+    const sent = requests.length;
+    await page.evaluate(() => document.getElementById('shareBtn').click());
+    await page.waitForFunction(() => window.__shared.length === 1);
+    const d = await page.evaluate(() => window.__shared[0]);
+    assert.equal(d.url, 'https://free-game-vitale.vercel.app/');
+    assert.equal(d.text, 'Adventurers of Drenerics: a block-building adventure for children and families. Play free in your browser:');
+    assert.equal(await gems(), before + 500);
+    assert.equal(requests.slice(sent).filter(u => !u.startsWith('http://127.0.0.1')).length, 0, 'nothing is sent when the share window opens');
+    assert.match(await page.evaluate(() => document.getElementById('shareLine').textContent), /The 500 gems have been added to this game/);
+    assert.equal(await page.evaluate(() => window.gameTest.share.given), true);
+    await page.evaluate(() => document.getElementById('shareBtn').click());
+    await page.waitForFunction(() => window.__shared.length === 2);
+    assert.equal(await gems(), before + 500, 'a second tap adds nothing');
+    // kept in the saved game
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('kidsgame.slot.0')).shared), true);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }));
+
+test('share the game with the reward off (or 300 gems): the button still shares, no line about gems, no gems', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await page.evaluate(() => { window.__shared = []; navigator.share = d => { window.__shared.push(d); return Promise.resolve(); }; });
+    const gems = () => page.evaluate(() => window.gameTest.inv.gem || 0);
+    const before = await gems();
+    await page.evaluate(() => { window.gameTest.setShareReward(false, 500); document.getElementById('shareBtn').click(); });
+    await page.waitForFunction(() => window.__shared.length === 1);
+    assert.equal(await gems(), before);
+    assert.doesNotMatch(await page.evaluate(() => document.getElementById('shareLine').textContent), /gems/);
+    await page.evaluate(() => { window.gameTest.setShareReward(true, 300); document.getElementById('shareBtn').click(); });
+    await page.waitForFunction(() => window.__shared.length === 2);
+    assert.equal(await gems(), before + 300);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }));

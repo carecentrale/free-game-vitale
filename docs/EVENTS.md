@@ -22,6 +22,7 @@ Sent every 10 seconds and when the page closes. Each row: the event kind, game v
 | `player_joined` | Another device came into the world; recorded by the leading device only, so it is not counted twice (0.6.87) | Its visit code, `players N` | "Gameplay records" |
 | `player_left` | Another device left the world; leading device only (0.6.87) | Its visit code, `players N` | "Gameplay records" |
 | `world_left` | This device leaves a shared world: closing the game or Log off (0.6.87). Best effort: a closing page may not send it | `players N` | "Gameplay records" |
+| `share_reward` | A grown-up tapped Share the game in the parent area, or a share made on the parent stats page reached this saved game, and the share gems were added (once per saved game, 0.6.88) | `game` or `account`, and the number of gems | "Gameplay records" |
 | `spawn_moved` | The character had to be moved so it was not inside the ground (0.6.87) | `start` or `up`, and `join` or `reload` | "Gameplay records" |
 | `map_opened` | The map is opened; at most once a minute (`logOnce`, 0.6.87) | `players N` | "Gameplay records" |
 | `log_opened` | The world's log is opened; at most once a minute (`logOnce`, 0.6.87) | `notes N` | "Gameplay records" |
@@ -54,6 +55,11 @@ Sent every 10 seconds. World code, game version, kind, position rounded to 0.1, 
 | Record | When | Fields | Privacy page row |
 |---|---|---|---|
 | `cloud_saves` | Every 30 seconds and when the page closes, while a parent is signed in with cloud save on; read on load; deleted on request | The parent account's id, the saved game, the time | "Parent sign-in and cloud save" |
+
+## 5b. Share the game: table `parent_shares` (parent signed in only, 0.6.88, SPEC-030)
+| Record | When | Fields | Privacy page row |
+|---|---|---|---|
+| `parent_shares` | Written by the parent stats page when a signed-in parent taps Share the game; read by a game signed in to the same account in the parent area, to give the share gems once | The parent account's id and the date. Nothing about who the link went to, or whether it was sent or opened | "Share the game" |
 
 ## 6. Owner settings read when the game opens: table `game_settings` (read only, nothing sent about the player)
 | Record | Fields read | Privacy page row |

@@ -441,7 +441,8 @@ test('the levels are kept in the saved game only: changing a level stores nothin
   assert.match(game, /quiz: quizStats, levels: quizLevels,/);
   assert.match(game, /quizLevels = quizLevelsFrom\(saved\.levels\);/);
   // no new database table or access rule: the game names the same tables as before
-  assert.deepEqual([...new Set([...game.matchAll(/sb\.from\('(\w+)'\)/g)].map(m => m[1]))].sort(), ['cloud_saves', 'debug_log', 'game_errors', 'game_events']);
+  // (0.6.88: parent_shares, the parent's own "shared" mark for the share reward, SPEC-030; not used by the level code)
+  assert.deepEqual([...new Set([...game.matchAll(/sb\.from\('(\w+)'\)/g)].map(m => m[1]))].sort(), ['cloud_saves', 'debug_log', 'game_errors', 'game_events', 'parent_shares']);
 });
 
 // ---- Maths by level (0.6.72, SPEC-004) ----

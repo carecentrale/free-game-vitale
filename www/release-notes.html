@@ -3,36 +3,51 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Release notes: Adventurers of Drenerics</title>
+<title>What is new: Adventurers of Drenerics</title>
 <meta name="description" content="What has changed in each version of Adventurers of Drenerics, newest first.">
-<style>
-  :root{--bg:#f4f6fb;--card:#fff;--ink:#1d2433;--muted:#5b6475;--line:#e4e7ee;--accent:#3b6fd8}
-  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0}}
-  :root[data-theme="dark"]{--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.6}
-  main{max-width:760px;margin:0 auto;padding:24px 16px 48px;box-sizing:border-box}
-  nav{font-size:14px;margin-bottom:12px}
-  nav a{color:var(--accent);margin-right:14px}
-  h1{font-size:28px;margin:8px 0 4px}
-  h2{font-size:18px;margin:0 0 6px}
-  p,li{font-size:16px}
-  .muted{color:var(--muted);font-size:14px}
-  a{color:var(--accent)}
-  section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:14px 0}
-  section ul{margin:0;padding-left:20px}
-  .ver{display:inline-block;background:var(--accent);color:#fff;border-radius:8px;padding:0 8px;margin-right:6px;font-size:15px}
-</style>
+<!-- site-head -->
+<link rel="stylesheet" href="/site.css">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" type="image/png" href="/icon-96.png" sizes="96x96">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Adventurers of Drenerics">
+<meta property="og:title" content="What is new: Adventurers of Drenerics">
+<meta property="og:description" content="What has changed in each version of Adventurers of Drenerics, newest first.">
+<meta property="og:url" content="https://free-game-vitale.vercel.app/release-notes.html">
+<meta property="og:image" content="https://free-game-vitale.vercel.app/preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The Adventurers of Drenerics logo: a floating block island with a castle">
+<meta name="twitter:card" content="summary_large_image">
+<!-- /site-head -->
 </head>
 <body>
-<main>
-  <nav><a href="/">Home</a><a href="/how-to-play.html">How to play</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="/contact.html">Contact</a></nav>
-
-  <h1>Release notes</h1>
-  <div class="muted">Adventurers of Drenerics. What has changed in each version, newest first. The newest version is 0.6.87.</div>
+<!-- site-header -->
+<a class="skip" href="#main">Skip to the page</a>
+<header class="topbar"><div class="in">
+  <a class="brand" href="/"><img src="/icon-96.png" alt="" width="44" height="44"><span>Adventurers of Drenerics</span></a>
+  <nav class="desk" aria-label="Site"><ul class="links"><li><a href="/how-to-play.html">How to play</a></li><li><a href="/release-notes.html" aria-current="page">What is new</a></li><li><a href="/contact.html">Contact</a></li></ul></nav>
+  <details class="menu"><summary>Menu</summary><nav aria-label="Site"><ul class="links"><li><a href="/how-to-play.html">How to play</a></li><li><a href="/release-notes.html" aria-current="page">What is new</a></li><li><a href="/contact.html">Contact</a></li></ul></nav></details>
+  <a class="btn btn-play" href="/play/">Play</a>
+</div></header>
+<!-- /site-header -->
+<main id="main" class="page">
+  <h1>What is new</h1>
+  <div class="muted">Adventurers of Drenerics. What has changed in each version, newest first. The newest version is 0.6.88.</div>
   <p>New to the game, or looking for how something works? Read <a href="/how-to-play.html">How to play</a>.</p>
 
-  <section id="v0.6.87">
-    <h2><span class="ver">0.6.87</span> Playing together: no more starting in the ground, a chat log and a map</h2>
+  <section class="note" id="v0.6.88">
+    <h2><span class="ver">0.6.88</span> Share the game, the Activity log and a new website</h2>
+    <ul>
+      <li>Grown-ups can share the game from the parent area, and the game gets 500 gems as a thank-you.</li>
+      <li>The list of who joined and left is now called the Activity log.</li>
+      <li>The website has a new look: the same menu on every page, bigger text, a dark mode that follows your device, pictures of the game on the home page, an easier How to play guide, and a picture when you share a link.</li>
+      <li>A new page tells teachers and schools what is coming.</li>
+    </ul>
+  </section>
+  <section class="note" id="v0.6.87">
+    <h2><span class="ver">0.6.87</span> Playing together: no more starting in the ground, an activity log and a map</h2>
     <ul>
       <li>When you join a friend&#39;s world you now start on top of the land at the world&#39;s start point, not inside the ground</li>
       <li>A speech bubble at the bottom left lights up when a friend joins or leaves your world. Tap it to read the list of everything that happened, and tap it again to close it</li>
@@ -40,26 +55,26 @@
       <li>Press M, or tap the Map button, to see a map of the land around you and where your friends are. Tap the map or press M again to close it</li>
     </ul>
   </section>
-  <section id="v0.6.86">
+  <section class="note" id="v0.6.86">
     <h2><span class="ver">0.6.86</span> Real bridges</h2>
     <ul>
       <li>Bridges now look like real ones: little wooden footbridges over streams, stone arch bridges, and long timber bridges with stone towers over wide water. They are wider too, so they are easy to walk across</li>
       <li>Cream and sandstone castles no longer flicker when you stand right next to their walls</li>
     </ul>
   </section>
-  <section id="v0.6.85">
+  <section class="note" id="v0.6.85">
     <h2><span class="ver">0.6.85</span> Guards tidy up</h2>
     <ul>
       <li>Monsters the merchants&#39; guards drive off no longer lie around on the road: they sink into the ground after a few seconds</li>
     </ul>
   </section>
-  <section id="v0.6.84">
+  <section class="note" id="v0.6.84">
     <h2><span class="ver">0.6.84</span> Log off</h2>
     <ul>
       <li>The quit question has a new Log off button. It saves your game and takes you back to the start menu, so you can load another game or world, or start a new one</li>
     </ul>
   </section>
-  <section id="v0.6.83">
+  <section class="note" id="v0.6.83">
     <h2><span class="ver">0.6.83</span> A castle to welcome you, and a quicker start</h2>
     <ul>
       <li>A castle now greets you each time the game opens, while it gets ready and checks for a new version</li>
@@ -67,13 +82,13 @@
       <li>Tick &quot;Load my game by itself next time&quot; to go straight into your game. Change it any time in Settings</li>
     </ul>
   </section>
-  <section id="v0.6.82">
+  <section class="note" id="v0.6.82">
     <h2><span class="ver">0.6.82</span> Castles without flicker</h2>
     <ul>
       <li>Castle walls and windows no longer flicker or blink when you look at them from far away. Up close, blocks look as sharp as before</li>
     </ul>
   </section>
-  <section id="v0.6.81">
+  <section class="note" id="v0.6.81">
     <h2><span class="ver">0.6.81</span> Grand castles, roads, guards, dragons and playing together</h2>
     <ul>
       <li>Castles are much grander: three styles, tall roofs, towers with spires, windows, gardens and furnished rooms. Your own worlds get them too</li>
@@ -84,19 +99,19 @@
       <li>Grown-ups: the parent area has a new Dragons part: On, Stay high or Off</li>
     </ul>
   </section>
-  <section id="v0.6.80">
+  <section class="note" id="v0.6.80">
     <h2><span class="ver">0.6.80</span> The game offers each new version</h2>
     <ul>
       <li>When there is a new version, the game offers it. Tap Update, keep playing, then tap Restart. Your world stays safe</li>
     </ul>
   </section>
-  <section id="v0.6.79">
+  <section class="note" id="v0.6.79">
     <h2><span class="ver">0.6.79</span> Quiz badges are easy to find</h2>
     <ul>
       <li>Tap Powers to see your quiz badges: five big stars that light up as you earn them, and how many right answers until the next one</li>
     </ul>
   </section>
-  <section id="v0.6.78">
+  <section class="note" id="v0.6.78">
     <h2><span class="ver">0.6.78</span> Play again, quiz badges and merchants on the move</h2>
     <ul>
       <li>After a right answer the quiz stays open: tap Play again for another question from the same friend, or Done when you have had enough</li>
@@ -104,7 +119,7 @@
       <li>Merchants no longer stay parked at a castle: if you do not trade, a merchant waits a little, then rides on to the next castle</li>
     </ul>
   </section>
-  <section id="v0.6.77">
+  <section class="note" id="v0.6.77">
     <h2><span class="ver">0.6.77</span> Busy castles and travelling merchants</h2>
     <ul>
       <li>Castles seen from far away no longer look cut off or floating: they stand on their hill all the way until you arrive</li>
@@ -112,7 +127,7 @@
       <li>Merchants ride hover carts from castle to castle. Walk up to one and it stops: tap the cart to trade. Sell monster parts and blocks for gems, and buy gear and castle blocks with gems</li>
     </ul>
   </section>
-  <section id="v0.6.76">
+  <section class="note" id="v0.6.76">
     <h2><span class="ver">0.6.76</span> First-person view, caves and castles</h2>
     <ul>
       <li>New View button: see the world through your character&#39;s eyes, and look up and down. Indoors, the camera now stays close so you can always see</li>
@@ -120,14 +135,14 @@
       <li>Castles! Find one, walk through the gate, climb the towers and look for the treasure room. New worlds have them</li>
     </ul>
   </section>
-  <section id="v0.6.75">
+  <section class="note" id="v0.6.75">
     <h2><span class="ver">0.6.75</span> Hint and Another question</h2>
     <ul>
       <li>Quiz friends have two new buttons: Hint gives you a clue, and Another question swaps it for a different one</li>
       <li>For parents: the quiz friends report also counts how many hints and swaps were used</li>
     </ul>
   </section>
-  <section id="v0.6.74">
+  <section class="note" id="v0.6.74">
     <h2><span class="ver">0.6.74</span> Aim the fireball, dig by hand, and a Powers button</h2>
     <ul>
       <li>The fireball now flies where you tap: tap the Spell button, then tap a monster or a place. The Spell button is no longer hidden under the Recent list</li>
@@ -136,14 +151,14 @@
       <li>Your powers now live behind the Powers button, so the top left of the screen is clear</li>
     </ul>
   </section>
-  <section id="v0.6.73">
+  <section class="note" id="v0.6.73">
     <h2><span class="ver">0.6.73</span> Meet Vital the elephant</h2>
     <ul>
       <li>Meet Vital the elephant! He walks up with a ! and shows you how to play, one tip at a time. Tap No more tips if you know it all</li>
       <li>Settings has a &quot;Tips from Vital&quot; switch to turn his tips off or on</li>
     </ul>
   </section>
-  <section id="v0.6.72">
+  <section class="note" id="v0.6.72">
     <h2><span class="ver">0.6.72</span> 100 Maths levels and 100 Words levels</h2>
     <ul>
       <li>Quiz friends now have 100 Maths levels and 100 Words levels. Answer right and your level goes up, with bigger sums and longer words to spell</li>
@@ -152,7 +167,7 @@
       <li>Grown-ups: the parent area has a new Learning level part, to keep the questions in one range of levels, set a level, or start the levels again</li>
     </ul>
   </section>
-  <section id="v0.6.71">
+  <section class="note" id="v0.6.71">
     <h2><span class="ver">0.6.71</span> Tap the question mark</h2>
     <ul>
       <li>Tapping the &quot;?&quot; bubble over a quiz friend now opens its question, the same as tapping the friend</li>
@@ -160,20 +175,20 @@
       <li>The Recent list has a shorter heading</li>
     </ul>
   </section>
-  <section id="v0.6.69">
+  <section class="note" id="v0.6.69">
     <h2><span class="ver">0.6.69</span> Tidier buttons at the top</h2>
     <ul>
       <li>The Settings and Controls buttons no longer sit on top of each other</li>
     </ul>
   </section>
-  <section id="v0.6.68">
+  <section class="note" id="v0.6.68">
     <h2><span class="ver">0.6.68</span> Hold a quick bar slot to fill it</h2>
     <ul>
       <li>Press and hold a quick bar slot for a moment: the bag opens, and the item you tap goes into that slot</li>
       <li>On tablets and phones, holding a hand button does the same for slots 1 and 2</li>
     </ul>
   </section>
-  <section id="v0.6.67">
+  <section class="note" id="v0.6.67">
     <h2><span class="ver">0.6.67</span> Quiz friends come sooner</h2>
     <ul>
       <li>A quiz friend comes to say hello as soon as you start playing</li>
@@ -181,14 +196,14 @@
       <li>If a friend leaves without a right answer, the next one comes 4 to 7 minutes later, as before</li>
     </ul>
   </section>
-  <section id="v0.6.66">
+  <section class="note" id="v0.6.66">
     <h2><span class="ver">0.6.66</span> Tap to hit, and life bars only on hurt monsters</h2>
     <ul>
       <li>With the sword in your hand, tap a close monster to hit it once. Before, you had to hold. Holding still keeps hitting</li>
       <li>A monster shows its life bar only after it has been hit</li>
     </ul>
   </section>
-  <section id="v0.6.65">
+  <section class="note" id="v0.6.65">
     <h2><span class="ver">0.6.65</span> Word scrambles, and a quiz report for parents</h2>
     <ul>
       <li>Quiz friends now also ask you to spell a word: a picture shows what it is, and its letters are mixed up</li>
@@ -198,14 +213,14 @@
       <li>For parents: the parent area shows how many questions were seen and answered right, for maths and for words</li>
     </ul>
   </section>
-  <section id="v0.6.64">
+  <section class="note" id="v0.6.64">
     <h2><span class="ver">0.6.64</span> Life bars for monsters</h2>
     <ul>
       <li>Every monster has a small life bar over its head. It shows how much health the monster has left</li>
       <li>The bar is green at first, turns yellow as the monster gets weaker, and red when it is nearly defeated</li>
     </ul>
   </section>
-  <section id="v0.6.63">
+  <section class="note" id="v0.6.63">
     <h2><span class="ver">0.6.63</span> Quiz friends</h2>
     <ul>
       <li>Now and then a friendly owl, turtle or robot walks up to you with a &quot;?&quot; over its head and waves</li>
@@ -215,14 +230,14 @@
       <li>Settings has a &quot;Quiz friends&quot; switch to turn them off or on</li>
     </ul>
   </section>
-  <section id="v0.6.62">
+  <section class="note" id="v0.6.62">
     <h2><span class="ver">0.6.62</span> Building on phones, and room in a full bag</h2>
     <ul>
       <li>Bag full? Open the bag and tap Drop next to a block or a monster part. One goes on the ground nearby, where you can pick it up again for 5 minutes. Gems, tools and weapons cannot be dropped</li>
       <li>With a block in your hand, tap the side or top of a block to build there. Before, a tap only tried to dig, so touch screens could not build</li>
     </ul>
   </section>
-  <section id="v0.6.61">
+  <section class="note" id="v0.6.61">
     <h2><span class="ver">0.6.61</span> Sounds and music</h2>
     <ul>
       <li>Sounds for digging, building, gems, jumping, landing, sword swings and hits, fireballs, teleporting, water, broken gear and buttons</li>
@@ -230,7 +245,7 @@
       <li>Change how loud they are in Settings, with the Sounds and Music sliders</li>
     </ul>
   </section>
-  <section id="v0.6.60">
+  <section class="note" id="v0.6.60">
     <h2><span class="ver">0.6.60</span> Hand buttons, and getting ready for sound</h2>
     <ul>
       <li>Quit has moved into Settings: the &quot;Quit the game&quot; button is at the bottom</li>
@@ -241,7 +256,7 @@
       <li>The sounds and the music themselves arrive in a later version</li>
     </ul>
   </section>
-  <section id="v0.6.59">
+  <section class="note" id="v0.6.59">
     <h2><span class="ver">0.6.59</span> Quit the game</h2>
     <ul>
       <li>New Quit button at the top, under Settings. It asks first, then saves your game and closes it</li>
@@ -249,7 +264,7 @@
       <li>On Android, the phone&#39;s Back button opens the question too, and Save and quit closes the app</li>
     </ul>
   </section>
-  <section id="v0.6.58">
+  <section class="note" id="v0.6.58">
     <h2><span class="ver">0.6.58</span> Moving monsters, new scenery</h2>
     <ul>
       <li>The Imp and the Spike Beast now move their legs, arms and head when they walk and look around when they stand</li>
@@ -258,7 +273,7 @@
       <li>New scenery made in the game: cactuses in the desert, ice crystals and snowmen in the tundra, pumpkins in the grassland and forest</li>
     </ul>
   </section>
-  <section id="v0.6.57">
+  <section class="note" id="v0.6.57">
     <h2><span class="ver">0.6.57</span> Phone controls</h2>
     <ul>
       <li>New: a thumb stick to walk. Push it a little to walk slowly, all the way to run</li>
@@ -266,47 +281,47 @@
       <li>On phones, the quick bar and power meters are hidden. Tap the button at the top left to show them; choosing a tool hides them again</li>
     </ul>
   </section>
-  <section id="v0.6.56">
+  <section class="note" id="v0.6.56">
     <h2><span class="ver">0.6.56</span> Safer shared worlds</h2>
     <ul>
       <li>Shared worlds are better protected: a world can only be opened or saved with its code</li>
       <li>The game no longer keeps a code on the device to count play. Each visit is counted on its own</li>
     </ul>
   </section>
-  <section id="v0.6.55">
+  <section class="note" id="v0.6.55">
     <h2><span class="ver">0.6.55</span> Standing still</h2>
     <ul>
       <li>Fixed: the character&#39;s head bobbed up and down while standing still. The landing squash now happens only when the character really lands</li>
     </ul>
   </section>
-  <section id="v0.6.54">
+  <section class="note" id="v0.6.54">
     <h2><span class="ver">0.6.54</span> Steady picture</h2>
     <ul>
       <li>Fixed: the ground and the character shook slightly while moving. The world is now drawn steadily, and the camera follows smoothly even when the device is busy</li>
     </ul>
   </section>
-  <section id="v0.6.53">
+  <section class="note" id="v0.6.53">
     <h2><span class="ver">0.6.53</span> Biomes</h2>
     <ul>
       <li>The world is split into biomes (desert, savanna, rainforest, grassland, forest, taiga, tundra) that blend into each other across the world</li>
       <li>Deserts are sand, tundra is snow (new snow block), and each biome has its own trees and plants</li>
     </ul>
   </section>
-  <section id="v0.6.52">
+  <section class="note" id="v0.6.52">
     <h2><span class="ver">0.6.52</span> Lighter scenery, performance readout</h2>
     <ul>
       <li>Scenery is stored more compactly and is drawn only near the player</li>
       <li>Add ?perf=1 to the page address to see frame rate and memory in the console (stays on your device)</li>
     </ul>
   </section>
-  <section id="v0.6.51">
+  <section class="note" id="v0.6.51">
     <h2><span class="ver">0.6.51</span> Water puts out fireballs</h2>
     <ul>
       <li>A fireball that reaches water fizzles out in a puff of steam, with no blast and no damage</li>
       <li>Enemies still take the blast when a fireball hits them</li>
     </ul>
   </section>
-  <section id="v0.6.50">
+  <section class="note" id="v0.6.50">
     <h2><span class="ver">0.6.50</span> Trees, bushes and scenery on the grass</h2>
     <ul>
       <li>Trees, bushes, grass tufts, flowers, mushrooms, stones and stumps from the free CC0 Low Poly Nature Pack by flo-bit now grow on the grass</li>
@@ -314,33 +329,33 @@
       <li>Fireballs aimed at water now burst on the water instead of passing through it</li>
     </ul>
   </section>
-  <section id="v0.6.49">
+  <section class="note" id="v0.6.49">
     <h2><span class="ver">0.6.49</span> Fireball hits the block you click</h2>
     <ul>
       <li>A right-click fireball now flies straight at the block or enemy you click, so it lands where you aimed</li>
     </ul>
   </section>
-  <section id="v0.6.48">
+  <section class="note" id="v0.6.48">
     <h2><span class="ver">0.6.48</span> Fireball aims at what you click</h2>
     <ul>
       <li>A fireball flies to the point you click or tap, and it follows an enemy you hit. It lasts long enough to reach it</li>
       <li>Fire sparks burst where a fireball lands. Any part of an enemy&#39;s body counts as a hit</li>
     </ul>
   </section>
-  <section id="v0.6.47">
+  <section class="note" id="v0.6.47">
     <h2><span class="ver">0.6.47</span> Fireball controls</h2>
     <ul>
       <li>Right-click on a computer casts a fireball when the fireball is the selected quick bar item. Otherwise right-click still places a block</li>
       <li>Tablets and phones get a FIRE button to the right of the quick bar (shown with on-screen controls on, once you have learned the fireball)</li>
     </ul>
   </section>
-  <section id="v0.6.46">
+  <section class="note" id="v0.6.46">
     <h2><span class="ver">0.6.46</span> Climbing out of water</h2>
     <ul>
       <li>Fixed: from the water you could not get out onto a shore. Now, holding jump against the shore lifts you over the edge</li>
     </ul>
   </section>
-  <section id="v0.6.45">
+  <section class="note" id="v0.6.45">
     <h2><span class="ver">0.6.45</span> Durability, gear and enemy parts</h2>
     <ul>
       <li>Pickaxes and weapons have durability. A pickaxe wears by one each block it digs; a weapon wears by one each hit. At zero it breaks</li>
@@ -348,7 +363,7 @@
       <li>Armour is in the bag with durability. It does nothing yet</li>
     </ul>
   </section>
-  <section id="v0.6.44">
+  <section class="note" id="v0.6.44">
     <h2><span class="ver">0.6.44</span> Enemy names, health and weaknesses</h2>
     <ul>
       <li>Each enemy has its own name, power level, health and toughness. Some are weak to fire (goblins, brutes, hood goblins) or to holy light (imps, spear imps)</li>
@@ -356,7 +371,7 @@
       <li>Fireball hurts every enemy inside its burst. Enemies weak to fire take double damage</li>
     </ul>
   </section>
-  <section id="v0.6.43">
+  <section class="note" id="v0.6.43">
     <h2><span class="ver">0.6.43</span> Swimming and the first magic skill</h2>
     <ul>
       <li>Water: you swim. In water you move slower and sink slowly. Hold jump to swim up</li>
@@ -364,7 +379,7 @@
       <li>Fireball: tap the screen (or press F) to shoot. It defeats the monsters it hits. Level 2 magic makes a bigger ball and a wider burst</li>
     </ul>
   </section>
-  <section id="v0.6.42">
+  <section class="note" id="v0.6.42">
     <h2><span class="ver">0.6.42</span> Lakes, sand and a 4000 x 4000 land</h2>
     <ul>
       <li>Water fills low places: lakes and the sea, with sand on the shore. You can wade in water, and dig or build under it</li>
@@ -372,20 +387,20 @@
       <li>Land is drawn in chunks around the player and loads a few chunks at a time, so the game does not freeze while you walk</li>
     </ul>
   </section>
-  <section id="v0.6.41">
+  <section class="note" id="v0.6.41">
     <h2><span class="ver">0.6.41</span> Saved games list fixed</h2>
     <ul>
       <li>Saved games made since version 0.6.34 are listed again at start (they were hidden by mistake)</li>
     </ul>
   </section>
-  <section id="v0.6.40">
+  <section class="note" id="v0.6.40">
     <h2><span class="ver">0.6.40</span> Taller mountains and deeper valleys</h2>
     <ul>
       <li>The world is 96 blocks tall: higher mountains and deeper valleys and canyons</li>
       <li>Worlds saved in the 0.6.39 height keep their changes</li>
     </ul>
   </section>
-  <section id="v0.6.39">
+  <section class="note" id="v0.6.39">
     <h2><span class="ver">0.6.39</span> Sky, sun, clouds and mountains</h2>
     <ul>
       <li>A sky with a gradient, a sun and drifting clouds</li>
@@ -393,31 +408,31 @@
       <li>Saved worlds keep their changes</li>
     </ul>
   </section>
-  <section id="v0.6.38">
+  <section class="note" id="v0.6.38">
     <h2><span class="ver">0.6.38</span> Enemies start near a loaded game</h2>
     <ul>
       <li>When a saved game is opened, the first enemies now appear where the player is, not at a random spot</li>
     </ul>
   </section>
-  <section id="v0.6.37">
+  <section class="note" id="v0.6.37">
     <h2><span class="ver">0.6.37</span> Fix: game would not start after a saved game was chosen</h2>
     <ul>
       <li>Fixed a bug from version 0.6.34 that stopped the game from showing the world: some game settings and the bag were missing</li>
     </ul>
   </section>
-  <section id="v0.6.36">
+  <section class="note" id="v0.6.36">
     <h2><span class="ver">0.6.36</span> Errors shown on screen</h2>
     <ul>
       <li>If something goes wrong, the error message appears at the bottom of the screen instead of failing silently</li>
     </ul>
   </section>
-  <section id="v0.6.35">
+  <section class="note" id="v0.6.35">
     <h2><span class="ver">0.6.35</span> World status for support</h2>
     <ul>
       <li>The parent area shows the world status (seed, blocks drawn, player position, ground height), and drawing errors are logged</li>
     </ul>
   </section>
-  <section id="v0.6.34">
+  <section class="note" id="v0.6.34">
     <h2><span class="ver">0.6.34</span> A 400,000 x 400,000 block world</h2>
     <ul>
       <li>The world is now 400,000 blocks wide. Land is made on demand from the seed, so walking anywhere works</li>
@@ -425,32 +440,32 @@
       <li>Only the blocks near you are drawn, and blocks buried in the ground are skipped</li>
     </ul>
   </section>
-  <section id="v0.6.33">
+  <section class="note" id="v0.6.33">
     <h2><span class="ver">0.6.33</span> A new random island for every new game</h2>
     <ul>
       <li>Every new game gets its own island: hills, caves and gems are different each time</li>
       <li>The land slopes down toward the rim, so the island edge looks like land instead of a straight wall</li>
     </ul>
   </section>
-  <section id="v0.6.32">
+  <section class="note" id="v0.6.32">
     <h2><span class="ver">0.6.32</span> Saved games list layout fix</h2>
     <ul>
       <li>Fixed the saved games list at start, which was squeezed into a narrow column</li>
     </ul>
   </section>
-  <section id="v0.6.31">
+  <section class="note" id="v0.6.31">
     <h2><span class="ver">0.6.31</span> Clearer saved games list</h2>
     <ul>
       <li>The start menu shows each saved game as a card: name, world code and last played time, with Play and Delete under it</li>
     </ul>
   </section>
-  <section id="v0.6.30">
+  <section class="note" id="v0.6.30">
     <h2><span class="ver">0.6.30</span> Safety limit of 100 saved games on the device</h2>
     <ul>
       <li>Up to 100 saved games on this device. A safety limit; the start menu says when it is reached</li>
     </ul>
   </section>
-  <section id="v0.6.29">
+  <section class="note" id="v0.6.29">
     <h2><span class="ver">0.6.29</span> One free cloud save; unlimited saves on the device</h2>
     <ul>
       <li>Saved games on this device are unlimited</li>
@@ -458,14 +473,14 @@
       <li>Pressing Save now asks before it replaces the game in the cloud</li>
     </ul>
   </section>
-  <section id="v0.6.28">
+  <section class="note" id="v0.6.28">
     <h2><span class="ver">0.6.28</span> Parents can delete the cloud save</h2>
     <ul>
       <li>In the parent area, a signed-in parent can delete their cloud save. The game on this device is not changed</li>
       <li>After a delete, automatic cloud saves stay off until the parent presses Save now</li>
     </ul>
   </section>
-  <section id="v0.6.27">
+  <section class="note" id="v0.6.27">
     <h2><span class="ver">0.6.27</span> Choose a saved game at start</h2>
     <ul>
       <li>When you open the game, your saved games are listed. Pick one to carry on, delete one, or start a new game</li>
@@ -473,62 +488,62 @@
       <li>Starting a new game from the bag keeps your other saved games</li>
     </ul>
   </section>
-  <section id="v0.6.26">
+  <section class="note" id="v0.6.26">
     <h2><span class="ver">0.6.26</span> Dropped items disappear after 5 minutes</h2>
     <ul>
       <li>Items dropped on the ground (when the bag is full) disappear 5 minutes after they were dropped</li>
     </ul>
   </section>
-  <section id="v0.6.25">
+  <section class="note" id="v0.6.25">
     <h2><span class="ver">0.6.25</span> Stuck defeated creatures disappear after 5 minutes</h2>
     <ul>
       <li>A defeated creature that is hovering or still falling now sinks and disappears 5 minutes after it was defeated, the same as one lying on the ground</li>
     </ul>
   </section>
-  <section id="v0.6.24">
+  <section class="note" id="v0.6.24">
     <h2><span class="ver">0.6.24</span> Enemy log records dug-out bodies</h2>
     <ul>
       <li>When the ground under a defeated creature is dug out, the event is recorded in the enemy log (no names, no player codes)</li>
     </ul>
   </section>
-  <section id="v0.6.23">
+  <section class="note" id="v0.6.23">
     <h2><span class="ver">0.6.23</span> Defeated creatures no longer hover</h2>
     <ul>
       <li>A defeated creature that lies on a block is placed exactly on top of it, so it no longer hangs in the air</li>
     </ul>
   </section>
-  <section id="v0.6.22">
+  <section class="note" id="v0.6.22">
     <h2><span class="ver">0.6.22</span> Fallen creatures fall when ground is dug away</h2>
     <ul>
       <li>A defeated creature that is left with nothing under it (for example after the ground is dug out) now falls to the ground</li>
     </ul>
   </section>
-  <section id="v0.6.21">
+  <section class="note" id="v0.6.21">
     <h2><span class="ver">0.6.21</span> Fallen creatures drop off the map</h2>
     <ul>
       <li>A defeated creature that lands past the edge of the island now falls off the map instead of hanging in the air</li>
     </ul>
   </section>
-  <section id="v0.6.20">
+  <section class="note" id="v0.6.20">
     <h2><span class="ver">0.6.20</span> Home page</h2>
     <ul>
       <li>The game now lives at its own address (/play/), with a home page at the main address</li>
     </ul>
   </section>
-  <section id="v0.6.19">
+  <section class="note" id="v0.6.19">
     <h2><span class="ver">0.6.19</span> Teleport works in the background</h2>
     <ul>
       <li>The teleport cast finishes on time even when you switch to another tab</li>
     </ul>
   </section>
-  <section id="v0.6.18">
+  <section class="note" id="v0.6.18">
     <h2><span class="ver">0.6.18</span> Teleport lands on top of the land</h2>
     <ul>
       <li>Teleporting now puts you on top of the land, not at the bottom of a hole you dug</li>
       <li>Enemies that leave the map are recorded for the grown-up admin log</li>
     </ul>
   </section>
-  <section id="v0.6.17">
+  <section class="note" id="v0.6.17">
     <h2><span class="ver">0.6.17</span> Fixes for enemies off the map</h2>
     <ul>
       <li>Enemies that fall off the island or get stuck in the air are removed; new ones appear on the grass</li>
@@ -536,7 +551,7 @@
       <li>The teleport button counts down while it is casting</li>
     </ul>
   </section>
-  <section id="v0.6.16">
+  <section class="note" id="v0.6.16">
     <h2><span class="ver">0.6.16</span> Easier to close Settings</h2>
     <ul>
       <li>Press Esc to close Settings</li>
@@ -544,14 +559,14 @@
       <li>The Close button is larger</li>
     </ul>
   </section>
-  <section id="v0.6.15">
+  <section class="note" id="v0.6.15">
     <h2><span class="ver">0.6.15</span> Teleport to the start</h2>
     <ul>
       <li>Purple teleport button at the top right takes you back to the start, safely above the ground</li>
       <li>Teleporting is free. Cast it for 5 minutes, then wait 1 hour before using it again</li>
     </ul>
   </section>
-  <section id="v0.6.14">
+  <section class="note" id="v0.6.14">
     <h2><span class="ver">0.6.14</span> Enemy fixes and corpses</h2>
     <ul>
       <li>Enemies stay on the ground while they walk and no longer lift off the blocks</li>
@@ -560,13 +575,13 @@
       <li>Right-click to build with a block from the quick bar, without selecting it first</li>
     </ul>
   </section>
-  <section id="v0.6.13">
+  <section class="note" id="v0.6.13">
     <h2><span class="ver">0.6.13</span> Settings screen</h2>
     <ul>
       <li>Settings button at the top right shows the game version and what has changed</li>
     </ul>
   </section>
-  <section id="v0.6.12">
+  <section class="note" id="v0.6.12">
     <h2><span class="ver">0.6.12</span> Drops when the bag is full</h2>
     <ul>
       <li>When the bag is full, digging still works. The block drops on the ground as a small spinning cube</li>
@@ -576,26 +591,26 @@
       <li>Dropped items stay on this device only</li>
     </ul>
   </section>
-  <section id="v0.6.11">
+  <section class="note" id="v0.6.11">
     <h2><span class="ver">0.6.11</span> Cloud save for grown-ups</h2>
     <ul>
       <li>Grown-ups can save the game to the cloud and load it on another device</li>
       <li>Sign-in is for grown-ups only</li>
     </ul>
   </section>
-  <section id="v0.6.10">
+  <section class="note" id="v0.6.10">
     <h2><span class="ver">0.6.10</span> Parent area and player review</h2>
     <ul>
       <li>A grown-up area with a stats page for seeing play activity</li>
     </ul>
   </section>
-  <section id="v0.6.9">
+  <section class="note" id="v0.6.9">
     <h2><span class="ver">0.6.9</span> Enemy movement</h2>
     <ul>
       <li>Enemies bounce and sway while walking and breathe gently while standing</li>
     </ul>
   </section>
-  <section id="v0.6.8">
+  <section class="note" id="v0.6.8">
     <h2><span class="ver">0.6.8</span> Bestiary monsters</h2>
     <ul>
       <li>Imp and Spike Beast enemies now have real 3D models</li>
@@ -603,7 +618,7 @@
       <li>Other enemies keep their original shapes</li>
     </ul>
   </section>
-  <section id="v0.6.0">
+  <section class="note" id="v0.6.0">
     <h2><span class="ver">0.6.0</span> Save and shared worlds</h2>
     <ul>
       <li>Your character and world save on this device automatically</li>
@@ -611,13 +626,13 @@
       <li>The bag has &quot;Start a new game&quot; (asks first, then erases saved progress on this device)</li>
     </ul>
   </section>
-  <section id="v0.5.1">
+  <section class="note" id="v0.5.1">
     <h2><span class="ver">0.5.1</span> Phone layout</h2>
     <ul>
       <li>On phones, the quick bar sits above the controls and fits the screen width</li>
     </ul>
   </section>
-  <section id="v0.5.0">
+  <section class="note" id="v0.5.0">
     <h2><span class="ver">0.5.0</span> Quick bar and bag</h2>
     <ul>
       <li>Quick bar of 6 slots at the bottom; select with 1-6 or tap</li>
@@ -627,7 +642,7 @@
       <li>Slime defeats and digging add items to the bag</li>
     </ul>
   </section>
-  <section id="v0.4.0">
+  <section class="note" id="v0.4.0">
     <h2><span class="ver">0.4.0</span> Textured world and zoom</h2>
     <ul>
       <li>Blocks have textures: grass, dirt, stone with cracks, and sparkling gems</li>
@@ -637,14 +652,14 @@
       <li>Slimes to fight: hold on one to attack it, then get Fighting XP and a gem</li>
     </ul>
   </section>
-  <section id="v0.3.0">
+  <section class="note" id="v0.3.0">
     <h2><span class="ver">0.3.0</span> Limbs and progressive digging</h2>
     <ul>
       <li>Character has head, body, arms, legs, and a pickaxe</li>
       <li>Digging is held, with a crack that grows as progress builds</li>
     </ul>
   </section>
-  <section id="v0.2.0">
+  <section class="note" id="v0.2.0">
     <h2><span class="ver">0.2.0</span> 3D prototype</h2>
     <ul>
       <li>Walk around a block world, dig, and build</li>
@@ -652,12 +667,18 @@
       <li>On-screen controls on touch devices, with an on/off toggle</li>
     </ul>
   </section>
-  <section id="v0.1.0">
+  <section class="note" id="v0.1.0">
     <h2><span class="ver">0.1.0</span> 2D prototype</h2>
     <ul>
       <li>First playable prototype</li>
     </ul>
   </section>
 </main>
+<!-- site-footer -->
+<footer class="foot"><div class="in">
+  <ul><li><a href="/how-to-play.html">How to play</a></li><li><a href="/release-notes.html">What is new</a></li><li><a href="/privacy.html">Privacy</a></li><li><a href="/terms.html">Terms</a></li><li><a href="/contact.html">Contact</a></li></ul>
+  <p>For kids, families and players of every age.</p>
+</div></footer>
+<!-- /site-footer -->
 </body>
 </html>

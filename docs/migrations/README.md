@@ -26,6 +26,8 @@ Checked on 22 Nov 2026: each file below has the same text as the step recorded i
 
 **Not applied:** `0008_guardian_packages.sql` (purchases, waits for the parent's approval). Its tables are not in the live database.
 
+**Written, waiting for Nick's yes in chat before they are applied (23 Nov 2026):** `0013_share_reward.sql` (SPEC-030: share reward settings and the parent's "shared" mark) and `0014_teacher_interest.sql` (SPEC-032: the owner-only list of teachers who asked to hear when the teacher area opens, its code requests and limits, the mailing address setting, and an hourly clean-up with pg_cron).
+
 Two files start with 0009: delete_my_data was written on the 0.6.70 branch at the same time as game_settings.
 Keep the order of the table, not of the file names.
 

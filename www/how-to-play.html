@@ -7,70 +7,70 @@
 <meta name="description" content="How to play Adventurers of Drenerics: moving, digging, building, the bag, gems, powers, monsters, magic, saving and playing with friends.">
 <!-- This guide must describe the game as it is. Every new feature or changed rule gets its part here in the same release,
      and guide-version below is set to the game's version (scripts/tests/site-pages.test.mjs checks it). -->
-<meta name="guide-version" content="0.6.87">
-<style>
-  :root{--bg:#f4f6fb;--card:#fff;--ink:#1d2433;--muted:#5b6475;--line:#e4e7ee;--accent:#3b6fd8;--key:#eef1f8}
-  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0;--key:#262e44}}
-  :root[data-theme="dark"]{--bg:#111521;--card:#1a2030;--ink:#e8ecf5;--muted:#9aa3b5;--line:#2a3247;--accent:#6f9cf0;--key:#262e44}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,sans-serif;line-height:1.6}
-  main{max-width:760px;margin:0 auto;padding:24px 16px 48px;box-sizing:border-box}
-  nav{font-size:14px;margin-bottom:12px}
-  nav a{color:var(--accent);margin-right:14px}
-  h1{font-size:28px;margin:8px 0 4px}
-  h2{font-size:21px;margin:34px 0 8px;padding-top:6px;border-top:1px solid var(--line)}
-  h3{font-size:17px;margin:18px 0 6px}
-  p,li,td,th{font-size:16px}
-  .muted{color:var(--muted);font-size:14px}
-  a{color:var(--accent)}
-  .play{display:inline-block;background:var(--accent);color:#fff;text-decoration:none;font-weight:700;padding:10px 22px;border-radius:12px;margin:10px 0}
-  .toc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:16px 0}
-  .toc ol{margin:6px 0 0;padding-left:22px;columns:2;column-gap:28px}
-  @media (max-width:520px){.toc ol{columns:1}}
-  .scroll{overflow-x:auto}
-  table{border-collapse:collapse;width:100%;background:var(--card);border:1px solid var(--line);border-radius:10px}
-  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
-  th{font-size:14px;color:var(--muted)}
-  tr:last-child td{border-bottom:0}
-  kbd{background:var(--key);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-family:inherit;font-size:14px;white-space:nowrap}
-  .tip{background:var(--card);border-left:4px solid var(--accent);border-radius:8px;padding:8px 12px;margin:12px 0}
-</style>
+<meta name="guide-version" content="0.6.88">
+<!-- site-head -->
+<link rel="stylesheet" href="/site.css">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" type="image/png" href="/icon-96.png" sizes="96x96">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Adventurers of Drenerics">
+<meta property="og:title" content="How to play: Adventurers of Drenerics">
+<meta property="og:description" content="How to play Adventurers of Drenerics: moving, digging, building, the bag, gems, powers, monsters, magic, saving and playing with friends.">
+<meta property="og:url" content="https://free-game-vitale.vercel.app/how-to-play.html">
+<meta property="og:image" content="https://free-game-vitale.vercel.app/preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The Adventurers of Drenerics logo: a floating block island with a castle">
+<meta name="twitter:card" content="summary_large_image">
+<!-- /site-head -->
 </head>
 <body>
-<main>
-  <nav><a href="/">Home</a><a href="/release-notes.html">Release notes</a><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="/contact.html">Contact</a></nav>
+<!-- site-header -->
+<a class="skip" href="#main">Skip to the page</a>
+<header class="topbar"><div class="in">
+  <a class="brand" href="/"><img src="/icon-96.png" alt="" width="44" height="44"><span>Adventurers of Drenerics</span></a>
+  <nav class="desk" aria-label="Site"><ul class="links"><li><a href="/how-to-play.html" aria-current="page">How to play</a></li><li><a href="/release-notes.html">What is new</a></li><li><a href="/contact.html">Contact</a></li></ul></nav>
+  <details class="menu"><summary>Menu</summary><nav aria-label="Site"><ul class="links"><li><a href="/how-to-play.html" aria-current="page">How to play</a></li><li><a href="/release-notes.html">What is new</a></li><li><a href="/contact.html">Contact</a></li></ul></nav></details>
+  <a class="btn btn-play" href="/play/">Play</a>
+</div></header>
+<!-- /site-header -->
+<div class="guide">
+<!-- guide-list -->
+<nav class="side" aria-label="Parts of the guide">
+<h2>Start here</h2><ol><li><a href="#start">Starting a game</a></li><li><a href="#vital">Vital, your guide</a></li><li><a href="#controls">Controls</a></li></ol>
+<h2>Things you do</h2><ol><li><a href="#quickbar">The quick bar and the bag</a></li><li><a href="#dig">Digging</a></li><li><a href="#build">Building</a></li><li><a href="#gems">Gems</a></li><li><a href="#bagfull">When the bag is full</a></li><li><a href="#powers">Powers and levels</a></li><li><a href="#monsters">Monsters and fighting</a></li><li><a href="#gear">Gear and durability</a></li><li><a href="#magic">Magic</a></li><li><a href="#water">Water and swimming</a></li><li><a href="#world">The world</a></li><li><a href="#teleport">Teleport to the start</a></li><li><a href="#saving">Saving your game</a></li></ol>
+<h2>With others</h2><ol><li><a href="#friends">Playing with friends</a></li><li><a href="#quiz">Quiz friends</a></li></ol>
+<h2>Settings and grown-ups</h2><ol><li><a href="#settings">Settings, sound and quitting</a></li><li><a href="#grownups">For grown-ups: parental controls</a></li></ol>
+</nav>
+<!-- /guide-list -->
+<main id="main">
 
   <h1>How to play</h1>
-  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.87</span>. New things are added here with every version; see the <a href="/release-notes.html">release notes</a> for what changed.</div>
+  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.88</span>. New things are added here with every version; see <a href="/release-notes.html">What is new</a> for what changed.</div>
 
   <p>Adventurers of Drenerics is a world made of blocks. You dig into it, build with what you dig, collect gems, grow stronger and meet monsters. You can play alone or in the same world as your friends.</p>
-  <a class="play" href="/play/">Play now</a>
+  <a class="btn btn-play" href="/play/">Play now</a>
 
-  <div class="toc">
-    <strong>In this guide</strong>
-    <ol>
-      <li><a href="#start">Starting a game</a></li>
-      <li><a href="#vital">Vital, your guide</a></li>
-      <li><a href="#controls">Controls</a></li>
-      <li><a href="#quickbar">The quick bar and the bag</a></li>
-      <li><a href="#dig">Digging</a></li>
-      <li><a href="#build">Building</a></li>
-      <li><a href="#gems">Gems</a></li>
-      <li><a href="#bagfull">When the bag is full</a></li>
-      <li><a href="#powers">Powers and levels</a></li>
-      <li><a href="#monsters">Monsters and fighting</a></li>
-      <li><a href="#gear">Gear and durability</a></li>
-      <li><a href="#magic">Magic</a></li>
-      <li><a href="#water">Water and swimming</a></li>
-      <li><a href="#world">The world</a></li>
-      <li><a href="#teleport">Teleport to the start</a></li>
-      <li><a href="#saving">Saving your game</a></li>
-      <li><a href="#friends">Playing with friends</a></li>
-      <li><a href="#quiz">Quiz friends</a></li>
-      <li><a href="#settings">Settings, sound and quitting</a></li>
-      <li><a href="#grownups">For grown-ups: parental controls</a></li>
-    </ol>
-  </div>
+<!-- guide-groups
+  The groups of the guide (SPEC-014), kept in this one place. scripts/site-pages.mjs makes the list on the left and the
+  "Jump to a part" box from it. Every part (h2 with an id) is in exactly one group, and no group is empty:
+  scripts/tests/site-look.test.mjs fails otherwise. A new part goes in the group its spec names.
+Start here: start, vital, controls
+Things you do: quickbar, dig, build, gems, bagfull, powers, monsters, gear, magic, water, world, teleport, saving
+With others: friends, quiz
+Settings and grown-ups: settings, grownups
+-->
+  <!-- guide-jump -->
+<details class="jump"><summary>Jump to a part</summary><div>
+<h2>Start here</h2><ol><li><a href="#start">Starting a game</a></li><li><a href="#vital">Vital, your guide</a></li><li><a href="#controls">Controls</a></li></ol>
+<h2>Things you do</h2><ol><li><a href="#quickbar">The quick bar and the bag</a></li><li><a href="#dig">Digging</a></li><li><a href="#build">Building</a></li><li><a href="#gems">Gems</a></li><li><a href="#bagfull">When the bag is full</a></li><li><a href="#powers">Powers and levels</a></li><li><a href="#monsters">Monsters and fighting</a></li><li><a href="#gear">Gear and durability</a></li><li><a href="#magic">Magic</a></li><li><a href="#water">Water and swimming</a></li><li><a href="#world">The world</a></li><li><a href="#teleport">Teleport to the start</a></li><li><a href="#saving">Saving your game</a></li></ol>
+<h2>With others</h2><ol><li><a href="#friends">Playing with friends</a></li><li><a href="#quiz">Quiz friends</a></li></ol>
+<h2>Settings and grown-ups</h2><ol><li><a href="#settings">Settings, sound and quitting</a></li><li><a href="#grownups">For grown-ups: parental controls</a></li></ol>
+</div></details>
+<!-- /guide-jump -->
 
+  <section class="part">
   <h2 id="start">1. Starting a game</h2>
   <p>The first time you play, the game asks four short questions:</p>
   <ol>
@@ -89,7 +89,10 @@
   <p>Each time the game opens, a castle shows while the game gets ready and checks for a new version.</p>
   <p>When you come back, the start menu has two big buttons: <strong>Load my game</strong> carries on with the game you played last, and <strong>Start a new game</strong> begins a new one. <em>All my saved games</em>, below them, lists every saved game: tap <em>Play</em> on one to carry on with it.</p>
   <p>Tick <strong>Load my game by itself next time</strong> to skip the menu: the game then opens the game you played last straight away. To see the menu again, switch <em>Load my game by itself</em> off in Settings.</p>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="vital">2. Vital, your guide</h2>
   <p>Vital the elephant comes to say hello when you start. He has a <strong>!</strong> over his head. Tap him and he shows you one thing about the game. Tap <em>OK</em> and he comes back later with the next one. If you know it all, tap <em>No more tips</em>. He will pop in again another day to ask if you want them back.</p>
   <ul>
@@ -100,8 +103,15 @@
     <li>When Vital comes at the start, the first <a href="#quiz">quiz friend</a> waits until he has left.</li>
     <li>To turn his tips off or on, use the <strong>Tips from Vital</strong> switch in <a href="#settings">Settings</a>.</li>
   </ul>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="controls">3. Controls</h2>
+  <div class="ctl">
+    <figure><img class="shot" src="/guide/controls-phone.webp" width="1200" height="554" loading="lazy" alt="The game on a phone with its buttons named: thumb stick to walk, Jump, hand buttons, Activity log, Teleport, Powers, Map, Settings, Change view and Bag"><figcaption>On a phone or tablet</figcaption></figure>
+    <figure><img class="shot" src="/guide/controls-computer.webp" width="1200" height="750" loading="lazy" alt="The game on a computer with its buttons named: quick bar, Activity log, Teleport, Powers, Map, Settings, Change view and Bag"><figcaption>On a computer</figcaption></figure>
+  </div>
   <div class="scroll">
   <table>
     <tr><th>To do this</th><th>On a computer</th><th>On a tablet or phone</th></tr>
@@ -118,7 +128,7 @@
     <tr><td>Cast the fireball</td><td>Point with the mouse and press <kbd>F</kbd>. With the on-screen controls on: tap the Spell button, then click a monster or a place</td><td>Tap the Spell button. It lights up. Now tap a monster or a place, and the fireball flies there. Tap the Spell button again if you change your mind</td></tr>
     <tr><td>See your powers</td><td>The Powers button (the star at the top right)</td><td>The Powers button (the star at the top right)</td></tr>
     <tr><td>See the map</td><td><kbd>M</kbd>, or the Map button at the top right. Press <kbd>M</kbd> again or click the map to close it</td><td>The Map button at the top right. Tap the map to close it</td></tr>
-    <tr><td>Read what happened in the world</td><td>Click the speech bubble at the bottom left. <kbd>Esc</kbd> closes it</td><td>Tap the speech bubble at the bottom left (above the thumb stick). Tap it again to close it</td></tr>
+    <tr><td>Open the activity log (who joined and left)</td><td>Click the speech bubble at the bottom left. <kbd>Esc</kbd> closes it</td><td>Tap the speech bubble at the bottom left (above the thumb stick). Tap it again to close it</td></tr>
     <tr><td>Open the bag</td><td><kbd>B</kbd>, or the Bag button</td><td>The Bag button</td></tr>
     <tr><td>Close a panel, or quit</td><td><kbd>Esc</kbd></td><td>Tap outside the panel. On Android, the Back button</td></tr>
   </table>
@@ -126,7 +136,10 @@
   <p>There are two views. One is from behind your character. The other is through your character's eyes, which is best in caves and rooms. Through the eyes you see the item in your hand at the bottom right. The game remembers the view you used last. Indoors, the view from behind moves in close so you can always see your character.</p>
   <p>The <em>Controls</em> button switches the on-screen stick and buttons on or off. On a touch screen they start switched on.</p>
   <p>You can only dig, build or fight close to you: 7 blocks for digging and building, 2 blocks for a sword. If the game says "Too far away! Get closer", walk nearer.</p>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="quickbar">4. The quick bar and the bag</h2>
   <p>The <strong>quick bar</strong> is the row of 6 slots at the bottom. The slot you choose is the item in your hand: the pickaxe digs, a sword fights, a block builds.</p>
   <p>The <strong>bag</strong> holds everything you own. Open it, then tap an item to put it in the slot you have chosen. The <em>Recent</em> list shows the things you picked up last; tap one to put it in the quick bar. It is always at the top of the bag. On a big screen it is also at the side, as long as it does not cover a button.</p>
@@ -136,7 +149,10 @@
     <li>Two round <strong>hand buttons</strong> above JUMP show quick bar slots 1 and 2. Tap one to hold that item. The one in your hand has a bright ring. Tapping an empty hand button opens the bag so you can fill it. Press and hold a hand button to open the bag and change what is on it.</li>
     <li>On a phone the quick bar is hidden to leave room. The button at the top left shows the item in your hand; tap it to show the quick bar, and choosing a tool hides it again.</li>
   </ul>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="dig">5. Digging</h2>
   <p>Hold on a block to dig it. The pickaxe is the fastest way. You can also dig by hand, with any tool or an empty hand; it is slower, and hard blocks like stone take the longest.</p>
   <ul>
@@ -145,7 +161,10 @@
     <li>With a block in your hand, a tap builds; it does not dig.</li>
   </ul>
   <p>Digging is how you get blocks to build with, and how you find gems. Each block you dig also makes your Digging power grow.</p>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="build">6. Building</h2>
   <ol>
     <li>Put a block in a quick bar slot and choose it.</li>
@@ -157,10 +176,16 @@
     <li>You cannot build on yourself, or on a spot where something is lying on the ground. Walk over the item to pick it up first.</li>
     <li>When you run out, the game says "No ... left! Dig some first."</li>
   </ul>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="gems">7. Gems</h2>
   <p>Gems sparkle inside some blocks. Dig the block to collect the gem. Monsters also give gems when you defeat them: stronger monsters give more. You can also earn gems by answering a question from a <a href="#quiz">quiz friend</a>.</p>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="bagfull">8. When the bag is full</h2>
   <p>The bag holds a set number of things, and it grows as your Inventory power goes up (12 things at level 1, and 4 more with each level). The Inventory power grows while you carry a full bag.</p>
   <ul>
@@ -170,7 +195,10 @@
     <li>Things on the ground disappear after 5 minutes. Up to 40 things can lie on the ground at once.</li>
     <li>Gems, tools, weapons and spells cannot be dropped.</li>
   </ul>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="powers">9. Powers and levels</h2>
   <p>Tap the Powers button at the top right to see your powers, their levels and how close each one is to the next level.</p>
   <p>You have five powers. Each one grows when you use it, and the game tells you when one goes up a level. The Powers panel also shows your <a href="#quiz">quiz badges</a>, your name, the world code and the game version. Close it with its Close button, a tap outside it, <kbd>Esc</kbd> or the Android Back button. During play the top left of the screen shows your gems and how full your bag is.</p>
@@ -184,7 +212,10 @@
     <tr><td>Magic</td><td>Casting spells</td><td>From level 2, a bigger fireball with a wider burst</td></tr>
   </table>
   </div>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="monsters">10. Monsters and fighting</h2>
   <p>Monsters walk around the land. They never hurt you. Defeat them to earn gems, monster parts and sometimes gear.</p>
   <p>Your sword reaches 2 blocks. Walk up to a monster before you tap it. The fireball reaches much further.</p>
@@ -208,7 +239,10 @@
   </table>
   </div>
   <p class="muted">There is no holy light spell in the game yet. Monster parts stack in the bag; they have no use yet.</p>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="gear">11. Gear and durability</h2>
   <p>Tools and weapons wear out. A pickaxe loses one point for each block it digs, and a weapon loses one for each hit. At zero it breaks and leaves your bag.</p>
   <div class="scroll">
@@ -224,7 +258,10 @@
   </table>
   </div>
   <p>Monsters sometimes drop gear. Stronger monsters drop better gear. Armour can be collected, but it does nothing yet.</p>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="magic">12. Magic</h2>
   <p>When your Fighting power reaches level 2, the game says "Magic unlocked!" and lets you choose your first skill. For now the skill is <strong>Fireball</strong>.</p>
   <ul>
@@ -235,7 +272,10 @@
     <li>Monsters that are weak to fire take double damage.</li>
     <li>A fireball that reaches water fizzles out in a puff of steam and does no damage.</li>
   </ul>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="water">13. Water and swimming</h2>
   <ul>
     <li>Water fills the low places: lakes and the sea, with sand on the shore.</li>
@@ -243,7 +283,10 @@
     <li>To climb out, swim to the shore and hold jump while pushing toward the land.</li>
     <li>You can dig and build under water.</li>
   </ul>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="world">14. The world</h2>
   <ul>
     <li>The land has different regions: desert, savanna, rainforest, grassland, forest, taiga and tundra. Deserts are sand and the tundra is snow.</li>
@@ -275,14 +318,20 @@
     <li>The Trade button is grey when you do not have enough, or when your bag has no room. Tap Bye! (or Back) to go on your way.</li>
     <li>Caves are in worlds started from version 0.6.76 on. Since version 0.6.81 every world has castles and roads, also worlds started before 0.6.76; land you have changed is kept as it is.</li>
   </ul>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="teleport">15. Teleport to the start</h2>
   <p>Lost, or far from home? The purple button at the top right takes you back to the place where you started, safely on top of the land.</p>
   <ul>
     <li>The teleport takes 5 minutes to cast. The button counts down, and you can keep playing while you wait.</li>
     <li>After you use it, it needs 1 hour before it works again.</li>
   </ul>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="saving">16. Saving your game</h2>
   <ul>
     <li>The game saves by itself on the device you play on: your character, bag, quick bar, powers, where you are and what you changed in the world.</li>
@@ -291,7 +340,10 @@
     <li><em>Start a new game</em> is also at the bottom of the bag. Your other saved games are kept.</li>
   </ul>
   <div class="tip">Saved games live on the device and in the browser you used. A different tablet, phone or browser will not show them.</div>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="friends">17. Playing with friends</h2>
   <ol>
     <li>One player starts a new world. The game shows a <strong>4-letter world code</strong> when the world begins.</li>
@@ -301,9 +353,12 @@
   <p>Everything dug or built in a shared world shows for everyone in it. A world can only be opened with its code; worlds are never listed publicly. Players cannot chat or type messages to each other, and names come from the game's list.</p>
   <p>In a shared world, everyone sees the same world: the same merchants, monsters, villagers and dragons, in the same places. You can fight the same monster together and share the gems. If you have wandered off, your share waits on the ground where the monster was. Quiz friends and Vital are there for everyone, but each of you gets your own questions. Things on the ground belong to whoever picks them up first. Your bag, gems and quiz friends are still your own.</p>
   <p>When you join a friend's world, you start on top of the land at that world's start point. The top left shows how many players are in your world (for example <em>Players 3</em>, you included).</p>
-  <p>The <strong>speech bubble</strong> at the bottom left lights up, with a red number, when a friend joins or leaves your world, and the newest news shows beside it for a moment. Tap it to read everything that happened since you opened the game, with the time of each. It is not a chat: only the game writes in it, and nobody can type messages.</p>
+  <p>The <strong>activity log</strong> at the bottom left (the speech bubble) lights up, with a red number, when a friend joins or leaves your world, and the newest news shows beside it for a moment. Tap it to see what happened since you opened the game, with the time of each. Only the game writes in it, and nobody can type messages.</p>
   <p>The <strong>map</strong> (press <kbd>M</kbd>, or tap the Map button at the top right) shows the land around you from above. You are the white dot; your friends are yellow dots with their names. A friend who is far away is shown as a smaller yellow dot on the edge of the map, in their direction. Land you have not been near yet is dark. Tap the map, or press <kbd>M</kbd> again, to close it.</p>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="quiz">18. Quiz friends</h2>
   <p>Now and then a friendly character walks up to you with a <strong>?</strong> over its head and waves, to ask a maths question or a word to spell. There are three: an owl, a turtle and a small robot. The first friend comes as soon as you start playing, or 20 seconds after <a href="#vital">Vital</a> has left if he came first. After you answer right, the next one comes after about a minute of moving around. If a friend leaves without a right answer, the next one comes 4 to 7 minutes later. Apart from the first one, a friend waits until no monster is close.</p>
   <ul>
@@ -324,7 +379,10 @@
     <li>When you play with others, each player has their own friend, seen only on their own screen.</li>
     <li>To turn quiz friends off or on, use the <strong>Quiz friends</strong> switch in <a href="#settings">Settings</a>.</li>
   </ul>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part">
   <h2 id="settings">19. Settings, sound and quitting</h2>
   <p>The <em>Settings</em> button is at the top right. In Settings you will find:</p>
   <ul>
@@ -340,7 +398,10 @@
   <p>On a computer, <kbd>Esc</kbd> closes the bag or Settings; pressed again, it asks if you want to quit. In the Android app, the phone's Back button does the same.</p>
   <h3 id="new-version">Getting the new version</h3>
   <p>When there is a new version of the game, Google Play asks you when the game opens. Tap <em>Update</em> and keep playing while it downloads. When it is ready, tap <strong>Restart to get the new version</strong>. Your game is saved first, so your world, gems and bag stay safe. If you wait too long, you have to update before you can play. Settings shows if your game is up to date.</p>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
+  <section class="part grown">
   <h2 id="grownups">20. For grown-ups: parental controls</h2>
   <p>This part is for parents and guardians.</p>
   <h3>What is built in for every child</h3>
@@ -368,6 +429,7 @@
     <tr><th>Control</th><th>What it does</th><th>How</th></tr>
     <tr><td>Quiz friends report</td><td>Shows how many maths questions and words your child has seen, got right first time, got right after a retry, or left unfinished, and how many hints and swaps your child used, for the saved game that is open</td><td>It is in the parent area, under the cloud save buttons. It stays on the device. If you turn on cloud save, it is saved with the game and also shows on the parent stats page when you sign in there with the same account</td></tr>
     <tr><td>Learning level</td><td>Keeps the quiz friends' questions in one range of levels, sets the Maths level or the Words level, or starts both again. After two wrong first answers in a row the questions get a little easier, but the number your child sees does not go down</td><td>Under the cloud save buttons. Tap <em>Auto</em> or one of the five bands (Levels 1 to 20, 21 to 40, 41 to 60, 61 to 80, 81 to 100). Use the minus and plus buttons or the slider to set a level. <em>Start levels again</em> asks <em>Are you sure?</em> first</td></tr>
+    <tr><td>Share the game</td><td>Share the game: in the parent area, tap Share the game to send the game's address to another family. As a thank-you, the game gets 500 gems, once.</td><td>Tap <em>Share the game</em>. Your device's own share window opens with a short message and the game's address; nobody types anything. The same button is on the parent stats page when you are signed in: a game signed in to the same account in the parent area then gets the gems, once</td></tr>
     <tr><td>Dragons</td><td>Friendly dragons fly over the land and sometimes come down to eat a tree. Stay high keeps them in the sky; Off removes them</td><td>In the parent area, next to Learning level: tap On, Stay high or Off</td></tr>
     <tr><td>Parent stats</td><td>Shows the game's stats and what has been played</td><td>Tap <em>Open parent stats</em>. A page opens and asks you to sign in with your email</td></tr>
     <tr><td>Save to the cloud</td><td>Keeps one game safe online, so it can be carried on from another device</td><td>Tap <em>Sign in with Google</em> or <em>Sign in with Facebook</em>. While you are signed in, the game saves to the cloud every 30 seconds</td></tr>
@@ -385,8 +447,17 @@
     <li><strong>Stop sharing a world:</strong> start a new world. It gets a new code that nobody else has.</li>
   </ul>
   <p>What the game stores and why is explained on the <a href="/privacy.html">privacy page</a>; the rules of use are on the <a href="/terms.html">terms page</a>. Questions and ideas are welcome through the <a href="/contact.html">contact and suggestion box</a>.</p>
+  <a class="top" href="#main">Back to top</a>
+  </section>
 
   <p class="muted">Something in this guide does not match the game? Please tell us through the <a href="/contact.html">suggestion box</a>.</p>
 </main>
+</div>
+<!-- site-footer -->
+<footer class="foot"><div class="in">
+  <ul><li><a href="/how-to-play.html">How to play</a></li><li><a href="/release-notes.html">What is new</a></li><li><a href="/privacy.html">Privacy</a></li><li><a href="/terms.html">Terms</a></li><li><a href="/contact.html">Contact</a></li></ul>
+  <p>For kids, families and players of every age.</p>
+</div></footer>
+<!-- /site-footer -->
 </body>
 </html>

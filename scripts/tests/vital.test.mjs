@@ -100,7 +100,8 @@ test('Vital is made in code from simple shapes: grey, two large ears that are wh
   // his name is fixed: drawn in code, the same word everywhere, and nothing lets a child change it
   assert.match(friendCode, /nx\.fillText\('Vital', 128, 52\);/);
   assert.match(friendCode, /cx\.fillText\(kind === 'vital' \? '!' : '\?', 64, 60\);/);
-  assert.ok(!/Vitale|vital\.name|rename/i.test(game.slice(game.indexOf('<script type="module">'))), 'the name can be changed or is spelled another way');
+  // The website's own address (free-game-vitale.vercel.app) is the one allowed match: the share link names it (0.6.88, SPEC-030)
+  assert.ok(!/Vitale|vital\.name|rename/i.test(game.slice(game.indexOf('<script type="module">')).replaceAll('https://free-game-vitale.vercel.app/', '')), 'the name can be changed or is spelled another way');
   // no photo of the toy, and no maker's name, anywhere in the repository's game or website folders
   const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
   for (const f of [...walk(path.join(root, 'www')), ...walk(path.join(root, 'build'))]) assert.ok(!/vital|elephant|toy/i.test(path.basename(f)) || /\.html$/.test(f), 'a file for Vital was added: ' + f);

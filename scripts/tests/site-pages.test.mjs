@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gameHistory, gameVersion, releaseNotesPage, GAME_FILE, NOTES_FILE } from '../site-pages.mjs';
+import { gameHistory, gameVersion, releaseNotesPage, GAME_FILE, NOTES_FILE, PLAY_PUBLIC } from '../site-pages.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = p => fs.readFileSync(path.join(root, p), 'utf8');
@@ -74,9 +74,10 @@ test('the new pages lead nowhere outside the site', () => {
   }
 });
 
-test('the home page has a Google Play button for the app', () => {
+test('the home page shows the Google Play badge only once the game is public on Google Play (SPEC-013)', () => {
   const home = read('www/index.html');
-  assert.ok(home.includes('href="https://play.google.com/store/apps/details?id=com.drenerics.adventurers"'), 'no Play Store link with the app id');
   assert.ok(home.includes('href="/play/"'), 'the Play now button is gone');
-  assert.ok(home.includes('still in testing'), 'no warning that the app is in testing');
+  // PLAY_PUBLIC in scripts/site-pages.mjs is set to true on the day the game is public on Google Play
+  if (PLAY_PUBLIC) assert.ok(home.includes('href="https://play.google.com/store/apps/details?id=com.drenerics.adventurers"'), 'no Play Store link with the app id');
+  else assert.ok(!home.includes('play.google.com') && !/coming soon[^<]*google play|google play[^<]*coming soon/i.test(home), 'the badge shows, or says coming soon, before the game is public');
 });

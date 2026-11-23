@@ -108,7 +108,101 @@ async function load() {
   loadBadges();
   loadForceDays();
   loadMerchantCards();
+  loadShare().catch(() => {});
+  loadTeachers().catch(() => {});
 }
+
+// ---- Share the game (SPEC-030): a signed-in parent shares the plain home page address with the device's own share
+// window. As the window opens, one "shared" mark goes on this account (parent_shares, migration 0013): nothing about
+// who the link went to. A game signed in to this account in the parent area then gets the gems once.
+const SHARE_URL = 'https://free-game-vitale.vercel.app/';
+const SHARE_TEXT = 'Adventurers of Drenerics: a block-building adventure for children and families. Play free in your browser:';
+let shareReward = { on: true, gems: 500 };
+async function loadShare() {
+  const { data } = await sb.from('game_settings').select('key,value').in('key', ['share_on', 'share_gems']);
+  const map = Object.fromEntries((data || []).map(r => [r.key, r.value]));
+  shareReward = { on: map.share_on !== 0, gems: Number.isInteger(map.share_gems) ? map.share_gems : 500 };
+  $('shareOn').value = shareReward.on ? '1' : '0';
+  $('shareGems').value = shareReward.gems;
+  const { data: { session } } = await sb.auth.getSession();
+  const mine = session ? await sb.from('parent_shares').select('shared_at').eq('user_id', session.user.id).maybeSingle() : { data: null };
+  $('shareLine').textContent = !shareReward.on ? 'Tell another family about Adventurers of Drenerics.'
+    : mine.data ? 'Thank you! A game signed in to this account in the parent area gets the ' + shareReward.gems + ' gems, once.'
+    : 'Tell another family about Adventurers of Drenerics. As a thank-you, a game signed in to this account in the parent area gets ' + shareReward.gems + ' gems, once.';
+}
+$('shareGame').addEventListener('click', async () => {
+  let opened = false;
+  if (navigator.share) {
+    const p = navigator.share({ title: 'Adventurers of Drenerics', text: SHARE_TEXT, url: SHARE_URL }).catch(() => {});
+    opened = true;
+    p.then(() => {});
+  } else {
+    try { await navigator.clipboard.writeText(SHARE_TEXT + ' ' + SHARE_URL); $('shareMsg').textContent = 'Link copied'; opened = true; }
+    catch (e) { $('shareMsg').textContent = SHARE_TEXT + ' ' + SHARE_URL; opened = true; }
+  }
+  if (!opened || !shareReward.on) return;
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return;
+  const { error } = await sb.from('parent_shares').insert({ user_id: session.user.id });
+  if (error && !/duplicate|unique/i.test(error.message)) { $('shareMsg').textContent = 'Shared. The thank-you is not set up yet: ' + error.message; return; }
+  $('shareMsg').textContent = 'Thank you for sharing! A game signed in to this account in the parent area gets ' + shareReward.gems + ' gems, once.';
+  loadShare();
+});
+$('saveShare').addEventListener('click', async () => {
+  const on = Number($('shareOn').value), gems = Math.round(Number($('shareGems').value));
+  if (!(gems >= 1 && gems <= 5000)) { $('shareSetMsg').textContent = 'Choose a number of gems from 1 to 5000.'; return; }
+  for (const [key, value] of [['share_on', on], ['share_gems', gems]]) {
+    const { data, error } = await sb.from('game_settings').update({ value, updated_at: new Date().toISOString() }).eq('key', key).select('value');
+    if (error) { $('shareSetMsg').textContent = 'Not saved: ' + error.message; return; }
+    if (!data || !data.length) { $('shareSetMsg').textContent = 'Not saved: only the owner\'s account can change this (or migration 0013 is not applied yet).'; return; }
+  }
+  $('shareSetMsg').textContent = on ? 'Saved: ' + gems + ' gems, once per game.' : 'Saved: the reward is off. Sharing still works.';
+  loadShare();
+});
+
+// ---- Teacher interest (SPEC-032): owner-only list, readable and deletable only by the owner's account ----
+let teacherList = [];
+async function loadTeachers() {
+  const { data, error } = await sb.from('teacher_interest').select('id,name,school,country,email,verified_at,consent_at').order('verified_at', { ascending: false });
+  if (error) { $('teacherCount').textContent = 'Not available: ' + error.message; return; }
+  teacherList = data || [];
+  $('teacherCount').textContent = teacherList.length + (teacherList.length === 1 ? ' person' : ' people') + ' on the list' + (teacherList.length ? '' : ' (or you are not signed in as the owner)');
+  $('teacherRows').innerHTML = teacherList.length ? '<table style="width:100%;font-size:13px"><tr class="muted"><td>Name</td><td>School</td><td>Country</td><td>Email</td><td>Checked</td><td>Consent</td><td></td></tr>' +
+    teacherList.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.school)}</td><td>${esc(r.country)}</td><td>${esc(r.email)}</td><td>${new Date(r.verified_at).toLocaleDateString()}</td><td>${new Date(r.consent_at).toLocaleDateString()}</td><td><button class="danger" data-del="${r.id}">Delete</button></td></tr>`).join('') + '</table>' : '';
+  const t = await sb.from('owner_text_settings').select('value').eq('key', 'mail_address').maybeSingle();
+  if (!t.error && t.data) $('mailAddress').value = t.data.value;
+}
+$('teacherRows').addEventListener('click', async e => {
+  const b = e.target.closest('[data-del]'); if (!b) return;
+  const row = teacherList.find(r => String(r.id) === b.dataset.del);
+  if (!row || !confirm('Delete ' + row.email + ' from the list? This cannot be undone.')) return;
+  const { data, error } = await sb.from('teacher_interest').delete().eq('id', row.id).select('id');
+  $('teacherMsg').textContent = error ? 'Not deleted: ' + error.message : (data && data.length ? 'Deleted.' : 'Not deleted: only the owner\'s account can delete.');
+  loadTeachers();
+});
+$('teacherCsv').addEventListener('click', () => {
+  const cell = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const csv = [['name', 'school', 'country', 'email', 'date checked', 'consent date']].concat(teacherList.map(r => [r.name, r.school, r.country, r.email, r.verified_at, r.consent_at]))
+    .map(r => r.map(cell).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'teacher-interest.csv'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+$('saveMail').addEventListener('click', async () => {
+  const value = $('mailAddress').value.trim();
+  const { data, error } = await sb.from('owner_text_settings').update({ value, updated_at: new Date().toISOString() }).eq('key', 'mail_address').select('value');
+  $('teacherMsg').textContent = error ? 'Not saved: ' + error.message : (data && data.length ? (value ? 'Saved.' : 'Saved. It is empty, so no news email can be sent.') : 'Not saved: only the owner\'s account can change this.');
+});
+$('teacherTest').addEventListener('click', async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return;
+  $('teacherMsg').textContent = 'Sending...';
+  const r = await fetch(SUPABASE_URL + '/functions/v1/teacher-interest', { method: 'POST', headers: { 'content-type': 'application/json', apikey: SUPABASE_KEY, authorization: 'Bearer ' + session.access_token }, body: JSON.stringify({ action: 'test_news' }) })
+    .then(x => x.json()).catch(() => ({ ok: false, error: 'network' }));
+  $('teacherMsg').textContent = r.ok ? 'Sent to your own address. Check that it shows the sender, the mailing address, the Contact link and an unsubscribe link.'
+    : r.error === 'no_mailing_address' ? 'Not sent: the mailing address is empty.' : 'Not sent (' + (r.error || 'error') + ').';
+});
 
 // ---- Castle spacing (0.6.76, SPEC-016 part G): a game setting everyone can read and only the owner can change ----
 async function loadCastleGap() {
@@ -528,6 +622,42 @@ load();
     </div>
     <div class="muted">A child earns a badge at each of these numbers of right quiz answers, maths and words together (it starts at 1, 5, 25, 100 and 500). Each number must be bigger than the one before. Games pick up a change the next time they open; badges already reached stay earned. Only the owner's account can change it. It holds nothing about any player.</div>
     <div id="badgeMsg" class="muted" style="margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <b>Share the game</b>
+      <button class="secondary" id="shareGame">Share the game</button>
+    </div>
+    <div class="muted" id="shareLine">Tell another family about Adventurers of Drenerics.</div>
+    <div id="shareMsg" class="muted" style="margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <b>Share reward (owner only)</b>
+      <span class="row">
+        <select id="shareOn" style="padding:8px;border-radius:8px;background:var(--bg);color:var(--ink);border:1px solid var(--line)"><option value="1">Reward on</option><option value="0">Reward off</option></select>
+        <input id="shareGems" type="number" min="1" max="5000" step="1" style="max-width:90px" aria-label="Gems">
+        <button class="secondary" id="saveShare">Save</button>
+      </span>
+    </div>
+    <div class="muted">The gems a game gets, once, when a grown-up taps Share the game in the parent area or on this page (1 to 5000, it starts at 500). With the reward off, the buttons still share but say nothing about gems. Games pick up a change the next time they open. Only the owner's account can change it. It holds nothing about any player.</div>
+    <div id="shareSetMsg" class="muted" style="margin-top:6px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <b>Teacher interest (owner only)</b>
+      <span class="row"><button class="secondary" id="teacherCsv">Download as a spreadsheet file (CSV)</button><button class="secondary" id="teacherTest">Send me a test news email</button></span>
+    </div>
+    <div class="muted">Teachers who asked, on the For teachers page, to hear when the teacher area opens. Only checked emails are on the list. Kept until the person unsubscribes or asks to be deleted; delete a row within 10 business days of a request. Never shared or sold.</div>
+    <div id="teacherCount" style="margin-top:8px;font-weight:600"></div>
+    <div id="teacherRows" style="margin-top:8px;overflow-x:auto"></div>
+    <div class="row" style="margin-top:10px;gap:6px"><label for="mailAddress"><b>Mailing address for emails</b></label>
+      <input id="mailAddress" maxlength="300" style="flex:1;min-width:220px"><button class="secondary" id="saveMail">Save</button></div>
+    <div class="muted">Every news email shows this address (Canada's anti-spam law and the US CAN-SPAM Act). No news email can be sent while it is empty.</div>
+    <div id="teacherMsg" class="muted" style="margin-top:6px"></div>
   </div>
 
   <div class="card">

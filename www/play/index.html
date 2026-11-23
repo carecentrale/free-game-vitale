@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.87 (3D)</title>
+<title>Adventurers of Drenerics v0.6.88 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -271,9 +271,9 @@
 <script>setTimeout(function(){var e=document.getElementById('splash');if(e)e.remove();},20000);</script>
 <div id="hud"></div>
 <div id="msg"></div>
-<div id="chatBtn" role="button" aria-label="What happened in this world" title="What happened in this world"><svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H10l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="#fff"/><circle cx="8" cy="10.5" r="1.4" fill="#3b6fd8"/><circle cx="12" cy="10.5" r="1.4" fill="#3b6fd8"/><circle cx="16" cy="10.5" r="1.4" fill="#3b6fd8"/></svg><span id="chatCount"></span></div>
+<div id="chatBtn" role="button" aria-label="Activity log" title="Activity log"><svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H10l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="#fff"/><circle cx="8" cy="10.5" r="1.4" fill="#3b6fd8"/><circle cx="12" cy="10.5" r="1.4" fill="#3b6fd8"/><circle cx="16" cy="10.5" r="1.4" fill="#3b6fd8"/></svg><span id="chatCount"></span></div>
 <div id="chatPeek"></div>
-<div id="chatLog"><div class="head"><span>In this world</span><button id="chatClose" aria-label="Close">&#10005;</button></div><div id="chatLines"></div></div>
+<div id="chatLog"><div class="head"><span>Activity log</span><button id="chatClose" aria-label="Close">&#10005;</button></div><div id="chatLines"></div></div>
 <div id="mapBox" class="hide" title="Tap to close the map"><canvas id="mapLand" width="96" height="96"></canvas><canvas id="mapDots" width="384" height="384"></canvas><div class="mapKey">You: white &nbsp; Friends: yellow &nbsp; Tap or M to close</div></div>
 <div id="hudBtn"></div>
 <div id="quit"><div style="font-weight:700;font-size:19px">Quit the game?</div><div style="margin-top:6px;opacity:.85;font-size:14px">Your game is saved first.</div><button id="quitYes">Save and quit</button><button id="quitLogOff">Log off (pick another game)</button><button id="quitNo">Keep playing</button></div>
@@ -2004,7 +2004,7 @@ function saveGame() {
   try {
     localStorage.setItem(slotKey(activeSlot), JSON.stringify({
       v: 1, at: Date.now(), name: playerName, profile, worldId, inv, gear, qb, recent, sel, pw, skills,
-      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(), quiz: quizStats, levels: quizLevels, dragons: dragonMode,
+      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(), quiz: quizStats, levels: quizLevels, dragons: dragonMode, shared: shareGiven,
       drops: [...drops.values()].filter(d => !d.guard).map(d => [d.x, d.y, d.z, d.id, d.at])
     }));
   } catch (e) {}
@@ -3102,7 +3102,13 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
-  { v: '0.6.87', title: 'Playing together: no more starting in the ground, a chat log and a map', items: [
+  { v: '0.6.88', title: 'Share the game, the Activity log and a new website', items: [
+    'Grown-ups can share the game from the parent area, and the game gets 500 gems as a thank-you.',
+    'The list of who joined and left is now called the Activity log.',
+    'The website has a new look: the same menu on every page, bigger text, a dark mode that follows your device, pictures of the game on the home page, an easier How to play guide, and a picture when you share a link.',
+    'A new page tells teachers and schools what is coming.',
+  ] },
+  { v: '0.6.87', title: 'Playing together: no more starting in the ground, an activity log and a map', items: [
     'When you join a friend\'s world you now start on top of the land at the world\'s start point, not inside the ground',
     'A speech bubble at the bottom left lights up when a friend joins or leaves your world. Tap it to read the list of everything that happened, and tap it again to close it',
     'The top left shows how many players are in your world',
@@ -6679,6 +6685,9 @@ const DRAGON_CELL = 170, DRAGON_SEE = 240, DRAGON_MOST = 3;
 const DRAGON_COLS = [[0x55b955, 0xbfe8a0], [0x4a86d8, 0xb9d8ff], [0xf08a24, 0xffd59a], [0x8e5cc4, 0xe0c4ff]];
 const DRAGON_MODES = ['on', 'high', 'off'];
 let dragonMode = 'on';          // the parent's choice, kept with the saved game
+// Share the game (0.6.88, SPEC-030): the reward is given at most once to each saved game (shareGiven is kept in it)
+let shareOn = true, shareGems = 500, shareGiven = false;
+const shareHooks = { check: () => {} };
 let dragonsTestOff = false;     // the builder's switch for the frame-rate check (?perf=1): no dragons at all
 const dragonCache = new Map();  // cell -> the dragon of that square, or null
 const dragonShapes = new Map(); // dragon id -> { group, wingL, wingR }
@@ -7083,6 +7092,7 @@ if (saved) {
   quizStats = quizStatsFrom(saved.quiz);
   quizLevels = quizLevelsFrom(saved.levels);
   if (DRAGON_MODES.includes(saved.dragons)) dragonMode = saved.dragons;   // the parent's Dragons choice (0.6.81)
+  shareGiven = saved.shared === true;   // the share reward was already given to this game (0.6.88)
   if (worldLoaded) say('Welcome back, ' + playerName + '!', 2500);
 }
 // Start with some enemies near the player. This runs after the saved position is restored, so they appear where the player is.
@@ -7134,7 +7144,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.87';
+const VERSION = '0.6.88';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7170,6 +7180,9 @@ function applyOwnerSettings(map) {
   setPrices(map);
   cartsMax = Number.isInteger(map.carts_max) && map.carts_max >= 1 && map.carts_max <= 20 ? map.carts_max : 6;
   setGuardSteps(map);
+  // Share reward (SPEC-030): on or off and how many gems, set by the owner in the admin page (0013)
+  shareOn = map.share_on !== 0;
+  shareGems = Number.isInteger(map.share_gems) && map.share_gems >= 1 && map.share_gems <= 5000 ? map.share_gems : 500;
 }
 try { applyOwnerSettings(JSON.parse(localStorage.getItem('kidsgame.ownerSettings') || '{}')); } catch (e) { applyOwnerSettings({}); }
 fetch(SB_URL + '/rest/v1/game_settings?select=key,value', { headers: { apikey: SB_KEY } })
@@ -7177,7 +7190,7 @@ fetch(SB_URL + '/rest/v1/game_settings?select=key,value', { headers: { apikey: S
   .then(rows => {
     if (!Array.isArray(rows)) return;
     const map = {};
-    for (const row of rows) if (row && typeof row.key === 'string' && (/^m[ps]_/.test(row.key) || /^guard_/.test(row.key) || row.key === 'carts_max')) map[row.key] = row.value;
+    for (const row of rows) if (row && typeof row.key === 'string' && (/^m[ps]_/.test(row.key) || /^guard_/.test(row.key) || row.key === 'carts_max' || row.key === 'share_on' || row.key === 'share_gems')) map[row.key] = row.value;
     applyOwnerSettings(map);
     try { localStorage.setItem('kidsgame.ownerSettings', JSON.stringify(map)); } catch (e) {}
   })
@@ -7260,6 +7273,7 @@ let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6
     '</div>' +
     '<div id="learnLevel" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="dragonCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
+    '<div id="shareCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="quizReport" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="devLog" style="max-height:30vh;overflow:auto;margin-bottom:10px"></div>' +
     '<button id="parentClose" style="background:transparent;color:#fff;border:1px solid #556;border-radius:10px;padding:8px 14px;cursor:pointer">Close</button></div>';
@@ -7274,6 +7288,8 @@ let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6
       renderDevLog();
       document.getElementById('quizReport').innerHTML = quizReportHtml(quizStats);
       renderLearn(false);
+      renderShare('');
+      checkAccountShare();
       panel.style.display = 'flex';
     }
   });
@@ -7315,6 +7331,54 @@ let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6
     saveGame();
     renderDragons();
   });
+  // ---- Share the game (0.6.88, SPEC-030): grown-ups only, inside the parent area. The device's own share window opens
+  // with fixed text and the plain home page address (nobody types anything, nothing is added to the address). As it
+  // opens, this saved game gets the owner's share gems once. Nothing checks whether the link was sent, and nothing is
+  // sent when the window opens. A "shared" mark made on the parent stats page (parent_shares, 0013) gives the gems once
+  // to a game signed in to the same account here.
+  const SHARE_URL = 'https://free-game-vitale.vercel.app/';
+  const SHARE_TEXT = 'Adventurers of Drenerics: a block-building adventure for children and families. Play free in your browser:';
+  function renderShare(note) {
+    const line = !shareOn ? 'Tell another family about Adventurers of Drenerics.'
+      : shareGiven ? 'Thank you! The ' + shareGems + ' gems have been added to this game.'
+      : 'Tell another family about Adventurers of Drenerics. As a thank-you, this game gets ' + shareGems + ' gems, once.';
+    document.getElementById('shareCtl').innerHTML = '<div style="font-size:15px;font-weight:700;margin-bottom:4px">Share the game</div>' +
+      `<div id="shareLine" style="font-size:12px;opacity:.75;margin-bottom:8px">${line}</div>` +
+      `<button id="shareBtn" style="${learnBtn}width:100%;background:#3b6fd8;padding:10px;font-weight:600">Share the game</button>` +
+      (note ? `<div id="shareNote" style="font-size:13px;margin-top:6px;word-break:break-word">${note}</div>` : '');
+  }
+  function giveShareReward(source) {
+    if (!shareOn || shareGiven || activeSlot === null) return false;
+    shareGiven = true;
+    addItem('gem', shareGems);
+    saveGame();
+    logEvent('share_reward', source + ' ' + shareGems);
+    say('Thank you for sharing! ' + shareGems + ' gems added.', 3500);
+    return true;
+  }
+  async function openShare() {
+    let note = '';
+    const C = window.Capacitor, plugin = C && C.Plugins && C.Plugins.Share && (!C.isPluginAvailable || C.isPluginAvailable('Share')) ? C.Plugins.Share : null;
+    try {
+      if (plugin) plugin.share({ title: 'Adventurers of Drenerics', text: SHARE_TEXT, url: SHARE_URL, dialogTitle: 'Share the game' }).catch(() => {});
+      else if (navigator.share) navigator.share({ title: 'Adventurers of Drenerics', text: SHARE_TEXT, url: SHARE_URL }).catch(() => {});
+      else { await navigator.clipboard.writeText(SHARE_TEXT + ' ' + SHARE_URL); note = 'Link copied'; }
+    } catch (e) { note = SHARE_TEXT + ' ' + SHARE_URL; }
+    if (giveShareReward('game')) note = (note ? note + '. ' : '') + 'Thank you for sharing! ' + shareGems + ' gems added.';
+    renderShare(note);
+  }
+  renderShare('');
+  document.getElementById('shareCtl').addEventListener('click', e => { if (e.target.closest('#shareBtn')) openShare(); });
+  // A share made on the parent stats page: read this account's own mark (nothing else) and give the gems once
+  async function checkAccountShare() {
+    if (!sb || !cloudUser || !shareOn || shareGiven || activeSlot === null) return;
+    try {
+      const { data } = await sb.from('parent_shares').select('shared_at').eq('user_id', cloudUser.id).maybeSingle();
+      if (data && giveShareReward('account')) renderShare('');
+    } catch (e) {}
+  }
+  shareHooks.check = checkAccountShare;
+  shareHooks.open = openShare;
   const learnEl = document.getElementById('learnLevel');
   learnEl.addEventListener('click', e => {
     const band = e.target.closest('[data-band]'), step = e.target.closest('[data-step]');
@@ -7342,6 +7406,7 @@ let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6
       : 'Not signed in. Sign in to keep this game safe on any device.');
     for (const id of ['cloudSave', 'cloudLoad', 'cloudDelete', 'cloudOut']) $c(id).style.display = cloudUser ? '' : 'none';
     for (const id of ['cloudGoogle', 'cloudFacebook']) $c(id).style.display = cloudUser ? 'none' : '';
+    if (cloudUser) setTimeout(() => shareHooks.check(), 0);
   }
   // The free cloud save holds one game. Automatic saves never replace a different game; a manual "Save now" asks first.
   const worldOf = s => { try { return JSON.parse(s).worldId || null; } catch (e) { return null; } };
@@ -8367,6 +8432,7 @@ const updFirstCheck = updPlugin() ? updCheck().then(() => { if (upd.downloaded) 
 applyLook();
 logEvent('session_start', VERSION);
 logEvent('world_loaded', worldSource + ' seed ' + seed);
+setTimeout(() => shareHooks.check(), 3000);   // a share made on the parent stats page (SPEC-030)
 if (activeSlot === null && getChoice() !== 'new' && listSlots().length) showSlotMenu();
 else if (profile && worldId) { paused = false; resumeWorld(worldId); }
 else openWizard();
@@ -8398,6 +8464,8 @@ Promise.all([
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  // Share the game (0.6.88, SPEC-030)
+  get share() { return { on: shareOn, gems: shareGems, given: shareGiven }; }, setShareReward(on, gems) { shareOn = !!on; shareGems = gems; }, openShare: () => shareHooks.open(),
   // 0.6.87: joining a world, notes, the player count and the map
   placeSafely, safeName, presenceNotes, addNote, toggleLog, get worldLog() { return worldLog.slice(); }, get logUnread() { return logUnread; }, toggleMap, get mapOpen() { return mapOpen; }, playersInWorld,
   // Getting the new version (0.6.80, SPEC-019): a pretend Google Play can be put in place
