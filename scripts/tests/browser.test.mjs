@@ -1092,11 +1092,12 @@ test('on a touch screen the fireball needs no quick bar slot: the Spell button a
       const c = document.querySelector('canvas');
       const world = () => { for (const t of ['pointerdown', 'pointerup']) c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: innerWidth / 2, clientY: innerHeight * 0.4, pointerId: 8, button: 0, pointerType: 'touch' })); };
       tap(); world();
-      const one = g.fireballs.length - n;
-      tap(); world();   // straight away again: the power is still recharging
-      return { one, two: g.fireballs.length - n, sel: g.sel };
+      const one = g.fireballs.length - n, lit = g.spellArmed;
+      world();   // straight away again, with no new tap on the button: the power is still recharging
+      return { one, lit, two: g.fireballs.length - n, sel: g.sel };
     });
     assert.equal(cast.one, 1, 'a tap on the button and a tap on the world cast one fireball');
+    assert.equal(cast.lit, true, 'the Spell button stays lit after the cast (0.6.89)');
     assert.equal(cast.two, 1, 'no second fireball while the power recharges');
     assert.equal(cast.sel, 0, 'the item in hand is unchanged');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
@@ -2701,7 +2702,7 @@ test('SPEC-016 A: after a tap on the Spell button, a tap on a monster to one sid
     let st = await page.evaluate(() => ({ armed: window.gameTest.spellArmed, balls: window.gameTest.fireballs.length }));
     assert.equal(st.balls, n0, 'a drag casts nothing');
     assert.equal(st.armed, true, 'a drag leaves the button lit');
-    // The tap on the monster: one fireball, flying toward it, and the button goes dark. No sword hit and no digging.
+    // The tap on the monster: one fireball, flying toward it, and the button stays lit (0.6.89). No sword hit and no digging.
     await page.evaluate(() => { window.gameTest.setYaw(0); window.gameTest.settleCamera(); });
     const hp0 = await page.evaluate(() => window.gameTest.enemies[0].hp);
     await tapWorld(page, m.sx, m.sy, { touch: true });
@@ -2714,14 +2715,14 @@ test('SPEC-016 A: after a tap on the Spell button, a tap on a monster to one sid
     assert.ok(shot, 'a fireball is cast');
     assert.ok(shot.homing, 'the fireball follows the tapped monster');
     assert.ok(shot.toward > 0.95, 'the fireball flies toward the monster, not straight ahead: ' + shot.toward);
-    assert.equal(shot.armed, false, 'the button goes dark after the cast');
+    assert.equal(shot.armed, true, 'the button stays lit after the cast, ready for the next one');
     assert.equal(shot.hp, hp0, 'the tap itself does not hit with the sword');
     assert.ok(!shot.digging && !shot.fight, 'the tap does not dig or fight');
     const hit = await page.evaluate(() => { const g = window.gameTest; const hp = g.enemies[0] ? g.enemies[0].hp : 0; g.stepFrames(Array(60).fill(0.05)); return { hp, now: g.enemies[0] ? g.enemies[0].hp : 0 }; });
     assert.ok(hit.now < hit.hp, 'the fireball hits that monster');
     // A tap on the ground far to the left: the fireball flies there
-    await page.evaluate(() => { const g = window.gameTest; g.clearEnemies(); g.setYaw(0); g.settleCamera(); g.stepFrames(Array(12).fill(0.05)); g.clearEnemies(); });
-    await arm();
+    await page.evaluate(() => { const g = window.gameTest; g.clearEnemies(); g.setYaw(0); g.settleCamera(); g.stepFrames(Array(12).fill(0.05)); g.clearEnemies(); g.ageSpell(-10000); });   // the 5 seconds are real time: a slow test machine must not turn the button off here
+    // No new tap on the button: it is still lit from the last cast (0.6.89)
     const gx = 60, gy = await page.evaluate(() => Math.round(innerHeight * 0.62));
     await tapWorld(page, gx, gy, { touch: true });
     const ground = await page.evaluate(() => {
@@ -2734,10 +2735,10 @@ test('SPEC-016 A: after a tap on the Spell button, a tap on a monster to one sid
     assert.ok(ground, 'a fireball is cast at the ground');
     assert.ok(ground.toward > 0.99, 'the fireball flies to the tapped place: ' + ground.toward);
     assert.ok(ground.left < -2, 'the place is to the left of the character, not straight ahead: ' + ground.left);
-    assert.equal(ground.armed, false);
+    assert.equal(ground.armed, true, 'still lit after a second cast');
     // A second tap on the button turns it off; so do 5 seconds with no tap on the world
     await page.evaluate(() => window.gameTest.stepFrames(Array(12).fill(0.05)));
-    await arm(); await arm();
+    await arm();
     assert.equal(await page.evaluate(() => window.gameTest.spellArmed), false, 'a second tap on the button turns it off');
     await arm();
     const timed = await page.evaluate(() => { const g = window.gameTest, n = g.fireballs.length; g.ageSpell(g.SPELL_ARM_MS + 100); g.stepFrames([0.016]); return { armed: g.spellArmed, cast: g.fireballs.length - n }; });

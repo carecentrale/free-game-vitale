@@ -2,6 +2,11 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.89: The Spell button stays on after a cast
+Asked for by Nick in chat on 24 Nov 2026 ("once you fire the spells it unselects and you have to re click it"); built straight away at his choice.
+- **Spell button:** after a fireball is cast, the button stays lit, so the next tap on the world casts again once the power has recharged. Each cast starts the 5 seconds again. A tap on the button, 5 seconds with no tap on the world, or a tap on a quiz friend or a merchant still turns it off. The quick bar spell on a computer was not changed (it already stayed in the hand).
+- Guide and What is new updated. No new records; nothing new is sent.
+
 ## 0.6.88: Share the game (SPEC-030), the Activity log (SPEC-031), a new website (SPEC-012 to SPEC-015) and a page for teachers (SPEC-032)
 Built from the PM hand-offs marked ready to build on 23 Nov 2026, at Nick's request ("ok build all the specs please"). SPEC-029 (the store) was not built: its dependencies are not built yet.
 - **SPEC-012 One look for the whole website:** one shared style file `www/site.css` (colours from the logo, 18 px text on a computer and 17 px on a phone, dark mode that follows the device, focus outlines, no motion when the device asks for less). The same top bar (logo, How to play, What is new, Contact, Play; a Menu button on a phone that works without a script) and footer on every page, written by `scripts/site-pages.mjs`. The release notes page is called "What is new" everywhere (address unchanged). Privacy and Terms keep their words.

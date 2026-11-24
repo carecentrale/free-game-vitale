@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.88 (3D)</title>
+<title>Adventurers of Drenerics v0.6.89 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -2813,6 +2813,7 @@ for (const [id, i] of [['bH1', 0], ['bH2', 1]]) {
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) el.addEventListener(ev, () => holdEnd());
 }
 // Spell button (0.6.74): a tap lights it up and casts nothing. The next tap on the world casts the fireball there.
+// 0.6.89: it stays lit after a cast, so the next tap on the world casts again (once the power has recharged).
 // A second tap on the button, or 5 seconds with no tap on the world, turns it off again.
 const SPELL_ARM_MS = 5000, SPELL_ARM_TEXT = 'Tap where the fireball should go.';
 let spellArmed = false, spellArmedAt = 0;
@@ -3102,6 +3103,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.89', title: 'The Spell button stays on', items: [
+    'After you cast a fireball, the Spell button stays lit, so you can tap the world again to cast the next one without tapping the button first.',
+  ] },
   { v: '0.6.88', title: 'Share the game, the Activity log and a new website', items: [
     'Grown-ups can share the game from the parent area, and the game gets 500 gems as a thank-you.',
     'The list of who joined and left is now called the Activity log.',
@@ -4649,7 +4653,7 @@ canvas.addEventListener('pointerup', e => {
   if (press && press.id === e.pointerId && !press.moved && pendingCast) {
     const before = fireballs.length;
     fireAt(pendingCast.x, pendingCast.y);
-    if (spellArmed && fireballs.length > before) armSpell(false);   // cast: the button goes dark again
+    if (spellArmed) spellArmedAt = performance.now();   // the button stays lit after a cast (0.6.89); the 5 seconds start again
   }
   if (spellArmed && press && press.id === e.pointerId && press.moved) spellArmedAt = performance.now();   // a drag turns the camera, casts nothing and leaves the button lit
   if (press && press.id === e.pointerId && !press.moved && pendingFriend) { tapFriend(); if (spellArmed) armSpell(false); }
@@ -7144,7 +7148,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.88';
+const VERSION = '0.6.89';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
