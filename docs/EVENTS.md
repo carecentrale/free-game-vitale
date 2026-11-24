@@ -33,7 +33,7 @@ Since 23 Nov 2026 the "Gameplay records" row on the privacy page describes these
 ## 2. Error reports: table `game_errors`
 | Record | When | Fields | Privacy page row |
 |---|---|---|---|
-| `game_errors` | A JavaScript error, a failed promise, a failed shared-world connection, or a caught error in the wizard, the shared world, drawing, castle life or dragons | Game version, visit code, message (500 characters), where it happened (80 characters), and the **stack trace** (2000 characters: the game's own code lines) | "Error reports" |
+| `game_errors` (column `source`: `game`, `build` or `release`; the game sends `game`) | A JavaScript error, a failed promise, a failed shared-world connection, or a caught error in the wizard, the shared world, drawing, castle life or dragons | Game version, visit code, message (500 characters), where it happened (80 characters), and the **stack trace** (2000 characters: the game's own code lines) | "Error reports" |
 
 ## 3. Enemy debug log: table `debug_log`
 Sent every 10 seconds. World code, game version, kind, position rounded to 0.1, and a short reason with the monster kind. No visit code. Kept 30 days (owner can change it).

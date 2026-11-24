@@ -25,6 +25,7 @@ Checked on 22 Nov 2026: each file below has the same text as the step recorded i
 | 14 | 0012_merchant_settings.sql | 0012_merchant_settings | 22 Nov 2026 |
 | 15 | 0013_share_reward.sql | 0013_share_reward | 23 Nov 2026 (Nick: "yes") |
 | 16 | 0014_teacher_interest.sql | 0014_teacher_interest | 23 Nov 2026 (Nick: "yes") |
+| 17 | 0015_error_source.sql | 0015_error_source | not applied yet (waits for Nick's yes) |
 
 **Not applied:** `0008_guardian_packages.sql` (purchases, waits for the parent's approval). Its tables are not in the live database.
 

@@ -89,7 +89,7 @@ async function load() {
   const since = new Date(Date.now() - 14 * DAY).toISOString();
   const [ev, er] = await Promise.all([
     sb.from('game_events').select('created_at,kind,player_id,version,detail').gte('created_at', since).order('created_at', { ascending: false }).limit(10000),
-    sb.from('game_errors').select('id,created_at,version,message,stack,where_seen').order('created_at', { ascending: false }).limit(100),
+    sb.from('game_errors').select('id,created_at,version,source,message,stack,where_seen').order('created_at', { ascending: false }).limit(100),
   ]);
 
   if (ev.error || er.error) {
@@ -468,15 +468,20 @@ $('players').addEventListener('click', e => {
   renderDetail();
 });
 
+let allErrors = [];
 function renderErrors(errors) {
-  $('errors').innerHTML = errors.length
-    ? `<table><tr><th>When</th><th>Version</th><th>Where</th><th>Message</th></tr>` +
-      errors.map(e => `<tr><td>${esc(new Date(e.created_at).toLocaleString())}</td><td>${esc(e.version)}</td><td>${esc(e.where_seen)}</td><td>${esc(e.message)}${e.stack ? `<details><summary class="muted">stack</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(e.stack)}</pre></details>` : ''}</td></tr>`).join('') +
+  allErrors = errors || [];
+  const pick = $('errorSource') ? $('errorSource').value : '';
+  const shown = pick ? allErrors.filter(e => (e.source || 'game') === pick) : allErrors;
+  $('errors').innerHTML = shown.length
+    ? `<table><tr><th>When</th><th>Source</th><th>Version</th><th>Where</th><th>Message</th></tr>` +
+      shown.map(e => `<tr><td>${esc(new Date(e.created_at).toLocaleString())}</td><td>${esc(e.source || 'game')}</td><td>${esc(e.version)}</td><td>${esc(e.where_seen)}</td><td>${esc(e.message)}${e.stack ? `<details><summary class="muted">stack</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(e.stack)}</pre></details>` : ''}</td></tr>`).join('') +
       `</table>`
     : '<div class="muted">No errors recorded. 🎉</div>';
 }
 
 $('refresh').addEventListener('click', load);
+$('errorSource').addEventListener('change', () => renderErrors(allErrors));
 $('clearErrors').addEventListener('click', async () => {
   if (!confirm('Clear all recorded errors? This cannot be undone.')) return;
   const { error } = await sb.from('game_errors').delete().gt('id', 0);
@@ -530,6 +535,7 @@ load();
   <div class="card">
     <div class="row" style="justify-content:space-between;margin-bottom:8px">
       <b>Recent errors</b>
+      <select id="errorSource" aria-label="Show errors from"><option value="">All sources</option><option value="game">Game</option><option value="build">Build machine</option><option value="release">Release</option></select>
       <button class="danger" id="clearErrors">Clear errors</button>
     </div>
     <div id="errors"></div>
