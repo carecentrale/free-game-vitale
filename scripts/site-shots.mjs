@@ -188,7 +188,7 @@ try {
       if (wall) { const [x, y, z] = wall.map(Math.floor); for (let a = 0; a < 4; a++) for (let h = 1; h <= 3; h++) g.placeCell(x + a - 2, y + h, z, h === 3 ? 'stone' : 'dirt'); }
     });
     await settle(page, 30);
-    await page.evaluate(() => { document.getElementById('msg').textContent = ''; });
+    await page.evaluate(() => { document.getElementById('chatPeek').style.opacity = '0'; });
     webp(await shot(page, 'dig'), path.join(root, 'www/home/dig.webp'), 640, 150);
     await page.evaluate(() => document.getElementById('powersBtn').click());
     await page.waitForTimeout(1500);

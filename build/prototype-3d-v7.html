@@ -3,14 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.88 (3D)</title>
+<title>Adventurers of Drenerics v0.6.89 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
   #hud{position:fixed;top:10px;left:10px;color:#fff;text-shadow:0 2px 4px #000;font-size:16px;line-height:1.4;pointer-events:none}
   .bar{width:180px;height:14px;background:rgba(0,0,0,.5);margin:4px 0}
   .bar>div{height:100%;width:0}
-  #msg{position:fixed;top:12px;left:50%;transform:translateX(-50%);color:#fff;font-size:20px;text-shadow:0 2px 4px #000;pointer-events:none;white-space:nowrap}
   .btn{position:fixed;width:56px;height:50px;background:rgba(255,255,255,.3);color:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:bold;touch-action:none}
   #topbar{position:fixed;top:8px;right:10px;display:flex;align-items:center;gap:8px;z-index:10}
   /* Powers button (0.6.74): a star, beside Settings. At least 44 px tall. Opens the Powers panel */
@@ -44,7 +43,7 @@
   @keyframes chatGlow{0%,100%{box-shadow:0 0 0 0 rgba(255,212,59,.9)}50%{box-shadow:0 0 0 10px rgba(255,212,59,0)}}
   #chatCount{position:absolute;top:-6px;right:-6px;min-width:22px;height:22px;border-radius:11px;background:#d9473b;color:#fff;font:bold 13px sans-serif;display:none;align-items:center;justify-content:center;padding:0 5px;box-sizing:border-box}
   #chatBtn.new #chatCount{display:flex}
-  #chatPeek{position:fixed;left:78px;bottom:26px;max-width:min(60vw,340px);background:rgba(0,0,0,.6);color:#fff;font-size:14px;padding:6px 10px;border-radius:10px;pointer-events:none;z-index:11;transition:opacity .6s;opacity:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #chatPeek{position:fixed;left:78px;bottom:26px;max-width:min(60vw,340px);background:rgba(0,0,0,.6);color:#fff;font-size:14px;padding:6px 10px;border-radius:10px;pointer-events:none;z-index:11;transition:opacity .6s;opacity:0;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;line-clamp:3}
   #chatLog{position:fixed;left:16px;bottom:80px;width:min(340px,80vw);max-height:40vh;background:rgba(10,12,25,.85);color:#fff;border-radius:12px;z-index:21;display:none;flex-direction:column;box-sizing:border-box}
   #chatLog.open{display:flex}
   #chatLog .head{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid #445;font-weight:700}
@@ -139,7 +138,6 @@
   body.phone #powersBtn .pl,body.phone #viewBtn .pl{display:none}
   body.phone #toggle{max-width:72px;overflow:hidden;text-overflow:ellipsis}
   body.phone #hudBtn{max-width:calc(100vw - 300px);min-width:40px}
-  body.phone #msg{font-size:15px;top:104px;white-space:normal;text-align:center;width:70vw}   /* under the name, bag and world lines, not on top of them (0.6.69) */
   #wiz{position:fixed;inset:0;background:rgba(10,12,25,.85);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;box-sizing:border-box}
   #wiz.hide{display:none}
   #wiz .box{background:#1d2440;color:#fff;border-radius:18px;padding:20px;max-width:420px;width:100%;box-sizing:border-box;text-align:center}
@@ -270,7 +268,6 @@
 </style>
 <script>setTimeout(function(){var e=document.getElementById('splash');if(e)e.remove();},20000);</script>
 <div id="hud"></div>
-<div id="msg"></div>
 <div id="chatBtn" role="button" aria-label="Activity log" title="Activity log"><svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H10l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="#fff"/><circle cx="8" cy="10.5" r="1.4" fill="#3b6fd8"/><circle cx="12" cy="10.5" r="1.4" fill="#3b6fd8"/><circle cx="16" cy="10.5" r="1.4" fill="#3b6fd8"/></svg><span id="chatCount"></span></div>
 <div id="chatPeek"></div>
 <div id="chatLog"><div class="head"><span>Activity log</span><button id="chatClose" aria-label="Close">&#10005;</button></div><div id="chatLines"></div></div>
@@ -2821,7 +2818,7 @@ function armSpell(on) {
   spellArmedAt = performance.now();
   document.getElementById('bSpell').classList.toggle('on', on);
   if (on) say(SPELL_ARM_TEXT, SPELL_ARM_MS);
-  else if (msgEl.textContent === SPELL_ARM_TEXT) { msgEl.textContent = ''; msgT = 0; }
+  else if (msgText === SPELL_ARM_TEXT) { msgText = ''; msgT = 0; }
 }
 document.getElementById('bSpell').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (spellArmed) armSpell(false); else if (!anyPanelOpen()) { sfx('tap'); armSpell(true); } });
 
@@ -2877,9 +2874,15 @@ const pick = a => a[Math.floor(Math.random() * a.length)];
 let playerName = (saved && typeof saved.name === 'string') ? saved.name
   : pick(titles) + ' ' + pick(names) + ' ' + (Math.floor(Math.random() * 999) + 1);
 
-const msgEl = document.getElementById('msg');
-let msgT = 0;
-function say(text, ms = 2000) { msgEl.textContent = text; msgT = ms; }
+// Short game hints (0.6.89): they go into the Activity log (shown beside its bubble for a few seconds), not across the
+// top of the screen. Hints said before the log is set up wait in sayQueue. msgText is the latest hint, kept for ms
+// (read by the tests through gameTest.msg).
+let msgText = '', msgT = 0, logReady = false;
+const sayQueue = [];
+function say(text, ms = 2000) {
+  msgText = String(text); msgT = ms;
+  if (logReady) addNote(text, { hint: true, ms }); else sayQueue.push([text, ms]);
+}
 say('Select a tool in the quick bar (1-6). Pickaxe digs, sword fights, blocks build.', 5000);
 
 function gain(p, n) {
@@ -3102,6 +3105,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.89', title: 'Game tips go in the Activity log', items: [
+    'Short game messages, like "Too far away! Get closer.", no longer show across the top of the screen. They show for a moment beside the speech bubble at the bottom left and stay in the Activity log to read again.',
+    'The same message again adds to its line (for example "x3") instead of filling the log.',
+  ] },
   { v: '0.6.88', title: 'Share the game, the Activity log and a new website', items: [
     'Grown-ups can share the game from the parent area, and the game gets 500 gems as a thank-you.',
     'The list of who joined and left is now called the Activity log.',
@@ -5821,7 +5828,7 @@ function update(dt) {
   scene.background.setHex(under ? 0x2b2238 : head === T.WATER ? 0x3d7fb0 : 0x87ceeb);
   skyGroup.visible = !under;
 
-  if (msgT > 0) { msgT -= dt * 1000; if (msgT <= 0) msgEl.textContent = ''; }
+  if (msgT > 0) { msgT -= dt * 1000; if (msgT <= 0) msgText = ''; }
   drawHud();
 }
 
@@ -7144,7 +7151,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.88';
+const VERSION = '0.6.89';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7660,10 +7667,10 @@ function drawLog() {
   for (const e of worldLog) {
     const row = document.createElement('div'), t = document.createElement('span');
     t.className = 't'; t.textContent = hhmm(e.at);
-    row.appendChild(t); row.appendChild(document.createTextNode(e.text));
+    row.appendChild(t); row.appendChild(document.createTextNode(e.text + (e.n > 1 ? ' (x' + e.n + ')' : '')));
     chatLines.appendChild(row);
   }
-  if (!worldLog.length) chatLines.textContent = 'Nothing yet. When a friend joins or leaves your world, it shows here.';
+  if (!worldLog.length) chatLines.textContent = 'Nothing yet. Game tips, and friends joining or leaving your world, show here.';
   chatLines.scrollTop = chatLines.scrollHeight;
 }
 function drawBubble() {
@@ -7671,14 +7678,25 @@ function drawBubble() {
   chatBtn.classList.toggle('new', logUnread > 0 && !logOpen);
   chatCount.textContent = logUnread > 9 ? '9+' : String(logUnread);
 }
-function addNote(text) {
-  worldLog.push({ at: Date.now(), text: String(text) });
-  while (worldLog.length > LOG_MAX) worldLog.shift();
-  if (logOpen) drawLog(); else logUnread++;
-  chatPeek.textContent = String(text); chatPeek.style.opacity = '1';
-  clearTimeout(peekTimer); peekTimer = setTimeout(() => { chatPeek.style.opacity = '0'; }, 5000);
+// A note from the game. Friends joining or leaving count as unread (red number); hints (from say) do not.
+// The same hint again within 15 seconds adds to the last line ("Too far away! Get closer. (x3)") instead of a new line.
+const NOTE_SAME_MS = 15000;
+function addNote(text, { hint = false, ms = 5000 } = {}) {
+  text = String(text);
+  const now = Date.now(), last = worldLog[worldLog.length - 1];
+  if (last && last.text === text && now - last.at < NOTE_SAME_MS) { last.n = (last.n || 1) + 1; last.at = now; }
+  else {
+    worldLog.push({ at: now, text, n: 1, hint });
+    while (worldLog.length > LOG_MAX) worldLog.shift();
+    if (!logOpen && !hint) logUnread++;
+  }
+  if (logOpen) drawLog();
+  chatPeek.textContent = text; chatPeek.style.opacity = logOpen ? '0' : '1';
+  clearTimeout(peekTimer); peekTimer = setTimeout(() => { chatPeek.style.opacity = '0'; }, Math.max(3000, ms));
   drawBubble();
 }
+logReady = true;
+for (const [t, m] of sayQueue.splice(0)) addNote(t, { hint: true, ms: m });
 function toggleLog(on = !logOpen) {
   logOpen = on;
   chatLog.classList.toggle('open', on);
@@ -8467,7 +8485,7 @@ window.gameTest = {
   // Share the game (0.6.88, SPEC-030)
   get share() { return { on: shareOn, gems: shareGems, given: shareGiven }; }, setShareReward(on, gems) { shareOn = !!on; shareGems = gems; }, openShare: () => shareHooks.open(),
   // 0.6.87: joining a world, notes, the player count and the map
-  placeSafely, safeName, presenceNotes, addNote, toggleLog, get worldLog() { return worldLog.slice(); }, get logUnread() { return logUnread; }, toggleMap, get mapOpen() { return mapOpen; }, playersInWorld,
+  placeSafely, safeName, presenceNotes, addNote, say, toggleLog, get worldLog() { return worldLog.slice(); }, get logUnread() { return logUnread; }, toggleMap, get mapOpen() { return mapOpen; }, playersInWorld,
   // Getting the new version (0.6.80, SPEC-019): a pretend Google Play can be put in place
   upd, updCheck, updTick, updSafe, updForced, updSave, setUpdPlugin: p => { upd.plugin = p; },
   // Loading screen and load-by-itself (0.6.83)
@@ -8535,7 +8553,7 @@ window.gameTest = {
   get gear() { return gear; }, get qb() { return qb; }, get recent() { return recent; },
   get skills() { return skills; },
   // Controls and sound (0.6.60)
-  get sel() { return sel; }, get paused() { return paused; }, get msg() { return msgEl.textContent; }, get digging() { return digging; }, get fight() { return fight; },
+  get sel() { return sel; }, get paused() { return paused; }, get msg() { return msgText; }, get digging() { return digging; }, get fight() { return fight; },
   get swingCool() { return swingCool; }, toQuick, selectSlot, digCell, placeCell, chooseSkill, handItem, dropFromBag, canDrop, invCap, get drops() { return [...drops.values()].map(d => [d.x, d.y, d.z, d.id]); },
   // Building by tap (0.6.62): the block in a cell, whether it is solid, and how far the character can reach
   blockAt: (x, y, z) => get(x, y, z), isSolid: t => solid(t), reach: REACH,

@@ -95,7 +95,7 @@ test('0.6.87: a note says who is here on arrival, who joins and who leaves', () 
   assert.doesNotMatch(log, /innerHTML|localStorage|sendSync|channel\.send|logEvent/);
   assert.match(log, /const LOG_MAX = 50;/);
   assert.match(log, /while \(worldLog\.length > LOG_MAX\) worldLog\.shift\(\)/);
-  assert.match(log, /document\.createTextNode\(e\.text\)/);
+  assert.match(log, /document\.createTextNode\(e\.text \+ /);
   assert.match(game, /else if \(logOpen\) toggleLog\(false\);/, 'Esc closes the log');
 });
 
@@ -118,4 +118,12 @@ test('0.6.87: the map has a colour for every block, and players off the map are 
   assert.match(game, /if \(mapOpen\) toggleMap\(false\);/);
   // the map reads only land already loaded: it never makes new land just to draw it
   assert.match(between('function drawMapLand', 'function drawMapDots'), /chunks\.has\(/);
+});
+
+test('0.6.89: hints go into the Activity log, not across the top of the screen', () => {
+  assert.doesNotMatch(game, /id="msg"|#msg\{|msgEl/, 'no message line at the top of the screen any more');
+  assert.match(game, /if \(logReady\) addNote\(text, \{ hint: true, ms \}\); else sayQueue\.push\(\[text, ms\]\);/, 'say() writes to the log');
+  assert.match(game, /for \(const \[t, m\] of sayQueue\.splice\(0\)\) addNote\(t, \{ hint: true, ms: m \}\);/, 'hints said before the log is ready are not lost');
+  assert.match(game, /if \(!logOpen && !hint\) logUnread\+\+;/, 'hints do not raise the red count');
+  assert.match(game, /last\.text === text && now - last\.at < NOTE_SAME_MS/, 'the same hint again adds to the last line');
 });

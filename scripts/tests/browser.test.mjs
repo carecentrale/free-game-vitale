@@ -3474,7 +3474,7 @@ test('SPEC-022: the parent\'s Dragons control: Off shows none, Stay high keeps t
       assert.equal(await page.evaluate(t => window.gameTest.treeLook(t.tx, t.tz), tree), 1, 'a stump on the day it was eaten');
       const list = await page.evaluate(() => window.gameTest.eatenList());
       assert.ok(list.some(e => e[0] === tree.tx && e[1] === tree.tz && e[3] > e[2] && e[3] - e[2] <= 2), 'the eaten tree is in the world list with its regrow day: ' + JSON.stringify(list));
-      const msg = await page.evaluate(() => document.getElementById('msg') ? document.getElementById('msg').textContent : '');
+      const msg = await page.evaluate(() => window.gameTest.msg);
       assert.ok(/dragon is eating a tree/.test(msg) || msg === '', 'the first-time line: ' + msg);
     }
     assert.deepEqual(errors.filter(e => !/GL Driver/.test(e)), [], errors.join('\n'));
@@ -3600,6 +3600,11 @@ test('0.6.87: the player count at the top left, the world\'s log bubble, and the
     await page.evaluate(() => document.getElementById('chatBtn').click());
     assert.match(await page.evaluate(() => document.getElementById('chatLines').textContent), /Sir Kestrel 4/, 'the notes are still there to read again');
     await page.evaluate(() => window.gameTest.toggleLog(false));
+    // 0.6.89: a hint goes into the log (no red count); the same hint again adds to its line
+    st = await page.evaluate(() => { const G = window.gameTest, n = G.worldLog.length; G.say('Too far away! Get closer.'); G.say('Too far away! Get closer.');
+      const l = G.worldLog; return { added: l.length - n, last: l[l.length - 1], unread: G.logUnread, top: !!document.getElementById('msg'), peek: document.getElementById('chatPeek').textContent }; });
+    assert.equal(st.added, 1); assert.equal(st.last.text, 'Too far away! Get closer.'); assert.equal(st.last.n, 2); assert.equal(st.last.hint, true);
+    assert.equal(st.unread, 0); assert.equal(st.top, false); assert.equal(st.peek, 'Too far away! Get closer.');
     await page.keyboard.press('KeyM');
     assert.equal(await page.evaluate(() => window.gameTest.mapOpen), true, 'M opens the map');
     const lit = await page.evaluate(() => { const d = document.getElementById('mapLand').getContext('2d').getImageData(40, 40, 16, 16).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] + d[i + 1] + d[i + 2] > 150) n++; return n; });

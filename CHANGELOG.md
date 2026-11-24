@@ -2,6 +2,14 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.89: Game tips go in the Activity log
+Reported by Nick in the build chat on 24 Nov 2026 ("the 'too far' message shows on the screen and not in the activity log"). He chose to move every short hint to the log and to build it now.
+- Every short game message (`say()`: "Too far away! Get closer.", "+1 gem!", "Picked up ...", power ups, monster hits, and so on) now goes into the Activity log instead of the line across the top of the screen. It shows beside the speech bubble for at least 3 seconds (up to 3 lines), and stays in the log with its time. The top line (`#msg`) is gone.
+- Hints do not raise the red unread count: that stays for friends joining or leaving. The same hint again within 15 seconds adds to the last line ("x3") instead of a new line. Hints said while the game is still starting wait and go into the log once it is ready.
+- Nothing new is recorded or sent: the log is still kept in memory for this visit only.
+- Guide and What is new updated. Tests: a static test in `players-together.test.mjs`, a browser check in the 0.6.87 log test; the dragon test and `site-shots.mjs` no longer read the old top line.
+- Checked: syntax check, fast tests. **Not checked:** played by Nick, any phone or the Android app.
+
 ## 0.6.88: Share the game (SPEC-030), the Activity log (SPEC-031), a new website (SPEC-012 to SPEC-015) and a page for teachers (SPEC-032)
 Built from the PM hand-offs marked ready to build on 23 Nov 2026, at Nick's request ("ok build all the specs please"). SPEC-029 (the store) was not built: its dependencies are not built yet.
 - **SPEC-012 One look for the whole website:** one shared style file `www/site.css` (colours from the logo, 18 px text on a computer and 17 px on a phone, dark mode that follows the device, focus outlines, no motion when the device asks for less). The same top bar (logo, How to play, What is new, Contact, Play; a Menu button on a phone that works without a script) and footer on every page, written by `scripts/site-pages.mjs`. The release notes page is called "What is new" everywhere (address unchanged). Privacy and Terms keep their words.
