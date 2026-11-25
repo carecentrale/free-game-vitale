@@ -54,3 +54,8 @@ Changed in `build-watcher.ps1` (build tools folder; the file before the change i
 - Checked: the new watcher started by itself, answered a `status` request through GitHub (15:42). Not checked: a run actually reaching its limit and being stopped.
 - Still open: why 52 browser tests fail on the laptop but pass elsewhere. Until that is found, `full` cannot succeed there; `quick` builds work.
 
+## Why 52 browser tests failed on the laptop, and the fix (25 Nov 2026)
+- Measured on the laptop with a small probe (`build-requests\probe.mjs`, run through the watcher's `run`): with software drawing (SwiftShader) the test browser draws the game at 0.3 frames a second and needs 93 seconds before play starts; the tests wait 90. With the laptop's own graphics chip (`--use-angle=d3d11`, Intel UHD) it draws 23 frames a second and play starts in 3 seconds. In the cloud workspace software drawing gives 1.5 frames a second and 24 seconds. The watcher's low priority made no difference.
+- Fix in `scripts/tests/browser.test.mjs`: on Windows the graphics chip is tried first and used only when a check shows it really draws (a real chip and at least 10 frames in a second); otherwise software drawing as before. `TEST_DRAW=soft` or `TEST_DRAW=chip` sets it by hand. The run prints which one it uses.
+- Not known yet: whether the chip keeps drawing with the laptop's screen locked or off. If it does not, the check falls back to software drawing and the run is slow again (and now stops at the 75 minute limit).
+

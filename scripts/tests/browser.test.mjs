@@ -138,12 +138,59 @@ async function setupPage(page, base, opts = {}) {
 const skip = !chromium ? 'playwright is not installed: run npm install'
   : (!CHROME_PATH && !process.env.CI && !fs.existsSync('/opt/pw-browsers') ? 'Chromium not configured: set CHROME_PATH' : false);
 
+// ---- How the test browser draws (25 Nov 2026) ----
+// Software drawing (SwiftShader) draws the same way on every machine, also with the screen off or locked, where the
+// graphics chip may stop drawing (0.6.59). But on the Windows build laptop it draws the game at 0.3 frames a second
+// (measured 25 Nov 2026: 93 seconds before play starts, so 52 tests ran out of time), against 23 frames a second and
+// 3 seconds with the laptop's own graphics chip. So on Windows the chip is tried first: it is used only when a check
+// shows that it really draws (a real chip, and at least 10 frames in a second); otherwise software drawing is used.
+// TEST_DRAW=soft or TEST_DRAW=chip sets the first choice by hand. The choice is made once and printed.
+const DRAW_SOFT = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
+const DRAW_CHIP = ['--use-angle=d3d11'];
+function drawFirstChoice(platform = process.platform, env = process.env) {
+  if (env.TEST_DRAW === 'soft' || env.TEST_DRAW === 'chip') return env.TEST_DRAW;
+  return platform === 'win32' ? 'chip' : 'soft';
+}
+let drawArgs = null;
+async function browserArgs() {
+  if (drawArgs) return drawArgs;
+  let chip = false;
+  if (drawFirstChoice() === 'chip') {
+    try {
+      const b = await chromium.launch({ ...(CHROME_PATH ? { executablePath: CHROME_PATH } : {}), args: DRAW_CHIP });
+      try {
+        const page = await b.newPage();
+        chip = await page.evaluate(() => new Promise(done => {
+          const gl = document.createElement('canvas').getContext('webgl');
+          if (!gl) return done(false);
+          const e = gl.getExtension('WEBGL_debug_renderer_info');
+          const name = e ? String(gl.getParameter(e.UNMASKED_RENDERER_WEBGL)) : '';
+          let n = 0;
+          const from = performance.now();
+          const f = () => { n++; if (performance.now() - from < 1000) requestAnimationFrame(f); else done(!/swiftshader|llvmpipe|basic render|software/i.test(name) && n >= 10); };
+          requestAnimationFrame(f);
+        }));
+      } finally { await b.close(); }
+    } catch (e) { chip = false; }
+  }
+  drawArgs = chip ? DRAW_CHIP : DRAW_SOFT;
+  console.log('# test browser draws with: ' + (chip ? 'the graphics chip' : 'software (SwiftShader)'));
+  return drawArgs;
+}
+test('the test browser draws with software everywhere but Windows, where the graphics chip is tried first; TEST_DRAW sets it by hand', () => {
+  assert.equal(drawFirstChoice('linux', {}), 'soft');
+  assert.equal(drawFirstChoice('darwin', {}), 'soft');
+  assert.equal(drawFirstChoice('win32', {}), 'chip');
+  assert.equal(drawFirstChoice('win32', { TEST_DRAW: 'soft' }), 'soft');
+  assert.equal(drawFirstChoice('linux', { TEST_DRAW: 'chip' }), 'chip');
+  assert.equal(drawFirstChoice('linux', { TEST_DRAW: 'other' }), 'soft');
+  assert.deepEqual(DRAW_SOFT, ['--use-angle=swiftshader', '--enable-unsafe-swiftshader']);
+});
+
 async function withGame(fn, opts) {
   const server = await serveWww();
   const base = `http://127.0.0.1:${server.address().port}`;
-  // Software drawing (SwiftShader): the test browser draws frames the same way on every machine, also on the
-  // build laptop with its screen off or locked, where the graphics chip may stop drawing (0.6.59)
-  const browser = await chromium.launch({ ...(CHROME_PATH ? { executablePath: CHROME_PATH } : {}), args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const browser = await chromium.launch({ ...(CHROME_PATH ? { executablePath: CHROME_PATH } : {}), args: await browserArgs() });
   const errors = [];
   const requests = [];   // every address the page asks for (used by the sound tests)
   try {
