@@ -4435,3 +4435,68 @@ test('SPEC-026: digging, placing, landing and gems make small effects (60 at mos
     assert.deepEqual(r.ways, { grass: 4, dirt: 24, sand: 24, snow: 24, stone: 24, gem: 0, castle: 0, roof: 0, wood: 0 });
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { device: PC, saves: [phoneGame()] }));
+
+// ---- Teacher Mirelo, built-in talks (0.6.103; the first part of SPEC-027) ----
+test('Teacher Mirelo (test switch): the AI greeting, words or maths, a talk with answers from the game, Show me, Why, easier and harder, the answer after two wrong tries, 12 replies at most, no gems, nothing typed, nothing sent', { skip, timeout: 300000 }, () =>
+  withGame(async (page, errors, requests) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.teach, null, { timeout: 60000 });
+    assert.equal(await page.evaluate(() => window.gameTest.teach.on), false, 'without the switch there is no Teacher Mirelo');
+    await page.goto(page.url().split('?')[0] + '?teacher=1', { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.gameTest && window.gameTest.teach && window.gameTest.teach.on && window.gameProbe, null, { timeout: 90000 });
+    await playing(page);
+    const sent = requests.length;
+    const r = await page.evaluate(() => {
+      const G = window.gameTest, T = G.teach, out = {}, st = () => T.state(), tap = mean => { const s = st(), i = s.replies.findIndex(x => x.mean === mean); T.reply(i); return i; };
+      const answer = right => { const s = st(), q = s.talk.q, i = s.replies.findIndex(x => x.mean === 'answer' && (x.a === q.right) === right); T.reply(i); };
+      G.setQuizLevels({ band: 0, math: { use: 12, best: 12, fast: false }, words: { use: 1, best: 1, fast: false } });
+      G.setInv('gem', 7);
+      out.opened = T.open(); out.menu = st(); out.paused = G.paused;
+      T.close(); T.open(); out.menu2 = st().line;
+      tap('math'); out.first = st();
+      out.lesson = T.lessonsAt('math', 12).find(l => l[0] === out.first.talk.lesson);
+      tap('show'); out.show = st();
+      tap('why'); out.why = st();
+      answer(true); out.right = st(); out.levels = G.quizLevels.math;
+      tap('harder'); out.harder = st();
+      answer(false); out.wrong1 = st(); answer(false); out.wrong2 = st();
+      tap('easier'); out.easier = st();
+      tap('another'); out.another = st();
+      // keep going until he ends the talk by himself
+      for (let i = 0; i < 20 && st().talk && !st().talk.ended; i++) { const s = st(); if (s.replies.some(x => x.mean === 'answer')) answer(true); else tap('another'); }
+      out.end = st(); out.gems = G.inv.gem;
+      tap('again'); out.again = st().line; tap('words'); out.words = st();
+      out.wordOk = out.words.talk.q.answers.every(w => G.QUIZ_WORDS.some(x => x[0].toUpperCase() === w && x[2] === 1));
+      out.stop = !!document.querySelector('#teachPanel [data-stop]'); document.querySelector('#teachPanel [data-stop]').click(); out.done = st(); tap('bye'); out.closed = T.state() === null && !G.paused;
+      // every lesson of a row heard: they come round again (and that is recorded)
+      T.setSaved({ greeted: true, right: 4, talks: 2, badges: 0, seen: { math: [], words: T.lessonsAt('words', 1).map(l => l[0]) } });
+      T.open(); tap('words'); out.round = st().talk.lesson; answer(true); out.badge = st(); T.close();
+      out.kept = (() => { G.saveGame(); return JSON.parse(localStorage.getItem('kidsgame.slot.0')).mirelo.teach; })();
+      return out;
+    });
+    assert.equal(r.opened, true); assert.equal(r.paused, true, 'the game stands still while he talks');
+    assert.match(r.menu.line, /^Hello, young adventurer! I can teach you now\. I am a magic helper made by a computer program, called an AI\./);
+    assert.deepEqual(r.menu.replies.map(x => x.label), ["Let's talk words", "Let's talk maths", 'Goodbye']); assert.equal(r.menu.badge, true, 'the AI badge shows beside his name');
+    assert.equal(r.menu2, 'Shall we talk about words or numbers?', 'the greeting is said once');
+    assert.equal(r.first.talk.subject, 'math'); assert.equal(r.first.talk.level, 12);
+    assert.deepEqual(r.first.replies.map(x => x.mean), ['answer', 'answer', 'answer', 'show'], 'three answers from the game and one more reply');
+    assert.equal(r.first.line, r.lesson[2][0], 'he starts with the lesson'); assert.equal(r.first.flag, true); assert.equal(r.first.inputs, 0);
+    assert.equal(r.show.line, r.lesson[2][1]); assert.ok(r.show.replies.some(x => x.mean === 'why'));
+    assert.ok(r.why.line.length > 10 && r.why.replies.filter(x => x.mean === 'answer').length === 3);
+    assert.match(r.right.line, /right|worked it out|Exactly|Yes/); assert.deepEqual(r.right.replies.map(x => x.mean), ['harder', 'another', 'done']);
+    assert.equal(r.right.talk.right, 1); assert.equal(r.levels.use, 13, 'a right first answer moves the learning level');
+    assert.equal(r.harder.talk.level, 13); assert.match(r.harder.line, /^A trickier one, then! /);
+    assert.match(r.wrong1.line, /^Not quite\. Let us look at it together\. /); assert.equal(r.wrong1.replies.filter(x => x.mean === 'answer').length, 3);
+    assert.match(r.wrong2.line, /^The answer is /, 'after two wrong tries he shows the answer'); assert.ok(!r.wrong2.replies.some(x => x.mean === 'answer'));
+    assert.equal(r.easier.talk.level, 12); assert.equal(r.another.talk.kind, r.easier.talk.kind, 'another like that is the same kind of question');
+    assert.equal(r.end.talk.ended, true); assert.ok(r.end.talk.replies <= 12, 'at most 12 replies: ' + r.end.talk.replies); assert.match(r.end.line, /^We solved (\d+ puzzles|a puzzle) together!$/);
+    assert.deepEqual(r.end.replies.map(x => x.mean), ['again', 'bye']);
+    assert.equal(r.gems, 7, 'talks give no gems');
+    assert.equal(r.words.talk.q.text, 'Which word do these letters make?'); assert.equal(r.wordOk, true, 'the three words are from the game\'s list at the child\'s level');
+    assert.equal(r.stop, true, 'a way to stop is always there'); assert.equal(r.done.talk.ended, true); assert.equal(r.closed, true);
+    assert.match(r.round, /^w:0:\d$/); assert.match(r.badge.line, /You earned a Learning with Mirelo badge!$/);
+    assert.equal(r.kept.right, 5); assert.equal(r.kept.badges, 1); assert.equal(r.kept.greeted, true);
+    const out = requests.slice(sent).filter(u => !u.startsWith('http://127.0.0.1') && !/cdn\.jsdelivr\.net/.test(u) && !u.startsWith('data:') && !u.startsWith('blob:') && !/\/rest\/v1\/(game_settings|bird_facts)\?/.test(u));
+    assert.deepEqual(out, [], 'a built-in talk asks nothing of any server');
+    if (process.env.SHOT) { await page.evaluate(() => { const T = window.gameTest.teach; T.open(); T.reply(1); }); await page.screenshot({ path: '/tmp/ml/talk.png' }); }
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PC, saves: [readyGame()] }));

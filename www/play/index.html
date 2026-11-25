@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.102 (3D)</title>
+<title>Adventurers of Drenerics v0.6.103 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -2882,7 +2882,7 @@ bindBtn('bJ', 'J');
 // With the bag, Settings, the quit question or another panel open, the buttons do nothing.
 let powersOpen = false;
 let tradePanel = null, pendingMerchant = null;   // a merchant's open trades; the merchant a press landed on (0.6.77)
-const anyPanelOpen = () => reportOpen || !!dmd || bagOpen || settingsOpen || quitOpen || powersOpen || !!skillPanel || !!quizPanel || !!tipPanel || !!tradePanel || paused;
+const anyPanelOpen = () => !!teachPanel || reportOpen || !!dmd || bagOpen || settingsOpen || quitOpen || powersOpen || !!skillPanel || !!quizPanel || !!tipPanel || !!tradePanel || paused;
 // The item a hand button shows. A stack that has run out counts as empty.
 const handItem = i => { const id = qb[i], d = id ? defOf(id) : null; return d && !(ITEMS[id] && d.kind !== 'spell' && !(inv[id] > 0)) ? id : null; };
 function handTap(i) {
@@ -3192,6 +3192,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.103', title: 'Behind the scenes', items: [
+    'Work behind the scenes on something new for Mirelo. Nothing changes in the game yet.',
+  ] },
   { v: '0.6.102', title: 'Behind the scenes', items: [
     'Small fixes behind the scenes to keep the bird facts coming.',
   ] },
@@ -3564,6 +3567,9 @@ function renderSettings() {
     // Tips from Mirelo switch (0.6.93, SPEC-028): on at first, kept on this device
     `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#10024; Tips from Mirelo</b><div style="font-size:13px;opacity:.8;margin-top:2px">Mirelo the mage drops by with magic tips</div></div>` +
     `<button id="mireloSwitch" style="flex:none;min-height:48px;min-width:96px;border:0;border-radius:12px;font-size:17px;font-weight:600;color:#fff;cursor:pointer;background:${mireloOn ? '#2e9e4f' : '#666b80'}">${mireloOn ? 'On' : 'Off'}</button></div>` +
+    // Mirelo's voice (0.6.103): only shown while Teacher Mirelo is on (the test switch); on at first, kept on this device
+    (teachOn ? `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#128266; Mirelo's voice</b><div style="font-size:13px;opacity:.8;margin-top:2px">Turn his talking voice on or off</div></div>` +
+    `<button id="mireloVoiceSwitch" style="flex:none;min-height:48px;min-width:96px;border:0;border-radius:12px;font-size:17px;font-weight:600;color:#fff;cursor:pointer;background:${mireloVoice ? '#2e9e4f' : '#666b80'}">${mireloVoice ? 'On' : 'Off'}</button></div>` : '') +
     // Load my game by itself (0.6.83): the same choice as the tick box on the start menu, kept on this device
     `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#127984; Load my game by itself</b><div style="font-size:13px;opacity:.8;margin-top:2px">Opens the game you played last, with no start menu. Off: the menu shows each time</div></div>` +
     `<button id="autoLoadSwitch" style="flex:none;min-height:48px;min-width:96px;border:0;border-radius:12px;font-size:17px;font-weight:600;color:#fff;cursor:pointer;background:${autoLoadOn() ? '#2e9e4f' : '#666b80'}">${autoLoadOn() ? 'On' : 'Off'}</button></div>` +
@@ -3594,6 +3600,7 @@ settingsEl.addEventListener('click', e => {
   // Quit the game: Settings closes and the same question as Esc and Back is asked (0.6.60)
   else if (e.target.closest('#settingsQuit')) { toggleSettings(false); toggleQuit(true); }
   else if (e.target.closest('#settingsDelete')) { toggleSettings(false); dmdOpen(); }
+  else if (e.target.closest('#mireloVoiceSwitch')) { setMireloVoice(!mireloVoice); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
   else if (e.target.closest('#mireloSwitch')) { setMireloOn(!mireloOn); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
   else if (e.target.closest('#vitalSwitch')) { setVitalOn(!vital.on); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
   else if (e.target.closest('#autoLoadSwitch')) { setAutoLoad(!autoLoadOn()); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
@@ -3664,6 +3671,7 @@ function backAction() {
   if (dmd) { dmdClose(); return; }   // Delete my data (0.6.92)
   if (mapOpen) toggleMap(false);
   else if (logOpen) toggleLog(false);
+  else if (teachPanel) closeTeach();
   else if (tipPanel) tipClose();
   else if (quizPanel) quizNotNow();
   else if (tradePanel) closeTrade();
@@ -5329,9 +5337,9 @@ let mireloOn = true;             // the "Tips from Mirelo" switch in Settings, k
 try { mireloOn = localStorage.getItem(MIRELO_KEY) !== '0'; } catch (e) {}
 // Kept in the saved game: lesson 'todo', 'done' (taught) or 'skipped' (unlocked without him); how many times "Not now";
 // how many tips were shown and which was last; when "Come back later" ends; whether he has met a child who had magic already
-let mir = { lesson: 'todo', nots: 0, tips: 0, last: -1, away: 0, met: false };
+let mir = { lesson: 'todo', nots: 0, tips: 0, last: -1, away: 0, met: false, teach: { greeted: false, right: 0, talks: 0, badges: 0, seen: { math: [], words: [] } } };
 function loadMirelo(m) {
-  mir = { lesson: 'todo', nots: 0, tips: 0, last: -1, away: 0, met: false };
+  mir = { lesson: 'todo', nots: 0, tips: 0, last: -1, away: 0, met: false, teach: teachFrom(m && m.teach) };
   if (m && typeof m === 'object') {
     if (['todo', 'done', 'skipped'].includes(m.lesson)) mir.lesson = m.lesson;
     for (const k of ['nots', 'tips', 'last', 'away']) if (Number.isFinite(m[k])) mir[k] = m[k];
@@ -5387,6 +5395,7 @@ function openMirelo() {
   const f = friend;
   if (!f || !f.mage || tipPanel || mireloRun.lesson) return;
   if (f.state === 'come') f.state = 'wait';
+  if (teachOn && !mireloNeedsLesson()) { openTeach(); return; }   // Teacher Mirelo (0.6.103, test switch only)
   f.talk = mireloNeedsLesson() ? 'lesson' : 'tip';
   if (f.talk === 'tip') { if (f.tipDone) { say(MIRELO_LINES.bye, 2500); return; } f.tip = nextMireloTip(); }
   paused = true;
@@ -5519,6 +5528,237 @@ function mireloFollow(f, dt) {
   f.x = nx; f.z = nz;
   return true;
 }
+
+// ---- Teacher Mirelo: talks from lessons built into the game (0.6.103; the first part of SPEC-027) ----
+// Mirelo can talk a child through short words and maths puzzles: he explains one small idea, asks a question the game
+// made itself (so the right answer always comes from the code), and each time offers a few replies to tap: an answer,
+// "Can you show me?", "Why?", "Something easier", "Yes, harder!", "Another like that", "I'm done for now".
+// There is nothing to type and nothing to say into the game, nothing is sent anywhere, and talks give no gems.
+// What is here: 100 lessons written into the game (60 maths, 40 words). What is NOT here yet: the passes (there is no
+// way to buy anything in the game), and the live talks written by the AI service, which need the pass. So for now
+// Teacher Mirelo shows only with the test switch ?teacher=1, and no child sees him or any word about him.
+const MIRELO_LESSONS = {
+  math: {
+    '0:count': [["Let's count! Point at each thing once and say the next number. The last number you say is how many there are.", "Start at one side. Touch the first and say one, the next and say two. Keep going, and don't skip any!"], ["Counting is like walking: one step for each thing. Go slowly and give every thing its own number.", "Make a line in your mind. Count along the line from left to right, one number for each thing."]],
+    '0:add': [["Adding means putting two groups together. Then we count them all to see how many we have.", "Count the first group. Then keep counting on through the second group. Where you stop is the answer."], ["When two piles join, they make one bigger pile. Adding tells us how big it is.", "Hold the bigger number in your head. Then count up once for each thing in the other group."]],
+    '0:take': [["Taking away means some things leave. We count what is still here.", "Count them all first. Now cover the ones that go away. Count the ones you can still see."], ["When things go away, the pile gets smaller. Taking away tells us what is left.", "Start at the big number and count backwards, one step for each thing that leaves."]],
+    '0:more': [["Which group has the most? Most means the biggest number, the group with extra things.", "Line the groups up side by side. The group that sticks out the furthest has the most."], ["To find the most, count each group. The number that comes last when you count is the biggest.", "Count the first group, then the others. Say the numbers. Which one is furthest along when you count?"]],
+    '0:next': [["A pattern repeats the same little group again and again. Find the group, and you know what comes next.", "Say the shapes out loud like a song. The tune repeats, so sing the next note."], ["Patterns are like footsteps: left, right, left, right. Look for the part that keeps coming back.", "Cover the end with your hand. Read the start again and see where it begins to repeat."]],
+    '1:add': [["Big sums are easier in two hops. First hop up to ten, then hop the rest.", "Find how many you need to reach ten. Use that much of the second number, then add what is left to ten."], ["You can start with the bigger number. Then count on the smaller one. It is quicker!", "Put the bigger number in your head. Count up on your fingers for the smaller number."]],
+    '1:take': [["To take away from a teen number, hop back to ten first, then hop back the rest.", "Split the number you take away. Use some to get down to ten, then take the rest from ten."], ["Taking away is counting backwards. Small steps back, one at a time, until you have taken them all.", "Say the big number. Count back on your fingers, one finger for each one you take away."]],
+    '1:skip': [["Skip counting means jumping the same size each time, like twos: two, four, six.", "Look at two numbers side by side. How big is the jump? Make the same jump again."], ["Counting in fives or tens is quick. The numbers follow a pattern you can hear.", "Say the numbers out loud. Listen for the pattern, then say the next one in the same tune."]],
+    '2:add': [["Add the tens first, then the ones. Put them together at the end.", "Split each number into tens and ones. Add tens to tens, ones to ones, then join them."], ["Round numbers are friendly. Hop to the next ten, then add what is left over.", "See how far it is to the next ten. Make that hop, then hop the rest."]],
+    '2:take': [["Take the tens away first, then the ones. Two small jobs are easier than one big one.", "Split the number you take away into tens and ones. Take the tens, then the ones."], ["You can count up instead! Start at the small number and see how far it is to the big one.", "Hop from the small number up to the next ten, then on to the big number. Add your hops."]],
+    '2:bigger': [["To see which number is bigger, look at the tens first. More tens means a bigger number.", "Compare the first digits. If they are the same, compare the last digits."], ["A number with more tens is always bigger, even if the other has more ones.", "Think of tens as full bags and ones as loose gems. More full bags wins."]],
+    '2:missing': [["A number is hiding in this sum! Think: what do I add to get the total?", "Start at the number you can see. Count up to the total. How many steps was it?"], ["A missing number puzzle is a take-away in disguise. The total minus the part you know gives the part you need.", "Take the number you know away from the total. What is left is the hidden number."]],
+    '3:add': [["With bigger numbers, add the tens, add the ones, and watch for an extra ten.", "If the ones add up to ten or more, that makes one more ten. Move it over to the tens."], ["You can add in easy pieces. Add the tens first, then nudge on the ones.", "Keep the first number whole. Add the other number's tens, then its ones."]],
+    '3:take': [["To take away bigger numbers, take the tens, then the ones. Go step by step.", "If there are not enough ones, break one ten into ten ones first."], ["Counting up works for big numbers too. How far is it from the small number to the big one?", "Hop to the next ten, hop by tens, then hop the last few. Add all the hops."]],
+    '3:double': [["Double means two of the same. It is adding a number to itself.", "Double the tens, double the ones, then put them together."], ["Doubling is like looking in a mirror: the same again, side by side.", "Split the number into easy parts. Double each part, then add the parts."]],
+    '3:half': [["Half means sharing into two equal parts. Both parts are exactly the same size.", "Ask yourself: what number doubled makes this? That number is the half."], ["To halve, share fairly between two. One for you, one for me, until all are gone.", "Halve the tens, halve the ones, then add the two halves together."]],
+    '3:times': [["Times means equal groups. Three times five is three groups of five.", "Skip count! For times five, count in fives once for each group."], ["Times ten is the easiest: each one becomes a ten.", "For times two, just double. For times ten, write the number and put a zero after it."]],
+    '4:times': [["Times tables are quick adding. Four times six is four sixes added together.", "Turn it around if that is easier: four times six is the same as six times four."], ["Don't know one? Use one you do know. Find a nearby fact and add one more group.", "Start from times five or times ten, which are easy, then add or take away a group."]],
+    '5:divide': [["Dividing means sharing equally. How many does each one get?", "Use your times tables backwards: which number times the divider makes the total?"], ["Dividing is also making groups. How many groups of that size fit in the total?", "Skip count by the divider until you reach the total. Count your jumps."]],
+    '5:missingTimes': [["One number in the times sum is hiding. Which number makes it true?", "Divide the total by the number you can see. That gives the hidden number."], ["Think of your tables. Which one lands exactly on this total?", "Skip count by the number you know until you hit the total. The number of jumps is the answer."]],
+    '6:times': [["For bigger times sums, break a number apart, multiply each part, then add.", "Split one number into tens and ones. Multiply both parts, then add the answers."], ["Multiplying can go in any order, so pick the easy way around.", "Swap the numbers if it helps. The answer stays the same."]],
+    '6:divide': [["Dividing undoes multiplying. If you know the times fact, you know the divide fact.", "Ask: what times the divider gives the total? Check by multiplying back."], ["You can share a big number in pieces. Share the tens, then the ones.", "Split the total into parts you can divide easily. Divide each part, then add."]],
+    '6:sequence': [["A sequence is a line of numbers with a rule. The same step is added each time.", "Take one number away from the next to find the step. Add that step to the last number."], ["Find the rule and you can go on forever. How much does it jump each time?", "Check two jumps to be sure the step is the same. Then make one more jump."]],
+    '7:fraction': [["A fraction is a fair share. A quarter means one of four equal parts.", "Divide the number by how many parts there are. A third means divide by three."], ["The bottom number of a fraction says how many equal parts to make.", "For a quarter, halve the number and then halve it again."]],
+    '7:round': [["Rounding makes a number friendlier. We move it to the nearest ten or hundred.", "Look at the digit to the right. Five or more, go up. Four or less, stay."], ["Which round number is closer? That is the one we round to.", "Picture a number line. Is your number past the middle or before it?"]],
+    '8:twoStep': [["Some sums have two jobs. Do one job, then use that answer for the second.", "Read it slowly. Work out the first part and keep it in your head, then do the next part."], ["Two-step sums are like a recipe: follow the steps in order.", "Cover the second part with your hand. Solve the first, then uncover and carry on."]],
+    '8:longTimes': [["To multiply a two-digit number, split it into tens and ones.", "Multiply the tens, multiply the ones, then add the two answers together."], ["A big times sum is two small ones wearing a coat.", "Round the big number to a ten, multiply, then fix the difference."]],
+    '9:brackets': [["Brackets mean: do me first! Work out the inside before anything else.", "Solve the part inside the brackets. Swap the brackets for that answer, then finish."], ["Brackets are like a little box in the sum. Open the box first.", "Find the brackets. Do that small sum, then use its answer in the rest."]],
+    '9:fraction': [["A fifth is one of five equal parts, and a tenth is one of ten.", "To find a tenth, divide by ten. To find a fifth, divide by five."], ["The more parts you share into, the smaller each part is.", "For a fifth, find a tenth first and then double it."]],
+    '9:doubling': [["Some sequences double each time, or halve each time. They grow fast or shrink fast.", "Divide one number by the one before it. If you get two, it doubles."], ["Look at how each number compares with the last. Twice as big? Half as big?", "If it doubles, double the last number. If it halves, halve it."]],
+  },
+  words: [
+    [["Every word is made of sounds. Say each letter's sound, then push them together.", "Say the sounds slowly, then faster and faster until you hear a word."], ["Little words often have a sound in the middle like a, e, i, o or u.", "Find the middle sound first. Then try the other letters at the front and the back."], ["The first sound of a word is a great clue. What does the word start with?", "Try each letter at the front. Which one sounds like a real word?"], ["Three letters can be mixed up in only a few ways. Try them all!", "Move one letter to the front, then another. Read each try out loud."]],
+    [["Some letters like to stand together, like sh, ch and ck.", "Look for two letters that make one sound. Keep them side by side."], ["Two of the same vowel can sit together, like oo and ee.", "If you see two letters the same, try putting them next to each other in the middle."], ["Many words end with a quiet e that makes no sound.", "If there is an e, try it at the very end and read the word again."], ["Longer words still start with one sound. Find that first sound and the rest follows.", "Say each choice out loud. Does it use all the letters you see?"]],
+    [["Check every letter. The right word uses all of them, no more and no fewer.", "Tick the letters off one by one as you spell each choice."], ["Some letters are sneaky and sound different, like the c in city.", "Don't trust only the sound. Match the letters one at a time."], ["Words that look alike can differ by one letter. Look closely at each one.", "Find the letter that is different in each choice. Is that letter in the mix?"], ["Look at the first letter of each choice. Is it one of the mixed-up letters?", "Go through each choice letter by letter. Stop when a letter is not in the mix."]],
+    [["Long words are built from chunks. Clap the word to hear its beats.", "Say each choice and clap. Then look for each chunk's letters in the mix."], ["Two letters at the start can blend, like tr, cl and gh.", "Look for a pair that could start a word. Try it at the front."], ["Many words end the same way, with endings like er, ly and y.", "Look at the last letters of each choice. Are those letters in the mix?"], ["A vowel is one of a, e, i, o, u. Every word needs at least one.", "Count the vowels in the mix. The right word has the very same vowels."]],
+    [["Double letters are a strong clue. Two of the same letter usually sit together.", "Do you see two letters the same? Find the choice that has that pair."], ["The letters ch, sh and th each make one sound from two letters.", "Find those pairs in the choices. Are both letters in the mix?"], ["Rare letters are helpful. A z, k or w in the mix points straight to the word.", "Pick the oddest letter you see. Which choice has it?"], ["Read the mixed letters backwards and forwards. Sometimes the word peeks out.", "Cover some letters with a finger. Can you see part of a word?"]],
+    [["Six letters! Break the word into two smaller parts and solve each part.", "Split each choice in the middle. Look for the letters of each half."], ["Many longer words have two beats, like mon-key and rab-bit.", "Say the choice in beats. Each beat has its own vowel sound."], ["When letters repeat, count them. The right word has the same number of each.", "Pick one letter and count it in the mix. Count it in each choice too."], ["Start with the letters you are sure of, then fit the rest around them.", "Choose the first letter and the last letter. Then check the middle."]],
+    [["Some words end in le, like puzzle and bubble. Listen for that ending.", "Is there an l and an e in the mix? Try them together at the end."], ["Endings like er and et come at the back of many words.", "Check the last two letters of each choice against the mix."], ["A long word is easier when you spot a small word hiding inside it.", "Look inside each choice. Can you find a little word you know?"], ["Two letters the same in the middle often split a word into two beats.", "Find the double letter. Say the part before it and the part after it."]],
+    [["Seven letters is a long word. Go slowly, chunk by chunk.", "Read the first three letters of a choice. Are all three in the mix? Then check the rest."], ["Some long words are two words joined, like snow and man.", "Can you split a choice into two small words? Look for both in the mix."], ["Some letters travel as a pair, like q and u.", "If you see a q, look for a u. Keep pairs like that together."], ["The same vowel can appear twice. Count each vowel carefully.", "Hold the vowels in your head: how many a, e, i, o and u? Match them to a choice."]],
+    [["Words ending in ing tell us something is happening, like running.", "See i, n and g? Put them at the end, then solve the front part."], ["A double letter can come just before an ending, like the nn in running.", "Look for the pair, then the ending. What is left makes the start."], ["Long words have a rhythm. Say the choice slowly, beat by beat.", "Tap the table for each beat. Spell one beat at a time."], ["Don't be fooled by words that share a start. Check the end too.", "Compare the last three letters of each choice with the mix."]],
+    [["Eight letters! You are reading like a wizard. Use everything you know.", "Check the vowels, look for pairs, and match the endings. One clue at a time."], ["Big words are small pieces glued together. Find the glue lines.", "Split each choice into two or three parts. Check the letters of each part."], ["When two choices look close, find the one letter that differs.", "Run a finger along both words. Stop where they are different, and check the mix."], ["Take your time. A careful reader beats a fast one on long words.", "Tick off each letter of a choice against the mix. If one is missing, try the next."]],
+  ],
+};
+const MIRELO_WHY = {"count": "We count so we know exactly how many there are, without guessing.", "add": "Adding saves time: we don't have to count everything from one again.", "take": "Taking away tells us what is left, like gems after a trade.", "more": "Knowing which is the most helps us choose and share fairly.", "next": "Spotting a pattern lets us guess what is coming, in shapes and in numbers.", "skip": "Skip counting is faster than counting one by one, and it leads to times tables.", "bigger": "Comparing numbers helps us pick the larger pile or the better trade.", "missing": "Finding a missing number is how we work out what we still need.", "double": "Doubling is a quick way to add two equal amounts.", "half": "Halving lets two friends share fairly.", "times": "Multiplying is a shortcut for adding the same number again and again.", "divide": "Dividing lets us share things out equally.", "missingTimes": "It shows how multiplying and dividing undo each other.", "sequence": "Spotting the rule lets us say what comes later without counting it all.", "fraction": "Fractions let us talk about parts of a whole, like part of a cake.", "round": "Round numbers are easier to remember and to add in your head.", "twoStep": "Many real problems need more than one step, like trading twice with a merchant.", "longTimes": "Splitting big numbers turns one hard sum into two easy ones.", "brackets": "Brackets tell everyone which part to do first, so we all get the same answer.", "doubling": "Things that double grow very fast, and it is good to notice that.", "word": "Knowing how words are built helps you read and spell new ones."};
+const TEACH_MAX_REPLIES = 12, TEACH_BADGES = [5, 20, 50, 100];
+const TEACH_LINES = {
+  greet: 'Hello, young adventurer! I can teach you now. I am a magic helper made by a computer program, called an AI. Shall we talk about words or numbers?',
+  menu: 'Shall we talk about words or numbers?',
+  right: ['Yes! {a} is right. Well done!', 'That is it: {a}! You worked it out.', 'Exactly, {a}. Wonderful thinking!', 'Yes, {a}! You are getting good at this.'],
+  wrong: 'Not quite. Let us look at it together.',
+  shown: 'The answer is {a}. Now you know it for next time!',
+  harder: 'A trickier one, then!', easier: 'Here is a gentler one.', another: 'Here is another like that.',
+  end: 'We solved {n} puzzles together!', end1: 'We solved a puzzle together!', end0: 'Thank you for thinking with me!',
+  badge: ' You earned a Learning with Mirelo badge!',
+};
+let teachOn = /[?&]teacher=1\b/.test(location.search);   // the test switch (see above)
+let teachPanel = null, teach = null;                     // the open panel; the talk in progress
+let mireloVoice = true;                                  // "Mirelo's voice" in Settings, kept on this device
+try { mireloVoice = localStorage.getItem('kidsgame.mireloVoice') !== '0'; } catch (e) {}
+function setMireloVoice(on) { mireloVoice = !!on; try { localStorage.setItem('kidsgame.mireloVoice', on ? '1' : '0'); } catch (e) {} if (!on) mireloHush(); }
+// His voice is the device's own (nothing is sent to a voice service). It follows the Sounds level and is silent when
+// sounds are off or the device has no voice; the text always shows as well.
+function mireloHush() { try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {} }
+function mireloSpeak(text) {
+  try {
+    if (!mireloVoice || !vol.sfx || !('speechSynthesis' in window)) return false;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.85; u.pitch = 0.9; u.volume = VOL[vol.sfx];
+    speechSynthesis.speak(u);
+    return true;
+  } catch (e) { return false; }
+}
+// Kept in the saved game with the rest of Mirelo: was the greeting said, how many puzzles were solved first time with
+// him, how many talks, how many badges, and which lessons were heard (so they come round in turn).
+const teachBlank = () => ({ greeted: false, right: 0, talks: 0, badges: 0, seen: { math: [], words: [] } });
+function teachFrom(t) {
+  const out = teachBlank();
+  if (t && typeof t === 'object') {
+    out.greeted = t.greeted === true;
+    for (const k of ['right', 'talks', 'badges']) if (Number.isInteger(t[k]) && t[k] >= 0) out[k] = Math.min(t[k], 1000000);
+    for (const sub of ['math', 'words']) if (t.seen && Array.isArray(t.seen[sub])) out.seen[sub] = t.seen[sub].filter(x => typeof x === 'string' && x.length < 30).slice(-200);
+  }
+  return out;
+}
+// The lessons for a subject at a level, as [id, kind, [say, show]]
+function teachLessonsAt(subject, level) {
+  const row = quizRowOf(level);
+  if (subject === 'words') return MIRELO_LESSONS.words[row].map((l, i) => ['w:' + row + ':' + i, 'word', l]);
+  return QUIZ_MATH_ROWS[row].flatMap(kind => (MIRELO_LESSONS.math[row + ':' + kind] || []).map((l, i) => ['m:' + row + ':' + kind + ':' + i, kind, l]));
+}
+// A lesson not heard yet at this level (of the wanted kind, if one is given); when all were heard they start again,
+// oldest first, and that is recorded (teacher_lessons_cap), so the owner knows when a child has used up the lessons.
+function teachPickLesson(subject, level, kind = null) {
+  const all = teachLessonsAt(subject, level), list = kind ? all.filter(l => l[1] === kind) : all;
+  const seen = mir.teach.seen[subject], fresh = list.filter(l => !seen.includes(l[0]));
+  if (!all.some(l => !seen.includes(l[0]))) logOnce('teacher_lessons_cap', subject + ' row' + quizRowOf(level), 600000);
+  const pick = fresh.length ? fresh[Math.floor(Math.random() * fresh.length)] : list.slice().sort((a, b) => seen.indexOf(a[0]) - seen.indexOf(b[0]))[0];
+  mir.teach.seen[subject] = [...seen.filter(x => x !== pick[0]), pick[0]].slice(-200);
+  return { id: pick[0], kind: pick[1], say: pick[2][0], show: pick[2][1] };
+}
+// A words puzzle: the letters of a word from the child's level, mixed up, and three words to choose from (the word and
+// two others of the same length from the same list). All from the game's own word list.
+function teachWordQuestion(level, rnd = Math.random) {
+  const list = QUIZ_WORD_ROWS[quizRowOf(level)].map(w => w[0]), word = quizPick(rnd, list);
+  const others = quizShuffle(rnd, list.filter(w => w !== word && w.split('').sort().join('') !== word.split('').sort().join(''))).slice(0, 2);
+  let letters = word.toUpperCase().split('');
+  for (let i = 0; i < 50 && letters.join('') === word.toUpperCase(); i++) letters = quizShuffle(rnd, word.toUpperCase().split(''));
+  const choices = quizShuffle(rnd, [word, ...others]);
+  return { kind: 'word', key: 'tw:' + word, text: 'Which word do these letters make?', show: [{ text: letters.join(' ') }], answers: choices.map(w => ({ label: w.toUpperCase() })), right: choices.indexOf(word) };
+}
+const teachAnswerText = q => { const a = q.answers[q.right]; return a.label || (a.shape ? 'that ' + a.shape : 'that one'); };
+const teachFill = (line, q, n) => line.replace('{a}', q ? teachAnswerText(q) : '').replace('{n}', String(n));
+function closeTeach(leave = false) {
+  if (!teachPanel) return;
+  mireloHush();
+  if (teach && !teach.ended) logEvent('teacher_talk', teach.subject + ' closed right' + teach.right + ' replies' + teach.replies);   // walked away or closed: the talk still counts
+  teachPanel.remove(); teachPanel = null; teach = null;
+  paused = false;
+  sfx('close');
+  saveGame();
+  if (leave && friend && friend.mage) { say(MIRELO_LINES.bye, 2500); friendLeave(); }
+}
+// Draws one turn: his words, the puzzle if there is one, the replies, and the flag
+function teachRender(line, replies, withQuestion) {
+  const q = teach && teach.q, shown = withQuestion && q;
+  teachPanel.dataset.line = line;
+  teachPanel.replies = replies;
+  teachPanel.innerHTML = '<div class="tbox"><div class="tname">Mirelo, wandering mage <span class="tai" title="Made by a computer program">AI</span></div>' +
+    `<div class="tsay">${esc(line)}</div>` +
+    (shown ? `<div class="tq">${esc(q.text)}</div>` + (q.show && q.show.length ? `<div class="tshow">${quizShowHtml(q)}</div>` : '') : '') +
+    `<div class="treplies">${replies.map((r, i) => `<button class="${r.mean === 'answer' ? 'tans' : 'tsay2'}" data-reply="${i}">${r.a !== undefined && q.answers[r.a].shape ? (q.answers[r.a].label ? `<span>${esc(q.answers[r.a].label)}</span>` : '') + (q.answers[r.a].n ? `<span style="display:flex;gap:2px;flex-wrap:wrap;justify-content:center">${Array.from({ length: q.answers[r.a].n }, () => quizPic(q.answers[r.a].shape, 13)).join('')}</span>` : quizPic(q.answers[r.a].shape, 40)) : esc(r.label)}</button>`).join('')}</div>` +
+    // a way to stop is always there, also while a puzzle is open
+    (teach && !teach.ended && !replies.some(r => r.mean === 'done') ? '<button class="tstop" data-stop="1">I\'m done for now</button>' : '') +
+    (teach && teach.lesson ? `<div class="tflag">${aiFlagHtml('lesson-' + teach.lesson.id)}<span>Something wrong?</span></div>` : '') +
+    (teach ? '' : `<div class="tstars">${mir.teach.badges ? 'Learning with Mirelo badges: ' + '&#9733;'.repeat(mir.teach.badges) : ''}</div>`) + '</div>';
+  mireloSpeak([line, shown ? q.text : '', ...replies.filter(r => r.label && !(r.a !== undefined && !q.answers[r.a].label)).map(r => r.label)].filter(Boolean).join('. '));
+}
+const teachAnswers = () => teach.q.answers.map((a, i) => ({ mean: 'answer', a: i, label: a.label || '' }));
+// A new puzzle with its lesson. how: 'first', 'harder', 'easier' or 'another'
+function teachAsk(how) {
+  const t = teach;
+  if (how === 'harder') t.level = Math.min(100, t.level + 1);
+  if (how === 'easier') t.level = Math.max(1, t.level - 1);
+  t.lesson = teachPickLesson(t.subject, t.level, how === 'another' && t.lesson && teachLessonsAt(t.subject, t.level).some(l => l[1] === t.lesson.kind) ? t.lesson.kind : null);
+  t.q = t.subject === 'words' ? teachWordQuestion(t.level) : makeQuestion(t.lesson.kind, Math.random, t.level);
+  t.tries = 0; t.whys = 0; t.asked++;
+  teachRender((how === 'first' ? '' : TEACH_LINES[how] + ' ') + t.lesson.say, [...teachAnswers(), { mean: 'show', label: 'Can you show me?' }], true);
+}
+function teachEnd() {
+  const t = teach;
+  t.ended = true;
+  logEvent('teacher_talk', t.subject + ' end right' + t.right + ' replies' + t.replies);
+  saveGame();
+  teachRender(t.right > 1 ? teachFill(TEACH_LINES.end, null, t.right) : t.right === 1 ? TEACH_LINES.end1 : TEACH_LINES.end0, [{ mean: 'again', label: 'Talk again' }, { mean: 'bye', label: 'Goodbye' }], false);
+}
+function teachStart(subject) {
+  mir.teach.talks++;
+  teach = { subject, level: quizLevels[subject].use, lesson: null, q: null, tries: 0, whys: 0, replies: 0, right: 0, asked: 0, ended: false };
+  logEvent('teacher_talk', subject + ' start built-in');
+  teachAsk('first');
+}
+function teachMenu() {
+  teach = null;
+  const first = !mir.teach.greeted;
+  mir.teach.greeted = true;
+  teachRender(first ? TEACH_LINES.greet : TEACH_LINES.menu, [{ mean: 'words', label: "Let's talk words" }, { mean: 'math', label: "Let's talk maths" }, { mean: 'bye', label: 'Goodbye' }], false);
+}
+// The child tapped a reply. Only its meaning counts: an answer (which of the game's choices), show, why, easier,
+// harder, another, done. Whether an answer is right is decided here, from the game's own question.
+function teachReply(i) {
+  const r = teachPanel && teachPanel.replies && teachPanel.replies[i];
+  if (!r) return;
+  sfx('tap');
+  if (r.mean === 'bye') return closeTeach(true);
+  if (r.mean === 'words' || r.mean === 'math') return teachStart(r.mean);
+  if (r.mean === 'again') return teachMenu();
+  const t = teach;
+  if (!t || t.ended) return;
+  t.replies++;
+  if (r.mean === 'done' || t.replies >= TEACH_MAX_REPLIES && r.mean !== 'answer') return teachEnd();
+  if (r.mean === 'answer') {
+    if (r.a === t.q.right) {
+      let line = teachFill(quizPick(Math.random, TEACH_LINES.right), t.q, 0);
+      if (t.tries === 0) {   // right first time: it counts for the learning level and for his own badges, not the quiz badges
+        const up = quizFirstAnswer(t.subject, true);
+        t.right++; mir.teach.right++;
+        if (up) line += ' Level up! ' + quizLevelLabel(t.subject, up) + '.';
+        if (TEACH_BADGES.includes(mir.teach.right)) { mir.teach.badges = TEACH_BADGES.indexOf(mir.teach.right) + 1; line += TEACH_LINES.badge; }
+      }
+      sfx('gem');
+      if (t.replies >= TEACH_MAX_REPLIES) return teachEnd();
+      return teachRender(line, [{ mean: 'harder', label: 'Yes, harder!' }, { mean: 'another', label: 'Another like that' }, { mean: 'done', label: "I'm done for now" }], false);
+    }
+    t.tries++;
+    if (t.tries === 1) quizFirstAnswer(t.subject, false);
+    if (t.replies >= TEACH_MAX_REPLIES) return teachEnd();
+    // after two wrong tries he shows the answer and moves on; nothing is lost
+    if (t.tries >= 2) return teachRender(teachFill(TEACH_LINES.shown, t.q, 0), [{ mean: 'another', label: 'Another like that' }, { mean: 'easier', label: 'Something easier' }, { mean: 'done', label: "I'm done for now" }], false);
+    return teachRender(TEACH_LINES.wrong + ' ' + t.lesson.show, [...teachAnswers(), { mean: 'easier', label: 'Something easier' }], true);
+  }
+  if (r.mean === 'show') return teachRender(t.lesson.show, [...teachAnswers(), { mean: 'why', label: 'Why?' }], true);
+  if (r.mean === 'why') { t.whys++; return teachRender(MIRELO_WHY[t.lesson.kind] || MIRELO_WHY.word, [...teachAnswers(), t.whys >= 3 ? { mean: 'done', label: "I'm done for now" } : { mean: 'show', label: 'Can you show me?' }], true); }
+  if (r.mean === 'harder' || r.mean === 'easier' || r.mean === 'another') return teachAsk(r.mean);
+}
+function teachStop() { if (teach && !teach.ended) { sfx('tap'); teach.replies++; teachEnd(); } }
+function openTeach() {
+  if (teachPanel || anyPanelOpen()) return false;
+  paused = true;   // the game stands still while he talks: no hurry, and no monster comes closer
+  const el = document.createElement('div');
+  el.id = 'teachPanel';
+  el.addEventListener('click', e => { const b = e.target.closest('[data-reply]'); if (b) teachReply(+b.dataset.reply); else if (e.target.closest('[data-stop]')) teachStop(); else if (e.target === el) closeTeach(); });
+  document.body.appendChild(el);
+  teachPanel = el;
+  sfx('open');
+  teachMenu();
+  return true;
+}
+document.head.append(Object.assign(document.createElement('style'), { textContent: '#teachPanel{position:fixed;inset:0;background:rgba(10,12,25,.8);display:flex;align-items:center;justify-content:center;z-index:55;padding:8px;box-sizing:border-box}#teachPanel .tbox{background:#1d2440;color:#fff;border-radius:18px;padding:clamp(12px,3vmin,22px);width:min(560px,100%);max-height:100%;overflow:auto;box-sizing:border-box;text-align:center;font-family:system-ui,sans-serif}#teachPanel .tname{font-size:clamp(15px,3.8vmin,19px);font-weight:700;color:#ffd54a}#teachPanel .tai{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:8px;background:#ffd54a;color:#1d2440;font-size:.8em}#teachPanel .tsay{font-size:clamp(20px,5vmin,26px);font-weight:600;margin:8px 0 10px;line-height:1.3}#teachPanel .tq{font-size:clamp(22px,6vmin,30px);font-weight:700;margin:6px 0}#teachPanel .tshow{display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;font-size:clamp(24px,7vmin,36px);font-weight:700;margin:6px 0 10px;letter-spacing:2px}#teachPanel .tshow .qg{display:inline-grid;gap:3px}#teachPanel .treplies{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}#teachPanel button[data-reply]{min-height:clamp(56px,14vmin,76px);min-width:min(120px,28%);flex:1 1 auto;padding:6px 12px;border:3px solid rgba(255,255,255,.35);border-radius:16px;color:#fff;font-family:inherit;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}#teachPanel .tans{background:#3b6fd8;font-size:clamp(22px,6vmin,32px)}#teachPanel .tsay2{background:#2e9e4f;font-size:clamp(17px,4.4vmin,22px)}#teachPanel .tstop{display:block;margin:10px auto 0;min-height:48px;min-width:180px;padding:8px 20px;border:2px solid rgba(255,255,255,.35);border-radius:12px;background:transparent;color:#fff;font-family:inherit;font-size:clamp(15px,4vmin,18px);cursor:pointer}#teachPanel .tflag{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:10px;font-size:15px;opacity:.85}#teachPanel .aiThanks~span{display:none}#teachPanel .tstars{margin-top:8px;font-size:16px;color:#ffd54a;min-height:1em}' }));
 
 // ---- Quiz questions (0.6.63, SPEC-003): made at random by this code, which also works out the right answer ----
 // No internet and no AI at play time. Nothing about questions or answers is stored, logged or sent: the last 10
@@ -8436,7 +8676,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.102';
+const VERSION = '0.6.103';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -10322,6 +10562,10 @@ Promise.all([
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  // Teacher Mirelo (0.6.103): the built-in talks, for the tests
+  teach: { get on() { return teachOn; }, set on(v) { teachOn = !!v; }, open: openTeach, close: closeTeach, reply: teachReply, stop: teachStop, lessons: MIRELO_LESSONS, why: MIRELO_WHY, lines: TEACH_LINES, lessonsAt: teachLessonsAt, wordQuestion: teachWordQuestion,
+    state: () => teachPanel ? { line: teachPanel.dataset.line, replies: (teachPanel.replies || []).map(r => ({ mean: r.mean, label: r.label, a: r.a })), talk: teach && { subject: teach.subject, level: teach.level, lesson: teach.lesson && teach.lesson.id, kind: teach.lesson && teach.lesson.kind, right: teach.right, replies: teach.replies, tries: teach.tries, ended: teach.ended, q: teach.q && { text: teach.q.text, right: teach.q.right, answers: teach.q.answers.map(a => a.label || a.shape) } }, saved: JSON.parse(JSON.stringify(mir.teach)), inputs: teachPanel.querySelectorAll('input,textarea,select,[contenteditable]').length, flag: !!teachPanel.querySelector('[data-aiflag]'), badge: !!teachPanel.querySelector('.tai') } : null,
+    get voice() { return mireloVoice; }, setVoice: setMireloVoice, setSaved: t => { mir.teach = teachFrom(t); } },
   // SPEC-026 (0.6.99): the effects on screen, the wind and the ground variety, for the tests
   fx: { list: () => fxList.map(p => ({ kind: p.kind, x: p.x, y: p.y, z: p.z, t: p.t, life: p.life, col: p.col })), draws: () => fxDraw ? fxDraw.count : 0, max: FX_MAX, block: fxBlock, dust: fxDust, sparkle: fxSparkle, leaf: fxLeaf, clear: () => { fxList.length = 0; },
     get calm() { return calmMotion; }, setCalm, wind: () => ({ t: windU.value, on: windOn.value }), look: groundLook, turns: t => GROUND_TURNS[t] ? GROUND_TURNS[t].length : 0,
