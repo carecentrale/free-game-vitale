@@ -4211,3 +4211,63 @@ test('SPEC-035: every kind is an animated model with one of its looks; walking, 
     assert.deepEqual(fight.fell, { fallen: true, onSide: false }, 'it fell with its own animation, not laid on its side');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [phoneGame()] }));
+
+// ---- Birds for every part of the world (0.6.97, SPEC-034) ----
+test('SPEC-034: each kind of bird lives only in its own part of the world; flying birds fly head first; penguins never fly; at most 40 birds are drawn in a few draws; birds move away from a child and settle further off', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.birdGroup, null, { timeout: 60000 });
+    const r = await page.evaluate(() => {
+      const G = window.gameTest, deg = a => Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) * 180 / Math.PI;
+      const out = { kinds: {}, wrong: [], worst: 0, flew: {}, penguinFlies: 0, n: 0 };
+      const where = { songbird: ['grassland', 'forest', 'savanna', 'taiga'], parrot: ['rainforest'], owl: ['forest', 'taiga'], duck: ['grassland', 'forest', 'taiga'], penguin: ['tundra'], geese: ['grassland', 'forest', 'taiga'], hawk: ['grassland', 'savanna', 'desert'] };
+      for (let cx = -45; cx < 45; cx++) for (let cz = -45; cz < 45; cz++) {
+        const g = G.birdGroup(cx, cz);
+        if (!g) continue;
+        out.n++; out.kinds[g.kind] = (out.kinds[g.kind] || 0) + 1;
+        if (g.kind === 'gull' ? g.biome === 'tundra' || !g.water : !where[g.kind].includes(g.biome)) out.wrong.push([g.kind, g.biome]);
+        if ((g.kind === 'duck' || g.kind === 'gull') !== g.water) out.wrong.push([g.kind, 'water ' + g.water]);
+        if ((out.flew[g.kind] = (out.flew[g.kind] || 0) + 1) > 6) continue;   // six groups of each kind are watched for a minute
+        for (let t = 5000; t < 5060; t += 0.5) {
+          const p = G.birdPose(cx, cz, 0, t);
+          if (g.kind === 'penguin' && p.fly) out.penguinFlies++;
+          if (!p.fly || p.hide) continue;
+          const a = G.birdPose(cx, cz, 0, t - 0.2), b = G.birdPose(cx, cz, 0, t + 0.2);
+          if (!a.fly || !b.fly || Math.hypot(b.x - a.x, b.z - a.z) < 0.3) continue;
+          out.worst = Math.max(out.worst, deg(p.yaw - Math.atan2(b.x - a.x, b.z - a.z)));
+        }
+      }
+      return out;
+    });
+    assert.deepEqual(r.wrong, [], 'a bird outside its part of the world');
+    for (const k of ['songbird', 'parrot', 'owl', 'duck', 'penguin', 'gull', 'geese', 'hawk']) assert.ok(r.kinds[k] > 0, 'no ' + k + ' in 8,100 squares: ' + JSON.stringify(r.kinds));
+    assert.ok(r.worst <= 10, 'flying birds face the way they fly: worst ' + r.worst.toFixed(1));
+    assert.equal(r.penguinFlies, 0, 'penguins never fly');
+    // near the child: at most 40 birds, in at most one draw for each kind and one for the wings; nothing is inside a block
+    await page.waitForTimeout(1500);
+    const near = await page.evaluate(() => { const G = window.gameTest, b = G.birds(), d = G.birdDraws(); return { n: b.length, draws: d, inside: b.filter(x => !x.fly && G.isSolid(G.blockAt(Math.floor(x.x), Math.floor(x.y + 0.05), Math.floor(x.z)))).length, wings: d.wings }; });
+    assert.ok(near.n <= 40); assert.equal(near.wings, near.n * 2); assert.equal(near.inside, 0, 'a bird is inside a block');
+    assert.equal(Object.keys(near.draws.bodies).length, 8);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [phoneGame()] }));
+
+test('SPEC-034: songbirds move away when a child walks up to them and settle 20 to 40 blocks away, never on the child; hawks and geese stay high', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.birdGroup, null, { timeout: 60000 });
+    const r = await page.evaluate(async () => {
+      const G = window.gameTest, find = kind => { for (let r = 0; r < 40; r++) for (let cx = -r; cx <= r; cx++) for (let cz = -r; cz <= r; cz++) { if (Math.max(Math.abs(cx), Math.abs(cz)) !== r) continue; const g = G.birdGroup(cx, cz); if (g && g.kind === kind) return { cx, cz, g }; } return null; };
+      const s = find('songbird'), h = find('hawk');
+      const before = G.birdHome(s.cx, s.cz);
+      G.setPos(s.g.x + 2, 60, s.g.z + 1);
+      const after = G.birdHome(s.cx, s.cz), pos = G.pos;
+      const again = G.birdHome(s.cx, s.cz);
+      G.setPos(h.g.x, 60, h.g.z);
+      const hawk = G.birdHome(h.cx, h.cz), hp = G.birdPose(h.cx, h.cz, 0, G.sharedNow / 1000);
+      return { before, after, again, away: Math.hypot(after.hx - before.hx, after.hz - before.hz), fromChild: Math.hypot(after.hx - pos[0], after.hz - pos[2]), hawk, hawkUp: hp.y, hawkFly: hp.fly };
+    });
+    assert.equal(r.before.moving, false); assert.equal(r.after.moving, true, 'the flock moves off');
+    assert.ok(r.away >= 20 && r.away <= 40, 'it settles 20 to 40 blocks away: ' + r.away.toFixed(1));
+    assert.ok(r.fromChild >= 12, 'not on the child');
+    assert.deepEqual([r.again.hx, r.again.hz], [r.after.hx, r.after.hz], 'it does not jump about while it is moving');
+    assert.equal(r.hawk.moving, false, 'a hawk stays high'); assert.equal(r.hawkFly, true); assert.ok(r.hawkUp > 40);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [phoneGame()] }));

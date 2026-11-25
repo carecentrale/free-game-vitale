@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.96 (3D)</title>
+<title>Adventurers of Drenerics v0.6.97 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -3117,6 +3117,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.97', title: 'Birds everywhere', items: [
+    'Birds everywhere! Parrots in the rainforest, penguins in the snow, ducks on the lakes, owls in the trees and more.',
+    'Walk up to them and they move away, then settle again a little further off. Birds are just for watching.',
+  ] },
   { v: '0.6.96', title: 'Monsters that move like real creatures', items: [
     'All the monsters have new looks and move like real creatures. Brutes stomp, Imps bounce and Goblins scurry!',
     'They turn to face the way they walk, flinch when you hit them and fall over when they are beaten. Fights work as before.',
@@ -7718,6 +7722,255 @@ function updateDragons(dt) {
     });
   }
 }
+// ---- Birds for every part of the world (0.6.97, SPEC-034) ----
+// Small original birds made in code. Which birds live where comes from the seed and the biome; where each one is comes
+// from the seed and the clock all devices share, so every player sees the same birds and nothing is sent or saved. Birds
+// on the ground, the water or a tree move away when a player comes close or a dragon lands near, and settle again 20 to
+// 40 blocks away. Birds are not solid, cannot be hit or caught, and give nothing. Flying birds fly head first.
+const BIRD_CELL = 56, BIRD_SEE = 80, BIRD_MOST = 40;
+const BIRD_KINDS = {
+  songbird: { n: [4, 10], size: 0.33, cols: [0x9a6a3a, 0xd0463a, 0x4a86d8], flee: 5, beat: 9 },
+  parrot:   { n: [2, 4],  size: 0.66, cols: [0xe03a2e, 0x35a84a, 0x2f6fd6, 0xf2c41a], flee: 5, beat: 6 },
+  owl:      { n: [1, 1],  size: 0.66, cols: [0x9a7a54], flee: 3, beat: 3 },
+  duck:     { n: [3, 5],  size: 0.66, cols: [0x8a6a44, 0x3f8a55], flee: 5, beat: 7 },
+  penguin:  { n: [4, 7],  size: 1.0,  cols: [0xffffff], flee: 5, beat: 0 },
+  gull:     { n: [2, 4],  size: 0.66, cols: [0xf4f4f4], flee: 0, beat: 2.5 },
+  geese:    { n: [5, 9],  size: 1.0,  cols: [0xa7adb5], flee: 0, beat: 3 },
+  hawk:     { n: [1, 1],  size: 1.0,  cols: [0x8a5a30], flee: 0, beat: 2 },
+};
+// Which birds each part of the world may have, with how often a square of that land has them (the rest have none)
+const BIRD_LAND = {
+  desert: [['hawk', 0.3]], savanna: [['songbird', 0.4], ['hawk', 0.2]], rainforest: [['parrot', 0.65]],
+  grassland: [['songbird', 0.5], ['hawk', 0.15], ['geese', 0.1]], forest: [['songbird', 0.4], ['owl', 0.25], ['geese', 0.1]],
+  taiga: [['songbird', 0.2], ['owl', 0.25], ['geese', 0.1]], tundra: [],
+};
+const BIRD_DUCK_LAND = ['grassland', 'forest', 'taiga'];
+// The parts of the world each kind may be in (gulls: any water that is not in the snow)
+const BIRD_HOME = { songbird: ['grassland', 'forest', 'savanna', 'taiga'], parrot: ['rainforest'], owl: ['forest', 'taiga'], duck: BIRD_DUCK_LAND, penguin: ['tundra'],
+  gull: ['desert', 'savanna', 'rainforest', 'grassland', 'forest', 'taiga'], geese: ['grassland', 'forest', 'taiga'], hawk: ['grassland', 'savanna', 'desert'] };
+const birdBelongs = (kind, x, z) => !!birdForce || BIRD_HOME[kind].includes(BIOMES[biomeIndexAt(Math.floor(x), Math.floor(z))].name);
+// The builder's and owner's test switch: ?birds=songbird, parrot, owl, duck, penguin, gull, geese or hawk puts that kind
+// near the child in any biome; ?birds=off draws none (for the frame-rate check)
+const birdForce = (/[?&]birds=(songbird|parrot|owl|duck|penguin|gull|geese|hawk|off)\b/.exec(location.search) || [])[1] || null;
+const birdCells = new Map();    // square -> its group of birds, or null
+const birdMoves = new Map();    // group id -> where it has moved to on this device: { hx, hz, fx, fz, t0 }
+const TREES = ['common', 'pine', 'palm'];
+const isWaterAt = (x, z) => groundY(Math.floor(x), Math.floor(z)) < WATER_Y;
+// A tree near (x, z): the first one found going round in a fixed order, so every device finds the same. Its top, or null.
+function treeNear(x, z, reach = 12) {
+  const x0 = Math.floor(x), z0 = Math.floor(z);
+  for (let r = 0; r <= reach; r++) for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+    if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+    const gy = groundY(x0 + dx, z0 + dz);
+    if (gy < WATER_Y) continue;
+    const dec = decorAt(x0 + dx, gy, z0 + dz);
+    if (dec && TREES.includes(dec.kind)) return { x: x0 + dx + 0.5, y: gy + 1 + DECOR_HEIGHT[dec.kind] * 0.82, z: z0 + dz + 0.5 };
+  }
+  return null;
+}
+// Is this a place the kind can live? Water birds on water, perching birds by a tree, penguins on snow near water.
+function birdSite(kind, x, z) {
+  if (!inPlay(x, z) || castleCovers(Math.floor(x), Math.floor(z), 8)) return null;
+  const water = isWaterAt(x, z), biome = BIOMES[biomeIndexAt(Math.floor(x), Math.floor(z))].name;
+  if (kind === 'duck' || kind === 'gull') return water && birdBelongs(kind, x, z) ? { x, z } : null;
+  if (water) return null;
+  if (kind === 'parrot' || kind === 'owl') { const a = treeNear(x, z); if (!a || !birdBelongs(kind, a.x, a.z)) return null; const b = kind === 'parrot' ? treeNear(a.x + 9, a.z + 5, 10) : null; return { x: a.x, z: a.z, a, b: b && Math.hypot(b.x - a.x, b.z - a.z) > 2 ? b : null }; }
+  if (kind === 'penguin') { if (!birdForce && biome !== 'tundra') return null; for (let i = 0; i < 8; i++) if (isWaterAt(x + Math.cos(i * 0.785) * 10, z + Math.sin(i * 0.785) * 10)) return { x, z }; return birdForce ? { x, z } : null; }
+  return birdBelongs(kind, x, z) ? { x, z } : null;
+}
+// The birds of one square of the world: their kind, how many, their colours and where they live. From the seed only.
+function birdGroup(cx, cz) {
+  const key = cx * 100003 + cz;
+  if (birdCells.has(key)) return birdCells.get(key);
+  const R = n => hash3(cx + 50000, n, cz + 150001, seed + 7411);
+  const x = CENTER + (cx + 0.2 + R(1) * 0.6) * BIRD_CELL, z = CENTER + (cz + 0.2 + R(2) * 0.6) * BIRD_CELL;
+  let g = null;
+  if (inPlay(x, z)) {
+    const biome = BIOMES[biomeIndexAt(Math.floor(x), Math.floor(z))].name, water = isWaterAt(x, z);
+    let kind = null;
+    if (water) kind = biome === 'tundra' ? null : BIRD_DUCK_LAND.includes(biome) && R(3) < 0.5 ? 'duck' : R(3) < 0.85 ? 'gull' : null;   // gulls over any water that is not in the snow
+    else if (biome === 'tundra') kind = R(3) < 0.8 ? 'penguin' : null;
+    else { let r = R(3); for (const [k, chance] of BIRD_LAND[biome]) { if (r < chance) { kind = k; break; } r -= chance; } }
+    const site = kind && birdSite(kind, x, z);
+    if (site) g = makeBirdGroup(cx + ':' + cz, kind, site, R);
+  }
+  birdCells.set(key, g);
+  return g;
+}
+function makeBirdGroup(id, kind, site, R) {
+  const K = BIRD_KINDS[kind], n = K.n[0] + Math.floor(R(4) * (K.n[1] - K.n[0] + 1));
+  return { id, kind, K, n, site, hx: site.x, hz: site.z, ph: R(5) * 1000, dir: R(6) < 0.5 ? -1 : 1, r: 12 + R(7) * 10, ang: R(8) * Math.PI * 2,
+    up: kind === 'hawk' ? 45 + R(9) * 10 : kind === 'geese' ? 40 + R(9) * 8 : 10 + R(9) * 6,
+    birds: Array.from({ length: n }, (_, i) => ({ i, col: K.cols[Math.floor(R(20 + i) * K.cols.length)], a: R(40 + i) * Math.PI * 2, d: 0.6 + R(60 + i) * 2.4, ph: R(80 + i) * 10 })) };
+}
+const birdTop = (x, z) => Math.max(WATER_Y, groundY(Math.floor(x), Math.floor(z))) + 1;
+// Where one bird of a group is at time t (seconds on the shared clock), and what it is doing. home: the group's place now.
+function birdAt(g, b, t, home) {
+  const k = g.kind, hx = home.hx, hz = home.hz;
+  if (k === 'hawk' || k === 'gull') {   // a wide, slow loop: the hawk very high, gulls over the water
+    const r = k === 'hawk' ? g.r + 12 : g.r * 0.7 + b.i * 1.5, a = g.ang + b.a * (k === 'gull' ? 1 : 0) + g.dir * t * (k === 'hawk' ? 5 : 5.5) / r;
+    const x = hx + Math.cos(a) * r * (1 + 0.2 * Math.cos(2 * a)), z = hz + Math.sin(a) * r;
+    return { x, z, y: birdTop(hx, hz) + g.up + Math.sin(a * 2 + b.ph) * 1.5 + b.i * 0.8, fly: true, glide: Math.sin(t * 0.4 + b.ph) < 0.8 };
+  }
+  if (k === 'geese') {   // now and then a V crosses the sky: one crossing of about a minute in every four
+    const tau = ((t + g.ph) % 240 + 240) % 240, s = (tau / 60 - 0.5) * 2 * 240;   // blocks along its line, from one side to the other
+    const dx = Math.cos(g.ang), dz = Math.sin(g.ang), row = Math.ceil(b.i / 2), side = b.i % 2 ? 1 : -1;
+    return { x: hx + dx * (s - row * 1.6) - dz * side * row * 1.3, z: hz + dz * (s - row * 1.6) + dx * side * row * 1.3, y: birdTop(hx, hz) + g.up, fly: true, hide: tau >= 60 };
+  }
+  // The birds that live on the ground, the water or a tree. While the group is moving away they fly (penguins waddle) to the new place.
+  const M = home.move, f = M ? Math.min(1, (t - M.t0) / M.dur) : 1;
+  const spot = (bx, bz) => {
+    if (k === 'parrot' || k === 'owl') { const s = birdSite(k, bx, bz) || g.site, a = s.a || { x: bx, y: birdTop(bx, bz) + 4, z: bz }; return { a, b: s.b || a }; }
+    return null;
+  };
+  const rest = (bx, bz, tt) => {
+    if (k === 'parrot') {   // side by side on a tree top; every so often they all fly to the next tree and back
+      const P = spot(bx, bz), cyc = ((tt + g.ph) % 16 + 16) % 16, off = (b.i - (g.n - 1) / 2) * 0.4;
+      const at = p => ({ x: p.x + off, y: p.y, z: p.z });
+      if (cyc < 6) return { ...at(P.a), sit: true };
+      if (cyc < 8) { const q = (cyc - 6) / 2, A = at(P.a), B = at(P.b); return { x: lerp(A.x, B.x, q), z: lerp(A.z, B.z, q), y: lerp(A.y, B.y, q) + Math.sin(q * Math.PI) * 2, fly: P.a !== P.b, sit: P.a === P.b }; }
+      if (cyc < 14) return { ...at(P.b), sit: true };
+      const q = (cyc - 14) / 2, A = at(P.b), B = at(P.a); return { x: lerp(A.x, B.x, q), z: lerp(A.z, B.z, q), y: lerp(A.y, B.y, q) + Math.sin(q * Math.PI) * 2, fly: P.a !== P.b, sit: P.a === P.b };
+    }
+    if (k === 'owl') { const P = spot(bx, bz); return { x: P.a.x, y: P.a.y, z: P.a.z, sit: true, owl: true }; }
+    if (k === 'duck') {   // paddling round in a little group, dipping its head now and then
+      const a = b.a + tt * 0.25 * g.dir, r = 1 + b.d * 0.8;
+      return { x: bx + Math.cos(a) * r, z: bz + Math.sin(a) * r, y: WATER_Y + 0.85, swim: true, dip: Math.sin(tt * 0.9 + b.ph) > 0.85 };
+    }
+    // songbirds hop and peck; penguins waddle. A new spot every few seconds, a short hop or walk to it, then a pause.
+    const per = k === 'penguin' ? 5 : 2.6, u = (tt + b.ph) / per, n = Math.floor(u), q = Math.min(1, (u - n) * (k === 'penguin' ? 1.6 : 3));
+    const at = m => { const a = hash3(b.i + 3, m, 7, seed + 99) * Math.PI * 2, r = hash3(b.i + 3, m, 11, seed + 99) * (k === 'penguin' ? 4 : 3); return [bx + Math.cos(a) * r, bz + Math.sin(a) * r]; };
+    const [x0, z0] = at(n - 1), [x1, z1] = at(n), x = lerp(x0, x1, q), z = lerp(z0, z1, q), moving = q < 1;
+    const y = birdTop(x, z), slide = k === 'penguin' && moving && birdTop(x1, z1) < birdTop(x0, z0);
+    return { x, z, y: y + (k === 'songbird' && moving ? Math.sin(q * Math.PI) * 0.35 : 0), walk: moving, face: Math.atan2(x1 - x0, z1 - z0), peck: !moving && Math.sin(tt * 5 + b.ph) > 0.5, slide, water: isWaterAt(x, z) };
+  };
+  if (f >= 1) return rest(hx, hz, t);
+  // moving away: from where it was to where it will be, up and over (penguins walk, belly-sliding downhill)
+  const A = rest(M.fx, M.fz, M.t0), B = rest(hx, hz, M.t0 + M.dur), s = f * f * (3 - 2 * f);
+  if (k === 'penguin') { const x = lerp(A.x, B.x, f), z = lerp(A.z, B.z, f); return { x, z, y: birdTop(x, z), walk: true, face: Math.atan2(B.x - A.x, B.z - A.z), slide: birdTop(B.x, B.z) < birdTop(A.x, A.z), water: isWaterAt(x, z) }; }
+  return { x: lerp(A.x, B.x, s), z: lerp(A.z, B.z, s), y: lerp(A.y, B.y, s) + Math.sin(f * Math.PI) * (k === 'songbird' ? 5 + Math.sin(f * 22 + b.ph) * 0.5 : 6), fly: true };
+}
+// Its place and how it is turned: a flying bird faces the way it moves, leans into its turn and tips up to climb
+function birdPose(g, b, t, home) {
+  const p = birdAt(g, b, t, home);
+  if (!p.fly) return { ...p, yaw: p.face !== undefined ? p.face : p.owl ? birdOwlLook(p) : b.a + (p.swim ? t * 0.25 * g.dir + Math.PI / 2 * g.dir : 0), pitch: p.peck || p.dip ? 0.7 : p.slide ? 1.3 : 0, roll: 0 };
+  const a = birdAt(g, b, t - 0.1, home), c = birdAt(g, b, t + 0.1, home), dx = c.x - a.x, dy = c.y - a.y, dz = c.z - a.z, flat = Math.hypot(dx, dz);
+  if (flat < 0.002) return { ...p, yaw: b.a, pitch: 0, roll: 0 };
+  const a2 = birdAt(g, b, t - 0.4, home), c2 = birdAt(g, b, t + 0.4, home);
+  const turn = angDiff(Math.atan2(c2.x - p.x, c2.z - p.z), Math.atan2(p.x - a2.x, p.z - a2.z)) / 0.4;
+  return { ...p, yaw: Math.atan2(dx, dz), pitch: -Math.max(-0.45, Math.min(0.45, Math.atan2(dy, flat))), roll: Math.max(-0.6, Math.min(0.6, turn * 1.2)) };
+}
+// An owl dozing on its branch turns to look at a child who comes near
+function birdOwlLook(p) { const q = playersHere().reduce((m, o) => { const d = Math.hypot(o.x - p.x, o.z - p.z); return d < 9 && (!m || d < m.d) ? { o, d } : m; }, null); return q ? Math.atan2(q.o.x - p.x, q.o.z - p.z) : 0; }
+// Where the group lives now on this device (it may have moved away from a player or a dragon)
+function birdHome(g, t) {
+  const M = birdMoves.get(g.id);
+  if (!M) return { hx: g.hx, hz: g.hz, move: null };
+  return { hx: M.hx, hz: M.hz, move: t - M.t0 < M.dur ? M : null };
+}
+// A player within the kind's distance, or a dragon landing within 15 blocks: the group moves 20 to 40 blocks away,
+// to a place of its own kind and never onto a player. The way it goes is rounded to one of 16, so devices agree.
+function birdScare(g, t) {
+  if (!g.K.flee) return;
+  const home = birdHome(g, t);
+  if (home.move) return;
+  const ps = playersHere();
+  let from = ps.find(q => Math.hypot(q.x - home.hx, q.z - home.hz) < g.K.flee + (g.kind === 'owl' || g.kind === 'parrot' ? 1 : 3.5));
+  const E = dragonEat;
+  if (!from && E && dragonMode === 'on' && Math.hypot(E.lx - home.hx, E.lz - home.hz) < 15 && t - E.t0 > 4 && t - E.t0 < landTimes(E).end) from = { x: E.lx, z: E.lz };
+  if (!from) return;
+  const a0 = Math.round(Math.atan2(home.hz - from.z, home.hx - from.x) / (Math.PI / 8));
+  for (let k = 0; k < 16; k++) for (const dist of [30, 24, 38]) {
+    const a = (a0 + (k % 2 ? -1 : 1) * Math.ceil(k / 2)) * Math.PI / 8, x = home.hx + Math.cos(a) * dist, z = home.hz + Math.sin(a) * dist;
+    const site = birdSite(g.kind, x, z);
+    if (!site || ps.some(q => Math.hypot(q.x - site.x, q.z - site.z) < 12)) continue;
+    birdMoves.set(g.id, { hx: site.x, hz: site.z, fx: home.hx, fz: home.hz, t0: t, dur: g.kind === 'penguin' ? 9 : 4 });
+    return;
+  }
+}
+// ---- Drawing: one instanced mesh for the bodies of each kind and one for all the wings, so 40 birds cost a few draws ----
+const birdDraw = { made: false, bodies: {}, wings: null, shown: [] };
+function birdShapes() {
+  if (birdDraw.made) return;
+  birdDraw.made = true;
+  const W = 0xffffff, BEAK = 0xf2a53a, EYE = 0x202020, mat = propMat.clone();
+  const sph = (r, sx = 1, sy = 1, sz = 1) => [new THREE.IcosahedronGeometry(r, 1), sx, sy, sz];
+  const P = (g, col, x, y, z, rx = 0) => [g[0], col, x, y, z, rx, 0, [g[1], g[2], g[3]]];
+  const cone = (r, h) => [new THREE.ConeGeometry(r, h, 5), 1, 1, 1];
+  const shapes = {
+    // (each shape is about 1 long, facing +z; it is scaled to the kind's size. White parts take the bird's own colour.)
+    songbird: () => [P(sph(0.3, 0.8, 0.8, 1.2), W, 0, 0, 0), P(sph(0.2), W, 0, 0.18, 0.32), P(cone(0.06, 0.2), BEAK, 0, 0.16, 0.56, Math.PI / 2), P(cone(0.12, 0.4), W, 0, 0.02, -0.5, -Math.PI / 2)],
+    parrot: () => [P(sph(0.26, 0.8, 0.9, 1.2), W, 0, 0, 0), P(sph(0.19), W, 0, 0.22, 0.26), P(cone(0.09, 0.2), 0x333333, 0, 0.16, 0.46, Math.PI / 2 + 0.6), P(cone(0.1, 0.7), W, 0, -0.06, -0.6, -Math.PI / 2)],
+    owl: () => [P(sph(0.3, 0.9, 1.15, 0.9), W, 0, 0, 0), P(sph(0.26, 1.05, 0.9, 0.9), W, 0, 0.38, 0.04), P(sph(0.07), 0xf2c41a, -0.1, 0.42, 0.25), P(sph(0.07), 0xf2c41a, 0.1, 0.42, 0.25), P(cone(0.05, 0.12), BEAK, 0, 0.34, 0.3, Math.PI / 2), P(cone(0.05, 0.14), W, -0.16, 0.62, 0), P(cone(0.05, 0.14), W, 0.16, 0.62, 0)],
+    duck: () => [P(sph(0.3, 0.85, 0.7, 1.3), W, 0, 0, 0), P(sph(0.16), W, 0, 0.3, 0.34), P([new THREE.BoxGeometry(0.12, 0.05, 0.2), 1, 1, 1], BEAK, 0, 0.27, 0.54), P(cone(0.12, 0.25), W, 0, 0.1, -0.45, -Math.PI / 2 - 0.5)],
+    penguin: () => [P(sph(0.3, 0.9, 1.5, 0.85), 0x20242e, 0, 0.45, 0), P(sph(0.24, 0.8, 1.3, 0.5), W, 0, 0.42, 0.17), P(sph(0.2), 0x20242e, 0, 0.92, 0.02), P(cone(0.06, 0.2), BEAK, 0, 0.9, 0.26, Math.PI / 2), P([new THREE.BoxGeometry(0.16, 0.05, 0.24), 1, 1, 1], BEAK, -0.12, 0.02, 0.06), P([new THREE.BoxGeometry(0.16, 0.05, 0.24), 1, 1, 1], BEAK, 0.12, 0.02, 0.06)],
+    gull: () => [P(sph(0.25, 0.8, 0.75, 1.5), W, 0, 0, 0), P(sph(0.15), W, 0, 0.12, 0.4), P(cone(0.05, 0.22), BEAK, 0, 0.1, 0.62, Math.PI / 2), P(cone(0.1, 0.3), 0xb0b6bd, 0, 0, -0.5, -Math.PI / 2)],
+    geese: () => [P(sph(0.24, 0.85, 0.8, 1.5), W, 0, 0, 0), P([new THREE.CylinderGeometry(0.06, 0.07, 0.4, 6), 1, 1, 1], W, 0, 0.1, 0.45, Math.PI / 2 - 0.3), P(sph(0.1), 0x30343a, 0, 0.18, 0.68), P(cone(0.04, 0.14), BEAK, 0, 0.17, 0.82, Math.PI / 2)],
+    hawk: () => [P(sph(0.24, 0.85, 0.75, 1.4), W, 0, 0, 0), P(sph(0.15), W, 0, 0.1, 0.36), P(cone(0.05, 0.14), 0xf2c41a, 0, 0.06, 0.52, Math.PI / 2 + 0.5), P([new THREE.BoxGeometry(0.34, 0.03, 0.4), 1, 1, 1], W, 0, 0, -0.5)],
+  };
+  for (const kind of Object.keys(BIRD_KINDS)) {
+    const m = new THREE.InstancedMesh(prop(shapes[kind]()).geometry, mat, BIRD_MOST);
+    m.frustumCulled = false; m.count = 0; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(BIRD_MOST * 3).fill(1), 3);
+    scene.add(m);
+    birdDraw.bodies[kind] = m;
+  }
+  // a wing: a flat pointed shape that reaches out to the side (+x), turned about the bird's length to beat
+  const sh = new THREE.Shape(); sh.moveTo(0, -0.22); sh.lineTo(0, 0.22); sh.lineTo(0.55, 0.18); sh.lineTo(1, -0.05); sh.lineTo(0.5, -0.2); sh.lineTo(0, -0.22);
+  const wg = new THREE.ShapeGeometry(sh); wg.rotateX(-Math.PI / 2);
+  const w = new THREE.InstancedMesh(wg, new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }), BIRD_MOST * 2);
+  w.frustumCulled = false; w.count = 0; w.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(BIRD_MOST * 6).fill(1), 3);
+  scene.add(w);
+  birdDraw.wings = w;
+}
+const BIRD_WING = { songbird: 0.5, parrot: 0.6, owl: 0.75, duck: 0.6, penguin: 0.3, gull: 1.0, geese: 0.9, hawk: 1.0 };   // how long a wing is, in body lengths
+const birdM = new THREE.Matrix4(), birdW = new THREE.Matrix4(), birdQ = new THREE.Quaternion(), birdE = new THREE.Euler(), birdS = new THREE.Vector3(), birdP = new THREE.Vector3(), birdC = new THREE.Color();
+function updateBirds(dt) {
+  if (birdForce === 'off' || dragonsTestOff) { if (birdDraw.made) { for (const m of Object.values(birdDraw.bodies)) m.count = 0; birdDraw.wings.count = 0; } birdDraw.shown = []; return; }
+  birdShapes();
+  const t = sharedNow() / 1000, c0x = Math.floor((px - CENTER) / BIRD_CELL), c0z = Math.floor((pz - CENTER) / BIRD_CELL), groups = [];
+  for (let cx = c0x - 2; cx <= c0x + 2; cx++) for (let cz = c0z - 2; cz <= c0z + 2; cz++) { const g = birdGroup(cx, cz); if (g) groups.push(g); }
+  if (birdForce && birdForce !== 'off') {   // the test switch: that kind beside the child, in any biome
+    if (!birdDraw.forced || Math.hypot(birdDraw.forced.hx - px, birdDraw.forced.hz - pz) > 120) {
+      const R = n => hash3(n, 5, 9, seed + 7411), want = { duck: true, gull: true }[birdForce];
+      let site = null;
+      for (let r = 8; r < 60 && !site; r += 4) for (let i = 0; i < 12 && !site; i++) { const x = px + Math.cos(i * 0.52) * r, z = pz + Math.sin(i * 0.52) * r; if (!!want === isWaterAt(x, z)) site = birdSite(birdForce, x, z); }
+      birdDraw.forced = makeBirdGroup('forced', birdForce, site || { x: px + 10, z: pz + 10 }, R);
+      birdMoves.delete('forced');
+    }
+    groups.length = 0; groups.push(birdDraw.forced);
+  }
+  for (const g of groups) birdScare(g, t);
+  for (const [id, M] of birdMoves) if (id !== 'forced' && Math.hypot(M.hx - px, M.hz - pz) > BIRD_CELL * 4) birdMoves.delete(id);   // far away: it is back where it lives
+  groups.sort((a, b) => Math.hypot(birdHome(a, t).hx - px, birdHome(a, t).hz - pz) - Math.hypot(birdHome(b, t).hx - px, birdHome(b, t).hz - pz));
+  const counts = {}, shown = [];
+  let total = 0, wn = 0;
+  const wings = birdDraw.wings;
+  for (const g of groups) {
+    const home = birdHome(g, t), body = birdDraw.bodies[g.kind], size = g.K.size;
+    for (const b of g.birds) {
+      if (total >= BIRD_MOST) break;
+      const p = birdPose(g, b, t, home);
+      if (p.hide || Math.hypot(p.x - px, p.z - pz) > BIRD_SEE || p.water && g.kind !== 'penguin') continue;
+      // never inside a block: a bird where a player has built is lifted on top of it
+      let y = p.y; if (!p.fly) { const bx = Math.floor(p.x), bz = Math.floor(p.z); while (y < H - 1 && solid(get(bx, Math.floor(y), bz))) y = Math.floor(y) + 1; }
+      const n = counts[g.kind] = (counts[g.kind] || 0), up = g.kind === 'penguin' ? 0 : size * 0.3, swim = p.water ? -0.5 : 0;
+      birdM.compose(birdP.set(p.x, y + up + swim, p.z), birdQ.setFromEuler(birdE.set(p.pitch, p.yaw, -p.roll, 'YXZ')), birdS.setScalar(size));
+      body.setMatrixAt(n, birdM); body.setColorAt(n, birdC.setHex(b.col)); counts[g.kind] = n + 1; total++;
+      // wings: beating in flight (still while gliding), folded along the body otherwise
+      const gliding = p.fly && (p.glide || (g.kind === 'gull' || g.kind === 'hawk') && p.glide !== false);
+      const flap = !p.fly ? -1.25 : gliding ? 0.08 : Math.sin(t * g.K.beat * 2 + b.ph) * 0.9;
+      for (const sd of [1, -1]) {
+        birdW.compose(birdP.set(sd * 0.12, g.kind === 'penguin' ? 0.55 : 0.08, 0), birdQ.setFromEuler(birdE.set(0, sd > 0 ? 0 : Math.PI, sd * flap * (sd > 0 ? 1 : -1), 'YXZ')), birdS.set(BIRD_WING[g.kind] * (p.fly ? 1 : 0.6), 1, sd > 0 ? 1 : -1));
+        wings.setMatrixAt(wn, birdW.premultiply(birdM)); wings.setColorAt(wn, birdC.setHex(g.kind === 'penguin' ? 0x20242e : b.col).multiplyScalar(0.8)); wn++;
+      }
+      shown.push({ kind: g.kind, id: g.id, i: b.i, x: p.x, y, z: p.z, yaw: p.yaw, fly: !!p.fly, sit: !!p.sit, swim: !!p.swim, moving: !!home.move });
+    }
+  }
+  for (const [kind, m] of Object.entries(birdDraw.bodies)) { m.count = counts[kind] || 0; if (m.count) { m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; } }
+  wings.count = wn; wings.instanceMatrix.needsUpdate = true; wings.instanceColor.needsUpdate = true;
+  birdDraw.shown = shown;
+}
+
 // Green leaves that fly off the tree
 function leafBurst(x, y, z) {
   for (let i = 0; i < 10; i++) {
@@ -7910,6 +8163,7 @@ function frame(now) {
   updateOutlines(dt);
   try { updateCastleLife(dt); updateMerchants(dt); } catch (e) { logError(e, 'castle life'); }
   try { updateDragons(dt); } catch (e) { logError(e, 'dragons'); }
+  try { updateBirds(dt); } catch (e) { logError(e, 'birds'); }   // 0.6.97 (SPEC-034)
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
@@ -7988,7 +8242,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.96';
+const VERSION = '0.6.97';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -9645,6 +9899,11 @@ Promise.all([
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  // SPEC-034 (0.6.97): the birds drawn now, the birds of a square, and one bird's pose at a time, for the tests
+  birds: () => birdDraw.shown.slice(), birdGroup: (cx, cz) => { const g = birdGroup(cx, cz); return g && { id: g.id, kind: g.kind, n: g.n, x: g.hx, z: g.hz, biome: BIOMES[biomeIndexAt(Math.floor(g.hx), Math.floor(g.hz))].name, water: isWaterAt(g.hx, g.hz) }; },
+  birdPose: (cx, cz, i, t) => { const g = birdGroup(cx, cz); if (!g) return null; const p = birdPose(g, g.birds[i % g.n], t, birdHome(g, t)); return { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, roll: p.roll, fly: !!p.fly, hide: !!p.hide }; },
+  birdHome: (cx, cz) => { const g = birdGroup(cx, cz), t = sharedNow() / 1000; if (!g) return null; birdScare(g, t); const h = birdHome(g, t); return { hx: h.hx, hz: h.hz, moving: !!h.move, kind: g.kind }; },
+  birdDraws: () => birdDraw.made ? { bodies: Object.fromEntries(Object.entries(birdDraw.bodies).map(([k, m]) => [k, m.count])), wings: birdDraw.wings.count } : null, BIRD_KINDS, BIRD_MOST,
   // SPEC-035 (0.6.96): each monster's look, animation and facing, for the tests
   monsterLook, MONSTER_LOOKS, monsters: () => enemies.map(en => ({ id: en.id, kind: en.kind, look: en.group.userData.look || null, anim: en.group.userData.anim ? en.group.userData.anim.now : null, hasAnim: !!en.group.userData.anim, yaw: en.group.rotation.y, vx: en.vx, vz: en.vz, turning: !!en.turning, walked: en.walked || 0, x: en.x, z: en.z, hp: en.hp, timeScale: en.group.userData.anim ? en.group.userData.anim.walk.timeScale : null, stride: en.group.userData.anim ? en.group.userData.anim.stride : null })),
   hurtById: (id, n) => { const en = enemies.find(e => e.id === id); if (en) hurtEnemy(en, n); }, monsterOnce: id => { const en = enemies.find(e => e.id === id); return !!(en && en.group.userData.anim && en.group.userData.anim.once); },

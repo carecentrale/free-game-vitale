@@ -2,6 +2,19 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.97: Birds for every part of the world (SPEC-034)
+Built from the PM hand-off SPEC-034 version 2 (approved by Nick 24 Nov 2026, ready to build).
+- **Eight kinds of bird, made in code** (no files): songbirds (grassland, forest, savanna, fewer in the taiga), parrots (rainforest), owls (forest and taiga), ducks (lakes in grassland, forest and taiga), penguins (tundra snow near water), gulls (any water that is not in the snow), geese (a V crossing the sky now and then) and hawks (very high over grassland, savanna and desert; the desert's only bird).
+- **Where they are** comes from the seed, the biome and the shared clock, in squares of 56 blocks, so every device shows the same birds and nothing is sent or saved. A bird's place is checked against its kind's biomes, so none appears outside them. No birds in or by castles.
+- **What they do:** songbirds hop and peck in a flock; parrots sit side by side on a tree top and fly to the next tree and back; an owl sits on a tree and turns to look at a child within 9 blocks; ducks paddle and dip their heads; penguins waddle and tip onto their bellies going downhill; gulls and the hawk glide in wide loops; geese cross in a V for about a minute in every four.
+- **Moving away:** when a player comes within about 5 blocks of a flock (3 for an owl), or a dragon lands within 15, the group flies 20 to 40 blocks away (penguins waddle), to a place of its own kind and never within 12 blocks of a player. The direction is rounded to one of 16 so devices agree.
+- **Flying** birds face the way they move (from their own path), lean into turns and tip up to climb. Penguins never fly.
+- **Drawing:** one instanced mesh for the bodies of each kind and one for all wings: at most 40 birds within 80 blocks in at most 9 draws. A bird where a player has built is lifted on top of the blocks.
+- Not solid, cannot be hit or caught, give nothing. No sounds. No record kind. Test switch `?birds=` and a kind, or `?birds=off`.
+- **Built differently:** penguins do not dive or swim (they stay on the snow); gulls do not land on the sand; songbirds stay on the ground between flights (they do not perch in trees); the owl's eyes do not open (the whole owl turns to look). Beaks take a little of the body's colour (one draw for each kind).
+- Guide (new heading Birds) and release notes. Tests: `birds.test.mjs` and 2 browser tests (8,100 squares for biomes, facing within 10 degrees, penguins never fly, 40 birds and the draws, moving away).
+- Checked: syntax, fast tests, browser tests, and penguins and an owl seen in the game in the workspace's Chrome. **Not checked:** the other kinds by eye; the frame rate on the test phone; two devices; played by Nick.
+
 ## 0.6.96: Believable monsters, every monster an animated model (SPEC-035)
 Built from the PM hand-off SPEC-035 version 3 (approved by Nick 24 Nov 2026, ready to build).
 - **Every monster is a real animated model** (Quaternius; delivered by the PM, SHA-256 checked). The four kinds drawn in code get looks: Brute (four looks), Goblin (two), Hood Goblin (two), Spear Imp (two, one of them flying just above the ground). Which look a monster has comes from its own number, so every device shows the same. The Imp and Spike Beast keep their models and now move with clips from a clips-only file (their skeletons match it bone for bone).
