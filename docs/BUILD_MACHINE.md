@@ -45,3 +45,12 @@ The build watcher is a program on the laptop, not Claude. Besides `build-request
 - **Turning it off:** delete the branch `build-remote` on GitHub; the watcher then finds nothing to run.
 - **If nothing happens:** `build-requests\watcher-alive.txt` shows whether the watcher runs; `watcher-errors.log` shows problems with GitHub.
 
+## Time limits and health report (25 Nov 2026, Nick's request: "fix it so it doesn't hang")
+What happened: a `full` run asked for at 12:19 took until 15:15 (52 browser tests failed on the laptop, each after about two minutes) and said nothing in between, so from outside it looked hung.
+Changed in `build-watcher.ps1` (build tools folder; the file before the change is kept as `build-requests\build-watcher-before-20261125.ps1.txt`):
+- **Time limits.** A run that takes longer than its limit is stopped with everything it started and reported as FAILED ("BUILD STOPPED: the full run took longer than 75 minutes..."). Minutes: full 75, build 75, quick 30, run 60, check 5, status 5, push 5.
+- **Progress.** During a run asked for through GitHub, the status on the branch `build-status` is refreshed about every 5 minutes ("RUNNING: full, started ..., 20 min so far (limit 75 min)"). `watcher-alive.txt` keeps being updated during a run.
+- **Health.** About every 5 minutes, idle or busy, the watcher writes `health.txt` into the Drive folder "Adventurers of Drenerics - Build machine reports": the time, what it is doing, and the last line of `history.log`. If "Written" is older than 15 minutes, the laptop is off, asleep, logged out, or the watcher stopped.
+- Checked: the new watcher started by itself, answered a `status` request through GitHub (15:42). Not checked: a run actually reaching its limit and being stopped.
+- Still open: why 52 browser tests fail on the laptop but pass elsewhere. Until that is found, `full` cannot succeed there; `quick` builds work.
+

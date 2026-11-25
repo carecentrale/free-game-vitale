@@ -78,6 +78,7 @@ The parent wants Claude to do the build and release work on this PC (Windows lap
 - `check-play-key.bat` checks the Play key without uploading. The Cowork workspace has no route to Google, so the check and the upload only work from Windows.
 
 ## Reading build results (22 Nov 2026)
+- The watcher stops a run that passes its time limit (full and build 75 minutes, quick 30) and reports it as FAILED; during a run the `build-status` line is refreshed about every 5 minutes. The Drive reports folder also holds `health.txt`, written about every 5 minutes: if its "Written" time is older than 15 minutes, the laptop is off, asleep, logged out or the watcher stopped (25 Nov 2026, see `docs/BUILD_MACHINE.md`).
 - After a build request, read the result in this order, all without the laptop: `remote-build.sh result` (one line on the branch `build-status`), then the Google Drive folder "Adventurers of Drenerics - Build machine reports" (written by the laptop after every run): `latest-build.txt` (result, version, build number, the last log lines, cleaned) and `build-log.csv` (one row per run).
 - Never read the laptop's own log files from a chat. If the Drive report does not say why a build failed, ask the parent to paste the end of `build-requests\last.log`.
 - Do not move or rename the Build machine reports folder in Drive: the laptop writes to it by its place in Google Drive on the laptop. Moving it needs the watcher changed at the same time (laptop work).
