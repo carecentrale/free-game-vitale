@@ -7,6 +7,7 @@
   "scripts": {
     "test": "node --test scripts/tests/*.test.mjs",
     "test:quick": "node scripts/test-quick.mjs",
+    "test:stop-after": "node scripts/test-stop-after.mjs",
     "android:sync": "npx cap sync android",
     "capacitor:sync:after": "node -e \"const fs=require('fs'),s='www/app-icon/android-res',d='android/app/src/main/res';if(fs.existsSync(s)&&fs.existsSync(d)){fs.cpSync(s,d,{recursive:true});fs.rmSync('android/app/src/main/assets/public/app-icon',{recursive:true,force:true});console.log('App icon installed from www/app-icon')}\""
   },
