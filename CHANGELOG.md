@@ -14,6 +14,14 @@ Insights: charts of everything the game records, and of errors by game version.
 - Nick's answer was "weekly" where the spec says once a day; the limit of new facts a day (50) is unchanged, so about 50 facts a week at most. "Write new facts now" in the admin page adds more on any day.
 - Not applied yet and not deployed yet on 25 Nov: see docs/migrations/README.md.
 
+## 0.6.105: Google sign-in inside the Android app (Nick's request in chat, 25 Nov 2026)
+- Why it did not work: the app is the web game inside an app shell. Google does not show its sign-in page inside an app's own web view, and the game there has no web address to come back to.
+- Now: in the app, "Sign in with Google" in the parent area opens the phone's own Google account window over the game. Google hands back a signed token, the database checks it, and the grown-up is signed in without leaving the game. In a browser nothing changes. This opens the Playing together switch, cloud save and the owner's Teacher Mirelo preview in the app.
+- The app gets one new add-on, `@capgo/capacitor-social-login`, with Google only. Facebook, Apple and Twitter are switched off in capacitor.config.json; that also keeps Facebook's advertising ID permission out of a children's app.
+- New record `signin_app`: how a sign-in in the app went (ok, closed, refused, not set up). Never the account.
+- NOT working until three things are done by Nick: (1) give the builder the Google "Web application" client ID that the database's Google sign-in uses (a public value; it is empty in the game now, and the app says sign-in is not set up); (2) in the same Google Cloud project, add an Android client for com.drenerics.adventurers with the SHA-1 of the upload key and one with the SHA-1 of Google Play's app signing key; (3) in Supabase, Google provider, make sure that Web client ID is in the list of client IDs.
+- Checked: syntax and the rules by test. Not checked: anything on a phone. It cannot be tried without the three steps and a new Android build. Sign-in touches the parent account: nothing new is collected, and the privacy page already names Google for parent sign-in.
+
 ## 0.6.104: Teacher Mirelo's preview is a switch in the parent area, for the owner only (Nick's request in chat, 25 Nov 2026)
 - The address switch `?teacher=1` is gone: nothing in the page address turns Teacher Mirelo on. In its place the parent area shows "Teacher Mirelo (preview)", On or Off, only to the game's owner signed in there with Google. It is kept on that device. Everyone else sees nothing of it.
 - To try it: open the game in a browser, open the parent area, sign in with Google as the owner, turn the preview On, then tap Mirelo when he visits (or wait for his next visit).
