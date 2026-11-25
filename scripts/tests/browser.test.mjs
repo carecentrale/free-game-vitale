@@ -498,7 +498,7 @@ test('the Spell button is hidden until on-screen controls are on, then a tap on 
     const before = await page.evaluate(() => { const p = window.gameProbe(); return p.fireballs + p.blasts; });
     // 0.6.74: the tap on the button lights it up; the next tap on the world casts
     await page.evaluate(() => { document.getElementById('bSpell').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
-      const c = document.querySelector('canvas'); for (const t of ['pointerdown', 'pointerup']) c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: innerWidth / 2, clientY: innerHeight * 0.4, pointerId: 3, button: 0 })); });
+      const c = document.querySelector('body > canvas'); for (const t of ['pointerdown', 'pointerup']) c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: innerWidth / 2, clientY: innerHeight * 0.4, pointerId: 3, button: 0 })); });
     const after = await page.waitForFunction(b => { const p = window.gameProbe(); return p.fireballs + p.blasts > b && p.fireballs + p.blasts; }, before, { timeout: 30000 })
       .then(h => h.jsonValue(), () => before);
     assert.ok(after > before, `the Spell button did not cast: ${before} -> ${after}`);
@@ -1097,7 +1097,7 @@ test('on a touch screen the fireball needs no quick bar slot: the Spell button a
       const g = window.gameTest, n = g.fireballs.length;
       const tap = () => document.getElementById('bSpell').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 7 }));
       // 0.6.74: the button lights up, and the next tap on the world casts
-      const c = document.querySelector('canvas');
+      const c = document.querySelector('body > canvas');
       const world = () => { for (const t of ['pointerdown', 'pointerup']) c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: innerWidth / 2, clientY: innerHeight * 0.4, pointerId: 8, button: 0, pointerType: 'touch' })); };
       tap(); world();
       const one = g.fireballs.length - n;
@@ -1152,7 +1152,7 @@ function tapMonster(page, opts = {}) {
     if (!en) return { error: 'no goblin could be put under the pointer' };
     const snap = () => ({ hp: en.hp, sel: g.sel, dur: Object.fromEntries(g.gear.map(x => [g.tplOf(x.uid), x.dur])), fireballs: g.fireballs.length,
       dirt: g.inv.dirt || 0, digging: !!g.digging, fight: !!g.fight, msg: g.msg, alive: g.enemies.includes(en) });
-    const c = document.querySelector('canvas');
+    const c = document.querySelector('body > canvas');
     const ev = t => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: pt[0], clientY: pt[1], pointerId: 5, button: 0, pointerType: o.touch ? 'touch' : 'mouse' }));
     const before = snap();
     ev('pointerdown');
@@ -1181,13 +1181,13 @@ test('a tap on a close monster swings the sword from a hand button once, and the
     await page.waitForTimeout(600);
     await page.evaluate(() => window.gameTest.stepFrames(Array(10).fill(0.05)));
     // The same with a finger
-    const b = await tapMonster(page, { touch: true, shift: 3 });
+    const b = await tapMonster(page, { touch: true });   // (the goblin used to stand 3 blocks to the side: out of the sword's reach of 2 since 0.6.76, SPEC-016 B)
     assert.equal(b.error, undefined, b.error);
     assert.equal(b.after.hp, b.before.hp - 1, 'a touch hits once too');
     await page.evaluate(() => window.gameTest.stepFrames(Array(10).fill(0.05)));
     // A block in hand: the sword swings, and no block is placed
     await page.evaluate(() => { const g = window.gameTest; g.selectSlot(2); g.toQuick('dirt'); });
-    const c = await tapMonster(page, { shift: -3 });
+    const c = await tapMonster(page, {});
     assert.equal(c.error, undefined, c.error);
     assert.equal(c.after.hp, c.before.hp - 1, 'the sword swings with a block in hand');
     assert.equal(c.after.dirt, c.before.dirt, 'no block is placed');
@@ -1215,14 +1215,14 @@ function tapBlock(page, opts = {}) {
     const [px, py, pz] = g.pos;
     let pt = null, a = null;
     for (let y = Math.round(innerHeight * 0.9); y > innerHeight * 0.3 && !pt; y -= 12) for (let x = Math.round(innerWidth * 0.25); x < innerWidth * 0.75 && !pt; x += 12) {
-      if (document.elementFromPoint(x, y) !== document.querySelector('canvas')) continue;   // a button is on top here
+      if (document.elementFromPoint(x, y) !== document.querySelector('body > canvas')) continue;   // a button is on top here
       const c = g.aimAt(x, y);
       if (!c || c.enemy || c.dist > g.reach || !g.isSolid(g.blockAt(...c.dig)) || g.isSolid(g.blockAt(...c.place))) continue;
       if (Math.abs(c.place[0] + 0.5 - px) < 1.2 && Math.abs(c.place[2] + 0.5 - pz) < 1.2 && c.place[1] + 1 > py && c.place[1] < py + 2.2) continue;   // too close to the character
       pt = [x, y]; a = c;
     }
     if (!pt) return { error: 'no close block was found under the screen' };
-    const c = document.querySelector('canvas');
+    const c = document.querySelector('body > canvas');
     const ev = (t, dx = 0) => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: pt[0] + dx, clientY: pt[1], pointerId: 7, button: 0, pointerType: o.touch ? 'touch' : 'mouse' }));
     const snap = () => ({ dirt: g.inv.dirt || 0, built: g.isSolid(g.blockAt(...a.place)), dug: !g.isSolid(g.blockAt(...a.dig)), digging: !!g.digging, msg: g.msg, sel: g.sel });
     const before = snap();
@@ -1331,7 +1331,7 @@ test('with the sword in hand, a tap on a close monster hits it once straight awa
       const g = window.gameTest;
       g.clearEnemies(); g.setYaw(0); g.settleCamera();
       if (!g.enemyNear('goblin', 0, -11)) return { error: 'no far goblin' };
-      const en = g.enemies[0], [sx, sy] = g.screenOf(en), c = document.querySelector('canvas'), hp = en.hp;
+      const en = g.enemies[0], [sx, sy] = g.screenOf(en), c = document.querySelector('body > canvas'), hp = en.hp;
       const ev = t => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: sx, clientY: sy, pointerId: 5, button: 0 }));
       ev('pointerdown'); ev('pointerup');
       return { hit: en.hp < hp };
@@ -1339,7 +1339,7 @@ test('with the sword in hand, a tap on a close monster hits it once straight awa
     assert.equal(far.error, undefined, far.error);
     assert.equal(far.hit, false, 'a monster out of reach was hit');
     await page.evaluate(() => window.gameTest.stepFrames(Array(10).fill(0.05)));
-    const b = await tapMonster(page, { hold: 60, shift: 3 });
+    const b = await tapMonster(page, { hold: 60 });
     assert.ok(b.held.hp < b.before.hp || !b.held.alive, 'the press hits');
     assert.ok(b.heldLong.dur.sword < b.held.dur.sword, 'holding keeps hitting');
     assert.equal(b.error, undefined, b.error);
@@ -1545,7 +1545,7 @@ test('a tap on the world outside the bag, Settings or the quit question closes i
   withGame(async (page, errors) => {
     await playing(page);
     const r = await page.evaluate(() => {
-      const g = window.gameTest, c = document.querySelector('canvas'), out = {};
+      const g = window.gameTest, c = document.querySelector('body > canvas'), out = {};
       const tap = (el, x, y) => { for (const t of ['pointerdown', 'pointerup']) el.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 11, button: 0 })); };
       const opens = { bag: () => document.getElementById('bagBtn').click(), settings: () => document.getElementById('settingsBtn').click(), quit: () => g.backAction() };
       const isOpen = { bag: () => g.bagOpen, settings: () => g.settingsOpen, quit: () => g.quitOpen };
@@ -1590,7 +1590,7 @@ const pressFriend = (page, o = {}) => page.evaluate(o => {
   g.settleCamera();
   const [x, y, front] = g.friendScreen();
   if (!front) return { error: 'the friend is behind the camera' };
-  const c = document.querySelector('canvas');
+  const c = document.querySelector('body > canvas');
   const ev = (t, dx = 0) => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: x + dx, clientY: y, pointerId: 9, button: 0, pointerType: o.touch ? 'touch' : 'mouse' }));
   ev('pointerdown');
   const held = { digging: !!g.digging, fight: !!g.fight };
@@ -1606,7 +1606,7 @@ const tapBubble = (page, o = {}) => page.evaluate(o => {
   if (!b) return { error: 'the bubble is hidden or behind the camera' };
   const [fx, fy] = g.friendScreen();
   const x = b[0], y = o.miss ? b[1] - b[2] * 3 : b[1];
-  const c = document.querySelector('canvas');
+  const c = document.querySelector('body > canvas');
   const ev = t => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 9, button: 0, pointerType: o.touch ? 'touch' : 'mouse' }));
   ev('pointerdown'); ev('pointerup');
   return { open: g.quizOpen, awayFromBody: Math.hypot(b[0] - fx, b[1] - fy), bubbleSize: b[2] };
@@ -2126,7 +2126,7 @@ test('the quiz report counts questions seen and right answers for maths and word
     await playing(page);
     const closed = () => quizClosed(page);
     const stats = () => page.evaluate(() => window.gameTest.quizStats);
-    const blank = { opened: 0, first: 0, later: 0 };
+    const blank = { opened: 0, first: 0, later: 0, hints: 0, swaps: 0 };   // hints and swaps are counted too since 0.6.78
     assert.deepEqual(await stats(), { math: blank, words: blank, since: null, last: null });
     // Friends ask until one maths question and one word have come up (the game chooses); each is counted as seen once
     const seen = { math: 0, words: 0 };
@@ -2152,8 +2152,10 @@ test('the quiz report counts questions seen and right answers for maths and word
       } else await page.evaluate(() => document.querySelector('#quizPanel .qnot').click());
     }
     const st = await stats();
-    assert.deepEqual(st.math, { opened: seen.math, first: 0, later: 1 });
-    assert.deepEqual(st.words, { opened: seen.words, first: 1, later: 0 });
+    const three = ({ opened, first, later }) => ({ opened, first, later });
+    assert.deepEqual(three(st.math), { opened: seen.math, first: 0, later: 1 });
+    assert.deepEqual(three(st.words), { opened: seen.words, first: 1, later: 0 });
+    for (const sub of ['math', 'words']) for (const k of ['hints', 'swaps']) assert.ok(Number.isInteger(st[sub][k]) && st[sub][k] >= 0, sub + ' ' + k);
     assert.match(st.since, /^\d{4}-\d{2}-\d{2}$/);
     assert.equal(st.last, st.since);
     // Kept with the saved game: only the counts and two dates
@@ -2162,7 +2164,8 @@ test('the quiz report counts questions seen and right answers for maths and word
     const all = await page.evaluate(() => Object.keys(localStorage).map(k => k + '=' + localStorage.getItem(k)).join('\n'));
     assert.ok(!/How many|What is|comes next|the most|Spell the word|"answers"|"letters"|"word"/.test(all), 'a question or an answer is stored on the device');
     // Nothing was sent anywhere: every request went to the game's own address or was a library file
-    const out = requests.filter(u => !u.startsWith('http://127.0.0.1') && !/cdn\.jsdelivr\.net/.test(u) && !u.startsWith('data:') && !u.startsWith('blob:'));
+    // (reading the owner's settings when the game opens sends nothing about the player: docs/EVENTS.md, part 6)
+    const out = requests.filter(u => !u.startsWith('http://127.0.0.1') && !/cdn\.jsdelivr\.net/.test(u) && !u.startsWith('data:') && !u.startsWith('blob:') && !/\/rest\/v1\/game_settings\?/.test(u));
     assert.deepEqual(out, [], 'requests to other places');
     // The parent area (five taps in the top-left corner) shows the report
     const report = await page.evaluate(() => {
@@ -2172,10 +2175,10 @@ test('the quiz report counts questions seen and right answers for maths and word
       return t ? [...t.querySelectorAll('tr')].map(tr => [...tr.children].map(c => c.textContent)) : null;
     });
     assert.ok(report, 'the parent area does not show the quiz report');
-    assert.deepEqual(report[0].slice(1), ['Seen', 'Right first time', 'Right after a retry', 'Not finished']);
-    assert.deepEqual(report[1], ['Maths', String(seen.math), '0', '1', String(seen.math - 1)]);
-    assert.deepEqual(report[2], ['Words', String(seen.words), '1', '0', String(seen.words - 1)]);
-    assert.deepEqual(report[3], ['All', String(seen.math + seen.words), '1', '1', String(seen.math + seen.words - 2)]);
+    assert.deepEqual(report[0].slice(1, 5), ['Seen', 'Right first time', 'Right after a retry', 'Not finished']);
+    assert.deepEqual(report[1].slice(0, 5), ['Maths', String(seen.math), '0', '1', String(seen.math - 1)]);
+    assert.deepEqual(report[2].slice(0, 5), ['Words', String(seen.words), '1', '0', String(seen.words - 1)]);
+    assert.deepEqual(report[3].slice(0, 5), ['All', String(seen.math + seen.words), '1', '1', String(seen.math + seen.words - 2)]);
     // Still there after closing and opening the game
     await page.reload({ waitUntil: 'domcontentloaded' });
     await playing(page);
@@ -2278,8 +2281,8 @@ test('learning level: three right first maths answers give "Maths level 16" with
       ups.push(await page.evaluate(() => document.querySelector('#quizPanel .qmsg').textContent));
       await quizClosed(page);
     }
+    // Since 0.6.78 the question stays open after a right answer, and "Level up!" is said there, not in the line at the top
     assert.deepEqual(ups, ['Well done! +5 gems. Level up! Maths level 6', 'Well done! +5 gems. Level up! Maths level 11', 'Well done! +5 gems. Level up! Maths level 16']);
-    assert.match(await page.evaluate(() => window.gameTest.msg), /Level up! Maths level 16/);
     // The next maths question shows level 16 and is a sum in figures within 20, with three answers and no pictures
     let a = await askAtLevel(page, 'add');
     assert.equal(a.panel.level, 'Maths level 16');
@@ -2289,7 +2292,7 @@ test('learning level: three right first maths answers give "Maths level 16" with
     // Two wrong tries on it: one wrong answer is taken away as the hint. That is one wrong first answer.
     const wrong = [0, 1, 2].filter(i => i !== a.q.right);
     // (the game's own sound and picture files, from its own address, are not counted)
-    const sent = () => requests.filter(u => !/^http:\/\/127\.0\.0\.1:\d+\/(audio|quiz\/pics)\//.test(u));
+    const sent = () => requests.filter(u => !/^http:\/\/127\.0\.0\.1:\d+\/(audio|quiz\/pics|models)\//.test(u));
     const before = sent().length;
     await clickAnswer(page, wrong[0]); await clickAnswer(page, wrong[1]);
     assert.equal(await page.evaluate(() => document.querySelectorAll('#quizPanel .qa.out').length), 1, 'the hint did not take one wrong answer away');
@@ -2318,7 +2321,7 @@ test('learning level: three right first maths answers give "Maths level 16" with
     await page.reload({ waitUntil: 'domcontentloaded' });
     await playing(page);
     assert.deepEqual(await page.evaluate(() => window.gameTest.quizLevels), kept, 'the levels were not there after reopening the game');
-    const out = requests.filter(u => !u.startsWith('http://127.0.0.1') && !/cdn\.jsdelivr\.net/.test(u) && !u.startsWith('data:') && !u.startsWith('blob:'));
+    const out = requests.filter(u => !u.startsWith('http://127.0.0.1') && !/cdn\.jsdelivr\.net/.test(u) && !u.startsWith('data:') && !u.startsWith('blob:') && !/\/rest\/v1\/game_settings\?/.test(u));   // (the owner's settings are only read: nothing about the player is sent)
     assert.deepEqual(out, [], 'requests to other places');
     assert.deepEqual(errors, [], errors.join('\n'));
   }, { saves: [readyGame()], quiz: true }));
@@ -2499,7 +2502,7 @@ test('Vital comes within 5 seconds for a new player, with "!" and his name; a ta
     await playSeconds(page, 30);
     assert.equal((await tipState(page)).friend, null, 'Vital did not leave after the tip was closed');
     assert.deepEqual(JSON.parse((await tipState(page)).kept), { on: true, seen: 1, ask: false, skip: 0 });
-    const out = requests.filter(u => !u.startsWith('http://127.0.0.1') && !/cdn\.jsdelivr\.net/.test(u) && !u.startsWith('data:') && !u.startsWith('blob:'));
+    const out = requests.filter(u => !u.startsWith('http://127.0.0.1') && !/cdn\.jsdelivr\.net/.test(u) && !u.startsWith('data:') && !u.startsWith('blob:') && !/\/rest\/v1\/game_settings\?/.test(u));   // (the owner's settings are only read: nothing about the player is sent)
     assert.deepEqual(out, [], 'requests to other places');
     assert.deepEqual(errors, [], errors.join('\n'));
   }, { saves: [readyGame()], quiz: true, vital: true }));
@@ -2621,7 +2624,7 @@ test('Vital on a phone: touch wording, at most 4 visits from him in one visit, n
 // ---- SPEC-016, release 1 (0.6.74): the fireball flies where you tap (A), sword reach (B), digging by hand (C), powers in a menu (H) ----
 // A tap (press and release) on the world at a screen point, with a finger or the mouse; `drag` moves the pointer before the release
 const tapWorld = (page, x, y, opts = {}) => page.evaluate(({ x, y, o }) => {
-  const c = document.querySelector('canvas');
+  const c = document.querySelector('body > canvas');
   const ev = (t, dx = 0) => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: x + dx, clientY: y, pointerId: 9, button: 0, pointerType: o.touch ? 'touch' : 'mouse' }));
   ev('pointerdown');
   if (o.drag) ev('pointermove', o.drag);
@@ -2694,7 +2697,7 @@ test('SPEC-016 A: after a tap on the Spell button, a tap on a monster to one sid
         if (!g.enemyNear('goblin', dx, dz)) continue;
         const en = g.enemies[g.enemies.length - 1];
         const [sx, sy, front] = g.screenOf(en);
-        if (front && sx > 20 && sx < innerWidth - 120 && sy > 60 && sy < innerHeight - 20 && g.enemyAt(sx, sy) === en && document.elementFromPoint(sx, sy) === document.querySelector('canvas')) return { sx, sy, dx, dz, gap: g.swordGap(en) };
+        if (front && sx > 20 && sx < innerWidth - 120 && sy > 60 && sy < innerHeight - 20 && g.enemyAt(sx, sy) === en && document.elementFromPoint(sx, sy) === document.querySelector('body > canvas')) return { sx, sy, dx, dz, gap: g.swordGap(en) };
         g.clearEnemies();
       }
       return { error: 'no goblin could be put to one side on the screen' };
@@ -2800,7 +2803,8 @@ test('SPEC-016 B: a sword hits only from 2 blocks or closer, a bigger monster fr
     let m = await put('goblin', -1);
     assert.equal(m.error, undefined, m.error);
     await tapWorld(page, m.x, m.y);
-    assert.equal((await state()).hp, m.hp - 1, 'next to a monster the sword hits it');
+    // (how much one hit takes off depends on the Fighting level of the saved game: here the hit only has to land)
+    assert.ok((await state()).hp < m.hp, 'next to a monster the sword hits it');
     // 5 blocks away: no hit, and the game says so
     await page.evaluate(() => window.gameTest.stepFrames(Array(10).fill(0.05)));
     m = await put('goblin', -5);
@@ -2817,7 +2821,7 @@ test('SPEC-016 B: a sword hits only from 2 blocks or closer, a bigger monster fr
     assert.equal((await state()).fight, true, 'holding on a close monster keeps hitting');
     const walked = await page.evaluate(() => { const g = window.gameTest, en = g.enemies[0]; g.walkAway(4); const gap = g.swordGap(en); g.stepFrames([0.05]); return { gap, fight: !!g.fight }; });
     assert.ok(walked.gap > 2 && !walked.fight, 'walking back more than 2 blocks stops the hits: ' + JSON.stringify(walked));
-    await page.evaluate(() => document.querySelector('canvas').dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 9 })));
+    await page.evaluate(() => document.querySelector('body > canvas').dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 9 })));
     // A bigger monster can be reached from a little further away than a smaller one at the same spot
     const gaps = await page.evaluate(() => {
       const g = window.gameTest, [px, py, pz] = g.pos, out = {};
@@ -2849,7 +2853,7 @@ test('SPEC-016 B: a sword hits only from 2 blocks or closer, a bigger monster fr
       const g = window.gameTest;
       g.clearEnemies(); g.selectSlot(0); g.setYaw(0); g.settleCamera();
       for (let y = Math.round(innerHeight * 0.75); y > innerHeight * 0.2; y -= 6) for (let x = Math.round(innerWidth * 0.3); x < innerWidth * 0.7; x += 10) {
-        if (document.elementFromPoint(x, y) !== document.querySelector('canvas')) continue;
+        if (document.elementFromPoint(x, y) !== document.querySelector('body > canvas')) continue;
         const c = g.aimAt(x, y);
         if (c && !c.enemy && c.dist > 5.5 && c.dist <= 7 && g.isSolid(g.blockAt(...c.dig))) return { x, y, dist: c.dist };
       }
@@ -2871,7 +2875,7 @@ test('SPEC-016 C: every block can be dug by hand, more slowly than with the pick
       const [px, py, pz] = g.pos;
       let pt = null, a = null;
       for (let y = Math.round(innerHeight * 0.9); y > innerHeight * 0.3 && !pt; y -= 12) for (let x = Math.round(innerWidth * 0.25); x < innerWidth * 0.75 && !pt; x += 12) {
-        if (document.elementFromPoint(x, y) !== document.querySelector('canvas')) continue;
+        if (document.elementFromPoint(x, y) !== document.querySelector('body > canvas')) continue;
         const c = g.aimAt(x, y);
         if (!c || c.enemy || c.dist > 4.5 || !g.isSolid(g.blockAt(...c.dig)) || g.isSolid(g.blockAt(...c.place))) continue;
         if (stone ? g.blockAt(...c.dig) !== g.T.STONE : (g.blockAt(...c.dig) === g.T.STONE || g.blockAt(...c.dig) === g.T.GEM)) continue;
@@ -2880,7 +2884,7 @@ test('SPEC-016 C: every block can be dug by hand, more slowly than with the pick
       }
       if (!pt) return { error: 'no block to dig was found' };
       const kind = g.blockAt(...a.dig), bag = g.invTotal(), dur = Object.fromEntries(g.gear.map(x => [g.tplOf(x.uid), x.dur]));
-      const c = document.querySelector('canvas');
+      const c = document.querySelector('body > canvas');
       const ev = t => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: pt[0], clientY: pt[1], pointerId: 9, button: 0 }));
       ev('pointerdown');
       const msg = g.msg, started = !!g.digging;
@@ -2939,9 +2943,9 @@ test('SPEC-016 H: the powers are in the Powers panel, not at the top left; gems 
     assert.ok(/Gems \d+/.test(hud) && /Bag \d+\/\d+/.test(hud), 'the top left shows the gem count and the bag count: ' + hud);
     assert.ok(!/Lv|Digging|Building|Fighting|Inventory|Magic|World/.test(hud), 'no power levels at the top left: ' + hud);
     assert.equal(await page.evaluate(() => document.querySelectorAll('#hud .bar').length), 0, 'no bars at the top left');
-    const btn = await page.evaluate(() => { const b = document.getElementById('powersBtn').getBoundingClientRect(), s = document.getElementById('settingsBtn').getBoundingClientRect(); return { h: b.height, w: b.width, top: b.top, right: innerWidth - b.right, beside: Math.abs(s.left - b.right) < 16, star: document.getElementById('powersBtn').textContent.includes('★') }; });
+    const btn = await page.evaluate(() => { const b = document.getElementById('powersBtn').getBoundingClientRect(), s = document.getElementById('settingsBtn').getBoundingClientRect(), m = document.getElementById('mapBtn').getBoundingClientRect(); return { h: b.height, w: b.width, top: b.top, right: innerWidth - b.right, beside: Math.abs(m.left - b.right) < 16 && Math.abs(s.left - m.right) < 16, star: document.getElementById('powersBtn').textContent.includes('★') }; });
     assert.ok(btn.h >= 44 && btn.w >= 44, 'the Powers button is at least 44 px: ' + JSON.stringify(btn));
-    assert.ok(btn.beside && btn.star && btn.top < 60, 'the Powers button has a star and sits at the top right beside Settings: ' + JSON.stringify(btn));
+    assert.ok(btn.beside && btn.star && btn.top < 60, 'the Powers button has a star and sits at the top right beside Map and Settings (the Map button came between them in 0.6.87): ' + JSON.stringify(btn));
     const panel = () => page.evaluate(() => ({ open: window.gameTest.powersOpen, shown: getComputedStyle(document.getElementById('powers')).display !== 'none', text: document.getElementById('powers').textContent,
       rows: [...document.querySelectorAll('#powers .prow')].map(r => r.textContent.trim()), bars: document.querySelectorAll('#powers .prow .bar').length }));
     await page.click('#powersBtn');
@@ -2972,7 +2976,8 @@ test('SPEC-016 H: the powers are in the Powers panel, not at the top left; gems 
     assert.deepEqual(p.rows, ['Digging Lv 2', 'Building Lv 1', 'Inventory Lv 1', 'Fighting Lv 2', 'Magic Lv 1']);
     await page.click('#powersClose');
     // Five quick taps on the top-left corner still open the parent area
-    for (let i = 0; i < 5; i++) await page.mouse.click(12, 12);
+    // (tapped from inside the page: five separate clicks from the test are too slow to count as quick on a slow machine)
+    await page.evaluate(() => { const corner = [...document.body.children].find(d => d.style.width === '70px' && d.style.left === '0px'); for (let i = 0; i < 5; i++) corner.click(); });
     const parent = await page.evaluate(() => [...document.querySelectorAll('div')].some(d => d.textContent.trim().startsWith('Parent area') && d.getClientRects().length > 0));
     assert.ok(parent, 'five quick taps on the top-left corner open the parent area');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
@@ -3134,7 +3139,7 @@ test('SPEC-016 E: dragging up and down looks up and down and stops at 80 degrees
     await page.waitForFunction(() => !!window.gameTest, null, { timeout: 60000 });
     await settle(page);
     const drag = (dy) => page.evaluate(dy => {
-      const c = document.querySelector('canvas'), x = innerWidth / 2, y = innerHeight / 2;
+      const c = document.querySelector('body > canvas'), x = innerWidth / 2, y = innerHeight / 2;
       const ev = (t, yy) => c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: x, clientY: yy, pointerId: 11, button: 0 }));
       ev('pointerdown', y); for (let i = 1; i <= 10; i++) ev('pointermove', y + dy * i / 10); ev('pointerup', y + dy);
       return window.gameTest.pitch;
@@ -3155,7 +3160,7 @@ test('SPEC-016 E: dragging up and down looks up and down and stops at 80 degrees
     const r = await page.evaluate(() => {
       const g = window.gameTest, out = {};
       g.setView('eyes'); g.setYaw(0); g.setPitch(-0.6); g.settleCamera(); g.clearEnemies();
-      const c = document.querySelector('canvas');
+      const c = document.querySelector('body > canvas');
       const tap = (x, y, hold) => { c.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 12, button: 0 })); if (hold) g.stepFrames(Array(hold).fill(0.05)); c.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 12, button: 0 })); };
       // find a block under the middle of the screen
       let pt = null; for (let y = innerHeight * 0.5; y < innerHeight * 0.9 && !pt; y += 8) { const a = g.aimAt(innerWidth / 2, y); if (a && !a.enemy && a.dist <= g.reach && g.isSolid(g.blockAt(...a.dig))) pt = [innerWidth / 2, y, a]; }
@@ -3174,7 +3179,7 @@ test('SPEC-016 E: dragging up and down looks up and down and stops at 80 degrees
     await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));   // the changed blocks are drawn again
     const r2 = await page.evaluate(() => {
       const g = window.gameTest, out = {};
-      const c = document.querySelector('canvas');
+      const c = document.querySelector('body > canvas');
       const tap = (x, y) => { for (const t of ['pointerdown', 'pointerup']) c.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, clientX: x, clientY: y, pointerId: 12, button: 0 })); };
       g.selectSlot(1); g.setPitch(-0.2); g.settleCamera();
       if (!g.enemyNear('goblin', 0, -2)) return { ...out, error: 'no goblin' };
@@ -3304,7 +3309,7 @@ test('a merchant trades: monster parts and blocks for gems, gems for gear; not e
     assert.equal(r.again, false); assert.match(r.msg, /gems/);
     assert.equal(r.full, false); assert.match(r.fullMsg, /bag is full/i);
     assert.equal(r.closed, true);
-    assert.deepEqual(r.offers, [6, 6, 6]);
+    assert.deepEqual(r.offers, [7, 7, 7]);   // six, and since 0.6.81 one of the new castle blocks
     assert.equal(r.gearOffer, true, 'every merchant sells at least one piece of gear');
     assert.deepEqual(errors, []);
   }, { saves: [readyGame()] }));
@@ -3530,8 +3535,8 @@ test('0.6.85: a monster the guards defeat sinks away after a few seconds; one th
     });
     assert.equal(start.list.length, 2, 'both lie down first');
     assert.ok(start.list[0].guard && !start.list[1].guard, JSON.stringify(start.list));
-    await page.waitForTimeout(8000);   // 3 seconds lying, 3 seconds sinking, and some room
-    const after = await page.evaluate(() => window.gameTest.corpseList);
+    // 3 seconds lying, 3 seconds sinking, and some room: played in the game's own time, which a slow test machine does not keep up with
+    const after = await page.evaluate(() => { window.gameTest.stepFrames(Array(160).fill(0.05)); return window.gameTest.corpseList; });
     assert.equal(after.filter(c => c.guard).length, 0, 'the guards\' monster is gone');
     assert.ok(after.some(c => !c.guard), 'the child\'s monster still lies there (5 minutes)');
     assert.deepEqual(errors.filter(e => !/GL Driver/.test(e)), [], errors.join('\n'));

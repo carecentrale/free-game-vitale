@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.99 (3D)</title>
+<title>Adventurers of Drenerics v0.6.100 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -138,6 +138,10 @@
   body.phone #powersBtn .pl,body.phone #viewBtn .pl{display:none}
   body.phone #toggle{max-width:72px;overflow:hidden;text-overflow:ellipsis}
   body.phone #hudBtn{max-width:calc(100vw - 300px);min-width:40px}
+  /* 0.6.100: on a phone held upright the top row grew (Map, View) until it lay over the button at the top left.
+     There the top-left button sits under the row, and on the narrowest phones the row is packed a little tighter. */
+  @media (max-width:440px){body.phone #hud{top:56px}body.phone #hudBtn{top:76px;max-width:45vw}}
+  @media (max-width:340px){body.phone #topbar{gap:4px}body.phone #toggle{max-width:52px}body.phone #toggle,body.phone #settingsBtn,body.phone #mapBtn{padding:5px 6px}}
   #wiz{position:fixed;inset:0;background:rgba(10,12,25,.85);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px;box-sizing:border-box}
   #wiz.hide{display:none}
   #wiz .box{background:#1d2440;color:#fff;border-radius:18px;padding:20px;max-width:420px;width:100%;box-sizing:border-box;text-align:center}
@@ -3188,6 +3192,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.100', title: 'Tidier buttons on small phones', items: [
+    'On a phone held upright, the buttons at the top no longer sit on top of each other.',
+  ] },
   { v: '0.6.99', title: 'The world comes alive', items: [
     'The world comes alive: grass and trees sway in the wind, water ripples, and digging, landing and gems make little effects.',
   ] },
@@ -8423,7 +8430,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.99';
+const VERSION = '0.6.100';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
