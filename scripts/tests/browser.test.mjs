@@ -638,11 +638,13 @@ test('each Imp and Spike Beast has its own model, and its legs, arms and head mo
   }));
 
 // The monsters made in code swing their arms and legs
-test('a goblin has arms and legs that the game can swing', { skip, timeout: 120000 }, () =>
+test('a goblin has arms and legs that the game can swing, or (since 0.6.96) is its animated model', { skip, timeout: 120000 }, () =>
   withGame(async (page, errors) => {
     await page.waitForFunction(() => { const t = window.gameTest; return t.enemies.some(e => e.kind === 'goblin') || (t.spawnKind('goblin'), false); }, null, { timeout: 60000 });
-    const limbs = await page.evaluate(() => { const l = window.gameTest.enemies.find(e => e.kind === 'goblin').group.userData.limbs; return { arms: l.arms.length, legs: l.legs.length }; });
-    assert.deepEqual(limbs, { arms: 2, legs: 2 });
+    // Since 0.6.96 (SPEC-035) the goblin is an animated model, which moves its own arms and legs (checked by the SPEC-035
+    // test). The limbs made in code are only there while the model has not loaded, or if it cannot load.
+    const g = await page.evaluate(() => { const u = window.gameTest.enemies.find(e => e.kind === 'goblin').group.userData, l = u.limbs; return { limbs: l ? { arms: l.arms.length, legs: l.legs.length } : null, look: u.look || null }; });
+    if (g.limbs) assert.deepEqual(g.limbs, { arms: 2, legs: 2 }); else assert.ok(g.look, 'the goblin is its animated model');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }));
 
