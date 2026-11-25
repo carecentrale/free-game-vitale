@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.101 (3D)</title>
+<title>Adventurers of Drenerics v0.6.102 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -3192,6 +3192,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.102', title: 'Behind the scenes', items: [
+    'Small fixes behind the scenes to keep the bird facts coming.',
+  ] },
   { v: '0.6.101', title: 'Bird facts everywhere', items: [
     'Every bird now has fun facts to tell, even without the internet.',
   ] },
@@ -8433,7 +8436,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.101';
+const VERSION = '0.6.102';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -9281,7 +9284,10 @@ function nextBirdFact(kind) {
   const id = fresh.length ? fresh[Math.floor(Math.random() * fresh.length)] : list[0];
   seen[kind] = [...list.filter(x => x !== id), id];
   writeJSON(FACTS_SEEN_KEY, seen);
-  return { id, text: textOf(id) };
+  // The failover is recorded (0.6.102, Nick's request): which bird, why (no downloaded fact here, or all of them flagged
+  // here), and whether the built-in facts have all been seen, so the owner knows when to look at the AI service.
+  if (built) logOnce('fact_failover', kind + ' ' + (Object.keys(birdFacts).some(k => birdFacts[k][0] === kind) ? 'flagged' : 'empty') + (fresh.length ? '' : ' all-seen'), 600000);
+  return { id, text: textOf(id), builtIn: !!built };
 }
 // The bird's picture, drawn from the same shape the game draws in the world
 let birdPic = null;

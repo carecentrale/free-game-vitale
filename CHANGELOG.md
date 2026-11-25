@@ -14,6 +14,14 @@ Insights: charts of everything the game records, and of errors by game version.
 - Nick's answer was "weekly" where the spec says once a day; the limit of new facts a day (50) is unchanged, so about 50 facts a week at most. "Write new facts now" in the admin page adds more on any day.
 - Not applied yet and not deployed yet on 25 Nov: see docs/migrations/README.md.
 
+## 0.6.102: The AI writer's failures are noted, and a failover is recorded (Nick's request in chat, 25 Nov 2026)
+- Game: new record `fact_failover` when a bird's card has to use a fact that comes with the game: the bird kind, `empty` (no downloaded fact) or `flagged`, and `all-seen` when every built-in fact of that bird has been shown; at most once in 10 minutes. It shows in Insights by itself. Fits the "Gameplay records" row of the privacy page.
+- Backend: the function `bird-facts` writes one row for every run to the new table `ai_runs` (migration 0022): worked or failed, how many facts, and when it failed the AI service's own short reason ("credit balance is too low", a cap, a key that does not work). The table is for every AI job, not only bird facts. Only the owner's account reads it; nothing about a player is in it.
+- Admin page, Bird facts card: the last runs, and a red line at the top when the last run failed.
+- Not done yet: migration 0022 is not applied (the Supabase confirmation question got no answer), so no run is noted yet. The function is deployed (version 4) and works without the table.
+- Still only birds: the kinds are named in the facts table, the function and the game. Facts for other things (plants, land, animals to come) need their own hand-off; the run notes and Insights are already general.
+- Checked: syntax, the rules by test. Not checked: a noted run on the live database; nothing was played by Nick.
+
 ## 0.6.101: Bird facts that come with the game (Nick's request in chat, 25 Nov 2026)
 - The game now carries six fun facts for each of the eight birds (48 facts, each in the five reading versions with the same word limits). A bird's card uses them whenever the device has no downloaded fact for that kind: no internet yet, an empty pool, the server unable to write facts, or every downloaded fact of that kind flagged on the device. So the card no longer depends on the AI service. When the pool has facts for a kind, those are used, as before.
 - The built-in facts were written with an AI system (this builder) and read through by it; no second, separate check ran on them, and Nick has not read them. They carry the same flag; a flag hides the fact on the device and reaches the owner's Reports, but it cannot take a built-in fact out of other devices (only a new version can).

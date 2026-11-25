@@ -53,7 +53,7 @@ test('the requests to the AI carry only the bird kind, the place, the rules and 
   assert.match(RULES.join(' '), /hurt, killed or eaten/); assert.match(RULES.join(' '), /No people, brands, films, games, politics or religion/);
   // the function takes nothing from the caller but the bird kind, and reads only the facts table and the daily limit
   const plain = fn.replace(/\/\/.*$/gm, '');
-  assert.deepEqual([...plain.matchAll(/db\.from\('([a-z_]+)'\)/g)].map(m => m[1]).filter((v, i, a) => a.indexOf(v) === i).sort(), ['bird_facts', 'game_settings']);
+  assert.deepEqual([...plain.matchAll(/db\.from\('([a-z_]+)'\)/g)].map(m => m[1]).filter((v, i, a) => a.indexOf(v) === i).sort(), ['ai_runs', 'bird_facts', 'game_settings']);   // ai_runs: the note of each run, nothing about a player
   assert.deepEqual([...plain.matchAll(/body\.(\w+)/g)].map(m => m[1]).filter((v, i, a) => a.indexOf(v) === i), ['kind']);
   assert.doesNotMatch(plain, /players|game_events|cloud_saves|reports'/);
   assert.match(plain, /data\.user\.email === OWNER/); assert.match(plain, /db\.rpc\('bird_facts_cron_ok', \{ p: cron \}\)/);
@@ -164,4 +164,21 @@ test('0.6.101: the game carries six facts for each of the eight birds, within th
   }
   assert.match(code, /const built = pool\.length \? null : \(BIRD_FACTS_BUILT_IN\[kind\] \|\| \[\]\);/);
   assert.match(code, /'b-' \+ kind \+ '-' \+ i/);
+});
+
+test('0.6.102: every run of the AI writer is noted (worked or failed, with the reason) for the owner only, and the game records a failover', () => {
+  const m = read('docs/migrations/0022_ai_runs.sql').replace(/--.*$/gm, '');
+  assert.match(m, /create table if not exists public\.ai_runs/);
+  assert.match(m, /revoke all on public\.ai_runs from anon, authenticated/);
+  assert.match(m, /for select to authenticated using \(\(auth\.jwt\(\) ->> 'email'\) = 'yammay@gmail\.com'\)/);
+  assert.doesNotMatch(m, /player|visit|world|grant[^;]*(insert|update|delete)/i, 'nothing about a player, and only the backend writes');
+  assert.match(fn, /await note\(source, true, out, ''\);/);
+  assert.match(fn, /if \(source\) await note\(source, false, \{\}, why\);/);
+  assert.match(fn, /'the key ANTHROPIC_API_KEY is not set'/);
+  assert.match(fn, /\.replace\(\/\[\^a-zA-Z0-9 _\.:-\]\/g, ''\)\.slice\(0, 90\)/, 'the reason is short plain text');
+  assert.match(code, /if \(built\) logOnce\('fact_failover', kind \+ ' ' \+ \(Object\.keys\(birdFacts\)\.some\(k => birdFacts\[k\]\[0\] === kind\) \? 'flagged' : 'empty'\) \+ \(fresh\.length \? '' : ' all-seen'\), 600000\);/);
+  assert.match(read('docs/EVENTS.md'), /`fact_failover`/);
+  const admin = read('www/admin.html');
+  assert.match(admin, /sb\.from\('ai_runs'\)/); assert.match(admin, /id="factsAlert"/);
+  assert.match(admin, /The AI writer could not write new facts on /);
 });

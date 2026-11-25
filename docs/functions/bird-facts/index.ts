@@ -31,20 +31,31 @@ async function ask(request: Record<string, unknown>): Promise<string> {
   return (j.content || []).map((c: { text?: string }) => c.text || '').join('');
 }
 
+// One row for every run (migration 0022), so a key that is out of credit, capped or not working is seen and can be dealt with
+async function note(source: string, ok: boolean, n: { made?: number; approved?: number; rejected?: number }, why: string) {
+  try {
+    await db.from('ai_runs').insert({ job: 'bird-facts', source, ok, made: n.made || 0, approved: n.approved || 0, rejected: n.rejected || 0, why: why || null });
+    await db.from('ai_runs').delete().lt('at', new Date(Date.now() - 365 * 86400000).toISOString());
+  } catch (_e) { /* the note is best effort */ }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  let source = '';
   try {
-    // Who may call: the once-a-day call (its secret), or the owner signed in on the admin page
+    // Who may call: the weekly call (its secret), or the owner signed in on the admin page
     const cron = req.headers.get('x-cron-secret') || '';
     let allowed = false;
     if (cron.length >= 32 && cron.length <= 128) { const { data } = await db.rpc('bird_facts_cron_ok', { p: cron }); allowed = data === true; }
+    const byCron = allowed;
     if (!allowed) {
       const asUser = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, { auth: { persistSession: false }, global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } });
       const { data } = await asUser.auth.getUser();
       allowed = !!data && !!data.user && data.user.email === OWNER;
     }
     if (!allowed) return json({ ok: false, error: 'owner only' }, 403);
-    if (!Deno.env.get('ANTHROPIC_API_KEY')) return json({ ok: false, error: 'no key' });
+    source = byCron ? 'weekly' : 'owner';
+    if (!Deno.env.get('ANTHROPIC_API_KEY')) { await note(source, false, {}, 'the key ANTHROPIC_API_KEY is not set'); return json({ ok: false, error: 'no key' }); }
     const body = await req.json().catch(() => ({}));
     const only = typeof body.kind === 'string' && KINDS[body.kind as keyof typeof KINDS] ? body.kind : null;
     const dayStart = new Date(); dayStart.setUTCHours(0, 0, 0, 0);
@@ -58,11 +69,13 @@ Deno.serve(async (req: Request) => {
       timeUp: () => Date.now() - began > 100000,
       save: async (row: { kind: string; place: string; v: string[]; status: string; reason: string }) => { await db.from('bird_facts').insert({ kind: row.kind, place: row.place, v1: row.v[0] || '', v2: row.v[1] || '', v3: row.v[2] || '', v4: row.v[3] || '', v5: row.v[4] || '', status: row.status, reason: row.reason }); },
     }, MODEL, only);
+    await note(source, true, out, '');
     return json({ ok: true, ...out });
   } catch (e) {
     // what went wrong, in a few words (for example "ai 404"): never anything about a caller, a key or a request
     const why = String((e as Error)?.message || e).replace(/[^a-zA-Z0-9 _.:-]/g, '').slice(0, 90);
     console.error('bird-facts: ' + why);
+    if (source) await note(source, false, {}, why);   // only for a caller that was let in
     return json({ ok: false, error: 'server', why });
   }
 });

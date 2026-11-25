@@ -33,6 +33,8 @@ Checked on 22 Nov 2026: each file below has the same text as the step recorded i
 | 22 | 0020_insights.sql | 0020_insights | 25 Nov 2026 (the same yes) |
 | 23 | 0021_bird_facts_weekly.sql | 0021_bird_facts_weekly | 25 Nov 2026 (Nick: "weekly push to add more automatically"). The function `bird-facts` was deployed the same day (version 3) |
 
+`0022_ai_runs.sql` (a note of every run of an AI writer, asked for by Nick 25 Nov 2026: written and approved that day, not applied yet because the Supabase connection's confirmation question got no answer; until then the function `bird-facts` runs without leaving its note).
+
 **Not applied:** `0008_guardian_packages.sql` (purchases, waits for the parent's approval). Its tables are not in the live database.
 
 Two files start with 0009: delete_my_data was written on the 0.6.70 branch at the same time as game_settings.
