@@ -247,7 +247,7 @@ test('Share the game is only inside the parent area, with fixed text and the pla
 });
 
 test('the share reward is given once per saved game, kept in the save, follows the owner\'s on/off and gems, and nothing is sent as the share window opens', () => {
-  assert.match(game, /dragons: dragonMode, shared: shareGiven,/);
+  assert.match(game, /dragons: dragonMode, calm: calmMotion, shared: shareGiven,/);
   assert.match(game, /shareGiven = saved\.shared === true;/);
   const give = game.slice(game.indexOf('function giveShareReward('), game.indexOf('async function openShare('));
   assert.match(give, /if \(!shareOn \|\| shareGiven \|\| activeSlot === null\) return false;/);
