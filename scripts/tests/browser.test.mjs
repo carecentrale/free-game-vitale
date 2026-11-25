@@ -48,6 +48,9 @@ function savedGame() {
     pw: { dig: { lvl: 1, xp: 0 }, build: { lvl: 1, xp: 0 }, inv: { lvl: 1, xp: 0 }, fight: { lvl: 1, xp: 0 } },
     pos: [CENTER + 0.5, 30, CENTER + 0.5], yaw: 0,
     world: { v: 2, seed: 4242, edits: [] }, drops: [],
+    // 0.6.93 (SPEC-028): "Not now" was tapped twice in this saved game, so at Fighting level 2 the fireball unlocks with the
+    // "Magic unlocked!" panel as before. Mirelo's own tests start his lesson afresh (mirelo.load).
+    mirelo: { lesson: 'todo', nots: 2 },
   });
 }
 
