@@ -56,7 +56,8 @@ test('the requests to the AI carry only the bird kind, the place, the rules and 
   assert.deepEqual([...plain.matchAll(/db\.from\('([a-z_]+)'\)/g)].map(m => m[1]).filter((v, i, a) => a.indexOf(v) === i).sort(), ['bird_facts', 'game_settings']);
   assert.deepEqual([...plain.matchAll(/body\.(\w+)/g)].map(m => m[1]).filter((v, i, a) => a.indexOf(v) === i), ['kind']);
   assert.doesNotMatch(plain, /players|game_events|cloud_saves|reports'/);
-  assert.match(plain, /data\.user\.email === OWNER/); assert.match(plain, /x-cron-secret/);
+  assert.match(plain, /data\.user\.email === OWNER/); assert.match(plain, /db\.rpc\('bird_facts_cron_ok', \{ p: cron \}\)/);
+  assert.doesNotMatch(plain, /CRON_SECRET/, 'the weekly call\'s secret lives in the database\'s vault only');
   assert.doesNotMatch(fn, /sk-ant-[A-Za-z0-9]/, 'no key in the repository');
 });
 
@@ -128,4 +129,19 @@ test('the pages say it: privacy page (Anthropic, nothing about a child), terms (
   assert.match(guide, /The fun facts about birds are written by AI on our server and checked by a second AI before any child sees them\. Nothing about your child is sent to the AI\. Children can flag a fact that looks wrong\./);
   assert.match(notes, /Tap a bird to learn a fun fact about it, with new facts all the time!/);
   assert.match(read('docs/EVENTS.md'), /`animal_fact`/); assert.match(read('docs/EVENTS.md'), /`bird_facts`/);
+});
+
+test('migration 0021: a weekly call that says only "run"; its secret is made in the database, kept in the vault and in no file; a run stops when its time is up', async () => {
+  const m = read('docs/migrations/0021_bird_facts_weekly.sql'), plainM = m.replace(/--.*$/gm, '');
+  assert.match(plainM, /cron\.schedule\('bird-facts-weekly', '0,10,20 8 \* \* 1'/);
+  assert.match(plainM, /body := '\{"action":"run"\}'::jsonb/);
+  assert.match(plainM, /vault\.create_secret\(replace\(gen_random_uuid\(\)::text \|\| gen_random_uuid\(\)::text, '-', ''\), 'bird_facts_cron'/);
+  assert.doesNotMatch(plainM, /'[0-9a-f]{32,}'|eyJ[A-Za-z0-9_-]{20,}/, 'no secret or key is written in the file');
+  assert.match(plainM, /revoke all on function public\.bird_facts_cron_ok\(text\) from public, anon, authenticated/);
+  assert.match(plainM, /grant execute on function public\.bird_facts_cron_ok\(text\) to service_role/);
+  assert.doesNotMatch(plainM, /player|visit|world_id/, 'nothing about a player');
+  const saved = []; let asks = 0;
+  const out = await run({ counts: async () => ({}), madeToday: async () => 0, limit: async () => 50, pool: async () => [], save: async r => saved.push(r), timeUp: () => asks >= 3,
+    ask: async r => { asks++; return /Write \d+ new fun facts/.test(r.messages[0].content) ? JSON.stringify([{ v: good }, { v: good }, { v: good }, { v: good }, { v: good }]) : yes; } }, 'm');
+  assert.ok(out.made >= 1 && out.made < 5, 'the run stopped when its time was up: ' + out.made);
 });

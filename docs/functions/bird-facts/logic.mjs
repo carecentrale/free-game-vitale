@@ -70,17 +70,19 @@ export function judge(v, verdictText) {
   return no.length ? { ok: false, reason: ('failed: ' + no.join(', ') + (j.reason ? '. ' + String(j.reason).slice(0, 200) : '')) } : { ok: true, reason: '' };
 }
 // One run: for the kinds with the fewest approved facts first, write and check new facts until today's limit is used.
-// d: { counts() -> {kind: approved}, madeToday() -> number, limit() -> number, pool(kind) -> [text], ask(request) -> text, save(row) }
+// d: { counts() -> {kind: approved}, madeToday() -> number, limit() -> number, pool(kind) -> [text], ask(request) -> text, save(row),
+//      timeUp() -> true when the run has used its time (a server function may only run for a couple of minutes); optional }
 export async function run(d, model, only = null) {
   let left = Math.max(0, (await d.limit()) - (await d.madeToday()));
   const counts = await d.counts(), out = { made: 0, approved: 0, rejected: 0, kinds: {} };
   const order = Object.keys(KINDS).filter(k => !only || k === only).sort((a, b) => (counts[a] || 0) - (counts[b] || 0));
   for (const kind of order) {
-    if (left <= 0 || (counts[kind] || 0) >= MAX_PER_KIND) continue;
+    if (left <= 0 || (counts[kind] || 0) >= MAX_PER_KIND || d.timeUp && d.timeUp()) continue;
     const want = Math.min(left, 5, MAX_PER_KIND - (counts[kind] || 0)), K = KINDS[kind], place = K.places[(counts[kind] || 0) % K.places.length];
     const pool = await d.pool(kind);
     const facts = parseFacts(await d.ask(writerRequest(kind, place, pool, want, model))).slice(0, want);
     for (const v of facts) {
+      if (d.timeUp && d.timeUp()) break;   // the rest are written again by a later run
       const verdict = withinLimits(v) ? judge(v, await d.ask(checkerRequest(kind, v, pool, model))) : judge(v, '');
       await d.save({ kind, place, v: v.slice(0, 5).map(s => String(s).slice(0, 200)), status: verdict.ok ? 'approved' : 'rejected', reason: verdict.reason });
       out.made++; left--; out[verdict.ok ? 'approved' : 'rejected']++; out.kinds[kind] = (out.kinds[kind] || 0) + 1;
