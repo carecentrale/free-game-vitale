@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const game = fs.readFileSync(path.join(root, 'build', 'prototype-3d-v7.html'), 'utf8');
 const start = game.indexOf('// ---- Vital the elephant, your guide (0.6.73');
-const end = game.indexOf('// ---- Quiz questions (0.6.63', start);
+const end = game.indexOf('// ---- Mirelo, the wandering mage (0.6.93', start);   // Mirelo's code follows Vital's (0.6.93)
 if (start < 0 || end < 0) throw new Error('Vital code markers not found in the game file');
 const code = game.slice(start, end), plain = code.replace(/\/\/.*$/gm, '');
 const friendCode = game.slice(game.indexOf('// ---- Quiz Friends: the characters'), game.indexOf('// ---- Game loop ----'));
@@ -84,7 +84,7 @@ test('tap only: the tip panel has no place to type, no timer and no countdown, a
   assert.ok(plain.includes('>OK</button>') && plain.includes('>No more tips</button>') && plain.includes('>Yes</button>') && plain.includes('>Not now</button>'));
   // openTip is called from a tap on Vital only (and offered to the tests)
   const calls = [...game.matchAll(/[^\n]*\bopenTip\(\)[^\n]*/g)].map(m => m[0].trim());
-  assert.deepEqual(calls.filter(l => !l.startsWith('function openTip')), ['if (friend.guide) openTip(); else openQuiz();']);
+  assert.deepEqual(calls.filter(l => !l.startsWith('function openTip')), ['if (friend.mage) openMirelo(); else if (friend.guide) openTip(); else openQuiz();']);
   assert.ok(plain.includes("'OK! I will say hello another day.'") && plain.includes("'Hi again! Do you want tips?'"));
   assert.ok(friendCode.includes("'Vital is here! Tap him to say hello.'"));
 });
@@ -99,7 +99,7 @@ test('Vital is made in code from simple shapes: grey, two large ears that are wh
   assert.match(friendCode, /if \(u\.trunk\) u\.wave\.rotation\.x = away \? 0 : -0\.85 \+ w \* 0\.4;/);
   // his name is fixed: drawn in code, the same word everywhere, and nothing lets a child change it
   assert.match(friendCode, /nx\.fillText\('Vital', 128, 52\);/);
-  assert.match(friendCode, /cx\.fillText\(kind === 'vital' \? '!' : '\?', 64, 60\);/);
+  assert.match(friendCode, /cx\.fillText\(kind === 'vital' \|\| kind === 'mirelo' \? '!' : '\?', 64, 60\);/);
   // The website's own address (free-game-vitale.vercel.app) is the one allowed match: the share link names it (0.6.88, SPEC-030)
   assert.ok(!/Vitale|vital\.name|rename/i.test(game.slice(game.indexOf('<script type="module">')).replaceAll('https://free-game-vitale.vercel.app/', '')), 'the name can be changed or is spelled another way');
   // no photo of the toy, and no maker's name, anywhere in the repository's game or website folders

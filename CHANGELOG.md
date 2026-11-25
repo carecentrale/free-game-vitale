@@ -2,6 +2,20 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.93: Mirelo, the wandering mage (SPEC-028)
+Built from the PM hand-off SPEC-028 version 2 (approved by Nick 23 Nov 2026, ready to build), fourth in Nick's build order.
+- **The lesson:** at Fighting level 2 the "Magic unlocked!" panel no longer opens by itself. Mirelo walks in from out of sight with a "!" and his name. Tap him: *Show me* or *Not now*. He casts at a glowing target (not a block: it cannot be dug or picked up), the Spell button gets a pulsing ring, and when the child's fireball reaches the target the skill panel opens with "Fireball is yours!". A tap on the target sends the fireball to it; on a computer, point and press F.
+- **Never stuck:** after the second *Not now*, or the owner's minutes of play from level 2 (5 to start), the fireball unlocks with "Magic unlocked!" as before, and Mirelo later says "I see you found your magic!". A child who already had the fireball keeps it and hears "I see you already know Fireball! Here is a secret:".
+- **Tip visits:** about every 15 minutes of play he comes, stays about 3 minutes and walks along 2 to 4 blocks behind the child (faster to catch up, never teleporting; he waits at water, caves and steep climbs, and moves to the far side of the child from a monster). One tip per visit, in order the first time through, then at random. *Come back later* keeps him away for 24 hours of real time (kept in the saved game).
+- **Owner settings:** new admin card "Mirelo (owner only)" with the five timings; `docs/migrations/0017_mirelo_settings.sql` (**not applied yet**: waits for Nick's yes; the game uses the starting values until then).
+- **Settings:** new switch *Tips from Mirelo* (kept on the device). Off: no tip visits; the lesson still happens once.
+- Fixed text only: every line is in the game's code; nothing is sent or logged; no line mentions buying anything (a test reads every line). Saved in the game save: lesson state, tips shown, the *Come back later* time.
+- Shared worlds: the other players see Mirelo where he is with a child (as they see quiz friends); he does not come to a second child while he is with another.
+- **Built differently:** Mirelo is not walking the world all the time. He walks in from about 15 blocks away when he comes and walks off when he leaves, so he is not seen in the distance between visits and does not follow roads. A monster during the lesson does not pause it: he steps behind the child and the target stays.
+- Guide: new part 3 "Mirelo, the wandering mage", the Magic part and the Settings part. Release notes.
+- Tests: `mirelo.test.mjs` (lines, no sales talk, nothing sent, timings, rules) and 2 browser tests (the lesson; fallback, tips, following, away, switch).
+- Checked: syntax, fast tests, the 2 browser tests and the Vital, quiz friend and fireball browser tests. **Not checked:** the 2-frames cost on the test phone; two devices in one world; played by Nick.
+
 ## 0.6.92: Delete my data (SPEC-010)
 Built from the PM hand-off SPEC-010 version 2 (approved by Nick 25 Nov 2026, ready to build), third in Nick's build order. First written as 0.6.70 on the branch `claude/0.6.70-delete-my-data` (18 Nov 2026, never on main); brought onto the current game.
 - **Settings:** *Delete my data* above Quit, for grown-ups. A list of what is deleted and what is not, then three confirmations on three screens (tap; hold 3 seconds; type DELETE). Cancel on every screen; Esc and Back cancel.

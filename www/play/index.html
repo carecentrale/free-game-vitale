@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.92 (3D)</title>
+<title>Adventurers of Drenerics v0.6.93 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -168,6 +168,8 @@
   #slots button:disabled{opacity:.4;cursor:default}
   #wizErr{color:#ffab9f;min-height:20px;margin-top:8px;font-size:14px}
   /* Vital's tip panel (0.6.73): one tip in large letters, a big "OK" and a smaller "No more tips" */
+  #bSpell.ring{box-shadow:0 0 0 4px #ffe066;animation:spellRing 1s ease-in-out infinite}
+  @keyframes spellRing{50%{box-shadow:0 0 0 12px rgba(255,224,102,.25)}}
   #tipPanel{position:fixed;inset:0;background:rgba(10,12,25,.8);display:flex;align-items:center;justify-content:center;z-index:55;padding:8px;box-sizing:border-box}
   #tipPanel .tbox{background:#1d2440;color:#fff;border-radius:18px;padding:clamp(12px,3vmin,22px);width:min(520px,100%);max-height:100%;overflow:auto;box-sizing:border-box;text-align:center;font-family:system-ui,sans-serif}
   #tipPanel .tname{font-size:clamp(15px,3.8vmin,19px);font-weight:700;color:#ffd54a}
@@ -2011,7 +2013,7 @@ function saveGame() {
   try {
     localStorage.setItem(slotKey(activeSlot), JSON.stringify({
       v: 1, at: Date.now(), name: playerName, profile, worldId, inv, gear, qb, recent, sel, pw, skills,
-      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(), quiz: quizStats, levels: quizLevels, dragons: dragonMode, shared: shareGiven, together: playTogether, togetherBy, local: localWorld,
+      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(), quiz: quizStats, levels: quizLevels, mirelo: mir, dragons: dragonMode, shared: shareGiven, together: playTogether, togetherBy, local: localWorld,
       drops: [...drops.values()].filter(d => !d.guard).map(d => [d.x, d.y, d.z, d.id, d.at])
     }));
   } catch (e) {}
@@ -3115,6 +3117,11 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.93', title: 'Mirelo, the wandering mage', items: [
+    'Meet Mirelo, a wandering mage! When you are ready, he teaches you to cast fireballs, and he stops by with magic tips.',
+    'While he visits he walks along with you for a little while. Tap Come back later and he stays away for a day.',
+    'Settings has a new switch: Tips from Mirelo.',
+  ] },
   { v: '0.6.92', title: 'Delete my data', items: [
     'New in Settings: Delete my data. A grown-up can remove everything the game holds. It asks three times and sends a code by email first.',
     'The website has a Delete my data page too, for a grown-up who no longer has the game.',
@@ -3448,6 +3455,9 @@ function renderSettings() {
     // Tips from Vital switch (0.6.73): on at first, kept on this device
     `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#128024; Tips from Vital</b><div style="font-size:13px;opacity:.8;margin-top:2px">Vital the elephant comes around and shows how to play</div></div>` +
     `<button id="vitalSwitch" style="flex:none;min-height:48px;min-width:96px;border:0;border-radius:12px;font-size:17px;font-weight:600;color:#fff;cursor:pointer;background:${vital.on ? '#2e9e4f' : '#666b80'}">${vital.on ? 'On' : 'Off'}</button></div>` +
+    // Tips from Mirelo switch (0.6.93, SPEC-028): on at first, kept on this device
+    `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#10024; Tips from Mirelo</b><div style="font-size:13px;opacity:.8;margin-top:2px">Mirelo the mage drops by with magic tips</div></div>` +
+    `<button id="mireloSwitch" style="flex:none;min-height:48px;min-width:96px;border:0;border-radius:12px;font-size:17px;font-weight:600;color:#fff;cursor:pointer;background:${mireloOn ? '#2e9e4f' : '#666b80'}">${mireloOn ? 'On' : 'Off'}</button></div>` +
     // Load my game by itself (0.6.83): the same choice as the tick box on the start menu, kept on this device
     `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#127984; Load my game by itself</b><div style="font-size:13px;opacity:.8;margin-top:2px">Opens the game you played last, with no start menu. Off: the menu shows each time</div></div>` +
     `<button id="autoLoadSwitch" style="flex:none;min-height:48px;min-width:96px;border:0;border-radius:12px;font-size:17px;font-weight:600;color:#fff;cursor:pointer;background:${autoLoadOn() ? '#2e9e4f' : '#666b80'}">${autoLoadOn() ? 'On' : 'Off'}</button></div>` +
@@ -3478,6 +3488,7 @@ settingsEl.addEventListener('click', e => {
   // Quit the game: Settings closes and the same question as Esc and Back is asked (0.6.60)
   else if (e.target.closest('#settingsQuit')) { toggleSettings(false); toggleQuit(true); }
   else if (e.target.closest('#settingsDelete')) { toggleSettings(false); dmdOpen(); }
+  else if (e.target.closest('#mireloSwitch')) { setMireloOn(!mireloOn); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
   else if (e.target.closest('#vitalSwitch')) { setVitalOn(!vital.on); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
   else if (e.target.closest('#autoLoadSwitch')) { setAutoLoad(!autoLoadOn()); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
   else if (e.target.closest('#quizSwitch')) { setQuizOn(!quizOn); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
@@ -4513,14 +4524,14 @@ function viewDir(clientX, clientY) {
   return ray.ray.direction.clone();
 }
 
-function showSkillChoice() {
+function showSkillChoice(taught = false) {
   paused = true;
   const el = document.createElement('div');
   el.id = 'skillPanel';
   el.style.cssText = 'position:fixed;inset:0;background:rgba(10,12,25,.85);display:flex;align-items:center;justify-content:center;z-index:55;padding:16px;box-sizing:border-box';
   el.innerHTML = '<div style="background:#1d2440;color:#fff;border-radius:18px;padding:20px;max-width:420px;width:100%;text-align:center;box-sizing:border-box">' +
-    '<h2 style="margin:0 0 8px;font-size:22px">Magic unlocked!</h2>' +
-    '<p style="margin:8px 0;font-size:15px;opacity:.9">Choose your first skill.</p>' +
+    `<h2 style="margin:0 0 8px;font-size:22px">${taught ? 'Fireball is yours!' : 'Magic unlocked!'}</h2>` +
+    `<p style="margin:8px 0;font-size:15px;opacity:.9">${taught ? 'Mirelo taught you your first skill. Tap it to keep it.' : 'Choose your first skill.'}</p>` +
     Object.entries(SKILLS).map(([id, sk]) =>
       `<button data-skill="${id}" style="display:block;width:100%;margin:10px 0;padding:14px;border-radius:12px;border:2px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;font-size:17px;cursor:pointer"><b>${sk.name}</b><br><span style="font-size:14px;opacity:.85">${sk.desc}</span></button>`).join('') +
     '</div>';
@@ -4548,7 +4559,7 @@ function chooseSkill(id) {
 
 // Shoots a fireball from the character's chest, in direction dir (a unit vector). Level 2 magic is stronger.
 function castFireball(dir, target = null) {
-  if (!skills.includes('fireball') || spellCool > 0) return;
+  if ((!skills.includes('fireball') && !lessonCasting()) || spellCool > 0) return;
   const tier = pw.magic.lvl >= 2 ? 1 : 0;
   const s = FIRE[tier];
   const d = dir.clone().normalize();
@@ -4561,7 +4572,7 @@ function castFireball(dir, target = null) {
   spellCool = 0.4;
   armSwing = 0.3;
   sfx('fireball');
-  gain('magic', 1);
+  if (skills.includes('fireball')) gain('magic', 1);   // the lesson's casts give no magic power yet
 }
 
 // The enemy whose body is under the screen point (x, y), or null. Any part of its body counts:
@@ -4626,6 +4637,8 @@ function fireAt(x, y) {
   lastShot = { click: [Math.round(x), Math.round(y)], canvas: [rect.left, rect.top, rect.width, rect.height],
     dpr: devicePixelRatio, aimDig: a ? a.dig : null, aimPoint: a ? [a.point.x, a.point.y, a.point.z].map(v => +v.toFixed(3)) : null,
     aimEnemy: a && a.enemy ? a.enemy.kind : null, origin: [px, +(py + HH * 0.7).toFixed(3), pz] };
+  const lt = lessonTargetAt(x, y);   // Mirelo's lesson target (0.6.93): a tap on it sends the fireball to it
+  if (lt) return castFireball(new THREE.Vector3(lt.x - px, lt.y - (py + HH * 0.7), lt.z - pz));
   const hitEnemy = (a && a.enemy) || enemyAt(x, y);
   if (hitEnemy) {
     // Aim at the middle of the enemy you hit, so the fireball flies to it
@@ -5052,6 +5065,239 @@ function setVitalOn(on) {
   if (!vital.on && friend && friend.guide) { closeTip(); removeFriend(); }
 }
 
+// ---- Mirelo, the wandering mage (0.6.93, SPEC-028) ----
+// Mirelo teaches the fireball when Fighting reaches level 2, then drops by with magic tips and walks along for a while.
+// Everything he says is fixed text below: no AI, nothing sent anywhere. He never mentions buying anything.
+// He is a friend of kind 'mirelo' (like Vital): he walks in from out of sight, cannot be hurt, is not solid, and in a
+// shared world the other players see him where he is. Timings are the owner's (admin page, game_settings mirelo_*).
+const MIRELO_LINES = {
+  hello: 'Hello, young adventurer! I am Mirelo. I sense magic in you. Watch!',
+  try: 'Now you try! Tap the Spell button, then tap the target.',
+  tryKeys: 'Now you try! Point at the target and press F.',
+  done: 'Wonderful! Fireball is yours. Remember: fire fizzles in water!',
+  found: 'I see you found your magic!',
+  knows: 'I see you already know Fireball! Here is a secret:',
+  later: 'I will come back another day!',
+  bye: 'Until next time!',
+};
+const MIRELO_TIPS = [
+  'Fire fizzles in water, so keep your fireballs dry!',
+  'Some monsters are weak to fire. Fire hurts them twice as much!',
+  'A fireball bursts where it lands. Every monster in the burst is hit.',
+  'Tap the Spell button, then tap where the fireball should go.',
+  'Changed your mind? Tap the Spell button again and the magic waits.',
+  'Magic needs a moment to come back after each fireball. Watch the button.',
+  'Far away monster? A fireball flies further than any sword can reach.',
+  'Monster right next to you? Your sword is quicker up close.',
+  'On a computer, point with the mouse and press F to cast.',
+  'The more you fight, the stronger your Fighting power grows.',
+  'Wait until a monster is in clear sight, then cast. A sure shot saves your magic.',
+  'Lost? You can always teleport back to the start.',
+];
+const MIRELO_DEFAULTS = { visit: 15, stay: 3, away: 24, unlock: 5, retry: 2 };
+const mireloSet = { ...MIRELO_DEFAULTS };   // minutes between visits, minutes a visit lasts, hours away, minutes to the unlock, minutes to a retry
+function setMireloTimes(map) {
+  const num = (k, lo, hi, d) => Number.isInteger(map[k]) && map[k] >= lo && map[k] <= hi ? map[k] : d;
+  mireloSet.visit = num('mirelo_visit_min', 1, 120, 15); mireloSet.stay = num('mirelo_stay_min', 1, 10, 3);
+  mireloSet.away = num('mirelo_away_hours', 1, 168, 24); mireloSet.unlock = num('mirelo_unlock_min', 1, 30, 5);
+  mireloSet.retry = num('mirelo_retry_min', 1, 30, 2);
+}
+const MIRELO_KEY = 'kidsgame.mirelo', MIRELO_COME = 8, MIRELO_FOLLOW = [2, 4], MIRELO_TARGET_AT = 6, MIRELO_TARGET_FAR = 20;
+let mireloOn = true;             // the "Tips from Mirelo" switch in Settings, kept on this device
+try { mireloOn = localStorage.getItem(MIRELO_KEY) !== '0'; } catch (e) {}
+// Kept in the saved game: lesson 'todo', 'done' (taught) or 'skipped' (unlocked without him); how many times "Not now";
+// how many tips were shown and which was last; when "Come back later" ends; whether he has met a child who had magic already
+let mir = { lesson: 'todo', nots: 0, tips: 0, last: -1, away: 0, met: false };
+function loadMirelo(m) {
+  mir = { lesson: 'todo', nots: 0, tips: 0, last: -1, away: 0, met: false };
+  if (m && typeof m === 'object') {
+    if (['todo', 'done', 'skipped'].includes(m.lesson)) mir.lesson = m.lesson;
+    for (const k of ['nots', 'tips', 'last', 'away']) if (Number.isFinite(m[k])) mir[k] = m[k];
+    mir.met = !!m.met;
+  }
+}
+// This visit only: seconds of play since level 2 without magic, seconds until he comes, the lesson in progress
+const mireloRun = { sinceL2: 0, wait: MIRELO_COME, tipWait: null, lesson: null };
+const mireloNeedsLesson = () => !skills.includes('fireball') && pw.fight.lvl >= MAGIC_LEVEL;
+const mireloMirrorHere = () => [...friendMirrors.values()].some(o => o.kind === 'mirelo');   // he is with another child now
+// Called every frame of play in place of the old "Magic unlocked!" at level 2
+function mireloTick(dt) {
+  if (skillPanel) return;
+  if (mireloNeedsLesson()) {
+    mireloRun.sinceL2 += dt;
+    // Never stuck: after the second "Not now", or the owner's minutes of play, the fireball unlocks as before
+    if ((mir.nots >= 2 || mireloRun.sinceL2 >= mireloSet.unlock * 60) && !mireloRun.lesson && !anyPanelOpen()) {
+      if (friend && friend.mage) friendLeave();
+      mir.lesson = 'skipped';
+      showSkillChoice();
+    }
+  }
+  if (mireloRun.lesson) updateMireloLesson(dt);
+}
+// Is it time for him to come? (Vital goes first; never in a fight, a menu or a quiz: the caller checks those.)
+function mireloDue(dt) {
+  if (mireloMirrorHere()) return false;
+  if (mireloNeedsLesson()) { mireloRun.wait -= dt; return mireloRun.wait <= 0; }
+  if (!skills.includes('fireball') || !mireloOn || Date.now() < mir.away) return false;
+  if (mireloRun.tipWait === null) mireloRun.tipWait = mir.met || mir.lesson === 'done' ? mireloSet.visit * 60 : 60;   // a child who had magic already meets him soon
+  mireloRun.tipWait -= dt;
+  return mireloRun.tipWait <= 0;
+}
+function mireloLeft() {   // he has walked away
+  mireloRun.wait = mireloSet.retry * 60;
+  mireloRun.tipWait = mireloSet.visit * 60;
+  endMireloLesson();
+}
+function nextMireloTip() {
+  if (mir.tips < MIRELO_TIPS.length) return mir.tips;   // in order the first time through
+  let i; do { i = Math.floor(Math.random() * MIRELO_TIPS.length); } while (i === mir.last);
+  return i;
+}
+// What he says when tapped: the lesson greeting, or one tip
+function mireloPanelHtml(f) {
+  if (f.talk === 'lesson') return `<div class="tbox"><div class="tname">Mirelo, wandering mage</div><div class="ttext">${esc(MIRELO_LINES.hello)}</div>` +
+    '<button class="tbig mshow">Show me</button><button class="tsmall mnot">Not now</button></div>';
+  const first = !mir.met && mir.lesson !== 'done' ? (mir.lesson === 'skipped' ? MIRELO_LINES.found : MIRELO_LINES.knows) + ' ' : '';
+  return `<div class="tbox"><div class="tname">Mirelo, wandering mage</div><div class="ttext">${esc(first + MIRELO_TIPS[f.tip])}</div>` +
+    '<button class="tbig mthanks">Thanks!</button><button class="tsmall mlater">Come back later</button></div>';
+}
+function openMirelo() {
+  const f = friend;
+  if (!f || !f.mage || tipPanel || mireloRun.lesson) return;
+  if (f.state === 'come') f.state = 'wait';
+  f.talk = mireloNeedsLesson() ? 'lesson' : 'tip';
+  if (f.talk === 'tip') { if (f.tipDone) { say(MIRELO_LINES.bye, 2500); return; } f.tip = nextMireloTip(); }
+  paused = true;
+  const el = document.createElement('div');
+  el.id = 'tipPanel';
+  el.innerHTML = mireloPanelHtml(f);
+  el.addEventListener('click', e => {
+    if (e.target.closest('.mshow')) { closeTip(); startMireloLesson(); }
+    else if (e.target.closest('.mnot')) { closeTip(); mir.nots++; saveGame(); friendLeave(); }
+    else if (e.target.closest('.mthanks')) { closeTip(); mir.tips++; mir.last = f.tip; mir.met = true; f.tipDone = true; saveGame(); }
+    else if (e.target.closest('.mlater')) { closeTip(); mir.met = true; mir.away = Date.now() + mireloSet.away * 3600000; saveGame(); say(MIRELO_LINES.later, 3000); friendLeave(); }
+    else if (e.target === el) closeTip();
+  });
+  document.body.appendChild(el);
+  tipPanel = el;
+  sfx('open');
+}
+// ---- The lesson: a glowing target (not a block), his fireball, then the child's ----
+const lessonGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+function lessonSpot() {
+  // 6 blocks in front of the child; if that place is blocked, the nearest open place within 10 blocks
+  const fx = -Math.sin(camYaw), fz = -Math.cos(camYaw);
+  const open = (x, y, z) => get(x, y, z) === T.AIR && get(x, y + 1, z) === T.AIR && solid(get(x, y - 1, z));
+  const tx = Math.floor(px + fx * MIRELO_TARGET_AT), tz = Math.floor(pz + fz * MIRELO_TARGET_AT);
+  for (let r = 0; r <= 10; r++) for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+    if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+    const x = tx + dx, z = tz + dz, y = friendFloor(x + 0.5, z + 0.5, py);
+    if (y !== null && open(x, y, z) && Math.hypot(x + 0.5 - px, z + 0.5 - pz) >= 3) return { x: x + 0.5, y: y + 0.9, z: z + 0.5 };
+  }
+  return null;
+}
+function startMireloLesson() {
+  const f = friend;
+  if (!f || !f.mage || mireloRun.lesson) return;
+  const at = lessonSpot();
+  if (!at) { say('Mirelo needs a little more room. Walk to an open place.', 4000); return; }
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.9 });
+  const mesh = new THREE.Mesh(lessonGeo, mat);
+  mesh.position.set(at.x, at.y, at.z);
+  scene.add(mesh);
+  // his own fireball, for show: it flies from the staff to the target and bursts
+  const ball = new THREE.Mesh(fireGeo, fireMat);
+  ball.scale.setScalar(0.3);
+  ball.position.set(f.x, f.y + 2, f.z);
+  scene.add(ball);
+  mireloRun.lesson = { x: at.x, y: at.y, z: at.z, mesh, mat, ball, t: 0, stage: 'show' };
+  f.age = 0;
+  sfx('fireball');
+}
+function updateMireloLesson(dt) {
+  const L = mireloRun.lesson;
+  L.t += dt;
+  L.mesh.rotation.y += dt * 1.5;
+  L.mat.opacity = 0.7 + Math.sin(L.t * 5) * 0.25;
+  if (L.stage === 'show') {
+    const d = L.ball.position, dx = L.x - d.x, dy = L.y - d.y, dz = L.z - d.z, len = Math.hypot(dx, dy, dz);
+    if (len < 0.5) {
+      scene.remove(L.ball); L.ball = null;
+      fireBurst(L.x, L.y, L.z, 1); sfx('hit');
+      L.stage = 'try';
+      say(padOn ? MIRELO_LINES.try : MIRELO_LINES.tryKeys, 8000);
+      document.getElementById('bSpell').classList.add('ring');
+    } else { const s = Math.min(len, 9 * dt); d.x += dx / len * s; d.y += dy / len * s; d.z += dz / len * s; }
+  } else if (L.stage === 'try') {
+    // the child's fireball reaches the target: the lesson is done
+    for (let i = fireballs.length - 1; i >= 0; i--) {
+      const b = fireballs[i];
+      if (Math.hypot(b.x - L.x, b.y - L.y, b.z - L.z) < 1.1) {
+        scene.remove(b.mesh); fireballs.splice(i, 1);
+        fireBurst(L.x, L.y, L.z, 1.4); sfx('hit');
+        finishMireloLesson();
+        return;
+      }
+    }
+  }
+  // the child walked away, or he left: the target is gone, and he comes back later
+  if (Math.hypot(px - L.x, pz - L.z) > MIRELO_TARGET_FAR || !friend || !friend.mage) endMireloLesson();
+}
+function endMireloLesson() {
+  const L = mireloRun.lesson;
+  if (!L) return;
+  scene.remove(L.mesh); L.mat.dispose();
+  if (L.ball) scene.remove(L.ball);
+  mireloRun.lesson = null;
+  document.getElementById('bSpell').classList.remove('ring');
+}
+function finishMireloLesson() {
+  endMireloLesson();
+  mir.lesson = 'done'; mir.met = true;
+  say(MIRELO_LINES.done, 6000);
+  showSkillChoice(true);   // the same panel as "Magic unlocked!", with Fireball chosen
+  if (friend && friend.mage) { friend.age = 0; friend.tipDone = true; }
+}
+// While the lesson waits for the child's fireball, the Spell button and F cast it before the skill is learned
+const lessonCasting = () => !!mireloRun.lesson && mireloRun.lesson.stage === 'try';
+// The lesson target under a screen point: a tap on it sends the fireball at it
+function lessonTargetAt(x, y) {
+  const L = mireloRun.lesson;
+  if (!L || L.stage !== 'try') return null;
+  const c = new THREE.Vector3(L.x, L.y, L.z).project(camera);
+  if (c.z >= 1) return null;
+  const sx = (c.x + 1) / 2 * innerWidth, sy = (1 - c.y) / 2 * innerHeight;
+  const r = Math.max(44, 0.8 * (innerHeight / 2 / Math.tan(camera.fov * Math.PI / 360)) / camera.position.distanceTo(L.mesh.position));
+  return Math.hypot(x - sx, y - sy) <= r ? L : null;
+}
+// The "Tips from Mirelo" switch in Settings. Off: he does not come with tips; the lesson still happens once.
+function setMireloOn(on) {
+  mireloOn = !!on;
+  try { localStorage.setItem(MIRELO_KEY, mireloOn ? '1' : '0'); } catch (e) {}
+  if (!mireloOn && friend && friend.mage && !mireloNeedsLesson() && !mireloRun.lesson) { closeTip(); friendLeave(); }
+}
+// How he walks during a visit: 2 to 4 blocks behind the child, faster to catch up, never teleporting. He does not go
+// into water, caves or up steep climbs (he waits at the edge), and he steps to the far side of the child from a monster.
+function mireloFollow(f, dt) {
+  let tx = px, tz = pz, gap = MIRELO_FOLLOW[1];
+  const en = enemies.reduce((b, e) => { const d = Math.hypot(e.x - px, e.z - pz); return d < 10 && (!b || d < b.d) ? { e, d } : b; }, null);
+  if (en) {   // behind the child, away from the monster
+    const ax = px - en.e.x, az = pz - en.e.z, al = Math.hypot(ax, az) || 1;
+    tx = px + ax / al * 3; tz = pz + az / al * 3; gap = 0.4;
+  }
+  const dx = tx - f.x, dz = tz - f.z, dist = Math.hypot(dx, dz) || 0.001;
+  if (dist <= gap) return false;
+  const want = en ? 0.2 : MIRELO_FOLLOW[0] + 0.5;
+  const speed = dist > 8 ? 6.5 : 4.3;   // the child walks at about 4.3; he hurries when left behind
+  const step = Math.min(speed * dt, dist - want);
+  const nx = f.x + dx / dist * step, nz = f.z + dz / dist * step;
+  const floor = friendFloor(nx, nz, f.y);
+  const roofed = floor !== null && get(Math.floor(nx), Math.min(H - 1, floor + 3), Math.floor(nz)) !== T.AIR && get(Math.floor(nx), Math.min(H - 1, floor + 6), Math.floor(nz)) !== T.AIR;
+  if (floor === null || Math.abs(floor - f.y) > 1.2 || !solid(get(Math.floor(nx), floor - 1, Math.floor(nz))) || roofed) return false;   // water, a cave or a steep climb: he waits
+  f.x = nx; f.z = nz;
+  return true;
+}
+
 // ---- Quiz questions (0.6.63, SPEC-003): made at random by this code, which also works out the right answer ----
 // No internet and no AI at play time. Nothing about questions or answers is stored, logged or sent: the last 10
 // questions are remembered only while the game is open, so that none repeats. From 0.6.72 (SPEC-004) the questions
@@ -5393,6 +5639,23 @@ function friendModel(kind) {
     const tail = cone(0.05, 0.16, 0x9bdc76, 0, 0.14, -0.5); tail.rotation.x = -Math.PI / 2;
     const left = pivot(-0.36, 0.16, 0.26); ball(0.12, 0x9bdc76, -0.08, -0.06, 0.02, 1.3, 0.6, 1, left);
     wave = pivot(0.36, 0.2, 0.26); ball(0.12, 0x9bdc76, 0.1, 0, 0.02, 1.4, 0.6, 1, wave);
+  } else if (kind === 'mirelo') {   // Mirelo the wandering mage (0.6.93): an original design in simple shapes
+    const robe = 0x2c2f86, trim = 0xf2c94c, skin = 0xe8b98f;
+    cone(0.46, 1.25, robe, 0, 0.62, 0);                              // the long robe
+    tube(0.2, 0.5, robe, 0, 1.25, 0);                               // chest
+    add(new THREE.TorusGeometry(0.2, 0.035, 8, 16), trim, 0, 1.02, 0).rotation.x = Math.PI / 2;   // a gold belt
+    for (const [a, y] of [[0.4, 0.3], [2.1, 0.55], [3.6, 0.25], [5.2, 0.7], [1.2, 0.85]]) ball(0.035, trim, Math.sin(a) * 0.36 * (1 - y / 1.4), y, Math.cos(a) * 0.36 * (1 - y / 1.4));   // stars on the robe
+    ball(0.2, skin, 0, 1.66, 0);                                    // head
+    for (const s of [-1, 1]) ball(0.03, 0x1a1a1a, s * 0.075, 1.7, 0.18);
+    const beard = cone(0.15, 0.42, 0xf4f4f4, 0, 1.42, 0.13); beard.rotation.x = Math.PI;   // a long white beard
+    add(new THREE.CylinderGeometry(0.34, 0.34, 0.04, 16), robe, 0, 1.82, 0);   // hat brim
+    const hat = cone(0.21, 0.6, robe, 0, 2.12, -0.03); hat.rotation.x = -0.18;   // the pointed hat
+    ball(0.035, trim, 0.1, 2.0, 0.14);                              // a star on the hat
+    const right = pivot(0.27, 1.4, 0); tube(0.06, 0.5, robe, 0, -0.25, 0, right); right.rotation.x = -0.5;
+    tube(0.03, 1.9, 0x7a5230, 0.36, 0.95, 0.24);                    // the wooden staff
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), new THREE.MeshBasicMaterial({ color: 0xffb347 })); glow.position.set(0.36, 1.95, 0.24); glow.name = 'glow'; g.add(glow);
+    wave = pivot(-0.27, 1.4, 0); tube(0.06, 0.5, robe, 0, -0.25, 0, wave); ball(0.06, skin, 0, -0.52, 0, 1, 1, 1, wave);
+    top = 2.4;
   } else if (kind === 'vital') {   // Vital the elephant (0.6.73): an original cartoon elephant in simple shapes
     const grey = 0xb4bac4, pale = 0xdfe3ea;
     top = 1.42;
@@ -5428,11 +5691,11 @@ function friendModel(kind) {
   cx.fillStyle = '#fff'; cx.strokeStyle = '#1d2440'; cx.lineWidth = 6;
   cx.beginPath(); cx.arc(64, 56, 48, 0, Math.PI * 2); cx.fill(); cx.stroke();
   cx.beginPath(); cx.moveTo(50, 98); cx.lineTo(64, 124); cx.lineTo(78, 98); cx.closePath(); cx.fill();
-  cx.fillStyle = '#3b6fd8'; cx.font = 'bold 76px sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(kind === 'vital' ? '!' : '?', 64, 60);
+  cx.fillStyle = '#3b6fd8'; cx.font = 'bold 76px sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(kind === 'vital' || kind === 'mirelo' ? '!' : '?', 64, 60);
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   const bubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthWrite: false }));
   bubble.scale.set(0.7, 0.7, 1);
-  const up = kind === 'vital' ? 0.9 : 0.45;   // Vital's bubble sits above his name
+  const up = kind === 'vital' || kind === 'mirelo' ? 0.9 : 0.45;   // Vital's bubble sits above his name
   bubble.position.y = top + up;
   g.add(bubble);
   if (kind === 'vital') {   // his name over his head, drawn in code: it is fixed and cannot be changed
@@ -5446,7 +5709,18 @@ function friendModel(kind) {
     name.position.y = top + 0.28;
     g.add(name);
   }
-  g.userData = { wave, bubble, top, up, flipper: kind === 'turtle', trunk: kind === 'vital' };
+  if (kind === 'mirelo') {   // his name over his head, drawn in code (0.6.93)
+    const n = document.createElement('canvas'); n.width = 640; n.height = 96;
+    const nx = n.getContext('2d');
+    nx.fillStyle = 'rgba(20,24,45,.85)'; nx.fillRect(8, 8, 624, 80);
+    nx.fillStyle = '#fff'; nx.font = 'bold 46px sans-serif'; nx.textAlign = 'center'; nx.textBaseline = 'middle'; nx.fillText('Mirelo, wandering mage', 320, 50);
+    const nt = new THREE.CanvasTexture(n); nt.colorSpace = THREE.SRGBColorSpace;
+    const name = new THREE.Sprite(new THREE.SpriteMaterial({ map: nt, depthWrite: false }));
+    name.scale.set(2.1, 0.32, 1);
+    name.position.y = top + 0.28;
+    g.add(name);
+  }
+  g.userData = { wave, bubble, top, up, flipper: kind === 'turtle', trunk: kind === 'vital', glow: g.getObjectByName('glow') || null, mage: kind === 'mirelo' };
   return g;
 }
 
@@ -5463,18 +5737,18 @@ const monsterNear = r => enemies.some(en => Math.hypot(en.x - px, en.z - pz) <= 
 function spawnFriend(forceKind) {
   if (friend) return false;
   for (let tries = 0; tries < 40; tries++) {
-    const a = Math.random() * Math.PI * 2, d = 7 + Math.random() * 4;
+    const a = Math.random() * Math.PI * 2, d = forceKind === 'mirelo' ? 14 + Math.random() * 3 : 7 + Math.random() * 4;   // Mirelo walks in from further away
     const x = px + Math.sin(a) * d, z = pz + Math.cos(a) * d;
     if (!inPlay(x, z)) continue;
     let y = friendFloor(x, z, py);
     if (y === null && tries >= 20) { y = H - 1; while (y > 1 && get(Math.floor(x), y - 1, Math.floor(z)) === T.AIR) y--; }   // the child is underground: come to the surface above
     if (y === null || !solid(get(Math.floor(x), y - 1, Math.floor(z)))) continue;   // dry ground only
-    const kind = forceKind === 'vital' || FRIEND_KINDS.includes(forceKind) ? forceKind : pick(FRIEND_KINDS);
+    const kind = forceKind === 'vital' || forceKind === 'mirelo' || FRIEND_KINDS.includes(forceKind) ? forceKind : pick(FRIEND_KINDS);
     const group = friendModel(kind);
     group.position.set(x, y, z);
     scene.add(group);
-    friend = { kind, group, x, y, z, state: 'come', age: 0, leaveT: 0, q: null, wrong: 0, guide: kind === 'vital' };
-    say(friend.guide ? 'Vital is here! Tap him to say hello.' : 'A friend is here! Tap it to say hello.', 3000);
+    friend = { kind, group, x, y, z, state: 'come', age: 0, leaveT: 0, q: null, wrong: 0, guide: kind === 'vital', mage: kind === 'mirelo' };
+    say(friend.mage ? 'Mirelo the mage is here! Tap him to say hello.' : friend.guide ? 'Vital is here! Tap him to say hello.' : 'A friend is here! Tap it to say hello.', 3000);
     return true;
   }
   return false;
@@ -5483,6 +5757,7 @@ function removeFriend() {
   if (!friend) return;
   scene.remove(friend.group);
   friend.group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
+  if (friend.mage) { friend = null; friendWait = Math.max(friendWait, VITAL_FRIEND_AFTER); mireloLeft(); return; }   // Mirelo has left (0.6.93)
   if (friend.guide) {   // Vital has left: the quiz friends' own wait goes on, and none comes sooner than 20 seconds from now
     friend = null;
     friendWait = friendFirst ? VITAL_FRIEND_AFTER : Math.max(friendWait, VITAL_FRIEND_AFTER);
@@ -5509,6 +5784,11 @@ function updateFriend(dt) {
       }
       if (vitalVisit.first) return;
     }
+    // Mirelo (0.6.93): after Vital, before the quiz friends. Never with a monster close or a panel open.
+    if (!anyPanelOpen() && !monsterNear(FRIEND_MONSTER_CLEAR) && mireloDue(dt)) {
+      if (spawnFriend('mirelo')) return;
+      mireloRun.wait = Math.max(mireloRun.wait, 1); if (mireloRun.tipWait !== null) mireloRun.tipWait = Math.max(mireloRun.tipWait, 1);
+    }
     if (!quizOn) return;
     if (!friendOnMove || Math.hypot(vx, vz) > 0.1) friendWait -= dt;
     // Never while a monster is close or a panel is open: it waits for a calm moment. (The first friend of a visit does not wait for monsters.)
@@ -5521,12 +5801,15 @@ function updateFriend(dt) {
   const dx = px - f.x, dz = pz - f.z, dist = Math.hypot(dx, dz) || 0.001;
   if (f.state !== 'leave') {
     f.age += dt;
-    if (f.age >= FRIEND_STAY || dist > FRIEND_FAR) friendLeave();
+    if (f.age >= (f.mage ? (mireloRun.lesson || mireloNeedsLesson() ? 120 : mireloSet.stay * 60) : FRIEND_STAY) || dist > FRIEND_FAR) friendLeave();
   }
   let moving = false;
   if (f.state === 'come') {
-    if (dist <= FRIEND_STOP + 0.01) f.state = 'wait';   // (the small margin: the last step lands on two blocks only to within rounding)
+    if (dist <= FRIEND_STOP + 0.01) f.state = 'wait';
+    else if (f.mage && f.age > 30) f.state = 'wait';   // he could not reach the child (water, a cliff): he waits where he is   // (the small margin: the last step lands on two blocks only to within rounding)
     else { const step = Math.min(FRIEND_SPEED * dt, dist - FRIEND_STOP); f.x += dx / dist * step; f.z += dz / dist * step; moving = true; }
+  } else if (f.state === 'wait' && f.mage && !tipPanel) {
+    moving = mireloFollow(f, dt);   // he walks along a few steps behind
   } else if (f.state === 'leave') {
     f.leaveT += dt;
     if (f.leaveT >= FRIEND_LEAVE_TIME) { removeFriend(); return; }
@@ -5541,8 +5824,10 @@ function updateFriend(dt) {
   const w = Math.sin(now * 7);
   if (u.trunk) u.wave.rotation.x = away ? 0 : -0.85 + w * 0.4;      // the trunk is up and waving
   else if (u.flipper) u.wave.rotation.z = away ? 0 : 0.55 + w * 0.45;
+  else if (u.mage && f.state === 'wait') u.wave.rotation.z = 0.2 + (moving ? w * 0.25 : 0);   // Mirelo walks along with his arm down
   else u.wave.rotation.z = away ? 0.25 : 2.3 + w * 0.5;             // the arm or wing is up and waving
-  u.bubble.visible = f.state !== 'leave';
+  u.bubble.visible = f.state !== 'leave' && !(f.mage && (f.tipDone || mireloRun.lesson));   // Mirelo's "!" shows only while he has something to say
+  if (u.glow) u.glow.scale.setScalar(1 + Math.sin(now * 4) * 0.2);
   u.bubble.position.y = u.top + u.up + Math.sin(now * 3) * 0.05;
 }
 // The friend under the screen point (x, y), or null. Counts anywhere inside its outline on screen, like a monster.
@@ -5573,7 +5858,7 @@ function friendBubblePoint() {
 function tapFriend() {
   if (!friend || friend.state === 'leave' || anyPanelOpen()) return;
   if (Math.hypot(friend.x - px, friend.z - pz) > FRIEND_REACH) { say('Walk closer to your friend.', 2000); return; }
-  if (friend.guide) openTip(); else openQuiz();
+  if (friend.mage) openMirelo(); else if (friend.guide) openTip(); else openQuiz();
 }
 
 // The quiz report as a small table, for the parent area
@@ -6007,7 +6292,7 @@ function update(dt) {
   } else invTimer = 0;
 
   updateDig(dt);
-  if (!skillPanel && !skills.length && pw.fight.lvl >= MAGIC_LEVEL) showSkillChoice();
+  mireloTick(dt);   // 0.6.93 (SPEC-028): Mirelo teaches the fireball; the old panel is the fallback
   updateFight(dt);
   updateFireballs(dt);
   updateEnemies(dt);
@@ -6061,7 +6346,7 @@ const hud = document.getElementById('hud');
 let hudLine = '', fitSig = '';
 function drawHud() {
   const spellBtn = document.getElementById('bSpell');   // shown once the fireball is learned; dimmed while the power recharges
-  spellBtn.style.display = padOn && skills.includes('fireball') ? 'flex' : 'none';
+  spellBtn.style.display = padOn && (skills.includes('fireball') || lessonCasting()) ? 'flex' : 'none';
   spellBtn.classList.toggle('wait', spellCool > 0);
   // The lit Spell button turns itself off after 5 seconds with no tap on the world, or when it is no longer on screen
   if (spellArmed && !press && (performance.now() - spellArmedAt > SPELL_ARM_MS || spellBtn.style.display === 'none')) armSpell(false);
@@ -7317,6 +7602,7 @@ if (saved) {
   if (Array.isArray(saved.recent)) recent = saved.recent.map(old).filter(r => defOf(r));
   if (saved.pw) for (const k of Object.keys(pw)) if (saved.pw[k] && Number.isFinite(saved.pw[k].lvl)) pw[k] = saved.pw[k];
   if (Array.isArray(saved.skills)) skills = saved.skills.filter(id => SKILLS[id]);
+  loadMirelo(saved.mirelo);   // 0.6.93
   if (Number.isInteger(saved.sel) && saved.sel >= 0 && saved.sel < 6) sel = saved.sel;
   if (Array.isArray(saved.pos) && saved.pos.length === 3 && !hits(...saved.pos)) [px, py, pz] = saved.pos;
   if (Number.isFinite(saved.yaw)) camYaw = saved.yaw;
@@ -7376,7 +7662,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.92';
+const VERSION = '0.6.93';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7413,6 +7699,7 @@ function applyOwnerSettings(map) {
   cartsMax = Number.isInteger(map.carts_max) && map.carts_max >= 1 && map.carts_max <= 20 ? map.carts_max : 6;
   setGuardSteps(map);
   // Share reward (SPEC-030): on or off and how many gems, set by the owner in the admin page (0013)
+  setMireloTimes(map);   // Mirelo's timings (SPEC-028, migration 0017)
   shareOn = map.share_on !== 0;
   shareGems = Number.isInteger(map.share_gems) && map.share_gems >= 1 && map.share_gems <= 5000 ? map.share_gems : 500;
 }
@@ -7422,7 +7709,7 @@ fetch(SB_URL + '/rest/v1/game_settings?select=key,value', { headers: { apikey: S
   .then(rows => {
     if (!Array.isArray(rows)) return;
     const map = {};
-    for (const row of rows) if (row && typeof row.key === 'string' && (/^m[ps]_/.test(row.key) || /^guard_/.test(row.key) || row.key === 'carts_max' || row.key === 'share_on' || row.key === 'share_gems')) map[row.key] = row.value;
+    for (const row of rows) if (row && typeof row.key === 'string' && (/^m[ps]_/.test(row.key) || /^guard_/.test(row.key) || /^mirelo_/.test(row.key) || row.key === 'carts_max' || row.key === 'share_on' || row.key === 'share_gems')) map[row.key] = row.value;
     applyOwnerSettings(map);
     try { localStorage.setItem('kidsgame.ownerSettings', JSON.stringify(map)); } catch (e) {}
   })
@@ -8598,7 +8885,7 @@ function updateFriendMirrors(dt) {
   const st = channel ? channel.presenceState() : {}, seen = new Set();
   for (const [key] of others) {
     const metas = st[key], m = metas && metas[metas.length - 1];
-    const f = m && Array.isArray(m.f) && m.f.length >= 5 && (m.f[0] === 'vital' || FRIEND_KINDS.includes(m.f[0])) && [1, 2, 3, 4].every(i => Number.isFinite(m.f[i])) ? m.f : null;
+    const f = m && Array.isArray(m.f) && m.f.length >= 5 && (m.f[0] === 'vital' || m.f[0] === 'mirelo' || FRIEND_KINDS.includes(m.f[0])) && [1, 2, 3, 4].every(i => Number.isFinite(m.f[i])) ? m.f : null;
     if (!f) continue;
     seen.add(key);
     let o = friendMirrors.get(key);
@@ -8617,7 +8904,7 @@ function updateFriendMirrors(dt) {
 function mirrorFriendAt(x, y) {
   if (friend) return null;
   for (const o of friendMirrors.values()) {
-    if (o.kind === 'vital' || !o.group.visible) continue;
+    if (o.kind === 'vital' || o.kind === 'mirelo' || !o.group.visible) continue;
     const mid = new THREE.Vector3(o.x, o.y + 0.6, o.z), c = mid.clone().project(camera);
     if (c.z >= 1) continue;
     const sx = (c.x + 1) / 2 * innerWidth, sy = (1 - c.y) / 2 * innerHeight;
@@ -9030,6 +9317,12 @@ Promise.all([
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  // Mirelo (0.6.93, SPEC-028)
+  castAt: (x, y, z) => { spellCool = 0; castFireball(new THREE.Vector3(x, y, z)); },
+  mirelo: { get state() { return { ...mir, on: mireloOn, sinceL2: mireloRun.sinceL2, wait: mireloRun.wait, tipWait: mireloRun.tipWait, lesson: mireloRun.lesson ? { stage: mireloRun.lesson.stage, x: mireloRun.lesson.x, y: mireloRun.lesson.y, z: mireloRun.lesson.z } : null, here: !!(friend && friend.mage), friend: friend && friend.mage ? { state: friend.state, x: friend.x, z: friend.z, age: friend.age, tipDone: !!friend.tipDone } : null, set: { ...mireloSet } }; },
+    LINES: MIRELO_LINES, TIPS: MIRELO_TIPS, call: () => spawnFriend('mirelo'), open: openMirelo, setTimes: setMireloTimes, setOn: setMireloOn, tick: mireloTick, due: mireloDue,
+    setWait: s => { mireloRun.wait = s; mireloRun.tipWait = s; }, setSince: s => { mireloRun.sinceL2 = s; }, setAway: t => { mir.away = t; }, load: loadMirelo, arrive: () => { if (friend && friend.mage) { friend.x = px + 1.5; friend.z = pz; friend.state = 'wait'; } },
+    setFightLevel: n => { pw.fight.lvl = n; }, cool: () => { spellCool = 0; }, gone: () => { if (friend && friend.mage) removeFriend(); }, farTest: d => { if (friend && friend.mage) { friend.x = px + d; friend.z = pz; friend.y = py; } }, spot: lessonSpot, clearSkills: () => { skills = []; }, lessonTargetAt, finish: finishMireloLesson, follow: dt => friend && friend.mage ? mireloFollow(friend, dt) : null },
   // Delete my data (0.6.92): the tests stand in for the sign-in and the server
   dmd: { get state() { return dmd ? { step: dmd.step, signedIn: dmd.signedIn, msg: dmd.msg } : null; }, open: dmdOpen, close: dmdClose, HOLD_MS: DMD_HOLD_MS, CODE_MS: DMD_CODE_MS,
     setSession: f => { dmdSession = f; }, setServer: f => { dmdServer = f; }, ageCode: ms => { if (dmd) dmd.codeAt -= ms; }, get wiping() { return wiping; }, get blocksGame() { return anyPanelOpen(); } },

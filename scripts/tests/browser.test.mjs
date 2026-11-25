@@ -3981,3 +3981,76 @@ test('Delete my data with a parent signed in: after the right code the device ha
     assert.equal((await dmdState(page)).step, 'done', 'the last screen stays until OK');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [readyGame()] }));
+
+// ---- Mirelo, the wandering mage (0.6.93, SPEC-028) ----
+test('SPEC-028: at Fighting level 2 Mirelo comes instead of "Magic unlocked!"; Show me, his fireball, the ring, the child\'s fireball on the target, then Fireball is learned; no new request', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.mirelo, null, { timeout: 60000 });
+    await page.evaluate(() => { const g = window.gameTest, [x, y, z] = g.pos.map(Math.floor); for (let dx = -14; dx <= 14; dx++) for (let dz = -14; dz <= 14; dz++) { g.setWriteBlock(x + dx, y - 1, z + dz, 3); for (let u = 0; u < 4; u++) g.setWriteBlock(x + dx, y + u, z + dz, 0); } });   // open, flat ground
+    const requests = [];
+    await page.evaluate(() => { const g = window.gameTest; g.mirelo.clearSkills(); g.mirelo.load(null); g.mirelo.setFightLevel(2); g.mirelo.setWait(0); });
+    await page.waitForTimeout(600);
+    assert.equal(await page.evaluate(() => window.gameProbe().skillPanel), false, 'no "Magic unlocked!" panel');
+    await page.waitForFunction(() => window.gameTest.mirelo.state.here || (window.gameTest.mirelo.call(), false), null, { timeout: 20000, polling: 500 });
+    page.on('request', r => requests.push(r.url()));
+    await page.evaluate(() => { window.gameTest.mirelo.arrive(); window.gameTest.mirelo.open(); });
+    assert.equal(await page.evaluate(() => window.gameTest.tipText), 'Hello, young adventurer! I am Mirelo. I sense magic in you. Watch!');
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#tipPanel button')].map(b => b.textContent)), ['Show me', 'Not now']);
+    await page.evaluate(() => document.querySelector('#tipPanel .mshow').click());
+    await page.waitForFunction(() => { const l = window.gameTest.mirelo.state.lesson; return l && l.stage === 'try'; }, null, { timeout: 20000 });
+    const st = await page.evaluate(() => ({ ring: document.getElementById('bSpell').classList.contains('ring'), skills: window.gameProbe().skills, l: window.gameTest.mirelo.state.lesson, pos: window.gameTest.pos }));
+    assert.equal(st.ring, true, 'the Spell button shows a ring');
+    assert.deepEqual(st.skills, [], 'not learned yet');
+    assert.ok(Math.hypot(st.l.x - st.pos[0], st.l.z - st.pos[2]) <= 17, 'the target is near the child');
+    // the target is not a block: the world there is still air
+    assert.equal(await page.evaluate(() => { const l = window.gameTest.mirelo.state.lesson; return window.gameTest.blockAt(Math.floor(l.x), Math.floor(l.y), Math.floor(l.z)); }), 0);
+    // the child casts at the target
+    await page.evaluate(() => { const g = window.gameTest, l = g.mirelo.state.lesson, p = g.pos; g.castAt(l.x - p[0], l.y - (p[1] + 1.2), l.z - p[2]); });
+    await page.waitForFunction(() => window.gameProbe().skillPanel, null, { timeout: 15000 });
+    assert.match(await page.evaluate(() => document.getElementById('skillPanel').textContent), /Fireball is yours!/);
+    await page.evaluate(() => document.querySelector('#skillPanel [data-skill="fireball"]').click());
+    const end = await page.evaluate(() => ({ skills: window.gameProbe().skills, m: window.gameTest.mirelo.state, ring: document.getElementById('bSpell').classList.contains('ring') }));
+    assert.deepEqual(end.skills, ['fireball']); assert.equal(end.m.lesson, null); assert.equal(end.m.met, true); assert.equal(end.ring, false);
+    assert.deepEqual(requests.filter(u => /supabase|rest\/v1|functions\/v1|rpc\//.test(u)), [], 'no new request while he talks and teaches');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [phoneGame()] }));
+
+test('SPEC-028: two "Not now" (or the owner\'s minutes) unlock the fireball as before; a tip visit shows a tip, follows the child, and "Come back later" keeps him away for the owner\'s hours; the switch stops his tips', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.mirelo, null, { timeout: 60000 });
+    await page.evaluate(() => { const g = window.gameTest, [x, y, z] = g.pos.map(Math.floor); for (let dx = -14; dx <= 14; dx++) for (let dz = -14; dz <= 14; dz++) { g.setWriteBlock(x + dx, y - 1, z + dz, 3); for (let u = 0; u < 4; u++) g.setWriteBlock(x + dx, y + u, z + dz, 0); } });   // open, flat ground
+    await page.evaluate(() => { const g = window.gameTest; g.mirelo.clearSkills(); g.mirelo.load({ lesson: 'todo', nots: 2 }); g.mirelo.setFightLevel(2); });
+    await page.waitForFunction(() => window.gameProbe().skillPanel, null, { timeout: 15000 });
+    assert.match(await page.evaluate(() => document.getElementById('skillPanel').textContent), /Magic unlocked!/);
+    await page.evaluate(() => document.querySelector('#skillPanel [data-skill="fireball"]').click());
+    assert.equal(await page.evaluate(() => window.gameTest.mirelo.state.lesson), null);
+    // a tip visit
+    await page.waitForFunction(() => window.gameTest.mirelo.state.here || (window.gameTest.mirelo.call(), false), null, { timeout: 20000, polling: 500 });
+    await page.evaluate(() => { window.gameTest.mirelo.arrive(); window.gameTest.mirelo.open(); });
+    assert.equal(await page.evaluate(() => window.gameTest.tipText), 'I see you found your magic! Fire fizzles in water, so keep your fireballs dry!');
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#tipPanel button')].map(b => b.textContent)), ['Thanks!', 'Come back later']);
+    await page.evaluate(() => document.querySelector('#tipPanel .mthanks').click());
+    let m = await page.evaluate(() => window.gameTest.mirelo.state);
+    assert.equal(m.tips, 1); assert.equal(m.met, true); assert.equal(m.here, true, 'he stays and walks along');
+    // he follows: the child moves 12 blocks away over open ground, he walks after them (never jumping there)
+    await page.evaluate(() => { const g = window.gameTest; g.clearEnemies(); g.mirelo.arrive(); });
+    const moved = await page.evaluate(() => { const g = window.gameTest; let n = 0; for (let i = 0; i < 20; i++) if (g.mirelo.follow(0.05)) n++; return n; });
+    assert.ok(moved === 0, 'close to the child he stands still');
+    const walk = await page.evaluate(() => { const g = window.gameTest, p = g.pos; g.clearEnemies(); g.mirelo.farTest(9); let n = 0; for (let i = 0; i < 10; i++) if (g.mirelo.follow(0.1)) n++; const f1 = g.mirelo.state.friend; return { n, step: Math.hypot(f1.x - (p[0] + 9), f1.z - p[2]) }; });
+    assert.ok(walk.n === 10 && walk.step > 2 && walk.step < 7.5, 'left behind, he walks after the child and does not jump there: ' + JSON.stringify(walk));
+    // Come back later
+    await page.evaluate(() => { const g = window.gameTest; g.mirelo.load({ lesson: 'skipped', tips: 1, last: 0, met: true }); });
+    await page.evaluate(() => { const g = window.gameTest; g.mirelo.gone(); g.mirelo.call(); g.mirelo.arrive(); g.mirelo.open(); });
+    assert.equal(await page.evaluate(() => window.gameTest.tipText), 'Some monsters are weak to fire. Fire hurts them twice as much!');
+    await page.evaluate(() => document.querySelector('#tipPanel .mlater').click());
+    m = await page.evaluate(() => window.gameTest.mirelo.state);
+    const hours = (m.away - Date.now()) / 3600000;
+    assert.ok(hours > 23.9 && hours <= 24, 'away for 24 hours: ' + hours);
+    assert.equal(await page.evaluate(() => { window.gameTest.mirelo.setWait(0); return window.gameTest.mirelo.due(1); }), false, 'not due while away');
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('kidsgame.slot.0')).mirelo.away > Date.now()), true, 'kept in the saved game');
+    // the switch
+    await page.evaluate(() => { const g = window.gameTest; g.mirelo.setAway(0); g.mirelo.setOn(false); g.mirelo.setWait(0); });
+    assert.equal(await page.evaluate(() => window.gameTest.mirelo.due(1)), false, 'Tips from Mirelo off: he does not come');
+    assert.equal(await page.evaluate(() => localStorage.getItem('kidsgame.mirelo')), '0');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [phoneGame()] }));

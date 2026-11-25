@@ -7,7 +7,7 @@
 <meta name="description" content="How to play Adventurers of Drenerics: moving, digging, building, the bag, gems, powers, monsters, magic, saving and playing with friends.">
 <!-- This guide must describe the game as it is. Every new feature or changed rule gets its part here in the same release,
      and guide-version below is set to the game's version (scripts/tests/site-pages.test.mjs checks it). -->
-<meta name="guide-version" content="0.6.92">
+<meta name="guide-version" content="0.6.93">
 <!-- site-head -->
 <link rel="stylesheet" href="/site.css">
 <link rel="icon" href="/favicon.ico" sizes="32x32">
@@ -38,7 +38,7 @@
 <div class="guide">
 <!-- guide-list -->
 <nav class="side" aria-label="Parts of the guide">
-<h2>Start here</h2><ol><li><a href="#start">Starting a game</a></li><li><a href="#vital">Vital, your guide</a></li><li><a href="#controls">Controls</a></li></ol>
+<h2>Start here</h2><ol><li><a href="#start">Starting a game</a></li><li><a href="#vital">Vital, your guide</a></li><li><a href="#mirelo">Mirelo, the wandering mage</a></li><li><a href="#controls">Controls</a></li></ol>
 <h2>Things you do</h2><ol><li><a href="#quickbar">The quick bar and the bag</a></li><li><a href="#dig">Digging</a></li><li><a href="#build">Building</a></li><li><a href="#gems">Gems</a></li><li><a href="#bagfull">When the bag is full</a></li><li><a href="#powers">Powers and levels</a></li><li><a href="#monsters">Monsters and fighting</a></li><li><a href="#gear">Gear and durability</a></li><li><a href="#magic">Magic</a></li><li><a href="#water">Water and swimming</a></li><li><a href="#world">The world</a></li><li><a href="#teleport">Teleport to the start</a></li><li><a href="#saving">Saving your game</a></li></ol>
 <h2>With others</h2><ol><li><a href="#friends">Playing with friends</a></li><li><a href="#report">Reporting and hiding</a></li><li><a href="#quiz">Quiz friends</a></li></ol>
 <h2>Settings and grown-ups</h2><ol><li><a href="#settings">Settings, sound and quitting</a></li><li><a href="#grownups">For grown-ups: parental controls</a></li></ol>
@@ -47,7 +47,7 @@
 <main id="main">
 
   <h1>How to play</h1>
-  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.92</span>. New things are added here with every version; see <a href="/release-notes.html">What is new</a> for what changed.</div>
+  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.93</span>. New things are added here with every version; see <a href="/release-notes.html">What is new</a> for what changed.</div>
 
   <p>Adventurers of Drenerics is a world made of blocks. You dig into it, build with what you dig, collect gems, grow stronger and meet monsters. You can play alone or in the same world as your friends.</p>
   <a class="btn btn-play" href="/play/">Play now</a>
@@ -56,14 +56,14 @@
   The groups of the guide (SPEC-014), kept in this one place. scripts/site-pages.mjs makes the list on the left and the
   "Jump to a part" box from it. Every part (h2 with an id) is in exactly one group, and no group is empty:
   scripts/tests/site-look.test.mjs fails otherwise. A new part goes in the group its spec names.
-Start here: start, vital, controls
+Start here: start, vital, mirelo, controls
 Things you do: quickbar, dig, build, gems, bagfull, powers, monsters, gear, magic, water, world, teleport, saving
 With others: friends, report, quiz
 Settings and grown-ups: settings, grownups
 -->
   <!-- guide-jump -->
 <details class="jump"><summary>Jump to a part</summary><div>
-<h2>Start here</h2><ol><li><a href="#start">Starting a game</a></li><li><a href="#vital">Vital, your guide</a></li><li><a href="#controls">Controls</a></li></ol>
+<h2>Start here</h2><ol><li><a href="#start">Starting a game</a></li><li><a href="#vital">Vital, your guide</a></li><li><a href="#mirelo">Mirelo, the wandering mage</a></li><li><a href="#controls">Controls</a></li></ol>
 <h2>Things you do</h2><ol><li><a href="#quickbar">The quick bar and the bag</a></li><li><a href="#dig">Digging</a></li><li><a href="#build">Building</a></li><li><a href="#gems">Gems</a></li><li><a href="#bagfull">When the bag is full</a></li><li><a href="#powers">Powers and levels</a></li><li><a href="#monsters">Monsters and fighting</a></li><li><a href="#gear">Gear and durability</a></li><li><a href="#magic">Magic</a></li><li><a href="#water">Water and swimming</a></li><li><a href="#world">The world</a></li><li><a href="#teleport">Teleport to the start</a></li><li><a href="#saving">Saving your game</a></li></ol>
 <h2>With others</h2><ol><li><a href="#friends">Playing with friends</a></li><li><a href="#report">Reporting and hiding</a></li><li><a href="#quiz">Quiz friends</a></li></ol>
 <h2>Settings and grown-ups</h2><ol><li><a href="#settings">Settings, sound and quitting</a></li><li><a href="#grownups">For grown-ups: parental controls</a></li></ol>
@@ -107,7 +107,13 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="controls">3. Controls</h2>
+  <h2 id="mirelo">3. Mirelo, the wandering mage</h2>
+  <p>Mirelo is a wandering mage who walks the roads and fields of every world. He teaches you magic when you are ready, and every now and then he stops by with a magic tip. When he has a tip he shows a ! over his head: tap him to hear it. While he visits, he walks along with you for a little while. Tap Come back later if you want him to leave you be for a day, or turn his tips off with Tips from Mirelo in Settings. In a shared world everyone sees the same Mirelo.</p>
+  <a class="top" href="#main">Back to top</a>
+  </section>
+
+  <section class="part">
+  <h2 id="controls">4. Controls</h2>
   <div class="ctl">
     <figure><img class="shot" src="/guide/controls-phone.webp" width="1200" height="554" loading="lazy" alt="The game on a phone with its buttons named: thumb stick to walk, Jump, hand buttons, Activity log, Teleport, Powers, Map, Settings, Change view and Bag"><figcaption>On a phone or tablet</figcaption></figure>
     <figure><img class="shot" src="/guide/controls-computer.webp" width="1200" height="750" loading="lazy" alt="The game on a computer with its buttons named: quick bar, Activity log, Teleport, Powers, Map, Settings, Change view and Bag"><figcaption>On a computer</figcaption></figure>
@@ -140,7 +146,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="quickbar">4. The quick bar and the bag</h2>
+  <h2 id="quickbar">5. The quick bar and the bag</h2>
   <p>The <strong>quick bar</strong> is the row of 6 slots at the bottom. The slot you choose is the item in your hand: the pickaxe digs, a sword fights, a block builds.</p>
   <p>The <strong>bag</strong> holds everything you own. Open it, then tap an item to put it in the slot you have chosen. The <em>Recent</em> list shows the things you picked up last; tap one to put it in the quick bar. It is always at the top of the bag. On a big screen it is also at the side, as long as it does not cover a button.</p>
   <p><strong>To fill a slot quickly:</strong> press and hold the slot for a moment (with a finger or the mouse). The bag opens with that slot chosen; tap an item and it goes into the slot. A short tap only chooses the slot.</p>
@@ -153,7 +159,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="dig">5. Digging</h2>
+  <h2 id="dig">6. Digging</h2>
   <p>Hold on a block to dig it. The pickaxe is the fastest way. You can also dig by hand, with any tool or an empty hand; it is slower, and hard blocks like stone take the longest.</p>
   <ul>
     <li>A crack grows while you hold; when it is complete the block comes out and goes into your bag.</li>
@@ -165,7 +171,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="build">6. Building</h2>
+  <h2 id="build">7. Building</h2>
   <ol>
     <li>Put a block in a quick bar slot and choose it.</li>
     <li>Tap or click the side or the top of a block that is already there. Your block goes next to it.</li>
@@ -180,13 +186,13 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="gems">7. Gems</h2>
+  <h2 id="gems">8. Gems</h2>
   <p>Gems sparkle inside some blocks. Dig the block to collect the gem. Monsters also give gems when you defeat them: stronger monsters give more. You can also earn gems by answering a question from a <a href="#quiz">quiz friend</a>.</p>
   <a class="top" href="#main">Back to top</a>
   </section>
 
   <section class="part">
-  <h2 id="bagfull">8. When the bag is full</h2>
+  <h2 id="bagfull">9. When the bag is full</h2>
   <p>The bag holds a set number of things, and it grows as your Inventory power goes up (12 things at level 1, and 4 more with each level). The Inventory power grows while you carry a full bag.</p>
   <ul>
     <li>If the bag is full, you can still dig. The block falls on the ground as a small spinning cube.</li>
@@ -199,7 +205,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="powers">9. Powers and levels</h2>
+  <h2 id="powers">10. Powers and levels</h2>
   <p>Tap the Powers button at the top right to see your powers, their levels and how close each one is to the next level.</p>
   <p>You have five powers. Each one grows when you use it, and the game tells you when one goes up a level. The Powers panel also shows your <a href="#quiz">quiz badges</a>, your name, the world code and the game version. Close it with its Close button, a tap outside it, <kbd>Esc</kbd> or the Android Back button. During play the top left of the screen shows your gems and how full your bag is.</p>
   <div class="scroll">
@@ -216,7 +222,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="monsters">10. Monsters and fighting</h2>
+  <h2 id="monsters">11. Monsters and fighting</h2>
   <p>Monsters walk around the land. They never hurt you. Defeat them to earn gems, monster parts and sometimes gear.</p>
   <p>Your sword reaches 2 blocks. Walk up to a monster before you tap it. The fireball reaches much further.</p>
   <ul>
@@ -243,7 +249,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="gear">11. Gear and durability</h2>
+  <h2 id="gear">12. Gear and durability</h2>
   <p>Tools and weapons wear out. A pickaxe loses one point for each block it digs, and a weapon loses one for each hit. At zero it breaks and leaves your bag.</p>
   <div class="scroll">
   <table>
@@ -262,8 +268,9 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="magic">12. Magic</h2>
-  <p>When your Fighting power reaches level 2, the game says "Magic unlocked!" and lets you choose your first skill. For now the skill is <strong>Fireball</strong>.</p>
+  <h2 id="magic">13. Magic</h2>
+  <p>When your Fighting power reaches level 2, Mirelo the wandering mage comes to teach you your first spell, the Fireball. Tap him, tap Show me, watch him cast, then tap the Spell button and the glowing target. If you are busy, tap Not now and he will come back.</p>
+  <p>If you tap Not now twice, or play for a few minutes without the lesson, the game says "Magic unlocked!" and gives you the Fireball anyway.</p>
   <ul>
     <li>Tap the Spell button. It lights up. Now tap a monster or a place, and the fireball flies there. Tap the Spell button again if you change your mind. On a computer you can also point with the mouse and press <kbd>F</kbd>.</li>
     <li>The lit Spell button goes dark by itself after 5 seconds if you tap nothing. While it is lit, dragging still turns the view.</li>
@@ -276,7 +283,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="water">13. Water and swimming</h2>
+  <h2 id="water">14. Water and swimming</h2>
   <ul>
     <li>Water fills the low places: lakes and the sea, with sand on the shore.</li>
     <li>In water you move slower and sink slowly. Hold jump to swim up.</li>
@@ -287,7 +294,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="world">14. The world</h2>
+  <h2 id="world">15. The world</h2>
   <ul>
     <li>The land has different regions: desert, savanna, rainforest, grassland, forest, taiga and tundra. Deserts are sand and the tundra is snow.</li>
     <li>Each region has its own trees and plants, and some have special scenery: cactuses, ice crystals, snowmen and pumpkins. Scenery is decoration; you can walk and dig through it.</li>
@@ -322,7 +329,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="teleport">15. Teleport to the start</h2>
+  <h2 id="teleport">16. Teleport to the start</h2>
   <p>Lost, or far from home? The purple button at the top right takes you back to the place where you started, safely on top of the land.</p>
   <ul>
     <li>The teleport takes 5 minutes to cast. The button counts down, and you can keep playing while you wait.</li>
@@ -332,7 +339,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="saving">16. Saving your game</h2>
+  <h2 id="saving">17. Saving your game</h2>
   <ul>
     <li>The game saves by itself on the device you play on: your character, bag, quick bar, powers, where you are and what you changed in the world.</li>
     <li>When you open the game, tap <em>Load my game</em> to carry on with the game you played last, or open <em>All my saved games</em> to pick another one or delete one, or start a new one. With <em>Load my game by itself</em> on, the game you played last opens straight away.</li>
@@ -344,7 +351,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="friends">17. Playing with friends</h2>
+  <h2 id="friends">18. Playing with friends</h2>
   <p>The first time you play together, read the Playing together card: only play with friends and family you know, keep your world code for them, be kind, and tap Report if something looks wrong.</p>
   <p>If a grown-up has turned off playing together, the game says <em>A grown-up turned off playing together.</em> and you play in your own world.</p>
   <ol>
@@ -361,7 +368,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="report">18. Reporting and hiding</h2>
+  <h2 id="report">19. Reporting and hiding</h2>
   <p>If something looks wrong, rude or scary, you can tell us. Tap the flag on a fun fact, or open Settings in a shared world and tap Report. Choose what it is about and what is wrong. A grown-up will look at it. You can also hide a player: you will not see them for the rest of your visit. If something upset you, tell a grown-up you trust.</p>
   <ol>
     <li>In a shared world, open <em>Settings</em> and tap <em>Report something wrong</em>.</li>
@@ -374,7 +381,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="quiz">19. Quiz friends</h2>
+  <h2 id="quiz">20. Quiz friends</h2>
   <p>Now and then a friendly character walks up to you with a <strong>?</strong> over its head and waves, to ask a maths question or a word to spell. There are three: an owl, a turtle and a small robot. The first friend comes as soon as you start playing, or 20 seconds after <a href="#vital">Vital</a> has left if he came first. After you answer right, the next one comes after about a minute of moving around. If a friend leaves without a right answer, the next one comes 4 to 7 minutes later. Apart from the first one, a friend waits until no monster is close.</p>
   <ul>
     <li>The friend stops two blocks away and waits. It never opens anything by itself.</li>
@@ -398,12 +405,13 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="settings">20. Settings, sound and quitting</h2>
+  <h2 id="settings">21. Settings, sound and quitting</h2>
   <p>The <em>Settings</em> button is at the top right. In Settings you will find:</p>
   <ul>
     <li>The game's version, and <em>What has changed</em> in each version.</li>
     <li><strong>Sounds</strong> and <strong>Music</strong> sliders to make them louder, quieter or silent.</li>
     <li>The <strong>Quiz friends</strong> switch: on at first. Off means no friend comes to ask a question. The choice is kept on this phone, tablet or computer.</li>
+    <li><strong>Tips from Mirelo</strong>: switch the mage's magic tips on or off. He still teaches the Fireball once. The choice is kept on this phone, tablet or computer.</li>
     <li><strong>Tips from Vital</strong>: switch his tips on or off. The choice, and which tips you have seen, are kept on this phone, tablet or computer.</li>
     <li><strong>Load my game by itself</strong>: on means the game you played last opens straight away, with no start menu. Off at first. The choice is kept on this phone, tablet or computer.</li>
     <li>The music, sound and picture credits.</li>
@@ -418,7 +426,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part grown">
-  <h2 id="grownups">21. For grown-ups: parental controls</h2>
+  <h2 id="grownups">22. For grown-ups: parental controls</h2>
   <p>This part is for parents and guardians.</p>
   <h3>What is built in for every child</h3>
   <ul>
