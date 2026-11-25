@@ -85,6 +85,8 @@ async function load() {
   if (!session) { show('signin'); return; }
   show('dash');
   $('who').textContent = 'Signed in as ' + (session.user.email || 'admin');
+  $('insightsBar').classList.toggle('hide', session.user.email !== OWNER_EMAIL);   // Insights: the owner's account only (SPEC-040)
+  if (session.user.email !== OWNER_EMAIL) $('insightsCard').classList.add('hide');
 
   const since = new Date(Date.now() - 14 * DAY).toISOString();
   const [ev, er] = await Promise.all([
@@ -115,6 +117,112 @@ async function load() {
   loadTeachers().catch(() => {});
   loadReports().catch(e => { $('reportMsg').textContent = 'Reports not available: ' + e.message; });
 }
+
+// ---- Insights (SPEC-040): charts of every record kind and of errors, from counts made by the database (migration 0020).
+// Owner only: the button shows for the owner's account, and the database functions refuse everyone else. Counts only:
+// no visit code or world code comes back from the database. The charts are drawn here as SVG; nothing is loaded.
+const OWNER_EMAIL = 'yammay@gmail.com';
+const INS_COLORS = ['#3b6fd8', '#e08a2e', '#3aa27a', '#b44fc4', '#d04a4a', '#2aa7c9', '#c9a227', '#7a8699'];
+let insData = null, insKind = null, insCsv = {};
+const insDayList = n => { const out = []; for (let i = n - 1; i >= 0; i--) out.push(new Date(Date.now() - i * DAY).toISOString().slice(0, 10)); return out; };
+const insNice = m => { const p = Math.pow(10, Math.floor(Math.log10(Math.max(1, m)))); for (const k of [1, 2, 5, 10]) if (k * p >= m) return k * p; return 10 * p; };
+const csvCell = v => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
+const toCsv = rows => rows.map(r => r.map(csvCell).join(',')).join('\n');
+// One chart: labels along the bottom (days), one or more series. Bars are stacked; opts.line draws lines instead.
+function insSvg(labels, series, opts = {}) {
+  const W = opts.w || 640, H = opts.h || 230, L = opts.mini ? 30 : 48, B = opts.mini ? 16 : 40, T = 8, R = 8, n = Math.max(1, labels.length);
+  const totals = labels.map((_, i) => series.reduce((s, x) => s + (x.values[i] || 0), 0));
+  const top = opts.top || insNice(Math.max(1, ...(opts.line ? series.flatMap(s => s.values) : totals)));
+  const bw = (W - L - R) / n, y = v => T + (H - T - B) * (1 - v / top), fs = opts.mini ? 10 : 11;
+  let h = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.label || 'Chart')}" style="width:100%;max-width:${W}px;height:auto;display:block">`;
+  for (const g of opts.mini ? [0, 1] : [0, 0.5, 1]) h += `<line x1="${L}" x2="${W - R}" y1="${y(top * g)}" y2="${y(top * g)}" style="stroke:var(--line)"/><text x="${L - 4}" y="${y(top * g) + 4}" text-anchor="end" style="fill:var(--muted);font-size:${fs}px">${Math.round(top * g * 10) / 10}${opts.unit || ''}</text>`;
+  const every = Math.max(1, Math.ceil(n / (opts.mini ? 2 : 8)));
+  labels.forEach((d, i) => { if (i % every === 0 || i === n - 1 && n > 1 && (n - 1) % every > every / 2) h += `<text x="${L + bw * (i + 0.5)}" y="${H - B + 13}" text-anchor="middle" style="fill:var(--muted);font-size:${fs}px">${esc(String(d).slice(5))}</text>`; });
+  if (opts.line) {
+    for (const s of series) h += `<polyline fill="none" style="stroke:${s.color || 'var(--accent)'};stroke-width:2" points="${s.values.map((v, i) => (L + bw * (i + 0.5)).toFixed(1) + ',' + y(v || 0).toFixed(1)).join(' ')}"/>` + s.values.map((v, i) => `<circle cx="${(L + bw * (i + 0.5)).toFixed(1)}" cy="${y(v || 0).toFixed(1)}" r="2.5" style="fill:${s.color || 'var(--accent)'}"><title>${esc(labels[i])}: ${v || 0}${opts.unit || ''}${series.length > 1 ? ' ' + esc(s.name) : ''}</title></circle>`).join('');
+  } else {
+    labels.forEach((d, i) => { let acc = 0; for (const s of series) { const v = s.values[i] || 0; if (!v) continue; h += `<rect x="${(L + bw * i + bw * 0.12).toFixed(1)}" y="${y(acc + v).toFixed(1)}" width="${(bw * 0.76).toFixed(1)}" height="${(y(acc) - y(acc + v)).toFixed(1)}" rx="1.5" style="fill:${s.color || 'var(--accent)'}"><title>${esc(d)}: ${v}${series.length > 1 ? ' ' + esc(s.name) : ''}</title></rect>`; acc += v; } });
+  }
+  if (!opts.mini) h += `<text x="${L + (W - L - R) / 2}" y="${H - 4}" text-anchor="middle" style="fill:var(--muted);font-size:11px">${esc(opts.xTitle || 'Day')}</text><text transform="translate(11 ${T + (H - T - B) / 2}) rotate(-90)" text-anchor="middle" style="fill:var(--muted);font-size:11px">${esc(opts.yTitle || 'Count')}</text>`;
+  return h + '</svg>';
+}
+// A chart with its title, its legend, its numbers in a small table and a Download CSV button
+function insBlock(id, title, labels, series, opts = {}) {
+  const head = [opts.xTitle || 'Day', ...series.map(s => s.name)], rows = labels.map((d, i) => [d, ...series.map(s => (s.values[i] || 0) + (opts.unit || ''))]);
+  insCsv[id] = toCsv([head, ...labels.map((d, i) => [d, ...series.map(s => s.values[i] || 0)])]);
+  return `<div class="card" style="margin-bottom:10px"><b>${esc(title)}</b>${opts.note ? `<div class="muted">${esc(opts.note)}</div>` : ''}` + insSvg(labels, series, { ...opts, label: title }) +
+    (series.length > 1 ? `<div class="row muted" style="margin:4px 0">${series.map(s => `<span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${s.color || 'var(--accent)'}"></i> ${esc(s.name)}</span>`).join('')}</div>` : '') +
+    `<div style="max-height:150px;overflow:auto;margin-top:6px"><table><tr>${head.map(x => `<th>${esc(x)}</th>`).join('')}</tr>${rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table></div>` +
+    `<div class="row" style="margin-top:6px"><button class="secondary" data-csv="${esc(id)}">Download CSV</button></div></div>`;
+}
+function renderInsights(data) {
+  insData = data; insCsv = {};
+  const days = insDayList(data.days), at = Object.fromEntries(days.map((d, i) => [d, i])), zero = () => days.map(() => 0);
+  // Activity
+  const kinds = {}, perDay = zero();
+  for (const r of data.activity || []) { const i = at[r.day]; if (i === undefined) continue; (kinds[r.kind] = kinds[r.kind] || zero())[i] += r.n; perDay[i] += r.n; }
+  const visits = zero(), shared = zero();
+  for (const r of data.visits || []) { const i = at[r.day]; if (i === undefined) continue; visits[i] = r.visits; shared[i] = r.shared; }
+  const vSum = visits.reduce((a, b) => a + b, 0), sSum = shared.reduce((a, b) => a + b, 0), pct = (a, b) => b ? Math.round(a / b * 1000) / 10 : 0;
+  const order = Object.keys(kinds).sort((a, b) => kinds[b].reduce((x, y) => x + y, 0) - kinds[a].reduce((x, y) => x + y, 0) || a.localeCompare(b));
+  if (insKind && !kinds[insKind]) insKind = null;
+  $('insActivity').innerHTML =
+    `<div class="grid" style="margin-bottom:10px">${[['Records', perDay.reduce((a, b) => a + b, 0)], ['Record kinds', order.length], ['Visits (added up per day)', vSum], ['Visits in shared worlds', pct(sSum, vSum) + '%']].map(([l, v]) => `<div class="stat card"><b>${v}</b><span>${esc(l)}</span></div>`).join('')}</div>` +
+    insBlock('records', 'Records per day', days, [{ name: 'Records', values: perDay }], { yTitle: 'Records' }) +
+    insBlock('visits', 'Visits per day', days, [{ name: 'Visits', values: visits, color: INS_COLORS[0] }, { name: 'In a shared world', values: shared, color: INS_COLORS[1] }], { line: true, yTitle: 'Visits', note: 'A visit is one opening of the game (a visit code is new each time). Only the number of visits is shown.' }) +
+    insBlock('share', 'Share of visits in shared worlds', days, [{ name: 'In a shared world', values: visits.map((v, i) => pct(shared[i], v)) }], { line: true, unit: '%', top: 100, yTitle: 'Share of visits' }) +
+    `<b>Every kind of record</b><div class="muted">Sorted by how many. Tap a kind for its chart per day, its numbers and its most frequent details.</div>` +
+    `<div class="grid" id="insKinds" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr));margin:8px 0">${order.map(k => `<button class="secondary" data-inskind="${esc(k)}" style="text-align:left;padding:8px;color:var(--ink)${k === insKind ? ';border-color:var(--accent)' : ''}"><b>${esc(k)}</b> <span class="muted">${kinds[k].reduce((a, b) => a + b, 0)}</span>${insSvg(days, [{ name: k, values: kinds[k] }], { mini: true, w: 220, h: 80, label: k + ' per day' })}</button>`).join('') || '<span class="muted">No records in this period.</span>'}</div>` +
+    `<div id="insKindDetail">${insKind ? insBlock('kind_' + insKind, insKind + ' per day', days, [{ name: insKind, values: kinds[insKind] }], { yTitle: 'Records' }) + '<div id="insDetails" class="muted">Loading the details...</div>' : ''}</div>` +
+    (order.length ? (() => { insCsv.all_kinds = toCsv([['Day', ...order], ...days.map((d, i) => [d, ...order.map(k => kinds[k][i])])]); return '<div class="row"><button class="secondary" data-csv="all_kinds">Download CSV: every kind per day</button></div>'; })() : '');
+  // Errors
+  const vers = [...new Set((data.errors || []).map(r => r.version))].sort(), byVer = Object.fromEntries(vers.map(v => [v, zero()]));
+  for (const r of data.errors || []) { const i = at[r.day]; if (i !== undefined) byVer[r.version][i] += r.n; }
+  const top = data.top_errors || [];
+  insCsv.top_errors = toCsv([['Error', 'Where', 'Count', 'First day', 'Last day', 'Versions'], ...top.map(e => [e.message, e.where_seen, e.n, e.first_day, e.last_day, (e.versions || []).join(' ')])]);
+  $('insErrors').innerHTML =
+    insBlock('errors', 'Errors per day, by game version', days, vers.length ? vers.map((v, i) => ({ name: v, values: byVer[v], color: INS_COLORS[i % INS_COLORS.length] })) : [{ name: 'Errors', values: zero() }], { yTitle: 'Errors' }) +
+    `<div class="card"><b>The 20 most frequent errors</b><div class="muted">The same error from many devices is one row (numbers in the message are taken out). Tap a row for its latest stack trace.</div>` +
+    (top.length ? `<div style="overflow-x:auto"><table><tr><th>Error</th><th>Where</th><th>Count</th><th>First day</th><th>Last day</th><th>Versions</th></tr>${top.map((e, i) => `<tr data-inserr="${i}" style="cursor:pointer"><td>${esc(e.message)}</td><td>${esc(e.where_seen || '')}</td><td>${e.n}</td><td>${esc(e.first_day)}</td><td>${esc(e.last_day)}</td><td>${esc((e.versions || []).join(', '))}</td></tr><tr class="hide" id="insStack${i}"><td colspan="6"><pre style="white-space:pre-wrap;margin:0;font-size:12px">${esc(e.stack || 'No stack trace was recorded.')}</pre></td></tr>`).join('')}</table></div>` : '<div class="muted" style="margin-top:6px">No errors in this period.</div>') +
+    `<div class="row" style="margin-top:6px"><button class="secondary" data-csv="top_errors">Download CSV</button></div></div>`;
+  // the versions to choose from
+  const sel = $('insVersion'), cur = sel.value;
+  sel.innerHTML = '<option value="">All versions</option>' + (data.versions || []).map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  sel.value = (data.versions || []).includes(cur) ? cur : '';
+  if (insKind) loadInsDetails();
+}
+function renderInsDetails(rows) {
+  const el = $('insDetails'); if (!el) return;
+  if (!rows.length) { el.textContent = 'No detail to show: this kind has none, or fewer than 3 different visits share one.'; return; }
+  insCsv.details = toCsv([['Detail', 'Count'], ...rows.map(r => [r.detail, r.n])]);
+  el.innerHTML = `<b style="color:var(--ink)">Top ${rows.length} details of ${esc(insKind)}</b><div class="bars">${barsHtml(rows.map(r => [r.detail, r.n]), 160)}</div><div class="row"><button class="secondary" data-csv="details">Download CSV</button></div>`;
+}
+async function loadInsDetails() {
+  const kind = insKind;
+  const { data, error } = await sb.rpc('insights_details', { p_days: Number($('insDays').value), p_version: $('insVersion').value || null, p_kind: kind });
+  if (kind !== insKind) return;
+  if (error) { const el = $('insDetails'); if (el) el.textContent = 'Details not available: ' + error.message; return; }
+  renderInsDetails(Array.isArray(data) ? data : []);
+}
+async function loadInsights() {
+  $('insMsg').textContent = 'Loading...';
+  const t0 = performance.now();
+  const { data, error } = await sb.rpc('insights', { p_days: Number($('insDays').value), p_version: $('insVersion').value || null });
+  if (error || !data) { $('insMsg').textContent = 'Not available: ' + (error ? error.message : 'no answer') + ' (migration 0020 may not be applied yet, or this is not the owner\'s account).'; return; }
+  renderInsights(data);
+  $('insMsg').textContent = 'Loaded in ' + ((performance.now() - t0) / 1000).toFixed(1) + ' seconds.';
+}
+$('openInsights').addEventListener('click', () => { $('insightsCard').classList.remove('hide'); loadInsights(); $('insightsCard').scrollIntoView({ behavior: 'smooth' }); });
+$('closeInsights').addEventListener('click', () => $('insightsCard').classList.add('hide'));
+$('insDays').addEventListener('change', loadInsights);
+$('insVersion').addEventListener('change', loadInsights);
+$('insightsCard').addEventListener('click', e => {
+  const c = e.target.closest('[data-csv]'), k = e.target.closest('[data-inskind]'), r = e.target.closest('[data-inserr]');
+  if (c && insCsv[c.dataset.csv] !== undefined) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([insCsv[c.dataset.csv] + '\n'], { type: 'text/csv' })); a.download = 'insights-' + c.dataset.csv + '-' + $('insDays').value + 'days.csv'; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }
+  else if (k) { insKind = insKind === k.dataset.inskind ? null : k.dataset.inskind; renderInsights(insData); const d = $('insKindDetail'); if (insKind && d) d.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+  else if (r) $('insStack' + r.dataset.inserr).classList.toggle('hide');
+});
+window.insightsTest = { render: d => { $('dash').classList.remove('hide'); $('insightsBar').classList.remove('hide'); $('insightsCard').classList.remove('hide'); renderInsights(d); }, details: (kind, rows) => { insKind = kind; renderInsights(insData); renderInsDetails(rows); }, csv: () => insCsv, svg: insSvg };
 
 // ---- Reports (0.6.91, SPEC-038): readable and changeable by the owner's account only (migration 0015) ----
 // The charts are always shown at the top. Actions: mark done; for a build, put the land back in the 32 by 32 box
@@ -700,6 +808,21 @@ load();
     </span>
   </div>
   <div id="loadErr" class="err"></div>
+
+  <div class="row hide" id="insightsBar" style="margin-bottom:14px"><button id="openInsights">Insights</button><span class="muted">Charts of everything the game records, and of errors by game version (owner only).</span></div>
+  <div class="card hide" id="insightsCard">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px"><b>Insights (owner only)</b><button class="secondary" id="closeInsights">Close</button></div>
+    <div class="row" style="margin-bottom:10px">
+      <label class="muted">Period <select id="insDays"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></label>
+      <label class="muted">Game version <select id="insVersion"><option value="">All versions</option></select></label>
+      <span id="insMsg" class="muted"></span>
+    </div>
+    <div class="muted" style="margin-bottom:8px">Counts only: no visit code or world code is shown here. A detail is shown only when at least 3 different visits have it. Days are in world time (UTC).</div>
+    <h3 style="margin:14px 0 6px">Activity</h3>
+    <div id="insActivity"></div>
+    <h3 style="margin:18px 0 6px">Errors</h3>
+    <div id="insErrors"></div>
+  </div>
 
   <div id="stats" class="grid" style="margin-bottom:14px"></div>
 

@@ -4334,3 +4334,44 @@ test('SPEC-037: on a phone the fact is at least 20 px, the card is at the side a
     assert.equal(await page.evaluate(() => window.gameTest.facts.card()), null, 'it closes by itself after 12 seconds');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { device: PHONE_WIDE, saves: [phoneGame()] }));
+
+// ---- Insights in the admin page (SPEC-040) ----
+test('SPEC-040: Insights draws a chart for every record kind it is given (also one never seen before), with numbers, CSV and errors by version, and shows no code', { skip, timeout: 180000 }, () =>
+  withGame(async (page, errors) => {
+    await page.goto(new URL('/admin.html', page.url()).href, { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => !!window.insightsTest, null, { timeout: 60000 });
+    assert.equal(await page.evaluate(() => document.getElementById('insightsBar').classList.contains('hide') && document.getElementById('insightsCard').classList.contains('hide')), true, 'signed out: Insights is not shown');
+    const r = await page.evaluate(() => {
+      const day = i => new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+      window.insightsTest.render({ days: 30, versions: ['0.6.97', '0.6.98'],
+        activity: [{ day: day(0), kind: 'session_start', n: 12 }, { day: day(1), kind: 'session_start', n: 7 }, { day: day(0), kind: 'enemy_defeated', n: 30 }, { day: day(3), kind: 'a_kind_never_seen_before', n: 2 }],
+        visits: [{ day: day(0), visits: 10, shared: 4 }, { day: day(1), visits: 6, shared: 0 }],
+        errors: [{ day: day(0), version: '0.6.98', n: 5 }, { day: day(0), version: '0.6.97', n: 1 }, { day: day(2), version: '0.6.97', n: 3 }],
+        top_errors: [{ message: 'Cannot read  of undefined', where_seen: 'draw', n: 9, first_day: day(2), last_day: day(0), versions: ['0.6.97', '0.6.98'], stack: 'at draw (game:1:2)' }] });
+      const card = document.getElementById('insightsCard'), out = {};
+      out.kinds = [...card.querySelectorAll('[data-inskind]')].map(b => b.dataset.inskind);
+      out.svgs = card.querySelectorAll('svg').length; out.csvButtons = card.querySelectorAll('[data-csv]').length; out.tables = card.querySelectorAll('table').length;
+      out.csv = window.insightsTest.csv();
+      out.stats = [...card.querySelectorAll('#insActivity .stat b')].map(b => b.textContent);
+      out.errRects = card.querySelectorAll('#insErrors svg rect').length;
+      out.axis = [...card.querySelector('#insActivity svg').querySelectorAll('text')].map(t => t.textContent);
+      card.querySelector('[data-inserr="0"]').click(); out.stack = !document.getElementById('insStack0').classList.contains('hide') && document.getElementById('insStack0').textContent;
+      card.querySelector('[data-inskind="enemy_defeated"]').click();
+      window.insightsTest.details('enemy_defeated', [{ detail: 'imp', n: 20 }, { detail: 'puglin', n: 10 }]);
+      out.detail = document.getElementById('insDetails').textContent; out.kindChart = !!document.querySelector('#insKindDetail svg');
+      out.text = [...card.querySelectorAll('td,th,b,span,text,title,div.muted')].map(e => e.textContent).join(' | '); out.versions = [...document.querySelectorAll('#insVersion option')].map(o => o.value);
+      out.wide = card.scrollWidth <= card.clientWidth + 1;
+      return out;
+    });
+    assert.deepEqual(r.kinds, ['enemy_defeated', 'session_start', 'a_kind_never_seen_before'], 'every kind, sorted by how many, with no change to the page for a new one');
+    assert.deepEqual(r.stats, ['51', '3', '16', '25%']);
+    assert.ok(r.svgs >= 7, 'charts: ' + r.svgs); assert.ok(r.csvButtons >= 5); assert.ok(r.tables >= 5, 'each chart has its numbers');
+    assert.match(r.csv.records, /^Day,Records\n/); assert.match(r.csv.records, /,42$/);
+    assert.match(r.csv.errors, /^Day,0\.6\.97,0\.6\.98\n/); assert.match(r.csv.all_kinds, /^Day,enemy_defeated,session_start,a_kind_never_seen_before\n/);
+    assert.match(r.csv.top_errors, /Cannot read  of undefined,draw,9,/);
+    assert.equal(r.errRects, 3, 'errors per day are split by version'); assert.ok(r.axis.includes('Day') && r.axis.includes('Records'), 'labels on both axes');
+    assert.match(r.stack, /at draw/); assert.match(r.detail, /imp/); assert.equal(r.kindChart, true);
+    assert.deepEqual(r.versions, ['', '0.6.97', '0.6.98']);
+    assert.ok(!(r.text.match(/\b[a-z0-9]{16,}\b/g) || []).some(w => /[0-9]/.test(w) && /[a-z]/.test(w)), 'no visit code is shown: ' + (r.text.match(/\b[a-z0-9]{16,}\b/g) || []).join(' '));
+    assert.deepEqual(errors.filter(e => !/supabase|Failed to load|net::/i.test(e)), [], 'errors: ' + errors.join(' | '));
+  }, { device: PC, saves: [phoneGame()] }));
