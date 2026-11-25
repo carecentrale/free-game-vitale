@@ -5602,14 +5602,14 @@ try { mireloVoice = localStorage.getItem('kidsgame.mireloVoice') !== '0'; } catc
 function setMireloVoice(on) { mireloVoice = !!on; try { localStorage.setItem('kidsgame.mireloVoice', on ? '1' : '0'); } catch (e) {} if (!on) mireloHush(); }
 // His voice is the device's own (nothing is sent to a voice service). It follows the Sounds level and is silent when
 // sounds are off or the device has no voice; the text always shows as well.
-function mireloHush() { try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {} }
+function mireloHush() { try { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); } catch (e) {} }
 function mireloSpeak(text) {
   try {
     if (!mireloVoice || !vol.sfx || !('speechSynthesis' in window)) return false;
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
+    window.speechSynthesis.cancel();
+    const u = new window.SpeechSynthesisUtterance(text);
     u.rate = 0.85; u.pitch = 0.9; u.volume = VOL[vol.sfx];
-    speechSynthesis.speak(u);
+    window.speechSynthesis.speak(u);
     return true;
   } catch (e) { return false; }
 }

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = p => fs.readFileSync(path.join(root, p), 'utf8');
 const game = read('build/prototype-3d-v7.html');
-const start = game.indexOf('// ---- Mirelo, the wandering mage (0.6.93'), end = game.indexOf('// ---- Quiz questions (0.6.63', start);
+const start = game.indexOf('// ---- Mirelo, the wandering mage (0.6.93'), end = game.indexOf('// ---- Teacher Mirelo: talks from lessons built into the game (0.6.103', start);
 assert.ok(start > 0 && end > start, 'Mirelo code markers not found');
 const code = game.slice(start, end), plain = code.replace(/\/\/.*$/gm, '');
 const M = vm.runInContext(code.slice(0, code.indexOf('const MIRELO_KEY')) + '\n;({ MIRELO_LINES, MIRELO_TIPS, MIRELO_DEFAULTS, mireloSet, setMireloTimes })', vm.createContext({ Number }));
