@@ -116,6 +116,15 @@ The parent wants Claude to do the build and release work on this PC (Windows lap
 ## Assets and licences
 - Quaternius assets (Bestiary, Universal packs) are under the Quaternius Asset License: free for commercial games, no credit required, cannot be resold or redistributed as assets.
 
+## Built 25 Nov 2026 (0.6.90 to 0.6.99): what a later change must keep
+- Backend functions: their source is in `docs/functions/<name>/` (`teacher-interest`, `delete-my-data`, `bird-facts`), with the rules in a `logic.mjs` the tests can run. Secrets are named there, never written. `bird-facts` (SPEC-037) calls Anthropic's API with the secret `ANTHROPIC_API_KEY`: it may send only the bird kind, the place, the rules and pool facts.
+- Anything written by AI shows the flag of SPEC-038 beside it (`aiFlagHtml(id)`), and the game only downloads AI text that the server approved: the game itself never calls an AI.
+- Reports, Delete my data, Playing together, Mirelo, dragons, monsters, birds, bird facts and the living world each have a test file in `scripts/tests/` and a marked block in the game file (`// ---- Name (version, SPEC-NNN)`): the tests cut the block out by those marks, so keep the marks.
+- `game_settings_key_check` lists every allowed setting key: a new migration that adds a key must repeat all the earlier ones (see 0019).
+- Insights (SPEC-040) in the admin page shows every record kind by itself: never name a record kind in its code, and never return a visit code or world code from its database functions.
+- Living world (SPEC-026): ground blocks are turned and shaded from their place only (`groundLook`); never use the seed or chance there. Effects go through `fxAdd` (60 at most, one draw). Wind and ripples are in the materials' shaders and follow `windOn` (the parent's Calm motion).
+- The test browser draws only a few frames a second: a browser test must wait for the game's own clock (poll), not for wall time.
+
 ## Project instructions are tracked (23 Nov 2026)
 - The claude.ai project instructions are kept in `docs/PROJECT_INSTRUCTIONS.md`, because claude.ai keeps no history of them. When they change, update that file in the same chat with a dated line under "Changes". If the project instructions and that file differ, tell the parent.
 
