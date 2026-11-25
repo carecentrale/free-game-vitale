@@ -1,0 +1,4 @@
+request: status 20261125T204138Z
+status: OK: status, started 2026-11-25 15:42:34, finished 2026-11-25 15:42:41, exit code 0.
+reported: 2026-11-25 15:42:41 (build laptop time)
+game folder commit: cd77e06
