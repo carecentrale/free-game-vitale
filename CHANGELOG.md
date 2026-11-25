@@ -14,6 +14,12 @@ Insights: charts of everything the game records, and of errors by game version.
 - Nick's answer was "weekly" where the spec says once a day; the limit of new facts a day (50) is unchanged, so about 50 facts a week at most. "Write new facts now" in the admin page adds more on any day.
 - Not applied yet and not deployed yet on 25 Nov: see docs/migrations/README.md.
 
+## 0.6.106: the app's Google sign-in has its client ID
+- The game now holds the public Web client ID of the Google sign-in (Google Cloud project adventures-of-drenerics, client "WebApp - Supbase"). It is not a secret; the client secret is not in the repository and a test fails if one ever appears.
+- Set up in Google Cloud on 25 Nov 2026 (by the builder in Nick's browser, at his request): two Android clients for com.drenerics.adventurers, one for Play's app signing key and one for the upload key.
+- Not working yet: Supabase's Google sign-in is switched off (needs the client ID and secret, entered by Nick), Google's consent screen is in Testing with no test users, and the app needs a new Android build.
+- Checked: syntax, fast tests. Not checked: a real sign-in on a phone.
+
 ## 0.6.105: Google sign-in inside the Android app (Nick's request in chat, 25 Nov 2026)
 - Why it did not work: the app is the web game inside an app shell. Google does not show its sign-in page inside an app's own web view, and the game there has no web address to come back to.
 - Now: in the app, "Sign in with Google" in the parent area opens the phone's own Google account window over the game. Google hands back a signed token, the database checks it, and the grown-up is signed in without leaving the game. In a browser nothing changes. This opens the Playing together switch, cloud save and the owner's Teacher Mirelo preview in the app.

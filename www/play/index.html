@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.105 (3D)</title>
+<title>Adventurers of Drenerics v0.6.106 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -3192,6 +3192,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.106', title: 'For grown-ups', items: [
+    'The app now knows which Google sign-in to use. Signing in with Google inside the app starts working once the sign-in is switched on for the game.',
+  ] },
   { v: '0.6.105', title: 'For grown-ups', items: [
     'For grown-ups: work on signing in with Google inside the Android app.',
   ] },
@@ -5605,7 +5608,7 @@ const TEACH_LINES = {
 // with Google, and kept on that device. No address switch any more: nothing in the page address turns him on.
 // The game's public Google "Web application" client ID (the same one the database's Google sign-in uses). It is not a
 // secret: it only names the app to Google. Empty until Nick gives it: until then the app says sign-in is not set up.
-const GOOGLE_WEB_CLIENT_ID = '';
+const GOOGLE_WEB_CLIENT_ID = '623215450354-cholpl0n7un4aqsbko0djcsfikv3igov.apps.googleusercontent.com';
 const TEACH_KEY = 'kidsgame.teacherPreview', TEACH_OWNER = 'yammay@gmail.com';
 let teachOn = false;
 try { teachOn = localStorage.getItem(TEACH_KEY) === '1'; } catch (e) {}
@@ -8690,7 +8693,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.105';
+const VERSION = '0.6.106';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

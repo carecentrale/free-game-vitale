@@ -31,7 +31,8 @@ test('in the app the phone\'s Google window signs the grown-up in and the game g
 
 test('nothing about the account is recorded, and no secret is in the game', () => {
   for (const m of code.matchAll(/logEvent\('signin_app', ([^)]*)\)/g)) assert.match(m[1], /^'(ok|no token|refused|closed or failed|not set up)'$/, m[1]);
-  assert.match(game, /const GOOGLE_WEB_CLIENT_ID = '([0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com)?';/, 'empty, or a Web client ID (public, not a secret)');
+  assert.match(game, /const GOOGLE_WEB_CLIENT_ID = '[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com';/, 'a Web client ID (public, not a secret)');
+  assert.doesNotMatch(game, /GOCSPX-/, 'never a client secret');
   assert.doesNotMatch(game, /GOCSPX-|client_secret/i, 'never a client secret');
   assert.match(read('docs/EVENTS.md'), /`signin_app`/);
 });
