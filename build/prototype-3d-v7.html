@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.97 (3D)</title>
+<title>Adventurers of Drenerics v0.6.98 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -3117,6 +3117,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.98', title: 'Bird facts', items: [
+    'Tap a bird to learn a fun fact about it, with new facts all the time!',
+    'If a fact looks wrong, tap the little flag and a grown-up will check it.',
+  ] },
   { v: '0.6.97', title: 'Birds everywhere', items: [
     'Birds everywhere! Parrots in the rainforest, penguins in the snow, ducks on the lakes, owls in the trees and more.',
     'Walk up to them and they move away, then settle again a little further off. Birds are just for watching.',
@@ -4951,6 +4955,7 @@ function blockFromQuickBar() {
 }
 
 canvas.addEventListener('pointerdown', e => {
+  if (e.button === 2 && birdTapAt(e.clientX, e.clientY)) return;   // a right-click on a bird never places a block or casts (0.6.98)
   if (e.button === 2 && defOf(held()) && defOf(held()).kind === 'spell') { fireAt(e.clientX, e.clientY); return; }
   if (e.button === 2) {
     const a = aim(e);
@@ -4970,6 +4975,9 @@ canvas.addEventListener('pointerdown', e => {
   // A press on a merchant's cart never digs or fights: if it was a tap, the trades open on release (0.6.77)
   pendingMerchant = merchantAt(e.clientX, e.clientY);
   if (pendingMerchant) return;
+  // A press on a bird never digs, builds, fights or casts: if it was a tap, its fun fact opens on release (0.6.98, SPEC-037)
+  pendingBird = birdTapAt(e.clientX, e.clientY);
+  if (pendingBird) return;
   // The Spell button is lit: this tap only casts. It does not dig, build or hit (0.6.74)
   if (spellArmed) { pendingCast = { x: e.clientX, y: e.clientY }; return; }
   if (defOf(held()) && defOf(held()).kind === 'spell') { pendingCast = { x: e.clientX, y: e.clientY }; return; }
@@ -5022,8 +5030,10 @@ canvas.addEventListener('pointerup', e => {
   if (spellArmed && press && press.id === e.pointerId && press.moved) spellArmedAt = performance.now();   // a drag turns the camera, casts nothing and leaves the button lit
   if (press && press.id === e.pointerId && !press.moved && pendingFriend) { tapFriend(); if (spellArmed) armSpell(false); }
   if (press && press.id === e.pointerId && !press.moved && pendingMerchant) { tapMerchant(pendingMerchant); if (spellArmed) armSpell(false); }
+  if (press && press.id === e.pointerId && !press.moved && pendingBird) openBirdCard(pendingBird.kind);
   pendingFriend = false;
   pendingMerchant = null;
+  pendingBird = null;
   pendingPlace = null;
   pendingCast = null;
   press = null;
@@ -8242,7 +8252,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.97';
+const VERSION = '0.6.98';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -8300,6 +8310,7 @@ const loadSb = () => import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@
   .then(m => { if (!sb) sb = m.createClient(SB_URL, SB_KEY, { auth: { persistSession: true } }); })
   .catch(() => {});
 const sbReady = loadSb();
+sbReady.then(() => loadBirdFacts());   // the approved bird facts this device does not have yet (0.6.98, SPEC-037)
 
 let paused = true;
 let profile = (saved && saved.profile) || null;   // { sex, race }
@@ -8951,6 +8962,138 @@ function reportAiLine(id) {
   return res === 'limit' ? REPORT_LIMIT_MSG : 'Thank you! A grown-up will check it.';
 }
 document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-aiflag]'); if (b) { const msg = reportAiLine(b.dataset.aiflag); b.replaceWith(Object.assign(document.createElement('div'), { textContent: msg, className: 'aiThanks' })); } });
+
+// ---- Bird facts (0.6.98, SPEC-037): tap a bird for a card with its picture, its name and one fun fact ----
+// The facts are written by AI on our server and checked by a second AI there (docs/functions/bird-facts); the game only
+// downloads the approved ones, all five reading versions of each, and keeps them on the device. Nothing a child does asks
+// the AI anything, and the server never learns which version a game shows. Which facts were seen stays on the device.
+const BIRD_NAMES = { songbird: 'Songbird', parrot: 'Parrot', owl: 'Owl', duck: 'Duck', penguin: 'Penguin', gull: 'Gull', geese: 'Goose', hawk: 'Hawk' };
+const FACTS_KEY = 'kidsgame.birdFacts', FACTS_SEEN_KEY = 'kidsgame.birdSeen';
+const FACT_REACH = 25, FACT_SHOW_MS = 12000, FACT_GAP_MS = 2000;
+const factRowOk = r => !!r && Number.isInteger(r.id) && !!BIRD_KINDS[r.kind] && [r.v1, r.v2, r.v3, r.v4, r.v5].every(t => typeof t === 'string' && t.length > 0 && t.length <= 200);
+const factsFrom = v => { const out = {}; if (v && typeof v === 'object' && !Array.isArray(v)) for (const [id, f] of Object.entries(v)) if (/^\d{1,12}$/.test(id) && Array.isArray(f) && f.length === 6 && BIRD_KINDS[f[0]] && f.slice(1).every(t => typeof t === 'string' && t.length <= 200)) out[id] = f; return out; };
+let birdFacts = factsFrom(readJSON(FACTS_KEY, {}));   // fact number -> [kind, version 1 ... version 5]
+// When the game opens with internet: the numbers of the approved facts, then only the facts this device does not have yet.
+// A fact that is no longer approved (removed by the owner, or held after three flags) leaves the device here.
+async function loadBirdFacts() {
+  try {
+    await sbReady;
+    if (!sb) return false;
+    const ids = [];
+    for (let from = 0; from < 4000; from += 1000) {
+      const { data, error } = await sb.from('bird_facts').select('id').eq('status', 'approved').order('id').range(from, from + 999);
+      if (error || !Array.isArray(data)) return false;
+      for (const r of data) if (r && Number.isInteger(r.id)) ids.push(r.id);
+      if (data.length < 1000) break;
+    }
+    const live = new Set(ids.map(String));
+    for (const id of Object.keys(birdFacts)) if (!live.has(id)) delete birdFacts[id];
+    const missing = ids.filter(id => !birdFacts[id]);
+    for (let i = 0; i < missing.length; i += 200) {
+      const { data, error } = await sb.from('bird_facts').select('id,kind,v1,v2,v3,v4,v5').in('id', missing.slice(i, i + 200));
+      if (error || !Array.isArray(data)) break;
+      for (const r of data) if (factRowOk(r)) birdFacts[r.id] = [r.kind, r.v1, r.v2, r.v3, r.v4, r.v5];
+    }
+    writeJSON(FACTS_KEY, birdFacts);
+    return true;
+  } catch (e) { return false; }
+}
+// The reading version for this game: the band the parent chose, or (on Auto) the band of the child's own Words level
+const factBand = () => quizLevels.band || Math.max(1, Math.min(5, Math.ceil(quizLevels.words.best / 20)));
+// A fact of this kind not seen yet on this device; when all were seen they start again, oldest seen first
+function nextBirdFact(kind) {
+  const ids = Object.keys(birdFacts).filter(id => birdFacts[id][0] === kind && !aiLineHidden(id));
+  if (!ids.length) return null;
+  const all = readJSON(FACTS_SEEN_KEY, {}), seen = all && typeof all === 'object' && !Array.isArray(all) ? all : {};
+  const list = (Array.isArray(seen[kind]) ? seen[kind] : []).map(String).filter(id => ids.includes(id));
+  const fresh = ids.filter(id => !list.includes(id));
+  const id = fresh.length ? fresh[Math.floor(Math.random() * fresh.length)] : list[0];
+  seen[kind] = [...list.filter(x => x !== id), id];
+  writeJSON(FACTS_SEEN_KEY, seen);
+  return { id, text: birdFacts[id][factBand()] };
+}
+// The bird's picture, drawn from the same shape the game draws in the world
+let birdPic = null;
+function birdPicture(kind, canvas) {
+  try {
+    birdShapes();
+    if (!birdPic) {
+      const sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 20), g = new THREE.Group();
+      sc.background = new THREE.Color(0xbfe3ff);
+      sc.add(new THREE.AmbientLight(0xffffff, 1.6));
+      const sun = new THREE.DirectionalLight(0xffffff, 1.8); sun.position.set(2, 3, 4); sc.add(sun);
+      const body = new THREE.Mesh(birdDraw.bodies[kind].geometry, propMat.clone());
+      const wmat = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide });
+      const wings = [1, -1].map(sd => { const w = new THREE.Mesh(birdDraw.wings.geometry, wmat); w.userData.sd = sd; g.add(w); return w; });
+      g.add(body); sc.add(g);
+      birdPic = { sc, cam, g, body, wings, wmat, rt: new THREE.WebGLRenderTarget(192, 192), px: new Uint8Array(192 * 192 * 4), lut: Uint8ClampedArray.from({ length: 256 }, (_, i) => Math.round(255 * Math.pow(i / 255, 1 / 2.2))) };
+    }
+    const P = birdPic, col = BIRD_KINDS[kind].cols[0], tall = kind === 'penguin' || kind === 'owl';
+    P.body.geometry = birdDraw.bodies[kind].geometry; P.body.material.color.setHex(col);
+    P.wmat.color.setHex(kind === 'penguin' ? 0x20242e : col).multiplyScalar(0.8);
+    for (const w of P.wings) { const sd = w.userData.sd; w.position.set(sd * 0.12, kind === 'penguin' ? 0.55 : 0.08, 0); w.rotation.set(0, sd > 0 ? 0 : Math.PI, -0.95, 'YXZ'); w.scale.set(BIRD_WING[kind] * 0.6, 1, sd > 0 ? 1 : -1); }
+    P.g.rotation.y = 0.75;
+    P.cam.position.set(0, tall ? 0.75 : 0.45, tall ? 4.2 : 3.4); P.cam.lookAt(0, tall ? 0.45 : 0.08, 0);
+    const was = renderer.getRenderTarget();
+    renderer.setRenderTarget(P.rt); renderer.render(P.sc, P.cam);
+    renderer.readRenderTargetPixels(P.rt, 0, 0, 192, 192, P.px);
+    renderer.setRenderTarget(was);
+    const ctx = canvas.getContext('2d'), img = ctx.createImageData(192, 192);
+    for (let y = 0; y < 192; y++) for (let x = 0; x < 192; x++) { const a = ((191 - y) * 192 + x) * 4, b = (y * 192 + x) * 4; img.data[b] = P.lut[P.px[a]]; img.data[b + 1] = P.lut[P.px[a + 1]]; img.data[b + 2] = P.lut[P.px[a + 2]]; img.data[b + 3] = 255; }
+    ctx.putImageData(img, 0, 0);
+    return true;
+  } catch (e) { return false; }
+}
+// The card at the side of the screen. The game keeps running while it is open.
+const birdCardEl = document.createElement('div');
+birdCardEl.id = 'birdCard';
+birdCardEl.style.cssText = 'position:fixed;right:10px;top:50%;transform:translateY(-50%);z-index:12;width:min(300px,46vw);max-height:92vh;overflow:auto;box-sizing:border-box;padding:12px 14px 14px;border-radius:18px;background:#fff8e6;color:#2a2233;box-shadow:0 6px 24px rgba(0,0,0,.45);display:none;font-family:system-ui,sans-serif;text-align:center';
+document.body.append(birdCardEl);
+document.head.append(Object.assign(document.createElement('style'), { textContent: '#birdCard canvas{width:min(150px,30vh);height:min(150px,30vh);border-radius:14px;display:block;margin:0 auto}#birdCard .bcName{font-size:30px;font-weight:800;margin:6px 0 4px}#birdCard .bcFact{font-size:22px;line-height:1.3;margin:4px 0 10px}#birdCard .bcX{position:absolute;right:6px;top:6px;min-width:48px;min-height:48px;border:0;border-radius:12px;background:#e9dcc0;color:#2a2233;font-size:22px;font-weight:700;cursor:pointer}#birdCard .bcFlag{display:flex;align-items:center;justify-content:center;gap:10px;font-size:16px;color:#6a5f55}#birdCard .aiThanks{font-size:18px;font-weight:600;color:#2a2233}#birdCard .aiThanks~span{display:none}' }));
+let birdCard = null, birdCardClosed = -1e9, birdCardTimer = 0, pendingBird = null;
+function closeBirdCard() {
+  if (!birdCard) return;
+  birdCard = null; birdCardEl.style.display = 'none'; clearTimeout(birdCardTimer); birdCardClosed = performance.now();
+}
+function openBirdCard(kind) {
+  if (!BIRD_KINDS[kind]) return false;
+  if (!birdCard && performance.now() - birdCardClosed < FACT_GAP_MS) return false;   // just closed: no new card for 2 seconds
+  const f = nextBirdFact(kind);
+  birdCard = { kind, id: f ? f.id : null, band: factBand(), text: f ? f.text : '', at: performance.now() };
+  birdCardEl.innerHTML = '<button class="bcX" aria-label="Close">&#10005;</button><canvas width="192" height="192"></canvas><div class="bcName">' + BIRD_NAMES[kind] + '</div>' +
+    (f ? '<div class="bcFact">' + esc(f.text) + '</div><div class="bcFlag">' + aiFlagHtml(f.id) + '<span>Something wrong?</span></div>' : '');
+  birdCard.picture = birdPicture(kind, birdCardEl.querySelector('canvas'));
+  birdCardEl.style.display = 'block';
+  clearTimeout(birdCardTimer); birdCardTimer = setTimeout(closeBirdCard, FACT_SHOW_MS);
+  sfx('tap');
+  logOnce('animal_fact', kind + ' ' + (f ? f.id : 'none') + ' band' + birdCard.band);
+  return true;
+}
+birdCardEl.addEventListener('click', e => { if (e.target.closest('.bcX')) closeBirdCard(); });
+// A tap anywhere else closes the card (a tap on another bird opens that bird's card instead)
+document.addEventListener('pointerdown', e => { if (birdCard && !birdCardEl.contains(e.target) && !(e.target === renderer.domElement && birdTapAt(e.clientX, e.clientY))) closeBirdCard(); }, true);
+// The bird under a tap: any bird drawn now within 25 blocks that nothing hides, with a generous area around it
+// (at least 1.5 blocks, and never less than a fingertip). Cheap: one screen position for each of the 40 birds at most.
+const birdTapV = new THREE.Vector3();
+function birdTapAt(x, y) {
+  if (!birdDraw.shown.length || anyPanelOpen()) return null;
+  const f = innerHeight / 2 / Math.tan(camera.fov * Math.PI / 360);
+  let best = null, bd = Infinity;
+  for (const b of birdDraw.shown) {
+    if (Math.hypot(b.x - px, b.y - py, b.z - pz) > FACT_REACH) continue;
+    birdTapV.set(b.x, b.y + BIRD_KINDS[b.kind].size * 0.4, b.z);
+    const d = camera.position.distanceTo(birdTapV);
+    birdTapV.project(camera);
+    if (birdTapV.z >= 1) continue;
+    const dd = Math.hypot(x - (birdTapV.x + 1) / 2 * innerWidth, y - (1 - birdTapV.y) / 2 * innerHeight);
+    if (dd <= Math.max(40, 1.5 * f / Math.max(d, 0.5)) && dd < bd) { best = b; bd = dd; }
+  }
+  if (!best) return null;
+  // not through the ground or a wall: the line from the eye to the bird is clear
+  const c = camera.position, ty = best.y + BIRD_KINDS[best.kind].size * 0.4, len = Math.hypot(best.x - c.x, ty - c.y, best.z - c.z);
+  for (let s = 0.5; s < len - 1.2; s += 0.5) { const k = s / len; if (solid(get(Math.floor(c.x + (best.x - c.x) * k), Math.floor(c.y + (ty - c.y) * k), Math.floor(c.z + (best.z - c.z) * k)))) return null; }
+  return best;
+}
 
 // ---- The report panel: opened from Settings in a shared world ----
 const reportEl = document.createElement('div');
@@ -9899,6 +10042,12 @@ Promise.all([
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  // SPEC-037 (0.6.98): the bird facts on this device, the card and the tap, for the tests
+  facts: { set: o => { birdFacts = factsFrom(o); writeJSON(FACTS_KEY, birdFacts); }, get: () => birdFacts, load: loadBirdFacts, band: factBand, next: nextBirdFact, open: openBirdCard, close: closeBirdCard,
+    card: () => birdCard && { ...birdCard, shown: birdCardEl.style.display !== 'none', name: (birdCardEl.querySelector('.bcName') || {}).textContent, fact: (birdCardEl.querySelector('.bcFact') || {}).textContent || '', flag: !!birdCardEl.querySelector('[data-aiflag]') },
+    tapAt: (x, y) => { const b = birdTapAt(x, y); return b && { kind: b.kind, x: b.x, y: b.y, z: b.z }; },
+    screen: b => { const v = new THREE.Vector3(b.x, b.y + BIRD_KINDS[b.kind].size * 0.4, b.z).project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, front: v.z < 1 }; },
+    wait: ms => { birdCardClosed = performance.now() - ms; }, faceTo: (x, z) => { camYaw = Math.atan2(px - x, pz - z); } },
   // SPEC-034 (0.6.97): the birds drawn now, the birds of a square, and one bird's pose at a time, for the tests
   birds: () => birdDraw.shown.slice(), birdGroup: (cx, cz) => { const g = birdGroup(cx, cz); return g && { id: g.id, kind: g.kind, n: g.n, x: g.hx, z: g.hz, biome: BIOMES[biomeIndexAt(Math.floor(g.hx), Math.floor(g.hz))].name, water: isWaterAt(g.hx, g.hz) }; },
   birdPose: (cx, cz, i, t) => { const g = birdGroup(cx, cz); if (!g) return null; const p = birdPose(g, g.birds[i % g.n], t, birdHome(g, t)); return { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, roll: p.roll, fly: !!p.fly, hide: !!p.hide }; },

@@ -106,6 +106,7 @@ async function load() {
   loadDebugLog();
   loadCastleGap();
   loadMirelo().catch(() => {});
+  loadFacts().catch(() => {});
   loadDragons().catch(() => {});
   loadBadges();
   loadForceDays();
@@ -294,6 +295,55 @@ $('teacherTest').addEventListener('click', async () => {
     .then(x => x.json()).catch(() => ({ ok: false, error: 'network' }));
   $('teacherMsg').textContent = r.ok ? 'Sent to your own address. Check that it shows the sender, the mailing address, the Contact link and an unsubscribe link.'
     : r.error === 'no_mailing_address' ? 'Not sent: the mailing address is empty.' : 'Not sent (' + (r.error || 'error') + ').';
+});
+
+// ---- Bird facts (0.6.98, SPEC-037): the pool written by the backend function "bird-facts" (migration 0019) ----
+let factRows = [], factFlags = {};
+async function loadFacts() {
+  const [f, k, r] = await Promise.all([
+    sb.from('bird_facts').select('id,created_at,kind,place,v1,v2,v3,v4,v5,status,reason').order('id', { ascending: false }).limit(4000),
+    sb.from('game_settings').select('value').eq('key', 'facts_per_day').maybeSingle(),
+    sb.from('reports').select('ai_line,reporter').eq('kind', 'ai').limit(5000),
+  ]);
+  if (f.error) { $('factsMsg').textContent = 'Not in the database yet (migration 0019).'; return; }
+  factRows = f.data || [];
+  $('factsPerDay').value = k && k.data ? k.data.value : 50;
+  const by = {};
+  for (const x of (r && r.data) || []) (by[x.ai_line] = by[x.ai_line] || new Set()).add(x.reporter);
+  factFlags = Object.fromEntries(Object.entries(by).map(([id, s]) => [id, s.size]));
+  renderFacts();
+}
+function renderFacts() {
+  const kinds = ['songbird', 'parrot', 'owl', 'duck', 'penguin', 'gull', 'geese', 'hawk'], n = st => factRows.filter(x => x.status === st).length;
+  const per = kinds.map(k => [k, factRows.filter(x => x.kind === k && x.status === 'approved').length]);
+  $('factsStats').innerHTML = [['Approved', n('approved')], ['Held (flagged)', n('held')], ['Rejected', n('rejected')], ['Kinds with fewer than 15', per.filter(p => p[1] < 15).length]]
+    .map(([label, v]) => `<div class="stat card"><b>${v}</b><span>${esc(label)}</span></div>`).join('') + `<div class="card bars">${barsHtml(per, 80)}</div>`;
+  const show = $('factsShow').value, rows = factRows.filter(x => x.status === show).slice(0, 400);
+  $('factsTable').innerHTML = '<tr class="muted"><td>No.</td><td>Bird</td><td>The five reading versions (levels 1-20 to 81-100)</td><td>Flags</td><td></td></tr>' +
+    (rows.length ? rows.map(x => `<tr><td>${x.id}</td><td>${esc(x.kind)}</td><td>${[x.v1, x.v2, x.v3, x.v4, x.v5].map((t, i) => (i + 1) + '. ' + esc(t)).join('<br>')}${x.reason ? '<br><span class="muted">Why: ' + esc(x.reason) + '</span>' : ''}</td><td>${factFlags[x.id] || 0}</td>` +
+      `<td>${x.status === 'approved' || x.status === 'held' ? `<button class="secondary" data-factdo="removed" data-fact="${x.id}">Remove</button>` : ''}${x.status === 'held' || x.status === 'removed' ? ` <button class="secondary" data-factdo="approved" data-fact="${x.id}">Put back</button>` : ''}</td></tr>`).join('')
+      : '<tr><td colspan="5" class="muted">None.</td></tr>');
+}
+$('factsShow').addEventListener('change', renderFacts);
+$('factsTable').addEventListener('click', async e => {
+  const b = e.target.closest('[data-fact]'); if (!b) return;
+  const to = b.dataset.factdo;
+  const { data, error } = await sb.from('bird_facts').update(to === 'removed' ? { status: 'removed', reason: 'removed by the owner' } : { status: 'approved', reason: null }).eq('id', Number(b.dataset.fact)).select('id');
+  $('factsMsg').textContent = error ? 'Not done: ' + error.message : (data && data.length ? 'Done. Games take it up the next time they open.' : 'Not done: only the owner\'s account can do this.');
+  loadFacts().catch(() => {});
+});
+$('saveFacts').addEventListener('click', async () => {
+  const v = Math.round(Number($('factsPerDay').value));
+  if (!(v >= 1 && v <= 200)) { $('factsMsg').textContent = 'Choose from 1 to 200.'; return; }
+  const { data, error } = await sb.from('game_settings').update({ value: v, updated_at: new Date().toISOString() }).eq('key', 'facts_per_day').select('value');
+  $('factsMsg').textContent = error ? 'Not saved: ' + error.message : (data && data.length ? 'Saved.' : 'Not saved: only the owner\'s account can change this (or migration 0019 is not applied yet).');
+});
+$('runFacts').addEventListener('click', async () => {
+  $('factsMsg').textContent = 'Writing and checking new facts. This can take a minute...';
+  const { data, error } = await sb.functions.invoke('bird-facts', { body: { action: 'run' } });
+  $('factsMsg').textContent = error || !data || !data.ok ? 'Not done' + (data && data.error === 'no key' ? ': the Anthropic key is not set in Supabase yet.' : data && data.error === 'owner only' ? ': only the owner\'s account can do this.' : ': the function is not set up yet, or it failed.')
+    : `Done: ${data.made} written, ${data.approved} approved, ${data.rejected} rejected.` + (data.made === 0 ? ' (Today\'s limit is used, or every kind is full.)' : '');
+  loadFacts().catch(() => {});
 });
 
 // ---- Dragons (0.6.94, SPEC-033): rarity weights (game settings) and the owner's names for the kinds (migration 0018) ----
@@ -699,6 +749,18 @@ load();
       <button class="danger" id="deleteCloud">Delete cloud save</button>
     </div>
     <div class="muted" id="cloudNote">Deletes the game saved to the cloud for the account you are signed in with. The game on each device is not changed. Automatic cloud saves stay off until a game presses Save now.</div>
+  </div>
+
+  <div class="card" id="factsCard">
+    <b>Bird facts (owner only)</b>
+    <div class="muted" style="margin:6px 0">Fun facts about the game's birds, written by AI on the server and checked by a second AI request. Only approved facts reach a game. Nothing about any player is sent to the AI. A fact flagged by 3 different visits is held until you look at it.</div>
+    <div class="grid" id="factsStats"></div>
+    <div class="row" style="margin:8px 0"><label class="muted">New facts a day at most (1 to 200): <input id="factsPerDay" type="number" min="1" max="200" step="1" style="max-width:90px"></label>
+      <button class="secondary" id="saveFacts">Save</button>
+      <button class="secondary" id="runFacts">Write new facts now</button>
+      <label class="muted">Show: <select id="factsShow"><option value="approved">Approved</option><option value="held">Held (flagged)</option><option value="rejected">Rejected</option><option value="removed">Removed</option></select></label>
+      <span id="factsMsg" class="muted"></span></div>
+    <div class="scroll" style="max-height:420px;overflow:auto"><table style="width:100%;font-size:14px" id="factsTable"></table></div>
   </div>
 
   <div class="card" id="dragonsCard">

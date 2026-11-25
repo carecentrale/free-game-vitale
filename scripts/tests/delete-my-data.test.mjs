@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { handle, CODE_MINUTES, MAX_TRIES } from '../../supabase/functions/delete-my-data/logic.mjs';
+import { handle, CODE_MINUTES, MAX_TRIES } from '../../docs/functions/delete-my-data/logic.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = p => fs.readFileSync(path.join(root, p), 'utf8');
@@ -112,7 +112,7 @@ test('the two new tables are closed to the game and to signed-in parents, and th
 });
 
 test('the server function sends the email through the existing sign-in service and never creates an account', () => {
-  const fn = read('supabase/functions/delete-my-data/index.ts');
+  const fn = read('docs/functions/delete-my-data/index.ts');
   assert.ok(fn.includes('shouldCreateUser: false'));
   assert.equal([...fn.matchAll(/from '([^']+)'/g)].map(m => m[1]).join(), 'npm:@supabase/supabase-js@2,./logic.mjs');
 });

@@ -29,6 +29,7 @@ Sent every 10 seconds and when the page closes. Each row: the event kind, game v
 | `together_switch` | A grown-up signed in with Google changes Playing together in the parent area (0.6.90, SPEC-039; approved by Nick 24 Nov 2026) | `on` or `off` | "Gameplay records" |
 | `safety_reminder` | The Playing together card is shown, the first time a shared world would start on this device, and when OK is tapped (0.6.90, SPEC-039; approved by Nick 24 Nov 2026) | `shown` or `closed` | "Gameplay records" |
 | `dragon_landed` | A dragon lands to eat, at most once a minute (0.6.94, SPEC-033; approved by Nick 24 Nov 2026) | The dragon's kind and what it landed for: `tree`, `rest` or `fish` (0.6.95, SPEC-036), for example `wyvern fish` | "Gameplay records" |
+| `animal_fact` | A child taps a bird and its card opens, at most once a minute (0.6.98, SPEC-037; approved by Nick 24 Nov 2026) | The bird kind, the fact's number (or `none`) and the reading band, for example `penguin 41 band2` | "Gameplay records" |
 | `report_sent` | A child sends a report (0.6.91, SPEC-038; approved by Nick 24 Nov 2026) | Kind and category only (for example `build rude`) | "Gameplay records" |
 | `player_hidden` | A child hides a player after reporting them, on this device until leaving the world (0.6.91, SPEC-038; approved by Nick 24 Nov 2026) | `hidden N` (a count only) | "Gameplay records" |
 | `multiplayer_stopped` | This visit finds that the owner stopped multiplayer for it (0.6.91, SPEC-038; approved by Nick 24 Nov 2026) | Days left, or `until lifted` | "Gameplay records" |
@@ -76,6 +77,7 @@ Sent every 10 seconds. World code, game version, kind, position rounded to 0.1, 
 | Record | Fields read | Privacy page row |
 |---|---|---|
 | `game_settings` | Castle spacing, quiz settings, merchant prices, guards and carts, forced-update days | "World record" |
+| `bird_facts` | Read only (0.6.98, SPEC-037): the numbers of the approved bird facts, then the facts this device does not have yet, always all five reading versions. Nothing about the player is in the request | "Bird facts" |
 
 ## 7. Shared world live messages (not stored on our servers)
 Sent over the shared world's live connection to the other devices in that world only. Each carries the sender's visit code.

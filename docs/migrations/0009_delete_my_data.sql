@@ -5,7 +5,7 @@
 --      The row goes when the code is used, after 5 wrong tries, when it is too old, or with the account.
 --   2. deletion_log: one row per finished deletion, with the date only. Nothing says who it was.
 --   3. Neither table can be read or written by the game or by a signed-in parent: only the server function
---      "delete-my-data" (supabase/functions/delete-my-data) uses them.
+--      "delete-my-data" (docs/functions/delete-my-data) uses them.
 create table if not exists public.deletion_requests (
   user_id uuid primary key references auth.users(id) on delete cascade,
   created_at timestamptz not null default now(),

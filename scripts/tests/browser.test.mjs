@@ -4271,3 +4271,66 @@ test('SPEC-034: songbirds move away when a child walks up to them and settle 20 
     assert.equal(r.hawk.moving, false, 'a hawk stays high'); assert.equal(r.hawkFly, true); assert.ok(r.hawkUp > 40);
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [phoneGame()] }));
+
+// ---- Bird facts (0.6.98, SPEC-037) ----
+const FACTS = (() => { const o = {}; for (let i = 1; i <= 12; i++) o[i] = ['penguin', `Penguins slide ${i}.`, `Penguins slide on snow ${i}.`, `Penguins slide on their bellies ${i}.`, `Penguins slide on their bellies over the snow ${i}.`, `Penguins toboggan, which means sliding on their bellies over snow and ice, ${i}.`]; o[50] = ['duck', 'Ducks swim.', 'Ducks swim well.', 'Ducks swim well.', 'Ducks swim well.', 'Ducks swim well.']; return o; })();
+test('SPEC-037: a click on a bird opens its card with picture, name and a fact for the Words level; it never digs or fights, the game keeps running; ten taps give ten different facts; the flag hides a fact; X, a tap elsewhere and 12 seconds close it', { skip, timeout: 300000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => !!window.gameTest, null, { timeout: 60000 });
+    await page.goto(page.url().split('?')[0] + '?birds=penguin', { waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.gameTest && window.gameTest.facts && window.gameTest.birds().length > 0, null, { timeout: 90000 });
+    await page.evaluate(F => { const G = window.gameTest; G.facts.set(F); G.setQuizLevels({ band: 0, math: { use: 1, best: 1 }, words: { use: 5, best: 5, fast: false } }); }, FACTS);
+    // no fact yet for a kind: picture and name only (a new device opened offline)
+    const bare = await page.evaluate(() => { const G = window.gameTest; G.facts.open('owl'); const c = G.facts.card(); G.facts.close(); G.facts.wait(5000); return c; });
+    assert.equal(bare.name, 'Owl'); assert.equal(bare.fact, ''); assert.equal(bare.flag, false); assert.equal(bare.picture, true, 'the picture is drawn from the bird\'s own shape');
+    // a real click on a bird
+    const spot = async () => { for (let i = 0; i < 40; i++) { const s = await page.evaluate(() => { const G = window.gameTest, P = G.pos, b = G.birds().sort((a, c) => Math.hypot(a.x - P[0], a.z - P[2]) - Math.hypot(c.x - P[0], c.z - P[2]))[0]; if (!b) return null; const d = Math.hypot(b.x - P[0], b.z - P[2]); if (d > 16) { G.setPos(b.x + (P[0] - b.x) / d * 12, P[1] + 3, b.z + (P[2] - b.z) / d * 12); return null; } G.facts.faceTo(b.x, b.z); return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => { const s = G.facts.screen(b); r(s.front && s.x > 20 && s.x < innerWidth - 20 && s.y > 20 && s.y < innerHeight - 20 && G.facts.tapAt(s.x, s.y) ? s : null); }))); }); if (s) return s; await page.waitForTimeout(250); } return null; };
+    let s = null;   // the birds walk about: up to 3 tries, as on the test phone
+    for (let i = 0; i < 3; i++) { s = await spot(); assert.ok(s, 'a penguin can be found under the pointer'); await page.mouse.click(s.x, s.y); if (await page.evaluate(() => !!window.gameTest.facts.card())) break; }
+    const first = await page.evaluate(() => { const G = window.gameTest; return { card: G.facts.card(), paused: G.paused, digging: !!G.digging, fight: !!G.fight }; });
+    assert.ok(first.card && first.card.shown, 'the card opens'); assert.equal(first.card.name, 'Penguin'); assert.equal(first.card.band, 1);
+    assert.match(first.card.fact, /^Penguins slide \d+\.$/, 'the version for Words level 5');
+    assert.ok(first.card.fact.split(/\s+/).length <= 10); assert.equal(first.card.flag, true);
+    assert.equal(first.paused, false, 'the game keeps running'); assert.equal(first.digging, false); assert.equal(first.fight, false);
+    // a right-click on a bird places nothing
+    const blocks = () => page.evaluate(() => JSON.stringify(window.gameProbe ? (window.gameProbe().changed || 0) : 0));
+    const b0 = await blocks(); await page.mouse.click(s.x, s.y, { button: 'right' }); assert.equal(await blocks(), b0);
+    // ten taps in a row: ten different facts; then they start again; level 90 gives the long version of at most 20 words
+    const ten = await page.evaluate(() => { const G = window.gameTest, out = []; G.facts.close(); for (let i = 0; i < 12; i++) { G.facts.wait(5000); G.facts.open('penguin'); out.push(G.facts.card().id); G.facts.close(); } G.facts.wait(5000); G.facts.open('penguin'); const again = G.facts.card().id; G.facts.close();
+      G.setQuizLevels({ band: 0, math: { use: 1, best: 1 }, words: { use: 90, best: 90, fast: false } }); G.facts.wait(5000); G.facts.open('penguin'); const long = G.facts.card(); G.facts.close(); return { out, again, long }; });
+    assert.equal(new Set(ten.out.slice(0, 10)).size, 10, 'ten different facts'); assert.equal(new Set(ten.out).size, 12);
+    assert.equal(ten.again, ten.out[0], 'all seen: they start again, oldest seen first');
+    assert.equal(ten.long.band, 5); assert.match(ten.long.fact, /toboggan/); assert.ok(ten.long.fact.split(/\s+/).length <= 20);
+    // the 2 seconds after a card closes, the X, a tap elsewhere, the flag
+    const r = await page.evaluate(async () => {
+      const G = window.gameTest, out = {};
+      G.facts.wait(5000); G.facts.open('duck'); G.facts.close(); out.tooSoon = G.facts.open('duck');
+      G.facts.wait(5000); out.opened = G.facts.open('duck'); out.duck = G.facts.card();
+      document.querySelector('#birdCard .bcX').click(); out.afterX = G.facts.card();
+      G.facts.wait(5000); G.facts.open('duck');
+      document.querySelector('#birdCard [data-aiflag]').click();
+      out.thanks = document.querySelector('#birdCard .aiThanks').textContent; out.report = G.lastReport && G.lastReport();
+      G.facts.close(); G.facts.wait(5000); G.facts.open('duck'); out.afterFlag = G.facts.card(); G.facts.close();
+      out.font = parseFloat(getComputedStyle(Object.assign(document.body.appendChild(document.createElement('div')), { id: 'x' })).fontSize);
+      return out;
+    });
+    assert.equal(r.tooSoon, false, 'no new card for 2 seconds'); assert.equal(r.opened, true); assert.equal(r.duck.name, 'Duck'); assert.equal(r.afterX, null, 'X closes it');
+    assert.equal(r.thanks, 'Thank you! A grown-up will check it.'); assert.equal(r.afterFlag.fact, '', 'the flagged fact is hidden on this device');
+    await page.evaluate(() => { window.gameTest.facts.wait(5000); window.gameTest.facts.open('penguin'); });
+    await page.mouse.click(5, 300);
+    assert.equal(await page.evaluate(() => window.gameTest.facts.card()), null, 'a tap elsewhere closes it');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PC, saves: [phoneGame()] }));
+
+test('SPEC-037: on a phone the fact is at least 20 px, the card is at the side and its buttons are big enough; the card closes by itself after 12 seconds', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.facts, null, { timeout: 60000 });
+    const r = await page.evaluate(F => { const G = window.gameTest; G.facts.set(F); G.facts.open('penguin'); const el = document.getElementById('birdCard'), box = el.getBoundingClientRect(), x = el.querySelector('.bcX').getBoundingClientRect(), f = el.querySelector('[data-aiflag]').getBoundingClientRect();
+      return { fact: parseFloat(getComputedStyle(el.querySelector('.bcFact')).fontSize), name: parseFloat(getComputedStyle(el.querySelector('.bcName')).fontSize), left: box.left, right: innerWidth - box.right, w: box.width, h: box.height, ih: innerHeight, iw: innerWidth, x: [x.width, x.height], f: [f.width, f.height], inputs: el.querySelectorAll('input,textarea').length }; }, FACTS);
+    assert.ok(r.fact >= 20, 'fact text ' + r.fact); assert.ok(r.name >= 24);
+    assert.ok(r.left > r.iw / 2 && r.right >= 0, 'at the side of the screen'); assert.ok(r.h <= r.ih, 'fits the screen');
+    assert.ok(Math.min(...r.x, ...r.f) >= 48, 'buttons of 48 px'); assert.equal(r.inputs, 0);
+    await page.waitForTimeout(12600);
+    assert.equal(await page.evaluate(() => window.gameTest.facts.card()), null, 'it closes by itself after 12 seconds');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PHONE_WIDE, saves: [phoneGame()] }));
