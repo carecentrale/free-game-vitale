@@ -4287,9 +4287,10 @@ test('SPEC-037: a click on a bird opens its card with picture, name and a fact f
     await page.goto(page.url().split('?')[0] + '?birds=penguin', { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => window.gameTest && window.gameTest.facts && window.gameTest.birds().length > 0, null, { timeout: 90000 });
     await page.evaluate(F => { const G = window.gameTest; G.facts.set(F); G.setQuizLevels({ band: 0, math: { use: 1, best: 1 }, words: { use: 5, best: 5, fast: false } }); }, FACTS);
-    // no fact yet for a kind: picture and name only (a new device opened offline)
-    const bare = await page.evaluate(() => { const G = window.gameTest; G.facts.open('owl'); const c = G.facts.card(); G.facts.close(); G.facts.wait(5000); return c; });
-    assert.equal(bare.name, 'Owl'); assert.equal(bare.fact, ''); assert.equal(bare.flag, false); assert.equal(bare.picture, true, 'the picture is drawn from the bird\'s own shape');
+    // no downloaded fact for a kind (a new device opened offline, or an empty pool): a fact that comes with the game (0.6.101)
+    const bare = await page.evaluate(() => { const G = window.gameTest; G.facts.open('owl'); const c = G.facts.card(); G.facts.close(); G.facts.wait(5000); return { ...c, own: G.facts.builtIn.owl.map(f => f[0]) }; });
+    assert.equal(bare.name, 'Owl'); assert.match(String(bare.id), /^b-owl-\d$/); assert.ok(bare.own.includes(bare.fact), 'a built-in fact in the version for Words level 5: ' + bare.fact);
+    assert.ok(bare.fact.split(/\s+/).length <= 10); assert.equal(bare.flag, true, 'it has the flag too'); assert.equal(bare.picture, true, 'the picture is drawn from the bird\'s own shape');
     // a real click on a bird
     const spot = async () => { for (let i = 0; i < 40; i++) { const s = await page.evaluate(() => { const G = window.gameTest, P = G.pos, b = G.birds().sort((a, c) => Math.hypot(a.x - P[0], a.z - P[2]) - Math.hypot(c.x - P[0], c.z - P[2]))[0]; if (!b) return null; const d = Math.hypot(b.x - P[0], b.z - P[2]); if (d > 16) { G.setPos(b.x + (P[0] - b.x) / d * 12, P[1] + 3, b.z + (P[2] - b.z) / d * 12); return null; } G.facts.faceTo(b.x, b.z); return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => { const s = G.facts.screen(b); r(s.front && s.x > 20 && s.x < innerWidth - 20 && s.y > 20 && s.y < innerHeight - 20 && G.facts.tapAt(s.x, s.y) ? s : null); }))); }); if (s) return s; await page.waitForTimeout(250); } return null; };
     let s = null;   // the birds walk about: up to 3 tries, as on the test phone
@@ -4322,7 +4323,7 @@ test('SPEC-037: a click on a bird opens its card with picture, name and a fact f
       return out;
     });
     assert.equal(r.tooSoon, false, 'no new card for 2 seconds'); assert.equal(r.opened, true); assert.equal(r.duck.name, 'Duck'); assert.equal(r.afterX, null, 'X closes it');
-    assert.equal(r.thanks, 'Thank you! A grown-up will check it.'); assert.equal(r.afterFlag.fact, '', 'the flagged fact is hidden on this device');
+    assert.equal(r.thanks, 'Thank you! A grown-up will check it.'); assert.notEqual(r.afterFlag.id, '50', 'the flagged fact is hidden on this device'); assert.match(String(r.afterFlag.id), /^b-duck-\d$/, 'with no other downloaded duck fact, the game\'s own facts take over');
     await page.evaluate(() => { window.gameTest.facts.wait(5000); window.gameTest.facts.open('penguin'); });
     await page.mouse.click(5, 300);
     assert.equal(await page.evaluate(() => window.gameTest.facts.card()), null, 'a tap elsewhere closes it');

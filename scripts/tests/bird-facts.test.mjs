@@ -145,3 +145,23 @@ test('migration 0021: a weekly call that says only "run"; its secret is made in 
     ask: async r => { asks++; return /Write \d+ new fun facts/.test(r.messages[0].content) ? JSON.stringify([{ v: good }, { v: good }, { v: good }, { v: good }, { v: good }]) : yes; } }, 'm');
   assert.ok(out.made >= 1 && out.made < 5, 'the run stopped when its time was up: ' + out.made);
 });
+
+test('0.6.101: the game carries six facts for each of the eight birds, within the same word limits, calm and plain; a card uses them when the device has no downloaded fact for that kind', () => {
+  const src = game.slice(game.indexOf('const BIRD_FACTS_BUILT_IN = {'), game.indexOf('};', game.indexOf('const BIRD_FACTS_BUILT_IN = {')) + 1).replace('const BIRD_FACTS_BUILT_IN = ', '');
+  const own = new Function('return ' + src)();
+  assert.deepEqual(Object.keys(own).sort(), Object.keys(KINDS).sort());
+  const seen = new Set();
+  for (const [kind, list] of Object.entries(own)) {
+    assert.equal(list.length, 6, kind);
+    for (const v of list) {
+      assert.ok(withinLimits(v), kind + ': ' + v.find((s, i) => wordCount(s) > WORD_LIMITS[i]));
+      for (const s of v) {
+        assert.doesNotMatch(s, /\b(kill|killed|dead|die|dies|blood|hunt|hunts|hunting|prey|eaten|attack|scary|afraid|fear)\b/i, s);
+        assert.doesNotMatch(s, /https?:|www\.|[0-9]{3,}/, s);
+        assert.ok(!seen.has(s) || v.includes(s), 'the same sentence twice: ' + s); seen.add(s);
+      }
+    }
+  }
+  assert.match(code, /const built = pool\.length \? null : \(BIRD_FACTS_BUILT_IN\[kind\] \|\| \[\]\);/);
+  assert.match(code, /'b-' \+ kind \+ '-' \+ i/);
+});

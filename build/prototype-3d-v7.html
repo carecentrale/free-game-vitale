@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.100 (3D)</title>
+<title>Adventurers of Drenerics v0.6.101 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -3192,6 +3192,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.101', title: 'Bird facts everywhere', items: [
+    'Every bird now has fun facts to tell, even without the internet.',
+  ] },
   { v: '0.6.100', title: 'Tidier buttons on small phones', items: [
     'On a phone held upright, the buttons at the top no longer sit on top of each other.',
   ] },
@@ -8430,7 +8433,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.100';
+const VERSION = '0.6.101';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -9167,6 +9170,76 @@ const FACT_REACH = 25, FACT_SHOW_MS = 12000, FACT_GAP_MS = 2000;
 const factRowOk = r => !!r && Number.isInteger(r.id) && !!BIRD_KINDS[r.kind] && [r.v1, r.v2, r.v3, r.v4, r.v5].every(t => typeof t === 'string' && t.length > 0 && t.length <= 200);
 const factsFrom = v => { const out = {}; if (v && typeof v === 'object' && !Array.isArray(v)) for (const [id, f] of Object.entries(v)) if (/^\d{1,12}$/.test(id) && Array.isArray(f) && f.length === 6 && BIRD_KINDS[f[0]] && f.slice(1).every(t => typeof t === 'string' && t.length <= 200)) out[id] = f; return out; };
 let birdFacts = factsFrom(readJSON(FACTS_KEY, {}));   // fact number -> [kind, version 1 ... version 5]
+// Facts that come with the game (0.6.101, Nick's request of 25 Nov 2026): six for each kind of bird, in the same five
+// reading versions and word limits. A bird's card uses them whenever this device has no downloaded fact for that kind
+// (no internet yet, the pool is empty, or the server cannot write facts), so the card never depends on the AI service.
+// They too were written with an AI system, so they carry the same flag; their numbers start with "b-".
+const BIRD_FACTS_BUILT_IN = {
+  songbird: [
+    ["Songbirds sing to say, this is my home.", "Songbirds sing to tell other birds, this is my home.", "A songbird sings to tell other birds that this place is its home.", "A songbird sings to tell other birds that this place is its home and to find a friend.", "A songbird's song marks its territory, the place it calls home, and helps it find a mate."],
+    ["Many songbirds sing most in the early morning.", "Many songbirds sing the most early in the morning, at sunrise.", "Many songbirds sing the most at sunrise, when the air is still and quiet.", "Many songbirds sing the most at sunrise, and people call all that singing the dawn chorus.", "At sunrise many songbirds sing together, and this morning concert is called the dawn chorus."],
+    ["Baby songbirds learn to sing by listening.", "Baby songbirds learn to sing by listening to grown-up birds.", "Young songbirds learn their songs by listening to grown-up birds and then practising.", "Young songbirds learn their songs by listening to grown-up birds, then they practise again and again.", "Young songbirds learn by imitation, which means copying the songs they hear from grown-up birds."],
+    ["A songbird's toes hold on tight to a branch.", "A songbird's toes hold a branch tight, even while it sleeps.", "When a songbird sits down, its toes close and hold the branch tight.", "When a songbird bends its legs to sit, its toes close and hold the branch tight.", "When a songbird perches, bending its legs pulls its toes closed, so it holds on even asleep."],
+    ["Songbirds make nests from grass and little sticks.", "Songbirds make their nests from grass, moss and little sticks.", "Songbirds weave their nests from grass, moss and little sticks, using their beaks.", "Songbirds weave nests from grass, moss and little sticks, and many line them with soft feathers.", "Songbirds weave grass, moss and twigs into cup-shaped nests, often lined with soft feathers for warmth."],
+    ["About half of all kinds of birds are songbirds.", "About half of all the kinds of birds are songbirds.", "About half of all the kinds of birds in the world are songbirds.", "There are thousands of kinds of songbirds, about half of all the kinds of birds in the world.", "Songbirds are a huge group: around half of all bird species, or kinds, in the world."],
+  ],
+  parrot: [
+    ["Parrots can copy sounds they hear.", "Parrots can copy sounds they hear, even words.", "Parrots are very good at copying sounds they hear, even words people say.", "Parrots are very good at copying the sounds they hear, such as whistles and words people say.", "Parrots are superb mimics, which means they can copy sounds such as whistles and human words."],
+    ["A parrot can hold food in its foot.", "A parrot can hold food in its foot, like a hand.", "A parrot can pick up food with its foot and hold it like a hand.", "A parrot can pick up food with one foot and lift it to its beak, like a hand.", "A parrot uses one foot like a hand, gripping food and lifting it up to its beak."],
+    ["Parrots have two toes in front and two behind.", "A parrot's foot has two toes in front and two behind.", "A parrot's foot has two toes pointing forward and two pointing back, good for climbing.", "A parrot's foot has two toes pointing forward and two pointing back, which helps it climb and hold.", "Parrot feet are zygodactyl, meaning two toes point forward and two back, perfect for climbing and gripping."],
+    ["Parrots use their beaks to help them climb.", "Parrots use their strong beaks like an extra foot to climb.", "Parrots climb trees using their strong curved beaks like an extra foot.", "Parrots climb through the trees using their strong curved beaks to hold on, like an extra foot.", "A parrot's strong hooked beak works like a third foot, gripping branches as it climbs through trees."],
+    ["Many parrots live in big, noisy groups.", "Many parrots live in big, noisy groups called flocks.", "Many parrots live in big groups called flocks and call loudly to each other.", "Many parrots live in big groups called flocks and call loudly to keep in touch with each other.", "Many parrots are social, living in flocks and calling loudly so the group can stay together."],
+    ["Some big parrots can live for many, many years.", "Some big parrots can live for more than fifty years.", "Some big parrots, like macaws, can live for more than fifty years.", "Some big parrots, like macaws and cockatoos, can live for more than fifty years when well cared for.", "Large parrots such as macaws have a long lifespan and can live for more than fifty years."],
+  ],
+  owl: [
+    ["Owls fly so softly you cannot hear them.", "Owls have soft feathers, so they fly almost without a sound.", "Owls have very soft feathers, so their wings make almost no sound when they fly.", "Owls have very soft feathers with fluffy edges, so their wings make almost no sound when they fly.", "Soft, fringed feathers muffle an owl's wingbeats, which means the owl can fly almost silently."],
+    ["An owl can turn its head very far around.", "An owl cannot move its eyes, so it turns its head.", "An owl cannot move its eyes, so it turns its whole head to look around.", "An owl cannot move its eyes, so it turns its head, and it can look right behind itself.", "An owl's eyes are fixed in place, so it rotates its head about three quarters of a full turn."],
+    ["Most owls sleep in the day and wake at night.", "Most owls sleep in the day and are awake at night.", "Most owls rest in a tree during the day and are awake at night.", "Most owls rest quietly in a tree during the day and become busy when night comes.", "Most owls are nocturnal, which means they rest during the day and are active at night."],
+    ["Owls can hear very, very quiet sounds.", "Owls can hear very quiet sounds, even in the dark.", "Owls have amazing ears and can hear very quiet sounds, even in the dark.", "An owl's round face works like a dish that gathers sound, so it hears very quiet noises.", "An owl's flat, round face is called a facial disc, and it funnels quiet sounds toward its ears."],
+    ["The tufts on an owl's head are just feathers.", "The tufts on some owls' heads are feathers, not ears.", "The tufts on top of some owls' heads are only feathers, not their ears.", "The tufts on top of some owls' heads are only feathers, and their real ears are hidden.", "The ear tufts on some owls are only feathers; their real ears are hidden on the sides of the head."],
+    ["Owls have big eyes to see in the dark.", "Owls have big eyes that help them see in dim light.", "Owls have very big eyes that take in lots of light at night.", "Owls have very big eyes that take in lots of light, so they see well at night.", "An owl's huge eyes gather a great deal of light, which gives it excellent vision at night."],
+  ],
+  duck: [
+    ["Water rolls right off a duck's feathers.", "Water rolls off a duck's feathers, so the duck stays dry.", "A duck spreads oil on its feathers, so water rolls off and it stays dry.", "A duck spreads oil from near its tail on its feathers, so water rolls right off.", "A duck spreads oil from a gland near its tail over its feathers, which makes them waterproof."],
+    ["A duck's feet are like little paddles.", "A duck has skin between its toes, like little paddles.", "A duck has skin between its toes, so its feet push water like paddles.", "A duck has skin stretched between its toes, so its feet push through the water like paddles.", "A duck has webbed feet, meaning skin joins its toes, so they push water like paddles."],
+    ["Baby ducks can swim when they are one day old.", "Baby ducks, called ducklings, can swim when they are one day old.", "Baby ducks are called ducklings, and they can swim about a day after hatching.", "Baby ducks are called ducklings, and they can walk and swim about a day after they hatch.", "Ducklings hatch covered in fluffy down and can walk, swim and follow their mother within about a day."],
+    ["Some ducks tip up with their tails in the air.", "Some ducks tip upside down with their tails in the air.", "Some ducks tip upside down in the water, with their tails up in the air.", "Some ducks tip upside down in the water, tails in the air, to reach plants below.", "Some ducks are dabblers, which means they tip upside down to reach water plants below the surface."],
+    ["Many ducks fly far away to warm places in winter.", "Many ducks fly a long way to warmer places for the winter.", "Many ducks fly far to warmer places in autumn and come back in spring.", "Many ducks fly a very long way to warmer places in autumn and come back again in spring.", "Many ducks migrate, which means they fly long distances to warmer places in autumn and return in spring."],
+    ["A duck's beak is flat and wide.", "A duck's flat, wide beak is called a bill.", "A duck's flat, wide beak is called a bill, and it is good at scooping.", "A duck's flat, wide beak is called a bill, and tiny combs on its edges strain water.", "The edges of a duck's bill have tiny comb-like ridges that strain bits of food out of water."],
+  ],
+  penguin: [
+    ["Penguins cannot fly, but they swim very well.", "Penguins cannot fly, but they are very fast swimmers.", "Penguins cannot fly in the air, but they use their wings to swim fast.", "Penguins cannot fly in the air, but under water they flap their wings and swim very fast.", "Penguins cannot fly, but their wings work as flippers, so they seem to fly through the water."],
+    ["Penguins slide on their bellies over the snow.", "Penguins slide on their bellies over the snow to go faster.", "Penguins often slide over the snow on their bellies, because it is faster than walking.", "Penguins often slide over the snow on their bellies, pushing with their feet, because it is faster.", "Penguins often toboggan, which means sliding on their bellies, because it is faster than walking on snow."],
+    ["Penguins stand close together to keep warm.", "Penguins stand very close together in a group to keep warm.", "In the cold, penguins stand close together in a big group to keep warm.", "In the cold, penguins stand close together in a big group and take turns in the warm middle.", "Emperor penguins huddle, or crowd tightly together, and take turns standing in the warm middle of the group."],
+    ["A penguin has a black back and a white tummy.", "A penguin's black back and white tummy help it hide at sea.", "A penguin's black back and white tummy make it hard to see in the sea.", "From above a penguin's black back looks like deep water, and from below its tummy looks like sky.", "A penguin's colours are camouflage: its dark back blends with deep water and its pale belly with bright sky."],
+    ["Penguins have thick feathers to keep them warm.", "Penguins have thick feathers and a layer of fat to keep warm.", "Penguins keep warm with thick, tightly packed feathers and a layer of fat underneath.", "Penguins keep warm in icy water with thick, tightly packed feathers and a layer of fat underneath.", "Tightly packed feathers and a layer of fat called blubber insulate penguins, keeping them warm in icy water."],
+    ["Wild penguins live in the south of the world.", "Almost all wild penguins live in the south half of the world.", "Almost all wild penguins live in the southern half of the world.", "Almost all wild penguins live in the southern half of the world, and none at the North Pole.", "Nearly all penguins live in the Southern Hemisphere, the southern half of the Earth, and none at the North Pole."],
+  ],
+  gull: [
+    ["Gulls can drink salty sea water.", "Gulls can drink salty sea water, which people cannot do.", "Gulls can drink salty sea water, because their bodies can get rid of the salt.", "Gulls can drink salty sea water, because special parts above their eyes take the salt out again.", "Gulls can drink sea water because glands above their eyes remove the extra salt, which drips from the beak."],
+    ["Gulls can ride the wind without flapping.", "Gulls can ride on the wind for a long time without flapping.", "Gulls hold their long wings still and ride on the wind without flapping.", "Gulls hold their long wings still and ride the sea wind for a long time without flapping.", "Gulls are expert gliders: they hold their long wings still and let rising air carry them without flapping."],
+    ["Gulls can float on the water like little boats.", "Gulls can float on the sea and paddle with their feet.", "Gulls can float on the sea and paddle along with their webbed feet.", "Gulls are light and float high on the sea, paddling along with their webbed feet.", "Gulls float buoyantly, which means high and easily, on the sea and paddle with their webbed feet."],
+    ["Gulls make their nests close to other gulls.", "Gulls make their nests close together in big noisy groups.", "Gulls often make their nests close together in big noisy groups near the sea.", "Gulls often nest close together in big noisy groups on cliffs, islands and beaches by the sea.", "Gulls often nest in a colony, a big group of nests packed close together near the sea."],
+    ["Young gulls are brown, not white.", "Young gulls are brown and turn white and grey as they grow.", "Young gulls are speckled brown and slowly turn white and grey as they grow.", "Young gulls are speckled brown, and some kinds take about four years to turn white and grey.", "Young gulls have speckled brown plumage, or feathers, and large kinds take about four years to turn white and grey."],
+    ["Gulls live by the sea, and by lakes too.", "Gulls live by the sea, and also by lakes and rivers.", "Gulls live by the sea, but many also live near lakes, rivers and towns.", "Gulls live by the sea, but many also live far inland near lakes, rivers, fields and towns.", "Although people call them seagulls, many gulls live inland, far from the sea, near lakes, rivers and towns."],
+  ],
+  geese: [
+    ["Geese fly together in the shape of a V.", "Geese often fly together in a line shaped like a V.", "Geese often fly in a V shape, which makes flying easier for the birds behind.", "Geese often fly in a V shape, so the birds behind get an easier ride.", "Geese fly in a V formation: each bird gets a lift from the air moved by the one ahead."],
+    ["Geese take turns flying at the front.", "Geese take turns flying at the front of the group.", "Flying at the front is hard work, so geese take turns leading the group.", "Flying at the front of the V is the hardest work, so geese take turns leading the group.", "The lead position in the V is the most tiring, so geese rotate, taking turns at the front."],
+    ["Geese honk to each other when they fly.", "Geese honk to each other as they fly to stay together.", "Geese honk loudly to each other while they fly, which helps the group stay together.", "Geese honk loudly to each other while they fly, which helps the whole group stay together.", "Geese honk in flight to communicate, which means to share messages, so the flock stays together."],
+    ["Geese fly far away when winter comes.", "Geese fly a long way to warmer places when winter comes.", "Geese fly a long way to warmer places in autumn and come back in spring.", "Every autumn geese fly a very long way to warmer places, and every spring they come back.", "Geese migrate, flying hundreds or thousands of kilometres to warmer places in autumn and returning in spring."],
+    ["A baby goose is called a gosling.", "A baby goose is called a gosling, and it is very fluffy.", "A baby goose is called a gosling, and it can walk and swim very soon.", "A baby goose is called a gosling, and it can walk and swim soon after it hatches.", "A baby goose, called a gosling, hatches with fluffy down and can walk and swim within about a day."],
+    ["Goose families stay together for a long time.", "A goose family stays together for almost a whole year.", "A mother and father goose stay together, and their young stay with them for months.", "A mother and father goose often stay together for life, and their young stay with them for months.", "Geese often pair for life, and the goslings stay with their parents until the following spring."],
+  ],
+  hawk: [
+    ["Hawks can see things that are very far away.", "Hawks have very sharp eyes and can see things far away.", "Hawks have very sharp eyes and can see small things from high in the sky.", "Hawks have very sharp eyes, and they can see small things on the ground from high up.", "A hawk's eyesight is far sharper than a person's, so it can spot small things from high above."],
+    ["Hawks ride on warm air that goes up.", "Hawks ride on warm air that rises up from the ground.", "Hawks ride on warm air rising from the ground, so they rarely need to flap.", "Hawks circle on warm air rising from the ground, which lifts them higher without any flapping.", "Hawks soar on thermals, which are columns of warm rising air, and circle upward without flapping."],
+    ["Hawks have big, wide wings.", "Hawks have big, wide wings that are good for gliding.", "Hawks have big, wide wings and a broad tail, which are good for gliding.", "Hawks have big, wide wings and a broad tail, so they can glide for a long time.", "A hawk's broad wings and wide tail give it lots of lift, the force that holds it up."],
+    ["Hawks build big nests of sticks, high up.", "Hawks build big nests of sticks high up in tall trees.", "Hawks build big nests of sticks high in tall trees, and often use them again.", "Hawks build big nests of sticks high in tall trees, and often add more sticks each year.", "Hawks build large stick nests high in trees and often reuse them, adding new sticks every year."],
+    ["Some hawks fly far away together in autumn.", "Some hawks fly far away together in big groups in autumn.", "In autumn some hawks fly far away together, circling up in big groups.", "In autumn some hawks travel far together, and a circling group of them is called a kettle.", "Some hawks migrate in autumn, and a swirling group of them riding warm air is called a kettle."],
+    ["Mother hawks are bigger than father hawks.", "In most kinds of hawk, the mother is bigger than the father.", "In most kinds of hawk, the female is bigger and heavier than the male.", "In most kinds of hawk the female is bigger and heavier than the male, unlike many birds.", "In most hawk species the female is larger than the male, the opposite of many other animals."],
+  ],
+};
 // When the game opens with internet: the numbers of the approved facts, then only the facts this device does not have yet.
 // A fact that is no longer approved (removed by the owner, or held after three flags) leaves the device here.
 async function loadBirdFacts() {
@@ -9196,15 +9269,19 @@ async function loadBirdFacts() {
 const factBand = () => quizLevels.band || Math.max(1, Math.min(5, Math.ceil(quizLevels.words.best / 20)));
 // A fact of this kind not seen yet on this device; when all were seen they start again, oldest seen first
 function nextBirdFact(kind) {
-  const ids = Object.keys(birdFacts).filter(id => birdFacts[id][0] === kind && !aiLineHidden(id));
+  const pool = Object.keys(birdFacts).filter(id => birdFacts[id][0] === kind && !aiLineHidden(id));
+  // no downloaded fact for this kind (or every one of them was flagged here): the facts that come with the game
+  const built = pool.length ? null : (BIRD_FACTS_BUILT_IN[kind] || []);
+  const ids = (built ? built.map((_, i) => 'b-' + kind + '-' + i) : pool).filter(id => !aiLineHidden(id));
   if (!ids.length) return null;
+  const textOf = id => built ? built[+id.split('-')[2]][factBand() - 1] : birdFacts[id][factBand()];
   const all = readJSON(FACTS_SEEN_KEY, {}), seen = all && typeof all === 'object' && !Array.isArray(all) ? all : {};
   const list = (Array.isArray(seen[kind]) ? seen[kind] : []).map(String).filter(id => ids.includes(id));
   const fresh = ids.filter(id => !list.includes(id));
   const id = fresh.length ? fresh[Math.floor(Math.random() * fresh.length)] : list[0];
   seen[kind] = [...list.filter(x => x !== id), id];
   writeJSON(FACTS_SEEN_KEY, seen);
-  return { id, text: birdFacts[id][factBand()] };
+  return { id, text: textOf(id) };
 }
 // The bird's picture, drawn from the same shape the game draws in the world
 let birdPic = null;
@@ -10249,6 +10326,7 @@ window.gameTest = {
     card: () => birdCard && { ...birdCard, shown: birdCardEl.style.display !== 'none', name: (birdCardEl.querySelector('.bcName') || {}).textContent, fact: (birdCardEl.querySelector('.bcFact') || {}).textContent || '', flag: !!birdCardEl.querySelector('[data-aiflag]') },
     tapAt: (x, y) => { const b = birdTapAt(x, y); return b && { kind: b.kind, x: b.x, y: b.y, z: b.z }; },
     screen: b => { const v = new THREE.Vector3(b.x, b.y + BIRD_KINDS[b.kind].size * 0.4, b.z).project(camera); return { x: (v.x + 1) / 2 * innerWidth, y: (1 - v.y) / 2 * innerHeight, front: v.z < 1 }; },
+    builtIn: BIRD_FACTS_BUILT_IN,
     wait: ms => { birdCardClosed = performance.now() - ms; }, faceTo: (x, z) => { camYaw = Math.atan2(px - x, pz - z); } },
   // SPEC-034 (0.6.97): the birds drawn now, the birds of a square, and one bird's pose at a time, for the tests
   birds: () => birdDraw.shown.slice(), birdGroup: (cx, cz) => { const g = birdGroup(cx, cz); return g && { id: g.id, kind: g.kind, n: g.n, x: g.hx, z: g.hz, biome: BIOMES[biomeIndexAt(Math.floor(g.hx), Math.floor(g.hz))].name, water: isWaterAt(g.hx, g.hz) }; },
