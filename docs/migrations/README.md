@@ -32,8 +32,7 @@ Checked on 22 Nov 2026: each file below has the same text as the step recorded i
 | 21 | 0019_bird_facts.sql | 0019_bird_facts | 25 Nov 2026 (the same yes) |
 | 22 | 0020_insights.sql | 0020_insights | 25 Nov 2026 (the same yes) |
 | 23 | 0021_bird_facts_weekly.sql | 0021_bird_facts_weekly | 25 Nov 2026 (Nick: "weekly push to add more automatically"). The function `bird-facts` was deployed the same day (version 3) |
-
-`0022_ai_runs.sql` (a note of every run of an AI writer, asked for by Nick 25 Nov 2026: written and approved that day, not applied yet because the Supabase connection's confirmation question got no answer; until then the function `bird-facts` runs without leaving its note).
+| 24 | 0022_ai_runs.sql | 0022_ai_runs | 25 Nov 2026 (Nick asked for it in chat: "we have to take note of that and track it properly"; applied after his "push it all") |
 
 **Not applied:** `0008_guardian_packages.sql` (purchases, waits for the parent's approval). Its tables are not in the live database.
 
