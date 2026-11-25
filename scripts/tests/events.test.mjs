@@ -47,7 +47,14 @@ for (const [what, names] of Object.entries(sent)) {
 test('records are never sent with a typed name, chat or anything typed', () => {
   // logEvent details come from game words: none of the calls passes the player's name
   for (const m of game.matchAll(/log(?:Event|Once)\(([^;]*)\);/g)) assert.doesNotMatch(m[1], /playerName|\.name\b|input|value/, 'logEvent(' + m[1] + ')');
-  assert.doesNotMatch(game, /type="text"|<textarea/i, 'a text box would let a child type');
+  // The only text boxes are Delete my data's (0.6.92, SPEC-010): a grown-up types the word DELETE and the emailed code.
+  // Neither is sent in a record or shown to anyone: the word is compared on the device, the code goes to the server function only.
+  const boxes = [...game.matchAll(/id="?'?(\w+)'?,? ?'?type="text"/g)].length;
+  const dmdBlock = game.slice(game.indexOf('// ---- Delete my data (0.6.92'), game.indexOf('// Finish digging the block'));
+  assert.equal((game.match(/type="text"/g) || []).length, (dmdBlock.match(/type="text"/g) || []).length, 'a text box outside Delete my data would let a child type');
+  assert.equal((dmdBlock.match(/type="text"/g) || []).length, 2, 'Delete my data has two boxes: the word DELETE and the code');
+  assert.doesNotMatch(dmdBlock, /logEvent|logOnce|channel\.send/, 'what is typed there is never recorded or sent to players');
+  assert.doesNotMatch(game, /<textarea/i, 'a text box would let a child type');
 });
 
 // Every table row of docs/EVENTS.md: a backticked name in the first column, the privacy-page row in the last

@@ -3829,3 +3829,155 @@ test('SPEC-038: an AI line flag reports and hides it; put the land back; stoppin
     assert.equal(await page.evaluate(() => window.gameTest.together.on), true, 'the parent switch is not changed');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [phoneGame()] }));
+
+// ---- Delete my data (0.6.70, SPEC-010). The sign-in and the server are stood in for: no email is sent in these tests. ----
+const dmdState = page => page.evaluate(() => window.gameTest.dmd.state);
+const dmdSaves = page => page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('kidsgame.slot.')).length);
+const dmdTap = (page, act) => page.evaluate(a => document.querySelector(`#dmd [data-dmd="${a}"]`).click(), act);
+async function dmdOpenFromSettings(page) {
+  await page.dispatchEvent('#settingsBtn', 'click');
+  await page.dispatchEvent('#settingsDelete', 'click');
+  await page.waitForFunction(() => !!document.getElementById('dmdBox'), null, { timeout: 15000 });
+}
+async function dmdHold(page, ms) {
+  await page.dispatchEvent('#dmdHold', 'pointerdown');
+  // A full hold: keep holding until the screen moves on (a slow test machine may run its 3-second timer late)
+  if (ms >= 3000) return page.waitForFunction(() => window.gameTest.dmd.state && window.gameTest.dmd.state.step !== 'sure', null, { timeout: 30000 });
+  await page.waitForTimeout(ms);
+  await page.evaluate(() => { const el = document.getElementById('dmdHold'); if (el) el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true })); });
+}
+async function dmdType(page, id, text) {
+  await page.evaluate(([id, text]) => { const el = document.getElementById(id); el.value = text; el.dispatchEvent(new Event('input', { bubbles: true })); }, [id, text]);
+}
+// Stands in for a signed-in parent and for the server; window.dmdCalls lists what the game asked the server
+const dmdSignedIn = (page, answers) => page.evaluate(answers => {
+  window.dmdCalls = [];
+  window.gameTest.dmd.setSession(async () => ({ id: 'u1', email: 'parent@example.test' }));
+  window.gameTest.dmd.setServer(async (action, code) => { window.dmdCalls.push(action + (code ? ':' + code : '')); return action === 'request' ? { ok: true, minutes: 15 } : answers.shift(); });
+}, answers);
+async function dmdToCode(page) {
+  await dmdOpenFromSettings(page);
+  await dmdTap(page, 'want');
+  await dmdHold(page, 3200);
+  await dmdType(page, 'dmdWord', 'DELETE');
+  await dmdTap(page, 'word');
+  await page.waitForFunction(() => window.gameTest.dmd.state && window.gameTest.dmd.state.step === 'code', null, { timeout: 15000 });
+}
+
+test('Settings has "Delete my data" above Quit; it lists what will be deleted, and Cancel at any of the three steps deletes nothing', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    await page.dispatchEvent('#settingsBtn', 'click');
+    const order = await page.evaluate(() => { const d = document.getElementById('settingsDelete'), q = document.getElementById('settingsQuit');
+      return { label: d && d.textContent, above: !!d && !!q && !!(d.compareDocumentPosition(q) & Node.DOCUMENT_POSITION_FOLLOWING), h: d ? d.getBoundingClientRect().height : 0 }; });
+    assert.equal(order.label, 'Delete my data');
+    assert.ok(order.above, 'Delete my data must sit above Quit the game');
+    assert.ok(order.h >= 44, 'the button is too small to tap');
+    await page.dispatchEvent('#settingsDelete', 'click');
+    await page.waitForFunction(() => !!document.getElementById('dmdBox'), null, { timeout: 15000 });
+    assert.deepEqual(await page.evaluate(() => ({ settings: window.gameTest.settingsOpen, blocks: window.gameTest.dmd.blocksGame })), { settings: false, blocks: true }, 'Settings closes, and the game behind takes no taps or keys');
+    const list = await page.evaluate(() => document.getElementById('dmdBox').textContent);
+    for (const words of ['for grown-ups', 'saved games on this device (2)', 'quiz friends reports', 'settings', 'Gameplay records and error reports', 'Shared worlds', 'Cancel']) assert.ok(list.includes(words), 'the list does not say: ' + words);
+    assert.ok(!list.includes('cloud save') && !list.includes('email'), 'with no parent signed in, the cloud save and email must not be mentioned');
+    // Cancel on screen 1
+    await dmdTap(page, 'cancel');
+    assert.equal(await dmdState(page), null);
+    // Cancel on screen 2; a short hold does nothing
+    await dmdOpenFromSettings(page);
+    await dmdTap(page, 'want');
+    assert.ok((await page.evaluate(() => document.getElementById('dmdBox').textContent)).includes('cannot be undone'));
+    await dmdHold(page, 1200);
+    assert.equal((await dmdState(page)).step, 'sure', 'a hold shorter than 3 seconds must not go on');
+    await dmdTap(page, 'cancel');
+    // Cancel on screen 3; a wrong word keeps Continue switched off; Esc closes too
+    await dmdOpenFromSettings(page);
+    await dmdTap(page, 'want');
+    await dmdHold(page, 3200);
+    assert.equal((await dmdState(page)).step, 'word');
+    for (const word of ['delete', 'DELET', 'YES']) {
+      await dmdType(page, 'dmdWord', word);
+      assert.equal(await page.evaluate(() => document.getElementById('dmdWordGo').disabled), true, 'Continue must stay off for: ' + word);
+      await dmdTap(page, 'word');
+      assert.equal((await dmdState(page)).step, 'word');
+    }
+    await page.evaluate(() => window.gameTest.backAction());
+    assert.equal(await dmdState(page), null, 'Esc or Back closes the screen');
+    assert.equal(await dmdSaves(page), 2, 'cancelling must keep every saved game');
+    assert.equal(await page.evaluate(() => window.gameTest.dmd.wiping), false);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame(), savedGame()] }));
+
+test('Delete my data with no parent signed in: after the three confirmations the saved games and settings on the device are gone, and no email is asked for or sent', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    await page.evaluate(() => { window.dmdCalls = []; window.gameTest.dmd.setServer(async a => { window.dmdCalls.push(a); return { ok: true }; }); localStorage.setItem('kidsgame.audio', '{"sfx":2,"music":1}'); });
+    await dmdOpenFromSettings(page);
+    await dmdTap(page, 'want');
+    await dmdHold(page, 3200);
+    assert.equal(await page.evaluate(() => document.querySelectorAll('#dmd input').length), 1, 'only the DELETE word is typed: no email box');
+    await dmdType(page, 'dmdWord', 'DELETE');
+    assert.equal(await dmdSaves(page), 2, 'nothing may be deleted before the third confirmation');
+    await dmdTap(page, 'word');
+    assert.equal((await dmdState(page)).step, 'done');
+    assert.ok((await page.evaluate(() => document.getElementById('dmdBox').textContent)).includes('Your data has been deleted'));
+    assert.deepEqual(await page.evaluate(() => ({ keys: Object.keys(localStorage), session: Object.keys(sessionStorage), calls: window.dmdCalls })), { keys: [], session: [], calls: [] });
+    // The game must not save itself back before it restarts
+    await page.evaluate(() => window.gameTest.saveGame());
+    assert.equal(await dmdSaves(page), 0);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame(), savedGame()] }));
+
+test('Delete my data with a parent signed in: a code is asked for after the three confirmations, and a wrong code, five wrong codes or a code older than 15 minutes delete nothing', { skip, timeout: 300000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    await dmdSignedIn(page, [{ error: 'wrong', left: 4 }, { error: 'cancelled' }]);
+    await dmdOpenFromSettings(page);
+    const list = await page.evaluate(() => document.getElementById('dmdList').textContent);
+    assert.ok(list.includes('cloud save') && list.includes('parent account'), 'a signed-in parent is told about the cloud save and the account');
+    await dmdTap(page, 'cancel');
+    await dmdToCode(page);
+    assert.deepEqual(await page.evaluate(() => window.dmdCalls), ['request'], 'the code is asked for once, only after the three confirmations');
+    const text = await page.evaluate(() => document.getElementById('dmdBox').textContent);
+    assert.ok(text.includes('6-digit code') && text.includes('15 minutes') && !text.includes('parent@example.test'), 'the screen must explain the code and not show the address');
+    assert.equal(await dmdSaves(page), 1, 'nothing is deleted until the code is typed');
+    // Not 6 digits: the server is not asked
+    await dmdType(page, 'dmdCode', '12ab');
+    await dmdTap(page, 'code');
+    assert.deepEqual(await page.evaluate(() => window.dmdCalls), ['request']);
+    // A wrong code, then the fifth wrong code
+    await dmdType(page, 'dmdCode', '000000');
+    await dmdTap(page, 'code');
+    await page.waitForFunction(() => /Tries left: 4/.test(window.gameTest.dmd.state.msg), null, { timeout: 15000 });
+    await dmdType(page, 'dmdCode', '000001');
+    await dmdTap(page, 'code');
+    await page.waitForFunction(() => window.gameTest.dmd.state.step === 'stopped', null, { timeout: 15000 });
+    assert.ok((await dmdState(page)).msg.includes('Nothing was deleted'));
+    await dmdTap(page, 'cancel');
+    // A code older than 15 minutes is refused by the game itself
+    await dmdToCode(page);
+    await page.evaluate(() => window.gameTest.dmd.ageCode(window.gameTest.dmd.CODE_MS + 1000));
+    await dmdType(page, 'dmdCode', '123456');
+    await dmdTap(page, 'code');
+    assert.equal((await dmdState(page)).step, 'stopped');
+    assert.equal((await page.evaluate(() => window.dmdCalls)).filter(c => c === 'confirm:123456').length, 0, 'an old code must not be sent');
+    await dmdTap(page, 'cancel');
+    assert.equal(await dmdSaves(page), 1, 'every saved game must still be there');
+    assert.equal(await page.evaluate(() => window.gameTest.dmd.wiping), false);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));
+
+test('Delete my data with a parent signed in: after the right code the device has no saved games and the parent is signed out', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await playing(page);
+    await dmdSignedIn(page, [{ ok: true, deleted: true }]);
+    await page.evaluate(() => localStorage.setItem('sb-test-auth-token', 'kept sign-in'));
+    await dmdToCode(page);
+    await dmdType(page, 'dmdCode', '123456');
+    await dmdTap(page, 'code');
+    await page.waitForFunction(() => window.gameTest.dmd.state.step === 'done', null, { timeout: 15000 });
+    assert.deepEqual(await page.evaluate(() => window.dmdCalls), ['request', 'confirm:123456']);
+    assert.deepEqual(await page.evaluate(() => Object.keys(localStorage)), [], 'the saved games, the settings and the kept sign-in must all be gone');
+    await page.evaluate(() => window.gameTest.backAction());
+    assert.equal((await dmdState(page)).step, 'done', 'the last screen stays until OK');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [readyGame()] }));

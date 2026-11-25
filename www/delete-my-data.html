@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Delete my data: Adventurers of Drenerics</title>
+<meta name="description" content="A parent or guardian can delete everything Adventurers of Drenerics holds online about their family.">
+<!-- site-head -->
+<link rel="stylesheet" href="/site.css">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" type="image/png" href="/icon-96.png" sizes="96x96">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Adventurers of Drenerics">
+<meta property="og:title" content="Delete my data: Adventurers of Drenerics">
+<meta property="og:description" content="A parent or guardian can delete everything Adventurers of Drenerics holds online about their family.">
+<meta property="og:url" content="https://free-game-vitale.vercel.app/delete-my-data.html">
+<meta property="og:image" content="https://free-game-vitale.vercel.app/preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The Adventurers of Drenerics logo: a floating block island with a castle">
+<meta name="twitter:card" content="summary_large_image">
+<!-- /site-head -->
+</head>
+<body>
+<!-- site-header -->
+<a class="skip" href="#main">Skip to the page</a>
+<header class="topbar"><div class="in">
+  <a class="brand" href="/"><img src="/icon-96.png" alt="" width="44" height="44"><span>Adventurers of Drenerics</span></a>
+  <nav class="desk" aria-label="Site"><ul class="links"><li><a href="/how-to-play.html">How to play</a></li><li><a href="/release-notes.html">What is new</a></li><li><a href="/contact.html">Contact</a></li></ul></nav>
+  <details class="menu"><summary>Menu</summary><nav aria-label="Site"><ul class="links"><li><a href="/how-to-play.html">How to play</a></li><li><a href="/release-notes.html">What is new</a></li><li><a href="/contact.html">Contact</a></li></ul></nav></details>
+  <a class="btn btn-play" href="/play/">Play</a>
+</div></header>
+<!-- /site-header -->
+<main id="main" class="page">
+
+  <h1>Delete my data</h1>
+  <p class="muted">This page is for parents and guardians.</p>
+
+  <p>Here a parent who has signed in to the game can delete everything the game holds online, without opening the game. If you still have the game, you can do the same there: open <em>Settings</em> and tap <em>Delete my data</em>. That also removes the saved games on that device.</p>
+
+  <h2>What is deleted</h2>
+  <ul>
+    <li>Your cloud save.</li>
+    <li>Your parent account and its sign-in.</li>
+    <li>Reports sent from a device are deleted when <em>Delete my data</em> is used in the game on that device.</li>
+  </ul>
+  <h2>What is not deleted</h2>
+  <ul>
+    <li>Saved games kept on a phone, tablet or computer. This page cannot reach them: use <em>Delete my data</em> in the game's Settings on that device, or clear the game's data in the browser or app settings.</li>
+    <li>Gameplay records and error reports. They are kept under one-visit codes and cannot be tied to a person. They are removed after 12 months.</li>
+    <li>Shared worlds. They are kept, so friends do not lose them. To have one removed, write to us from the <a href="/contact.html">Contact page</a> with its code.</li>
+  </ul>
+
+  <div class="card" id="flow" style="display:grid;gap:10px">
+    <div id="s-signin">
+      <b>Step 1: sign in</b>
+      <p style="margin:6px 0 0">Type the email address of your parent account. We send it a sign-in code.</p>
+      <input id="email" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email address">
+      <button id="sendSignin" class="btn btn-line">Send me a sign-in code</button>
+      <div id="signinCode" hidden>
+        <input id="code1" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6-digit code" aria-label="Sign-in code">
+        <button id="verifySignin" class="btn btn-line">Sign in</button>
+      </div>
+    </div>
+    <div id="s-list" hidden>
+      <b>Step 2: confirm, three times</b>
+      <p style="margin:6px 0 0">You are signed in. Your cloud save and your parent account will be deleted.</p>
+      <button id="want" class="btn btn-play" style="background:#b3261e;border-color:#b3261e">I want to delete my data</button>
+      <button class="btn btn-line" data-cancel>Cancel</button>
+    </div>
+    <div id="s-sure" hidden>
+      <b>This cannot be undone.</b>
+      <p style="margin:6px 0 0">Once deleted, the cloud save and the parent account cannot be brought back. To go on, press and hold the button for 3 seconds.</p>
+      <button id="hold" class="btn" style="position:relative;overflow:hidden;background:#7a2a24;color:#fff;border-color:#7a2a24;touch-action:none;user-select:none"><span id="fill" style="position:absolute;left:0;top:0;bottom:0;width:0;background:#d9473b"></span><span style="position:relative">Delete everything (hold)</span></button>
+      <button class="btn btn-line" data-cancel>Cancel</button>
+    </div>
+    <div id="s-word" hidden>
+      <b>Last check</b>
+      <p style="margin:6px 0 0">Type the word <b>DELETE</b> in capital letters.</p>
+      <input id="word" type="text" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Type the word DELETE">
+      <button id="wordGo" class="btn btn-play" style="background:#b3261e;border-color:#b3261e" disabled>Continue</button>
+      <button class="btn btn-line" data-cancel>Cancel</button>
+    </div>
+    <div id="s-code" hidden>
+      <b>Step 3: the code</b>
+      <p style="margin:6px 0 0">We sent a new 6-digit code to your sign-in address. Type it here within 15 minutes. Nothing has been deleted yet.</p>
+      <input id="code2" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" aria-label="The 6-digit code">
+      <button id="codeGo" class="btn btn-play" style="background:#b3261e;border-color:#b3261e">Delete my data now</button>
+      <button id="again" class="btn btn-line">Send the code again</button>
+      <button class="btn btn-line" data-cancel>Cancel</button>
+    </div>
+    <div id="s-done" hidden><b>Your data has been deleted.</b><p style="margin:6px 0 0">You are signed out. Thank you for playing.</p></div>
+    <div id="msg" role="status" style="font-weight:600"></div>
+  </div>
+  <p class="muted">Cancelling, closing this page or letting the 15 minutes pass deletes nothing. Five wrong codes cancel the request. Questions: the <a href="/contact.html">Contact page</a>.</p>
+</main>
+<script type="module">
+// The same three confirmations and emailed code as in the game's Settings (SPEC-010). The server function "delete-my-data" does the deleting.
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
+const sb = createClient('https://rsrmuruskjtnxqmzvmnl.supabase.co', 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU', { auth: { persistSession: false } });
+const $ = id => document.getElementById(id);
+const HOLD_MS = 3000, CODE_MS = 15 * 60 * 1000;
+const STEPS = ['signin', 'list', 'sure', 'word', 'code', 'done'];
+let codeAt = 0, holdTimer = 0, busy = false;
+const say = t => { $('msg').textContent = t || ''; };
+function show(step, text) { for (const s of STEPS) $('s-' + s).hidden = s !== step; say(text); busy = false; }
+const ERRORS = {
+  wait: 'A code was sent a moment ago. Please wait one minute, then try again.',
+  no_email: 'This account has no email address, so a code cannot be sent. Nothing was deleted. Please write to us from the Contact page.',
+  signed_out: 'You are no longer signed in. Nothing was deleted. Please start again.',
+};
+const errorText = r => ERRORS[r.error] || 'That did not work. Nothing was deleted. Please try again later.';
+async function server(action, code) {
+  try { const { data, error } = await sb.functions.invoke('delete-my-data', { body: { action, code } }); return error || !data ? { error: 'network' } : data; }
+  catch (e) { return { error: 'network' }; }
+}
+// Cancel: sign out and forget everything
+async function cancel(text) { clearTimeout(holdTimer); try { await sb.auth.signOut(); } catch (e) {} $('signinCode').hidden = true; for (const id of ['code1', 'code2', 'word']) $(id).value = ''; $('wordGo').disabled = true; show('signin', text || 'Cancelled. Nothing was deleted.'); }
+for (const b of document.querySelectorAll('[data-cancel]')) b.addEventListener('click', () => cancel());
+
+$('sendSignin').addEventListener('click', async () => {
+  const email = $('email').value.trim();
+  if (!email || busy) return;
+  busy = true;
+  // Never creates an account. The answer is the same whether or not the address has one
+  await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false } }).catch(() => {});
+  busy = false;
+  $('signinCode').hidden = false;
+  say('If this address has a parent account, a sign-in code is on its way. Type it above.');
+});
+$('verifySignin').addEventListener('click', async () => {
+  if (busy) return;
+  busy = true;
+  const { error } = await sb.auth.verifyOtp({ email: $('email').value.trim(), token: $('code1').value.trim(), type: 'email' });
+  if (error) { busy = false; return say('That code did not work. Check it, or ask for a new one.'); }
+  show('list');
+});
+$('want').addEventListener('click', () => show('sure'));
+function holdEnd() { clearTimeout(holdTimer); $('fill').style.transition = 'none'; $('fill').style.width = '0'; }
+$('hold').addEventListener('pointerdown', e => {
+  e.preventDefault(); holdEnd(); void $('fill').offsetWidth;
+  $('fill').style.transition = `width ${HOLD_MS}ms linear`; $('fill').style.width = '100%';
+  holdTimer = setTimeout(() => { holdEnd(); show('word'); $('word').focus(); }, HOLD_MS);
+});
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('hold').addEventListener(ev, holdEnd);
+$('hold').addEventListener('contextmenu', e => e.preventDefault());
+$('word').addEventListener('input', () => { $('wordGo').disabled = $('word').value.trim() !== 'DELETE'; });
+async function askCode() {
+  if (busy) return;
+  busy = true; say('Sending the code...');
+  const r = await server('request');
+  if (!r.ok) { busy = false; return say(errorText(r)); }
+  codeAt = Date.now();
+  show('code');
+}
+$('wordGo').addEventListener('click', () => { if ($('word').value.trim() === 'DELETE') askCode(); });
+$('again').addEventListener('click', askCode);
+$('code2').addEventListener('input', () => { $('code2').value = $('code2').value.replace(/\D/g, '').slice(0, 6); });
+$('codeGo').addEventListener('click', async () => {
+  if (busy) return;
+  const code = $('code2').value.trim();
+  if (Date.now() - codeAt > CODE_MS) return cancel('The 15 minutes have passed. Nothing was deleted.');
+  if (!/^\d{6}$/.test(code)) return say('The code has 6 digits.');
+  busy = true;
+  const r = await server('confirm', code);
+  if (r.ok && r.deleted) { try { await sb.auth.signOut(); } catch (e) {} return show('done'); }
+  if (r.error === 'wrong') { busy = false; return say('That code is not right. Tries left: ' + r.left + '. Nothing was deleted.'); }
+  if (r.error === 'cancelled') return cancel('Five wrong codes: the request is cancelled. Nothing was deleted.');
+  if (r.error === 'expired' || r.error === 'no_request') return cancel('The code is no longer valid. Nothing was deleted.');
+  busy = false; say(errorText(r));
+});
+</script>
+<!-- site-footer -->
+<footer class="foot"><div class="in">
+  <ul><li><a href="/how-to-play.html">How to play</a></li><li><a href="/release-notes.html">What is new</a></li><li><a href="/privacy.html">Privacy</a></li><li><a href="/terms.html">Terms</a></li><li><a href="/contact.html">Contact</a></li></ul>
+  <p>For kids, families and players of every age.</p>
+</div></footer>
+<!-- /site-footer -->
+</body>
+</html>

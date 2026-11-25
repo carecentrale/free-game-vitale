@@ -56,6 +56,7 @@ Sent every 10 seconds. World code, game version, kind, position rounded to 0.1, 
 | `world_save` | A shared world's changes are saved | World code, the world's blocks, a save stamp | "Shared world" |
 | `world_get` | A shared world is opened by its code | World code (read only) | "Shared world" |
 | `report_add` | A child sends a report (0.6.91, SPEC-038). Kept up to the owner's period (12 months to start), then deleted automatically; only the owner's account reads it | Kind, category; for an AI line its number; for a build the world code, place, direction looked and blocks changed nearby; for a player their visit code; this visit code; the time. Nothing typed, no name, no picture | "Reports (since 0.6.91)" |
+| `report_delete_mine` | Delete my data on a device (0.6.92, SPEC-010): deletes the reports that device sent | The keys the server gave that device for its reports. Nothing else | "Reports (since 0.6.91)" |
 | `reports_purge` | Called by `report_add` and the owner's page: deletes reports older than the keep period. Sends nothing about the player | None | "Reports (since 0.6.91)" |
 | `mp_stop_until` | Before joining or sharing a world, and once a minute in a shared world (0.6.91, SPEC-038): has the owner stopped multiplayer for this visit? | This visit code (read only) | "Reports (since 0.6.91)" |
 | `world_restores_get` | When a shared world is opened, and when the owner's page says so (0.6.91, SPEC-038): the owner's "put the land back" steps for this world | World code (read only) | "Shared world" |

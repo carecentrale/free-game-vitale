@@ -2,6 +2,20 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.92: Delete my data (SPEC-010)
+Built from the PM hand-off SPEC-010 version 2 (approved by Nick 25 Nov 2026, ready to build), third in Nick's build order. First written as 0.6.70 on the branch `claude/0.6.70-delete-my-data` (18 Nov 2026, never on main); brought onto the current game.
+- **Settings:** *Delete my data* above Quit, for grown-ups. A list of what is deleted and what is not, then three confirmations on three screens (tap; hold 3 seconds; type DELETE). Cancel on every screen; Esc and Back cancel.
+- **No parent signed in:** the device is cleared after the third confirmation. No email is asked for or sent.
+- **Parent signed in:** a 6-digit code goes to the sign-in address (15 minutes, five wrong codes cancel). Then the cloud save and the parent account are deleted by the server function `delete-my-data` (deployed 18 Nov 2026, now in `supabase/functions/`), the device is cleared and signed out.
+- **New with SPEC-038:** the reports the device sent are deleted online too. Each report gets a random key that only the sending device keeps (`docs/migrations/0016_report_keys.sql`, **not applied yet**: waits for Nick's yes; until then reports are not deleted this way).
+- **A grown-up's Playing together Off stays** after a deletion (a parental control, not a record of anyone), so a child cannot get round it by deleting.
+- **Website:** new page `/delete-my-data.html` in the site's look: sign in with an email code, the same three confirmations and code. The privacy page's "How to delete your data" points to it.
+- Guide (Settings part and For grown-ups), release notes, privacy page.
+- **Built differently:** no "the deletion is done" email (the sign-in service cannot send one; a new email service would be a new company receiving the address). The code email is the ordinary sign-in code email until its wording is changed in Supabase. "Parent links" do not exist in the database.
+- The only text boxes in the game are here (the word DELETE and the code); the events test now checks that there are no others and that nothing typed is recorded.
+- Tests: 4 browser tests and `delete-my-data.test.mjs` (server rules, page, guide, privacy).
+- Checked: syntax, all fast tests, the 4 browser tests. **Not checked:** a real email, sign-in or deletion; the website page's steps against the server; any phone; played by Nick.
+
 ## 0.6.91: Report anything that looks wrong (SPEC-038)
 Built from the PM hand-off SPEC-038 version 3 (approved by Nick 24 Nov 2026, ready to build), second in Nick's build order of 25 Nov 2026.
 - **Report in Settings:** in a shared world only, a red *Report something wrong* button near the top of Settings. Taps only, buttons at least 48 px: what it is about (*Something someone built*, *A player*, *Something else*), for a player their game-made name, then what is wrong (*Rude or mean*, *Scary*, *Not right*). Every report ends with "Thank you! A grown-up will look at it. If something upset you, tell a grown-up you trust."

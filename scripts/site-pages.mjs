@@ -49,6 +49,7 @@ export const SITE_PAGES = {
   'www/privacy.html': { path: '/privacy.html', current: null },
   'www/terms.html': { path: '/terms.html', current: null },
   'www/teachers.html': { path: '/teachers.html', current: null },
+  'www/delete-my-data.html': { path: '/delete-my-data.html', current: null },   // SPEC-010 (0.6.92)
   'www/404.html': { path: '/404.html', current: null, noPreview: true },
 };
 export const TOP_LINKS = [['how', '/how-to-play.html', 'How to play'], ['new', '/release-notes.html', 'What is new'], ['contact', '/contact.html', 'Contact']];

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.91 (3D)</title>
+<title>Adventurers of Drenerics v0.6.92 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -2805,7 +2805,7 @@ bindBtn('bJ', 'J');
 // With the bag, Settings, the quit question or another panel open, the buttons do nothing.
 let powersOpen = false;
 let tradePanel = null, pendingMerchant = null;   // a merchant's open trades; the merchant a press landed on (0.6.77)
-const anyPanelOpen = () => reportOpen || bagOpen || settingsOpen || quitOpen || powersOpen || !!skillPanel || !!quizPanel || !!tipPanel || !!tradePanel || paused;
+const anyPanelOpen = () => reportOpen || !!dmd || bagOpen || settingsOpen || quitOpen || powersOpen || !!skillPanel || !!quizPanel || !!tipPanel || !!tradePanel || paused;
 // The item a hand button shows. A stack that has run out counts as empty.
 const handItem = i => { const id = qb[i], d = id ? defOf(id) : null; return d && !(ITEMS[id] && d.kind !== 'spell' && !(inv[id] > 0)) ? id : null; };
 function handTap(i) {
@@ -3115,6 +3115,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.92', title: 'Delete my data', items: [
+    'New in Settings: Delete my data. A grown-up can remove everything the game holds. It asks three times and sends a code by email first.',
+    'The website has a Delete my data page too, for a grown-up who no longer has the game.',
+  ] },
   { v: '0.6.91', title: 'Report anything that looks wrong', items: [
     'See something that looks wrong? Tap the flag to tell us, or hide a player in a shared world.',
     'In a shared world, open Settings and tap Report something wrong. Pick what it is about and what is wrong: taps only, no typing.',
@@ -3455,7 +3459,10 @@ function renderSettings() {
       `<div style="margin-top:14px"><b>${esc(h.v)}: ${esc(h.title)}</b>` +
       `<ul style="margin:6px 0 0 18px;padding:0">${h.items.map(i => `<li style="margin:3px 0">${esc(i)}</li>`).join('')}</ul></div>`
     ).join('') + `</details>` +
-    `<button id="settingsQuit" style="display:block;width:100%;margin-top:28px;min-height:48px;padding:12px;background:#d9473b;color:#fff;border:0;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer">Quit the game</button>`;
+    // Delete my data, above Quit (0.6.92, SPEC-010): for grown-ups; it opens its own screens and deletes nothing by itself
+    `<button id="settingsDelete" style="display:block;width:100%;margin-top:28px;min-height:48px;padding:12px;background:transparent;color:#ffb4b4;border:1px solid #855;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer">Delete my data</button>` +
+    `<div style="font-size:13px;opacity:.8;margin-top:4px;text-align:center">For grown-ups: removes everything the game holds</div>` +
+    `<button id="settingsQuit" style="display:block;width:100%;margin-top:14px;min-height:48px;padding:12px;background:#d9473b;color:#fff;border:0;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer">Quit the game</button>`;
 }
 function toggleSettings(force) {
   const was = settingsOpen;
@@ -3470,6 +3477,7 @@ settingsEl.addEventListener('click', e => {
   else if (e.target.closest('#settingsReport')) { toggleSettings(false); openReport(true); }
   // Quit the game: Settings closes and the same question as Esc and Back is asked (0.6.60)
   else if (e.target.closest('#settingsQuit')) { toggleSettings(false); toggleQuit(true); }
+  else if (e.target.closest('#settingsDelete')) { toggleSettings(false); dmdOpen(); }
   else if (e.target.closest('#vitalSwitch')) { setVitalOn(!vital.on); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
   else if (e.target.closest('#autoLoadSwitch')) { setAutoLoad(!autoLoadOn()); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
   else if (e.target.closest('#quizSwitch')) { setQuizOn(!quizOn); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
@@ -3536,6 +3544,7 @@ function logOff() {
 function backAction() {
   if (togetherCardOpen) return;   // the joining card (0.6.90) closes with OK only
   if (reportOpen) { openReport(false); return; }   // the report panel (0.6.91)
+  if (dmd) { dmdClose(); return; }   // Delete my data (0.6.92)
   if (mapOpen) toggleMap(false);
   else if (logOpen) toggleLog(false);
   else if (tipPanel) tipClose();
@@ -3598,6 +3607,195 @@ addEventListener('pointerdown', e => {
 
 // Castle blocks go into the bag as themselves (0.6.76)
 const BLOCK_ITEM = { [T.CSTONE]: 'castle_stone', [T.ROOF]: 'roof_tile', [T.ROOFB]: 'roof_tile_blue', [T.WOOD]: 'wood_floor', [T.PALE]: 'pale_stone', [T.SANDST]: 'sandstone', [T.DARK]: 'dark_stone', [T.SLATE]: 'slate_roof', [T.WINDOW]: 'window', [T.IRON]: 'iron_bars', [T.COBBLE]: 'cobblestone', [T.EARTH]: 'packed_earth' };
+// ---- Delete my data (0.6.92, SPEC-010; first written as 0.6.70 on a branch): for grown-ups. Three different confirmations on three screens, then, for a signed-in
+// parent, a 6-digit code emailed to the sign-in address. Nothing is deleted before the last step, and Cancel is on every screen. ----
+const DMD_HOLD_MS = 3000;                 // confirmation 2: hold "Delete everything" this long
+const DMD_CODE_MS = 15 * 60 * 1000;       // the emailed code ends after 15 minutes
+const dmdEl = document.createElement('div');
+dmdEl.id = 'dmd';
+dmdEl.style.cssText = 'position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.78);font-family:system-ui,sans-serif';
+document.body.append(dmdEl);
+let dmd = null;                           // null: closed. Otherwise { step, signedIn, msg, busy, codeAt }
+let dmdHoldTimer = 0, dmdCodeTimer = 0;
+// Is a parent signed in? 'unknown' when a sign-in is kept on this device but the server cannot be reached: then nothing is deleted
+let dmdSession = async () => {
+  await Promise.race([sbReady, new Promise(r => setTimeout(r, 8000))]);
+  let kept = false;
+  try { for (let i = 0; i < localStorage.length; i++) if (/^sb-.*-auth-token$/.test(localStorage.key(i) || '')) kept = true; } catch (e) {}
+  if (!sb) return kept ? 'unknown' : null;
+  try { const { data } = await sb.auth.getSession(); return data && data.session ? data.session.user : null; } catch (e) { return kept ? 'unknown' : null; }
+};
+// The server function "delete-my-data": 'request' emails the code, 'confirm' checks it and deletes the cloud save and the parent account
+let dmdServer = async (action, code) => {
+  try {
+    const { data, error } = await sb.functions.invoke('delete-my-data', { body: { action, code } });
+    return error || !data ? { error: 'network' } : data;
+  } catch (e) { return { error: 'network' }; }
+};
+const DMD_ERRORS = {
+  wait: 'A code was sent a moment ago. Please wait one minute, then try again.',
+  no_email: 'Your sign-in gave us no email address, so a code cannot be sent. Nothing was deleted. Please write to us from the Contact page of the website.',
+  signed_out: 'You are no longer signed in. Nothing was deleted. Close this and start again.',
+  network: 'The server could not be reached. Nothing was deleted. Check the internet connection and try again.',
+};
+const dmdError = r => DMD_ERRORS[r.error] || 'That did not work. Nothing was deleted. Please try again later.';
+function dmdRender() {
+  const btn = (act, label, bg, extra = '') => `<button data-dmd="${act}" ${extra} style="display:block;width:100%;margin-top:10px;min-height:48px;padding:12px;border:0;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;color:#fff;background:${bg}">${label}</button>`;
+  const cancel = btn('cancel', 'Cancel', '#3b6fd8');
+  const input = (id, more) => `<input id="${id}" ${more} autocomplete="off" autocorrect="off" spellcheck="false" style="display:block;width:100%;box-sizing:border-box;margin-top:12px;min-height:48px;padding:10px;border-radius:12px;border:2px solid #556;background:#fff;color:#111;font-size:22px;text-align:center;letter-spacing:3px">`;
+  const msg = dmd.msg ? `<div id="dmdMsg" style="margin-top:12px;color:#ffd27a;font-size:15px">${esc(dmd.msg)}</div>` : '';
+  let body = '';
+  if (dmd.step === 'list') {
+    const n = listSlots().length;
+    body = `<div style="font-size:14px;opacity:.85">This screen is for grown-ups.</div>` +
+      `<div style="margin-top:12px;font-weight:700">This will be deleted:</div>` +
+      `<ul id="dmdList" style="margin:6px 0 0 20px;padding:0">` +
+      `<li>The saved games on this device (${n})</li><li>The quiz friends reports</li><li>The settings</li><li>The reports sent from this device</li>` +
+      (dmd.signedIn ? `<li>The cloud save</li><li>The parent account and its sign-in</li>` : '') + `</ul>` +
+      `<div style="margin-top:12px;font-weight:700">This is not deleted:</div>` +
+      `<ul style="margin:6px 0 0 20px;padding:0;font-size:14px;opacity:.9"><li>Gameplay records and error reports. They are kept under one-visit codes and cannot be tied to a person.</li>` +
+      `<li>Shared worlds. They are kept, so friends do not lose them.</li></ul>` +
+      (dmd.signedIn ? `<div style="margin-top:12px;font-size:14px;opacity:.9">A code will be sent by email to the address you signed in with.</div>` : '') +
+      btn('want', 'I want to delete my data', '#d9473b') + cancel;
+  } else if (dmd.step === 'sure') {
+    body = `<div style="margin-top:4px;font-weight:700;font-size:18px">This cannot be undone.</div>` +
+      `<div style="margin-top:8px">Once deleted, the saved games${dmd.signedIn ? ', the cloud save and the parent account' : ''} cannot be brought back.</div>` +
+      `<div style="margin-top:8px">To go on, press and hold the button for 3 seconds.</div>` +
+      `<button data-dmd="hold" id="dmdHold" style="position:relative;overflow:hidden;display:block;width:100%;margin-top:14px;min-height:56px;padding:12px;border:0;border-radius:12px;font-size:17px;font-weight:600;cursor:pointer;color:#fff;background:#7a2a24;touch-action:none;user-select:none;-webkit-user-select:none">` +
+      `<span id="dmdFill" style="position:absolute;left:0;top:0;bottom:0;width:0;background:#d9473b"></span><span style="position:relative">Delete everything (hold)</span></button>` + cancel;
+  } else if (dmd.step === 'word') {
+    body = `<div style="margin-top:4px">Last check: type the word <b>DELETE</b> in capital letters.</div>` +
+      input('dmdWord', 'type="text" maxlength="6" autocapitalize="characters" aria-label="Type the word DELETE"') + msg +
+      btn('word', dmd.busy ? 'Please wait...' : 'Continue', '#d9473b', 'id="dmdWordGo" disabled') + cancel;
+  } else if (dmd.step === 'code') {
+    body = `<div style="margin-top:4px">We sent a 6-digit code by email to the address you signed in with. Type it here within 15 minutes.</div>` +
+      `<div style="margin-top:8px;font-size:14px;opacity:.9">Nothing has been deleted yet.</div>` +
+      input('dmdCode', 'type="text" inputmode="numeric" maxlength="6" aria-label="The 6-digit code"') + msg +
+      btn('code', dmd.busy ? 'Please wait...' : 'Delete my data now', '#d9473b') +
+      btn('again', 'Send the code again', '#666b80') + cancel;
+  } else if (dmd.step === 'stopped') {
+    body = `<div id="dmdMsg" style="margin-top:4px">${esc(dmd.msg)}</div>` + btn('cancel', 'Close', '#3b6fd8');
+  } else if (dmd.step === 'done') {
+    body = `<div id="dmdMsg" style="margin-top:4px;font-weight:700;font-size:18px">Your data has been deleted.</div>` +
+      `<div style="margin-top:8px">The game will now open as on a first visit.</div>` + btn('restart', 'OK', '#2e9e4f');
+  }
+  dmdEl.innerHTML = `<div id="dmdBox" data-step="${dmd.step}" style="background:#1e2236;color:#fff;border-radius:16px;padding:18px;width:min(420px,92vw);max-height:92vh;overflow:auto;box-sizing:border-box;font-size:16px;line-height:1.4">` +
+    `<div style="font-weight:700;font-size:20px;margin-bottom:8px">Delete my data</div>${body}</div>`;
+  const first = dmdEl.querySelector('input');
+  if (first) first.focus();
+}
+function dmdGo(step, msg = '') { clearTimeout(dmdHoldTimer); dmd.step = step; dmd.msg = msg; dmd.busy = false; dmdRender(); }
+async function dmdOpen() {
+  if (dmd) return;
+  dmd = { step: 'list', signedIn: false, msg: '', busy: false, codeAt: 0 };
+  dmdEl.style.display = 'flex';
+  dmdEl.innerHTML = '';
+  const user = await dmdSession();
+  if (!dmd) return;                                   // closed while the sign-in was being checked
+  if (user === 'unknown') return dmdGo('stopped', 'A parent is signed in on this device, but the server could not be reached. Nothing was deleted. Check the internet connection and try again.');
+  dmd.signedIn = !!user;
+  dmdRender();
+}
+// Cancel, Esc, Back, or leaving: everything is forgotten and nothing is deleted
+function dmdClose() {
+  if (!dmd || dmd.step === 'done') return;
+  clearTimeout(dmdHoldTimer); clearTimeout(dmdCodeTimer);
+  dmd = null;
+  dmdEl.style.display = 'none';
+  dmdEl.innerHTML = '';
+}
+// The saved games, the quiz friends reports (kept inside the saved games), the settings and the sign-in kept on this device
+// 0.6.92: the reports this device sent (SPEC-038) are deleted online too, by the keys the server gave when they were sent.
+// A grown-up's Playing together Off stays (it is a parental control, not a record of anyone), so deleting cannot get round it.
+function dmdWipeDevice() {
+  wiping = true;                                      // the game must not save again before it restarts
+  const keys = reportList().map(r => r.key).filter(Boolean);
+  if (keys.length && sb) { try { sb.rpc('report_delete_mine', { p_keys: keys }).then(() => {}, () => {}); } catch (e) {} }
+  const off = !togetherOn();
+  try { localStorage.clear(); if (off) localStorage.setItem(TOGETHER_KEY, 'off'); } catch (e) {}
+  try { sessionStorage.clear(); } catch (e) {}
+}
+async function dmdAskCode() {
+  if (dmd.busy) return;
+  dmd.busy = true;
+  const r = await dmdServer('request');
+  if (!dmd) return;
+  if (!r.ok) return dmdGo(dmd.step, dmdError(r));
+  dmd.codeAt = Date.now();
+  clearTimeout(dmdCodeTimer);
+  dmdCodeTimer = setTimeout(() => { if (dmd && dmd.step === 'code') dmdGo('stopped', 'The 15 minutes have passed. Nothing was deleted.'); }, DMD_CODE_MS);
+  dmdGo('code');
+}
+async function dmdAfterWord() {
+  const el = document.getElementById('dmdWord');
+  if (!el || el.value.trim() !== 'DELETE' || dmd.busy) return;
+  if (dmd.signedIn) return dmdAskCode();
+  dmdWipeDevice();                                    // no parent signed in: only the data on this device, and no email
+  dmdGo('done');
+}
+async function dmdSendCode() {
+  const el = document.getElementById('dmdCode');
+  if (!el || dmd.busy) return;
+  const code = el.value.trim();
+  if (Date.now() - dmd.codeAt > DMD_CODE_MS) return dmdGo('stopped', 'The 15 minutes have passed. Nothing was deleted.');
+  if (!/^\d{6}$/.test(code)) return dmdGo('code', 'The code has 6 digits.');
+  dmd.busy = true;
+  const r = await dmdServer('confirm', code);
+  if (!dmd) return;
+  if (r.ok && r.deleted) {
+    clearTimeout(dmdCodeTimer);
+    wiping = true;
+    try { if (sb) await sb.auth.signOut(); } catch (e) {}
+    dmdWipeDevice();
+    return dmdGo('done');
+  }
+  if (r.error === 'wrong') return dmdGo('code', 'That code is not right. Tries left: ' + r.left + '. Nothing was deleted.');
+  if (r.error === 'cancelled') return dmdGo('stopped', 'Five wrong codes: the request is cancelled. Nothing was deleted.');
+  if (r.error === 'expired' || r.error === 'no_request') return dmdGo('stopped', 'The code is no longer valid. Nothing was deleted.');
+  dmdGo('code', dmdError(r));
+}
+dmdEl.addEventListener('click', e => {
+  const b = e.target.closest('[data-dmd]');
+  if (!b || !dmd) return;
+  const act = b.dataset.dmd;
+  if (act === 'cancel') dmdClose();
+  else if (act === 'want' && dmd.step === 'list') dmdGo('sure');
+  else if (act === 'word' && dmd.step === 'word') dmdAfterWord();
+  else if (act === 'code' && dmd.step === 'code') dmdSendCode();
+  else if (act === 'again' && dmd.step === 'code') dmdAskCode();
+  else if (act === 'restart' && dmd.step === 'done') location.reload();
+});
+// Confirmation 2: the button must be held for 3 seconds; letting go early starts again
+function dmdHoldEnd() {
+  clearTimeout(dmdHoldTimer);
+  const fill = document.getElementById('dmdFill');
+  if (fill) { fill.style.transition = 'none'; fill.style.width = '0'; }
+}
+dmdEl.addEventListener('pointerdown', e => {
+  if (!dmd || dmd.step !== 'sure' || !e.target.closest('#dmdHold')) return;
+  e.preventDefault();
+  const fill = document.getElementById('dmdFill');
+  fill.style.transition = 'none'; fill.style.width = '0';
+  void fill.offsetWidth;
+  fill.style.transition = `width ${DMD_HOLD_MS}ms linear`; fill.style.width = '100%';
+  clearTimeout(dmdHoldTimer);
+  dmdHoldTimer = setTimeout(() => { if (dmd && dmd.step === 'sure') dmdGo('word'); }, DMD_HOLD_MS);
+});
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) dmdEl.addEventListener(ev, dmdHoldEnd);
+dmdEl.addEventListener('contextmenu', e => e.preventDefault());
+dmdEl.addEventListener('input', e => {
+  if (e.target.id === 'dmdWord') { const go = document.getElementById('dmdWordGo'); if (go) go.disabled = e.target.value.trim() !== 'DELETE'; }
+  if (e.target.id === 'dmdCode') e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+});
+// Typing and tapping here never reach the game behind (no digging, no walking, no quick bar)
+for (const ev of ['pointerdown', 'pointerup', 'pointermove', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'wheel', 'keyup', 'click', 'dblclick']) dmdEl.addEventListener(ev, e => e.stopPropagation());
+dmdEl.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.code === 'Escape') dmdClose();
+  else if (e.code === 'Enter' && dmd && dmd.step === 'word') dmdAfterWord();
+  else if (e.code === 'Enter' && dmd && dmd.step === 'code') dmdSendCode();
+});
+
 // Finish digging the block at (x,y,z). If the bag is full, the block is dropped on the ground to pick up later.
 function digCell(x, y, z) {
   const t = get(x, y, z);
@@ -7178,7 +7376,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.91';
+const VERSION = '0.6.92';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7557,7 +7755,7 @@ function renderReportsSent() {
   // The free cloud save holds one game. Automatic saves never replace a different game; a manual "Save now" asks first.
   const worldOf = s => { try { return JSON.parse(s).worldId || null; } catch (e) { return null; } };
   async function cloudSaveNow(manual) {
-    if (!sb || !cloudUser) return true;
+    if (!sb || !cloudUser || wiping) return true;
     saveGame();
     if (activeSlot === null) { setStatus('Pick a saved game first.'); return true; }
     const save = localStorage.getItem(slotKey(activeSlot));
@@ -7850,8 +8048,11 @@ async function postReport(args) {
   try {
     await sbReady;
     if (!sb) throw new Error('offline');
-    const { error } = await sb.rpc('report_add', args);
+    const { _at, ...send } = args;   // _at stays on the device
+    const { data, error } = await sb.rpc('report_add', send);
     if (error) throw error;
+    // 0.6.92: the server gives a key for the report, kept on this device so Delete my data can delete it
+    if (typeof data === 'string' && _at) { const l = reportList(), r = l.find(x => x.at === _at); if (r) { r.key = data; writeJSON(REPORTS_KEY, l); } }
     return true;
   } catch (e) { return false; }
 }
@@ -7864,11 +8065,11 @@ function sendReport(r) {
   list.unshift({ at, kind: r.kind, category: r.category, about: String(r.about || '').slice(0, 60), who: pid });
   writeJSON(REPORTS_KEY, list.slice(0, 50));
   logEvent('report_sent', r.kind + ' ' + r.category);
-  const args = { p_kind: r.kind, p_category: r.category, p_reporter: pid };
+  const args = { p_kind: r.kind, p_category: r.category, p_reporter: pid, _at: at };   // _at is not sent
   if (r.kind === 'ai') args.p_ai_line = String(r.ai);
   if (r.kind === 'build' && r.place) Object.assign(args, { p_world: worldId, p_x: r.place.x, p_y: r.place.y, p_z: r.place.z, p_look: r.place.look, p_changed: landBox(r.place.x, r.place.z, false) });
   if (r.kind === 'player') Object.assign(args, { p_world: worldId, p_player: String(r.player) });
-  lastReportArgs = args;   // read by the automated tests
+  lastReportArgs = (({ _at, ...a }) => a)(args);   // read by the automated tests
   postReport(args).then(ok => { if (!ok) reportQueue.push(args); });
   return 'sent';
 }
@@ -8829,6 +9030,9 @@ Promise.all([
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  // Delete my data (0.6.92): the tests stand in for the sign-in and the server
+  dmd: { get state() { return dmd ? { step: dmd.step, signedIn: dmd.signedIn, msg: dmd.msg } : null; }, open: dmdOpen, close: dmdClose, HOLD_MS: DMD_HOLD_MS, CODE_MS: DMD_CODE_MS,
+    setSession: f => { dmdSession = f; }, setServer: f => { dmdServer = f; }, ageCode: ms => { if (dmd) dmd.codeAt -= ms; }, get wiping() { return wiping; }, get blocksGame() { return anyPanelOpen(); } },
   // Playing together (0.6.90, SPEC-039)
   get together() { return { on: togetherOn(), by: togetherBy, worldId, local: localWorld, cardOpen: togetherCardOpen, resumeWait }; },
   togetherSignIn: u => togetherHooks.signIn(u), leaveTogether,

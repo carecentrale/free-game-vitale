@@ -128,7 +128,7 @@ function barsHtml(pairs, width) {
 async function loadReports() {
   await sb.rpc('reports_purge');   // older than the keep period: deleted (also done when a report comes in)
   const [r, k, m] = await Promise.all([
-    sb.from('reports').select('*').order('created_at', { ascending: false }).limit(2000),
+    sb.from('reports').select('id,created_at,kind,category,ai_line,world_code,x,y,z,look,changed,player_code,reporter,status,done_at').order('created_at', { ascending: false }).limit(2000),
     sb.from('game_settings').select('value').eq('key', 'reports_keep_months').maybeSingle(),
     sb.from('mp_stops').select('*'),
   ]);
