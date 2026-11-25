@@ -26,14 +26,14 @@ Checked on 22 Nov 2026: each file below has the same text as the step recorded i
 | 15 | 0013_share_reward.sql | 0013_share_reward | 23 Nov 2026 (Nick: "yes") |
 | 16 | 0014_teacher_interest.sql | 0014_teacher_interest | 23 Nov 2026 (Nick: "yes") |
 | 17 | 0015_reports.sql | 0015_reports | 25 Nov 2026 (Nick: "yes do data base changes") |
+| 18 | 0017_mirelo_settings.sql | 0017_mirelo_settings | 25 Nov 2026 (Nick: "Yes apply migrations"). Applied before 0016: the 0016 step timed out waiting for a confirmation in the Supabase connection |
 
 **Not applied:** `0008_guardian_packages.sql` (purchases, waits for the parent's approval). Its tables are not in the live database.
-`0018_dragons.sql` (SPEC-033 and SPEC-036: dragon rarity weights, the landing distance and the owner's dragon names: written 25 Nov 2026, waits for Nick's yes; the game uses the starting weights until then).
+`0018_dragons.sql` (SPEC-033 and SPEC-036: dragon rarity weights, the landing distance and the owner's dragon names: written 25 Nov 2026, approved by Nick 25 Nov 2026, not applied yet; the game uses the starting weights until then).
 `0021_bird_facts_weekly.sql` (SPEC-037, the weekly run of the bird-facts function, with a secret kept in the database's vault: written 25 Nov 2026, approved by Nick the same day, not applied yet).
-`0020_insights.sql` (SPEC-040, two owner-only counting functions for the admin page's Insights: written 25 Nov 2026, waits for Nick's yes; until then Insights says it is not available).
-`0019_bird_facts.sql` (SPEC-037, the bird facts table, the three-flags rule and the daily limit: written 25 Nov 2026, waits for Nick's yes; until then the game has no facts and a bird's card shows its picture and name only).
-`0017_mirelo_settings.sql` (SPEC-028, Mirelo's five timings: written 25 Nov 2026, waits for Nick's yes; the game uses the starting values until then).
-`0016_report_keys.sql` (Delete my data also deletes a device's reports: written 25 Nov 2026, waits for Nick's yes).
+`0020_insights.sql` (SPEC-040, two owner-only counting functions for the admin page's Insights: written 25 Nov 2026, approved by Nick 25 Nov 2026, not applied yet; until then Insights says it is not available).
+`0019_bird_facts.sql` (SPEC-037, the bird facts table, the three-flags rule and the daily limit: written 25 Nov 2026, approved by Nick 25 Nov 2026, not applied yet; until then the game has no facts and a bird's card shows its picture and name only).
+`0016_report_keys.sql` (Delete my data also deletes a device's reports: written 25 Nov 2026, approved by Nick 25 Nov 2026, not applied yet).
 
 Two files start with 0009: delete_my_data was written on the 0.6.70 branch at the same time as game_settings.
 Keep the order of the table, not of the file names.
