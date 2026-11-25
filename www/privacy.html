@@ -35,7 +35,7 @@
 <main id="main" class="page">
 
   <h1>Privacy Policy</h1>
-  <div class="muted">Adventurers of Drenerics. Developer: Adventurers of Drenerics. Last updated: 23 November 2026 (gameplay records described by kind; error reports, your character in a shared world and Google Play added; later the same day: sharing the game, teachers who ask to hear from us, and Gmail added)</div>
+  <div class="muted">Adventurers of Drenerics. Developer: Adventurers of Drenerics. Last updated: 25 November 2026 (reports, stopping multiplayer and the Playing together choice added; sign-in with Google only. Before: 23 November 2026, gameplay records described by kind; error reports, your character in a shared world, Google Play, sharing the game, teachers who ask to hear from us, and Gmail added)</div>
 
   <p>Adventurers of Drenerics is a block-building adventure game made by a small family project, for children and their families. It is available in a web browser now and is planned for Android and other app stores. This policy explains what information the game collects, why, who can see it, how long we keep it, and how to ask us to delete it.</p>
 
@@ -67,6 +67,8 @@
     <tr><td>Your character in a shared world</td><td>While friends play in the same shared world, each device shows its player's character to the others: the name from the preset list, its look and clothes from the start questions, where it is and which way it faces, its quiz friend as a character (not what it says), the cart it is trading with, and the dragons choice. Never text or anything a child typed. Nothing of this is stored on our servers</td><td>So friends see each other in the world</td><td>Sent over the shared world's live connection only</td><td>The players in that world, while they play</td></tr>
     <tr><td>Trees eaten by dragons (since 0.6.81)</td><td>A short list of the trees a dragon has eaten in a world: each tree's place, the day it was eaten and the day it grows back (dates only, no time of day). At most 500. A tree leaves the list once it has grown back</td><td>So trees grow back after 1 or 2 days</td><td>In the saved game on the device and in a shared world. In the cloud save if a parent turns on cloud save</td><td>The players of that world</td></tr>
     <tr><td>Dragons choice (since 0.6.81)</td><td>The parent's choice in the parent area: dragons On, Stay high or Off</td><td>So the choice stays set</td><td>In the saved game on the device. In the cloud save if a parent turns on cloud save</td><td>Nobody else</td></tr>
+    <tr><td>Playing together choice (since 0.6.90)</td><td>The grown-up's choice in the parent area: playing together On or Off, and that it was changed by a grown-up signed in with Google (nothing about the account). On the device only: which safety line the loading screen showed last, and whether the Playing together card was seen</td><td>So the choice stays set, and the card shows only once</td><td>In the saved game and on the device. The choice is in the cloud save if a parent turns on cloud save</td><td>Nobody else</td></tr>
+    <tr><td>Reports (since 0.6.91)</td><td>When a child taps Report: what it is about (an AI-written line, something built, a player or something else) and what is wrong (rude or mean, scary, not right). For an AI line, its number. For something built, the world code, the place in block numbers, the direction the child was looking and how many blocks players had changed nearby. For a player, that player's visit code. The child's visit code and the time. Never a name, a picture of the screen or anything typed. A list of the reports sent is also kept on the device, for the parent area. If our team stops multiplayer for a player, the visit code and an end date are kept for that time</td><td>So we can deal with anything rude, scary or wrong, spot repeats, and keep shared worlds safe</td><td>Our database (Supabase). The device's own list stays on the device</td><td>Our team only. Never other players</td></tr>
     <tr><td>Parent sign-in and cloud save</td><td>A parent's sign-in email (or Google or Facebook account identifier) and the parent's cloud save</td><td>So a parent can sign in, see stats and load the game on another device</td><td>Our database and the sign-in provider the parent chose</td><td>The signed-in parent. Our team, to run the service.</td></tr>
     <tr><td>Share the game (since 0.6.88)</td><td>When a signed-in parent taps Share the game on the parent portal: a mark on the parent's account that it was shared, with the date. In the saved game: a mark that the thank-you gems were given. Nothing about who the link was sent to, or whether it was sent or opened, and nothing is typed</td><td>So the thank-you gems are given only once to each saved game</td><td>Our database (the parent's account), and the saved game on the device (in the cloud save if a parent turns it on)</td><td>Nobody else. Deleted with the parent's account</td></tr>
   </table></div>
@@ -99,6 +101,7 @@
   <ul>
     <li>Enemy debug log: 30 days, then deleted automatically. A parent can change this period.</li>
     <li>Gameplay records and error reports: 12 months, then deleted.</li>
+    <li>Reports: only as long as needed to deal with them and to spot repeats, up to 12 months (our team may set a shorter period), then deleted automatically. A stop on multiplayer ends at its end date, or when our team lifts it.</li>
     <li>Shared worlds: until the family asks us to delete them, or until they have not been used for 12 months.</li>
     <li>Parent sign-in and cloud save: until the parent deletes them, or asks us to delete the account.</li>
     <li>Device data: stays on the device until the game's data is cleared in the browser or app settings.</li>
@@ -121,7 +124,7 @@
     <ul>
       <li>We will confirm receipt within 7 days.</li>
       <li>We will delete the data within 30 days, and tell you when it is done.</li>
-      <li>Deleting a device's records also deletes any parent links to that device.</li>
+      <li>Deleting a device's records also deletes any parent links to that device, and the reports sent from it.</li>
       <li>Deleting a parent account removes its cloud saves and its links. The stored device records stay with the device unless you also ask us to delete them.</li>
     </ul>
     <p class="muted" style="margin-bottom:0">To delete the game's saved data on a device without contacting us, clear the game's data in the browser or app settings on that device. In-app deletion will be added in a later update, and this page will be updated when it is.</p>

@@ -110,7 +110,97 @@ async function load() {
   loadMerchantCards();
   loadShare().catch(() => {});
   loadTeachers().catch(() => {});
+  loadReports().catch(e => { $('reportMsg').textContent = 'Reports not available: ' + e.message; });
 }
+
+// ---- Reports (0.6.91, SPEC-038): readable and changeable by the owner's account only (migration 0015) ----
+// The charts are always shown at the top. Actions: mark done; for a build, put the land back in the 32 by 32 box
+// (the games in that world do it as ordinary block changes); for a player, stop multiplayer for that visit code.
+const R_KINDS = { ai: 'AI line', build: 'Build', player: 'Player', other: 'Other' };
+const R_CATS = { rude: 'Rude or mean', scary: 'Scary', wrong: 'Not right' };
+let reportRows = [], mpStops = [];
+const sameThing = r => r.kind === 'ai' ? 'ai:' + r.ai_line : r.kind === 'player' ? 'p:' + r.player_code
+  : r.kind === 'build' ? 'b:' + r.world_code + ':' + Math.floor(r.x / 32) + ':' + Math.floor(r.z / 32) : 'o:' + r.id;
+function barsHtml(pairs, width) {
+  const max = Math.max(1, ...pairs.map(p => p[1]));
+  return pairs.map(([k, n]) => `<div><span style="width:${width}px">${esc(k)}</span><i style="width:${(n / max) * 60}%"></i><span>${n}</span></div>`).join('');
+}
+async function loadReports() {
+  await sb.rpc('reports_purge');   // older than the keep period: deleted (also done when a report comes in)
+  const [r, k, m] = await Promise.all([
+    sb.from('reports').select('*').order('created_at', { ascending: false }).limit(2000),
+    sb.from('game_settings').select('value').eq('key', 'reports_keep_months').maybeSingle(),
+    sb.from('mp_stops').select('*'),
+  ]);
+  if (r.error) { $('reportMsg').textContent = 'Not available yet: ' + r.error.message; return; }
+  reportRows = r.data || []; mpStops = (m && m.data) || [];
+  $('reportsKeep').value = k && k.data ? k.data.value : 12;
+  renderReports();
+}
+function renderReports() {
+  const now = Date.now(), recent = reportRows.filter(r => now - new Date(r.created_at).getTime() < 30 * DAY);
+  const open = reportRows.filter(r => r.status === 'open');
+  $('reportStats').innerHTML = [['Open reports', open.length], ['Reports (last 30 days)', recent.length], ['Multiplayer stopped now', mpStops.filter(s => !s.until || new Date(s.until) > now).length]]
+    .map(([label, n]) => `<div class="stat card"><b>${n}</b><span>${esc(label)}</span></div>`).join('');
+  const days = [];
+  for (let i = 29; i >= 0; i--) days.push(new Date(now - i * DAY).toISOString().slice(0, 10));
+  const perDay = Object.fromEntries(days.map(d => [d, 0]));
+  for (const x of recent) { const d = x.created_at.slice(0, 10); if (d in perDay) perDay[d]++; }
+  $('reportDaily').innerHTML = barsHtml(days.map(d => [d.slice(5), perDay[d]]), 52);
+  const count = (key, names) => Object.entries(names).map(([k, label]) => [label, recent.filter(x => x[key] === k).length]);
+  $('reportKinds').innerHTML = barsHtml(count('kind', R_KINDS), 90);
+  $('reportCats').innerHTML = barsHtml(count('category', R_CATS), 110);
+  const counts = {};
+  for (const x of reportRows) counts[sameThing(x)] = (counts[sameThing(x)] || 0) + 1;
+  const list = $('reportsDoneToo').checked ? reportRows : open;
+  const stopOf = code => mpStops.find(s => s.visit_code === code && (!s.until || new Date(s.until) > now));
+  $('reportRows').innerHTML = list.length ? '<table style="width:100%;font-size:13px"><tr class="muted"><td>When</td><td>Kind</td><td>Category</td><td>About</td><td>Same thing</td><td>Actions</td></tr>' +
+    list.slice(0, 300).map(x => {
+      const about = x.kind === 'ai' ? 'AI line ' + esc(x.ai_line)
+        : x.kind === 'build' ? `World ${esc(x.world_code)} at ${x.x}, ${x.y}, ${x.z} (looking ${x.look}&deg;); ${x.changed ?? '?'} blocks placed or removed in the 32 by 32 box`
+        : x.kind === 'player' ? `Visit code ${esc(x.player_code)} in world ${esc(x.world_code)}` : 'Something else';
+      const st = x.kind === 'player' ? stopOf(x.player_code) : null;
+      const acts = (x.status === 'open' ? `<button class="secondary" data-rdone="${x.id}">Mark done</button> ` : '<span class="muted">Done</span> ') +
+        (x.kind === 'build' ? `<button class="danger" data-rrestore="${x.id}">Put the land back</button>` : '') +
+        (x.kind === 'player' ? (st ? `<span class="muted">Stopped ${st.until ? 'until ' + new Date(st.until).toLocaleDateString() : 'until lifted'}</span> <button class="secondary" data-rlift="${esc(x.player_code)}">Lift</button>`
+          : `<select data-rlen="${x.id}"><option value="1">1 day</option><option value="7" selected>7 days</option><option value="30">30 days</option><option value="0">Until I lift it</option></select> <button class="danger" data-rstop="${x.id}">Stop multiplayer</button>`) : '') +
+        (x.kind === 'ai' ? '<span class="muted">Removing AI lines comes with the fun facts (SPEC-037)</span>' : '');
+      return `<tr><td>${new Date(x.created_at).toLocaleString()}</td><td>${R_KINDS[x.kind] || esc(x.kind)}</td><td>${R_CATS[x.category] || esc(x.category)}</td><td>${about}</td><td>${counts[sameThing(x)]}</td><td>${acts}</td></tr>`;
+    }).join('') + '</table>' : '<div class="muted">No reports to show.</div>';
+}
+// Tells the games in a shared world, on its live channel. The games check with the server before doing anything.
+async function worldSay(code, event, payload) {
+  const ch = sb.channel('world-' + code, { config: { broadcast: { self: false } } });
+  await new Promise(ok => { ch.subscribe(st => { if (st === 'SUBSCRIBED') ok(); }); setTimeout(ok, 5000); });
+  await ch.send({ type: 'broadcast', event, payload: Object.assign({ from: 'owner' }, payload) }).catch(() => {});
+  setTimeout(() => sb.removeChannel(ch), 1500);
+}
+$('reportsDoneToo').addEventListener('change', renderReports);
+$('reportRows').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const row = reportRows.find(x => String(x.id) === (b.dataset.rdone || b.dataset.rrestore || b.dataset.rstop));
+  let res;
+  if (b.dataset.rdone) res = await sb.from('reports').update({ status: 'done', done_at: new Date().toISOString() }).eq('id', row.id).select('id');
+  else if (b.dataset.rrestore) {
+    if (!confirm(`Put the land back as the seed made it in the 32 by 32 box around ${row.x}, ${row.z} in world ${row.world_code}? Everything players built or dug there goes, for everyone.`)) return;
+    res = await sb.from('world_restores').insert({ world_code: row.world_code, x: row.x, z: row.z }).select('id');
+    if (!res.error) await worldSay(row.world_code, 'restore', {});
+  } else if (b.dataset.rstop) {
+    const days = +document.querySelector(`[data-rlen="${row.id}"]`).value;
+    res = await sb.from('mp_stops').upsert({ visit_code: row.player_code, world_code: row.world_code, until: days ? new Date(Date.now() + days * DAY).toISOString() : null }).select('visit_code');
+    if (!res.error) await worldSay(row.world_code, 'mpstop', { code: row.player_code });
+  } else if (b.dataset.rlift) res = await sb.from('mp_stops').delete().eq('visit_code', b.dataset.rlift).select('visit_code');
+  else return;
+  $('reportMsg').textContent = res.error ? 'Not done: ' + res.error.message : (res.data && res.data.length ? 'Done.' : 'Not done: only the owner\'s account can do this.');
+  loadReports();
+});
+$('saveReportsKeep').addEventListener('click', async () => {
+  const v = Math.round(Number($('reportsKeep').value));
+  if (!(v >= 1 && v <= 120)) { $('reportMsg').textContent = 'Choose from 1 to 120 months.'; return; }
+  const { data, error } = await sb.from('game_settings').update({ value: v, updated_at: new Date().toISOString() }).eq('key', 'reports_keep_months').select('value');
+  $('reportMsg').textContent = error ? 'Not saved: ' + error.message : (data && data.length ? 'Saved: reports are kept ' + v + ' months.' : 'Not saved: only the owner\'s account can change this.');
+  loadReports();
+});
 
 // ---- Share the game (SPEC-030): a signed-in parent shares the plain home page address with the device's own share
 // window. As the window opens, one "shared" mark goes on this account (parent_shares, migration 0013): nothing about
@@ -515,6 +605,22 @@ load();
   <div id="loadErr" class="err"></div>
 
   <div id="stats" class="grid" style="margin-bottom:14px"></div>
+
+  <div class="card" id="reportsCard">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <b>Reports (owner only)</b>
+      <span class="row muted">Keep for <input id="reportsKeep" type="number" min="1" max="120" step="1" style="max-width:70px"> months <button class="secondary" id="saveReportsKeep">Save</button></span>
+    </div>
+    <div id="reportStats" class="grid" style="margin-bottom:10px"></div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
+      <div><b class="muted">Reports per day (last 30 days)</b><div id="reportDaily" class="bars" style="margin-top:6px"></div></div>
+      <div><b class="muted">By kind (last 30 days)</b><div id="reportKinds" class="bars" style="margin-top:6px"></div>
+        <b class="muted" style="display:block;margin-top:10px">By category (last 30 days)</b><div id="reportCats" class="bars" style="margin-top:6px"></div></div>
+    </div>
+    <div class="row" style="margin:12px 0 6px"><label class="muted"><input type="checkbox" id="reportsDoneToo"> Show done reports too</label></div>
+    <div id="reportRows" style="overflow-x:auto"></div>
+    <div id="reportMsg" class="muted" style="margin-top:6px"></div>
+  </div>
 
   <div class="card">
     <b>Visits (last 14 days)</b>

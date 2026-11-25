@@ -168,7 +168,7 @@ test('a part added without a group makes the check fail; in a group it shows in 
   const withPart = guide.replace('  <p class="muted">Something in this guide', '  <section class="part">\n  <h2 id="testpart">Test part</h2><p>x</p>\n  </section>\n  <p class="muted">Something in this guide');
   assert.match(guideGroupProblems(withPart).join(), /testpart.*in no group/);
   assert.throws(() => withGuideLists(withPart));
-  const grouped = withPart.replace('With others: friends, quiz', 'With others: friends, quiz, testpart');
+  const grouped = withPart.replace('With others: friends, report, quiz', 'With others: friends, report, quiz, testpart');
   assert.deepEqual(guideGroupProblems(grouped), []);
   const out = withGuideLists(grouped);
   assert.equal((out.match(/<li><a href="#testpart">Test part<\/a><\/li>/g) || []).length, 2, 'in the side list and the phone box');

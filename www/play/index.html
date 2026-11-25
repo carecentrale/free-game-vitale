@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.90 (3D)</title>
+<title>Adventurers of Drenerics v0.6.91 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -1918,6 +1918,7 @@ function initWorld(s, g = GEN_NOW, gap = castleGapNext) {
 }
 
 // Save and share format: the seed plus every chunk that players have changed
+let restoredIds = [];   // "put the land back" steps already done in this world (0.6.91, SPEC-038)
 function encodeWorld() {
   const edits = [];
   for (const k of edited) { const c = chunks.get(k); edits.push([c.cx, c.cz, bytesToB64(c.data)]); }
@@ -1927,9 +1928,11 @@ function encodeWorld() {
   const w = gen >= 2 ? { v: 2, seed, gen, castleGap, edits } : { v: 2, seed, edits };
   if (maker >= 3) Object.assign(w, { castleGap, maker: 3, oldCastles: [...oldCastles], roaded: [...edited] });
   if (eatenTrees.size) w.eaten = [...eatenTrees.values()].map(e => [e.x, e.z, e.day, e.back]);   // trees eaten by dragons (0.6.81)
+  if (restoredIds.length) w.restored = restoredIds.slice(-200);   // 0.6.91 (SPEC-038)
   return w;
 }
 function applyWorld(w) {
+  restoredIds = Array.isArray(w.restored) ? w.restored.filter(Number.isInteger) : [];   // 0.6.91 (SPEC-038)
   // A world with no land-maker record was made before 0.6.76: it keeps land-maker 1, with no new caves or castles
   initWorld(w.seed, w.gen === 2 ? 2 : 1, w.castleGap);
   maker = 0;   // until the record is read (upgradeWorld below)
@@ -2802,7 +2805,7 @@ bindBtn('bJ', 'J');
 // With the bag, Settings, the quit question or another panel open, the buttons do nothing.
 let powersOpen = false;
 let tradePanel = null, pendingMerchant = null;   // a merchant's open trades; the merchant a press landed on (0.6.77)
-const anyPanelOpen = () => bagOpen || settingsOpen || quitOpen || powersOpen || !!skillPanel || !!quizPanel || !!tipPanel || !!tradePanel || paused;
+const anyPanelOpen = () => reportOpen || bagOpen || settingsOpen || quitOpen || powersOpen || !!skillPanel || !!quizPanel || !!tipPanel || !!tradePanel || paused;
 // The item a hand button shows. A stack that has run out counts as empty.
 const handItem = i => { const id = qb[i], d = id ? defOf(id) : null; return d && !(ITEMS[id] && d.kind !== 'spell' && !(inv[id] > 0)) ? id : null; };
 function handTap(i) {
@@ -3112,6 +3115,12 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.91', title: 'Report anything that looks wrong', items: [
+    'See something that looks wrong? Tap the flag to tell us, or hide a player in a shared world.',
+    'In a shared world, open Settings and tap Report something wrong. Pick what it is about and what is wrong: taps only, no typing.',
+    'After reporting a player you can hide them: you will not see them until you leave the world.',
+    'Grown-ups can see the reports sent from this game in the parent area.',
+  ] },
   { v: '0.6.90', title: 'Playing together, safely', items: [
     'Grown-ups can now turn playing together on or off, and a short card reminds you how to play safely with friends.',
     'The loading screen shows a short safety tip each time the game opens.',
@@ -3425,6 +3434,8 @@ function renderSettings() {
   settingsEl.innerHTML =
     `<div style="display:flex;justify-content:space-between;align-items:center">` +
     `<b style="font-size:20px">Settings</b><button id="settingsClose" style="cursor:pointer;min-height:48px;min-width:110px;padding:10px 18px;background:#3b6fd8;color:#fff;border:0;border-radius:12px;font-size:18px;font-weight:600">Close &#10005;</button></div>` +
+    // Report (0.6.91, SPEC-038): in a shared world only, near the top
+    (worldId ? `<button id="settingsReport" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:14px;min-height:56px;padding:10px;background:#b3402e;color:#fff;border:0;border-radius:12px;font-size:18px;font-weight:700;cursor:pointer"><span style="font-size:24px">&#9873;</span>${reportLimited() ? REPORT_LIMIT_MSG : 'Report something wrong'}</button>` : '') +
     `<div style="margin-top:14px"><b>&#128266; Sounds</b>${volHtml('sfx')}</div>` +
     `<div style="margin-top:14px"><b>&#127925; Music</b>${volHtml('music')}</div>` +
     // Quiz friends switch (0.6.63): on at first, kept on this device
@@ -3456,6 +3467,7 @@ function toggleSettings(force) {
 document.getElementById('settingsBtn').addEventListener('click', () => toggleSettings());
 settingsEl.addEventListener('click', e => {
   if (e.target.closest('#settingsClose')) toggleSettings(false);
+  else if (e.target.closest('#settingsReport')) { toggleSettings(false); openReport(true); }
   // Quit the game: Settings closes and the same question as Esc and Back is asked (0.6.60)
   else if (e.target.closest('#settingsQuit')) { toggleSettings(false); toggleQuit(true); }
   else if (e.target.closest('#vitalSwitch')) { setVitalOn(!vital.on); sfx('tap'); const top = settingsEl.scrollTop; renderSettings(); settingsEl.scrollTop = top; }
@@ -3523,6 +3535,7 @@ function logOff() {
 // Esc and the Android Back button: close an open panel first; with nothing open, ask whether to quit
 function backAction() {
   if (togetherCardOpen) return;   // the joining card (0.6.90) closes with OK only
+  if (reportOpen) { openReport(false); return; }   // the report panel (0.6.91)
   if (mapOpen) toggleMap(false);
   else if (logOpen) toggleLog(false);
   else if (tipPanel) tipClose();
@@ -3542,7 +3555,7 @@ function powersHtml() {
   return `<div class="pname">${esc(playerName)}</div>` + quizBadgesHtml() +   // badges first, so they show without scrolling (0.6.79)
     row('dig', pw.dig.xp / need(pw.dig.lvl)) + row('build', pw.build.xp / need(pw.build.lvl)) + row('inv', invTotal() / invCap()) +
     row('fight', pw.fight.xp / need(pw.fight.lvl)) + (skills.length ? row('magic', pw.magic.xp / need(pw.magic.lvl)) : '') +
-    `<div class="small">World ${esc(worldId || 'alone')} &middot; v${VERSION}` + (others.size ? ' &middot; With: ' + [...others.values()].map(o => esc(o.name)).join(', ') : '') + `</div>` +
+    `<div class="small">World ${esc(worldId || 'alone')} &middot; v${VERSION}` + (others.size ? ' &middot; With: ' + [...others.values()].filter(o => !o.hidden).map(o => esc(o.name)).join(', ') : '') + `</div>` +
     `<button id="powersClose">Close</button>`;
 }
 // Quiz badges section of Powers (0.6.79: the parent could not find the one small line of 0.6.78)
@@ -7165,7 +7178,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.90';
+const VERSION = '0.6.91';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7249,7 +7262,7 @@ function setTogether(v, by) {
   if (!togetherOn()) leaveTogether();
 }
 // Leave the shared world (Off): save, leave the live channel, clear the world code, keep the land on this device
-function leaveTogether() {
+function leaveTogether(msg = TOGETHER_OFF) {
   if (!worldId) return false;
   saveGame();
   if (channelJoined) logEvent('world_left', 'players ' + playersInWorld());
@@ -7260,13 +7273,14 @@ function leaveTogether() {
   const before = leaderKey; leaderKey = pid; syncClock = 0;
   if (before !== pid) onLeaderChange(before);   // the monsters it was drawing are its own now
   worldId = null; localWorld = true;
+  hiddenPlayers.clear();
   drawBubble();
-  say(TOGETHER_OFF, 5000);
+  say(msg, 5000);
   saveGame();
   renderUI();
   return true;
 }
-setInterval(() => { if (!togetherOn() && worldId) leaveTogether(); }, 1000);
+setInterval(() => { if (worldId && !togetherOn()) leaveTogether(); else if (worldId && mpStopped()) leaveTogether(MP_STOP_MSG); }, 1000);
 // The joining card: once per device, the first time a shared world would start. OK shows after 4 seconds;
 // Esc and the Android Back button do not skip it. Resolves when OK is tapped.
 let togetherCardOpen = false;
@@ -7347,6 +7361,14 @@ function flushEvents() {
 setInterval(flushEvents, 10000);
 let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6.80)
 const togetherHooks = { render: () => {}, signIn: () => {} };   // set by the parent area below (0.6.90)
+// Reports sent from this game (0.6.91, SPEC-038): kept on this device only
+function renderReportsSent() {
+  const list = reportList();
+  document.getElementById('reportsSent').innerHTML = '<div style="font-size:15px;font-weight:700;margin-bottom:4px">Reports sent from this game</div>' +
+    (list.length ? list.slice(0, 20).map(r => `<div class="reportRow" style="font-size:13px;margin:3px 0">${new Date(r.at).toLocaleDateString()}: ${esc(REPORT_CATS[r.category] || '')}, ${esc((REPORT_KINDS[r.kind] || '').toLowerCase())}${r.about ? ' (' + esc(r.about) + ')' : ''}</div>`).join('')
+      : '<div style="font-size:13px;opacity:.8">No reports sent from this game.</div>') +
+    '<div style="font-size:12px;opacity:.75;margin-top:6px">Kept on this device only. Reports hold no names, pictures or typed words.</div>';
+}
 // Parent area: tap the top-left corner 5 times within 3 seconds (a child won't find it by accident).
 // It shows a link to the parent portal (the parent stats page), which requires an email sign-in.
 (() => {
@@ -7374,6 +7396,7 @@ const togetherHooks = { render: () => {}, signIn: () => {} };   // set by the pa
     '<div id="dragonCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="shareCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="quizReport" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
+    '<div id="reportsSent" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="devLog" style="max-height:30vh;overflow:auto;margin-bottom:10px"></div>' +
     '<button id="parentClose" style="background:transparent;color:#fff;border:1px solid #556;border-radius:10px;padding:8px 14px;cursor:pointer">Close</button></div>';
   document.body.append(tap, panel);
@@ -7390,6 +7413,7 @@ const togetherHooks = { render: () => {}, signIn: () => {} };   // set by the pa
       renderShare('');
       checkAccountShare();
       togetherHooks.render();
+      renderReportsSent();
       panel.style.display = 'flex';
     }
   });
@@ -7699,7 +7723,7 @@ function onPresence() {
   if (!channel) return;
   const st = channel.presenceState();
   const seen = new Set();
-  const before = new Map([...others].map(([k, o]) => [k, o.name]));
+  const before = new Map([...others].filter(([k]) => !hiddenPlayers.has(k)).map(([k, o]) => [k, o.name]));
   for (const key of Object.keys(st)) {
     if (key === pid) continue;
     const metas = st[key];
@@ -7710,11 +7734,13 @@ function onPresence() {
     let o = others.get(key);
     if (!o) { o = makeOther(key, m); others.set(key, o); }
     Object.assign(o, { name: safeName(m.name), x: m.x, y: m.y, z: m.z, yaw: m.yaw, n: m.n, tk: typeof m.tk === 'string' ? m.tk : null });
+    o.hidden = hiddenPlayers.has(key); o.g.visible = !o.hidden;   // hidden on this device (0.6.91, SPEC-038)
   }
   for (const [key, o] of others) if (!seen.has(key)) { scene.remove(o.g); others.delete(key); }
   // Notes when someone comes or goes (0.6.87). The first list after connecting says who is already here.
   const after = new Map([...others].map(([k, o]) => [k, o.name]));
-  for (const t of presenceNotes(before, after, !presenceSeen)) addNote(t);
+  const shown = new Map([...after].filter(([k]) => !hiddenPlayers.has(k)));   // a hidden player is not named in the log
+  for (const t of presenceNotes(before, shown, !presenceSeen)) addNote(t);
   // 0.6.87: records. On arrival, how many players are here. After that, the leading device (only one in the world, so
   // nothing is counted twice) records each visit code that comes or goes. Visit codes and counts only: never names.
   if (!presenceSeen) logEvent('world_players', 'players ' + (after.size + 1));
@@ -7768,6 +7794,183 @@ function mapSpot(x, z, cx, cz, r, size) {
 // ---- end of players-together helpers ----
 
 let presenceSeen = false;
+
+// ---- Report anything that looks wrong (0.6.91, SPEC-038) ----
+// Taps only: what it is about, then what is wrong. A report sends only the kind (ai, build, player, other), the category
+// (rude, scary, wrong), for an AI line its number, for a build the world code, the place, the direction the child was
+// looking and how many blocks players changed in the 32 by 32 box around it, for a player that player's visit code,
+// this visit's code and the time. Never a name, a picture or anything typed. At most 5 reports in 10 minutes.
+// The list of reports sent from this device stays on this device (for the parent area).
+const REPORT_MAX = 5, REPORT_WINDOW = 10 * 60000, REPORTS_KEY = 'kidsgame.reports', AI_HIDDEN_KEY = 'kidsgame.aiHidden';
+const REPORT_KINDS = { build: 'Something someone built', player: 'A player', other: 'Something else', ai: 'Something written by AI' };
+const REPORT_ICONS = { build: '&#129521;', player: '&#128578;', other: '&#10067;', rude: '&#128544;', scary: '&#128123;', wrong: '&#9888;&#65039;' };
+const REPORT_CATS = { rude: 'Rude or mean', scary: 'Scary', wrong: 'Not right' };
+const REPORT_THANKS = 'Thank you! A grown-up will look at it. If something upset you, tell a grown-up you trust.';
+const REPORT_LIMIT_MSG = 'Thanks, we have your reports';
+const MP_STOP_MSG = 'Playing together is turned off for now.';
+const hiddenPlayers = new Set();   // presence keys hidden on this device until the child leaves the world
+let mpStopUntil = 0;               // when the owner stopped multiplayer for this visit: its end (Infinity: until lifted)
+const readJSON = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+const writeJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+const reportList = () => { const l = readJSON(REPORTS_KEY, []); return Array.isArray(l) ? l : []; };
+const reportLimited = (now = Date.now()) => reportList().filter(r => now - r.at < REPORT_WINDOW).length >= REPORT_MAX;
+const mpStopped = () => mpStopUntil > Date.now();
+const canTogether = () => togetherOn() && !mpStopped();
+// The land in the 32 by 32 box around (x, z), compared with the land the seed makes there.
+// fix: put the changed blocks back as the seed made them (as ordinary block changes). Returns how many blocks differ.
+function landBox(x, z, fix) {
+  const x0 = Math.floor(x) - 16, z0 = Math.floor(z) - 16, fresh = new Map();
+  let n = 0;
+  for (let bx = x0; bx < x0 + 32; bx++) for (let bz = z0; bz < z0 + 32; bz++) {
+    if (!inPlay(bx, bz)) continue;
+    const cx = Math.floor(bx / CS), cz = Math.floor(bz / CS), k = ckey(cx, cz);
+    if (!edited.has(k)) continue;   // a chunk nobody changed is as the seed made it
+    let f = fresh.get(k);
+    if (!f) { f = makeChunk(cx, cz); fresh.set(k, f); }
+    const data = chunkAt(cx, cz).data, lx = bx - cx * CS, lz = bz - cz * CS;
+    for (let y = 0; y < H; y++) {
+      const i = cellIndex(lx, y, lz);
+      if (data[i] === f[i]) continue;
+      n++;
+      if (fix) writeBlock(bx, y, bz, f[i]);
+    }
+  }
+  if (fix && n) { dirty = true; worldDirty = true; }
+  return n;
+}
+// What the child is looking at: the block in the middle of the screen, or where the child stands
+function reportPlace() {
+  const h = aim({ clientX: innerWidth / 2, clientY: innerHeight / 2 });
+  const p = h && h.dig ? h.dig : [Math.floor(px), Math.floor(py), Math.floor(pz)];
+  return { x: p[0], y: Math.max(0, Math.min(H - 1, p[1])), z: p[2], look: ((Math.round(camYaw * 180 / Math.PI) % 360) + 360) % 360 };
+}
+const reportQueue = [];   // reports waiting for the internet (this visit only)
+let lastReportArgs = null;
+async function postReport(args) {
+  try {
+    await sbReady;
+    if (!sb) throw new Error('offline');
+    const { error } = await sb.rpc('report_add', args);
+    if (error) throw error;
+    return true;
+  } catch (e) { return false; }
+}
+setInterval(async () => { if (reportQueue.length && await postReport(reportQueue[0])) reportQueue.shift(); }, 30000);
+// r: { kind, category, ai, place, player, about }. Returns 'sent', or 'limit' when 5 were sent in the last 10 minutes.
+function sendReport(r) {
+  if (reportLimited()) return 'limit';
+  const at = Date.now();
+  const list = reportList();
+  list.unshift({ at, kind: r.kind, category: r.category, about: String(r.about || '').slice(0, 60), who: pid });
+  writeJSON(REPORTS_KEY, list.slice(0, 50));
+  logEvent('report_sent', r.kind + ' ' + r.category);
+  const args = { p_kind: r.kind, p_category: r.category, p_reporter: pid };
+  if (r.kind === 'ai') args.p_ai_line = String(r.ai);
+  if (r.kind === 'build' && r.place) Object.assign(args, { p_world: worldId, p_x: r.place.x, p_y: r.place.y, p_z: r.place.z, p_look: r.place.look, p_changed: landBox(r.place.x, r.place.z, false) });
+  if (r.kind === 'player') Object.assign(args, { p_world: worldId, p_player: String(r.player) });
+  lastReportArgs = args;   // read by the automated tests
+  postReport(args).then(ok => { if (!ok) reportQueue.push(args); });
+  return 'sent';
+}
+// ---- AI lines (for SPEC-037 and SPEC-027): a flag next to every line written by AI. A tap reports it and hides it here.
+const aiHidden = () => { const l = readJSON(AI_HIDDEN_KEY, []); return Array.isArray(l) ? l : []; };
+const aiLineHidden = id => aiHidden().includes(String(id));
+const aiFlagHtml = id => `<button class="aiFlag" data-aiflag="${esc(String(id))}" aria-label="Report this" title="Report this" style="min-width:48px;min-height:48px;border:0;border-radius:12px;background:#b3402e;color:#fff;font-size:22px;cursor:pointer">&#9873;</button>`;
+function reportAiLine(id) {
+  const res = sendReport({ kind: 'ai', category: 'wrong', ai: id, about: 'line ' + id });
+  writeJSON(AI_HIDDEN_KEY, [...new Set([...aiHidden(), String(id)])].slice(-500));
+  return res === 'limit' ? REPORT_LIMIT_MSG : 'Thank you! A grown-up will check it.';
+}
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-aiflag]'); if (b) { const msg = reportAiLine(b.dataset.aiflag); b.replaceWith(Object.assign(document.createElement('div'), { textContent: msg, className: 'aiThanks' })); } });
+
+// ---- The report panel: opened from Settings in a shared world ----
+const reportEl = document.createElement('div');
+reportEl.id = 'reportPanel';
+reportEl.style.cssText = 'position:fixed;inset:0;z-index:26;background:rgba(10,12,25,.88);display:none;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;font-family:system-ui,sans-serif';
+document.body.append(reportEl);
+let reportOpen = false;
+const rep = { step: 'what', kind: null, player: null, name: '', place: null };
+const repBtn = (data, icon, label, bg = '#2a3050') => `<button ${data} style="display:flex;align-items:center;gap:12px;width:100%;min-height:56px;margin:6px 0;padding:10px 14px;border:0;border-radius:12px;background:${bg};color:#fff;font-size:18px;font-weight:600;text-align:left;cursor:pointer"><span style="font-size:28px">${icon}</span>${label}</button>`;
+function renderReport() {
+  let h = '';
+  if (rep.step === 'what') h = '<div class="rq">What is wrong about?</div>' + ['build', 'player', 'other'].map(k => repBtn(`data-rkind="${k}"`, REPORT_ICONS[k], REPORT_KINDS[k])).join('');
+  else if (rep.step === 'player') {
+    const list = [...others].filter(([k]) => !hiddenPlayers.has(k));
+    h = '<div class="rq">Which player?</div>' + (list.length ? list.map(([k, o]) => repBtn(`data-rplayer="${esc(k)}"`, REPORT_ICONS.player, esc(o.name))).join('') : '<div style="margin:10px 0">Nobody else is here now.</div>');
+  } else if (rep.step === 'cat') h = '<div class="rq">What is wrong?</div>' + Object.keys(REPORT_CATS).map(c => repBtn(`data-rcat="${c}"`, REPORT_ICONS[c], REPORT_CATS[c])).join('');
+  else if (rep.step === 'hide') h = '<div class="rq">Hide this player?</div><div style="margin-bottom:6px">' + esc(rep.name) + '</div>' + repBtn('data-rhide="1"', '&#128584;', 'Yes, hide them', '#3b6fd8') + repBtn('data-rhide="0"', '&#128064;', 'No');
+  else h = `<div class="rq" id="reportThanks">${esc(rep.msg || REPORT_THANKS)}</div>` + repBtn('data-rdone="1"', '&#10003;', 'OK', '#3b6fd8');
+  reportEl.innerHTML = '<div style="background:#1e2236;color:#fff;border-radius:16px;padding:16px;width:min(420px,100%);max-height:92vh;overflow:auto;box-sizing:border-box">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b style="font-size:20px">&#9873; Report</b>' +
+    (rep.step === 'done' ? '' : '<button data-rclose="1" aria-label="Close" style="min-width:48px;min-height:48px;border:0;border-radius:12px;background:transparent;color:#fff;font-size:22px;cursor:pointer">&#10005;</button>') + '</div>' +
+    h.replace(/class="rq"/g, 'style="font-size:19px;font-weight:700;margin:6px 0 8px"') + '</div>';
+}
+function openReport(on = true) {
+  reportOpen = on;
+  if (on) {
+    Object.assign(rep, { step: reportLimited() ? 'done' : 'what', kind: null, player: null, name: '', msg: reportLimited() ? REPORT_LIMIT_MSG : '', place: reportPlace() });
+    renderReport();
+  }
+  reportEl.style.display = on ? 'flex' : 'none';
+}
+reportEl.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) { if (e.target === reportEl) openReport(false); return; }
+  const d = b.dataset;
+  if (d.rclose || d.rdone) { openReport(false); return; }
+  if (d.rkind) { rep.kind = d.rkind; rep.step = d.rkind === 'player' ? 'player' : 'cat'; }
+  else if (d.rplayer) { rep.player = d.rplayer; rep.name = (others.get(d.rplayer) || {}).name || 'A player'; rep.step = 'cat'; }
+  else if (d.rcat) {
+    const about = rep.kind === 'build' ? `at ${rep.place.x}, ${rep.place.z} in world ${worldId}` : rep.kind === 'player' ? rep.name : 'something else';
+    const res = sendReport({ kind: rep.kind, category: d.rcat, place: rep.place, player: rep.player, about });
+    rep.msg = res === 'limit' ? REPORT_LIMIT_MSG : REPORT_THANKS;
+    rep.step = res === 'sent' && rep.kind === 'player' ? 'hide' : 'done';
+  } else if (d.rhide) {
+    if (d.rhide === '1') hidePlayer(rep.player);
+    rep.step = 'done';
+  }
+  sfx('tap');
+  renderReport();
+});
+function hidePlayer(key) {
+  hiddenPlayers.add(key);
+  const o = others.get(key);
+  if (o) { o.hidden = true; o.g.visible = false; }
+  logEvent('player_hidden', 'hidden ' + hiddenPlayers.size);
+}
+
+// ---- Stop multiplayer (the owner's choice in the admin page): asked for this visit's code before joining or sharing,
+// and when the owner's page says so on the world's channel. Then the child leaves the world and plays alone.
+async function checkMpStop() {
+  try {
+    await sbReady;
+    if (!sb) return mpStopped();
+    const { data, error } = await sb.rpc('mp_stop_until', { p_code: pid });
+    if (error) return mpStopped();
+    const t = !data ? 0 : /infinity/i.test(String(data)) ? Infinity : Date.parse(data);
+    const was = mpStopped();
+    mpStopUntil = t > Date.now() ? t : 0;
+    if (!was && mpStopped()) logEvent('multiplayer_stopped', mpStopUntil === Infinity ? 'until lifted' : Math.ceil((mpStopUntil - Date.now()) / 86400000) + ' days');
+    return mpStopped();
+  } catch (e) { return mpStopped(); }
+}
+// "Put the land back" steps the owner made for this world: each is done once, kept in the world record
+async function applyRestores() {
+  const code = worldId;
+  if (!code) return 0;
+  try {
+    await sbReady;
+    if (!sb) return 0;
+    const { data, error } = await sb.rpc('world_restores_get', { p_code: code });
+    if (error || !Array.isArray(data) || worldId !== code) return 0;
+    const done = new Set([...restoredIds, ...readJSON('kidsgame.restored.' + code, [])]);
+    let n = 0;
+    for (const r of data) if (r && Number.isInteger(r.id) && !done.has(r.id)) { landBox(r.x, r.z, true); done.add(r.id); n++; }
+    if (n) { restoredIds = [...done].slice(-200); writeJSON('kidsgame.restored.' + code, restoredIds); }
+    return n;
+  } catch (e) { return 0; }
+}
+setInterval(() => { if (worldId && channelJoined) checkMpStop(); }, 60000);   // a check now and then, in case the message was missed
 // ---- The world's log (0.6.87): every note is kept for this visit (not saved, not sent). The bubble at the bottom left
 // lights up with the number of notes not read yet, and the newest note shows beside it for a few seconds. A tap opens
 // the log; a tap on the bubble, the close button or Esc closes it. Only the game's own notes: it is not a chat.
@@ -7849,6 +8052,7 @@ function drawMapDots() {
   const [cx, cz] = mapLandAt;
   g.font = 'bold 13px sans-serif'; g.textAlign = 'center';
   for (const o of others.values()) {
+    if (o.hidden) continue;   // hidden on this device (0.6.91)
     const p = mapSpot(o.x, o.z, cx + 0.5, cz + 0.5, MAP_R, S);
     g.fillStyle = '#ffd43b'; g.strokeStyle = '#000'; g.lineWidth = 2;
     g.beginPath(); g.arc(p.sx, p.sy, p.edge ? 5 : 7, 0, Math.PI * 2); g.fill(); g.stroke();
@@ -7885,6 +8089,7 @@ function connectWorld() {
   for (const o of others.values()) scene.remove(o.g);
   others.clear();
   presenceSeen = false;
+  hiddenPlayers.clear();   // hiding lasts until the child leaves the world (0.6.91)
   drawBubble();   // in a shared world: the log's bubble shows (0.6.87)
   const ch = sb.channel('world-' + worldId, { config: { presence: { key: pid }, broadcast: { self: false } } });
   ch.on('broadcast', { event: 'block' }, ({ payload }) => {
@@ -7897,11 +8102,15 @@ function connectWorld() {
   const on = (ev, fn) => ch.on('broadcast', { event: ev }, ({ payload }) => { try { if (payload && typeof payload.from === 'string') fn(payload, payload.from); } catch (e) { logError(e, 'shared world'); } });
   on('ws', onWorldState); on('hit', onHit); on('defeat', onDefeat); on('drop', onDrop); on('pick', onPick); on('taken', onTaken);
   on('drops', onDropsList); on('snapreq', onSnapReq); on('snap', onSnap); on('eat', onEat);
+  // 0.6.91 (SPEC-038): from the owner's admin page. Neither is trusted by itself: the game asks the server first.
+  on('mpstop', p => { if (p.code === pid) checkMpStop(); });
+  on('restore', () => applyRestores());
   ch.subscribe(status => {
     if (status === 'SUBSCRIBED') { const first = !channelJoined; channelJoined = true; Promise.resolve(ch.track(myMeta())).catch(() => {}); if (first) logOnce('world_entered', '', 5000); }
     else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { channelJoined = false; logError(status, 'realtime'); }
   });
   channel = ch;
+  applyRestores();   // the owner's "put the land back" steps not done yet in this world (0.6.91)
 }
 // 0.6.81: twice a second (was five times). Supabase's free plan allows 20 presence messages a second for the whole
 // project, so five a second let only four players play at once; the other players' moves are smoothed anyway.
@@ -8257,6 +8466,7 @@ async function resumeWorld(id) {
   await togetherCard();
   if (!togetherOn()) { leaveTogether(); return; }
   if (worldId !== id) return;
+  if (await checkMpStop()) { leaveTogether(MP_STOP_MSG); return; }   // the owner stopped multiplayer for this visit (0.6.91)
   try {
     await sbReady;
     if (!sb) await loadSb();
@@ -8348,7 +8558,8 @@ async function finishWizard() {
   wizErr.textContent = 'Setting up your world...';
   try {
     await sbReady;
-    if (!togetherOn()) { if (wiz.mode !== 'new') throw new Error(TOGETHER_OFF); worldId = null; localWorld = true; }   // a world on this device only
+    const stopped = togetherOn() && await checkMpStop();   // the owner stopped multiplayer for this visit (0.6.91)
+    if (!togetherOn() || stopped) { if (wiz.mode !== 'new') throw new Error(stopped ? MP_STOP_MSG : TOGETHER_OFF); worldId = null; localWorld = true; }   // a world on this device only
     else if (wiz.mode === 'new') { await createWorld(); localWorld = false; }
     else {
       const found = await joinExisting(wiz.code, true);
@@ -8620,7 +8831,11 @@ Promise.all([
 window.gameTest = {
   // Playing together (0.6.90, SPEC-039)
   get together() { return { on: togetherOn(), by: togetherBy, worldId, local: localWorld, cardOpen: togetherCardOpen, resumeWait }; },
-  togetherSignIn: u => togetherHooks.signIn(u), leaveTogether, setWorldIdForTest: id => { worldId = id; }, SAFETY_LINES: window.SAFETY_LINES,
+  togetherSignIn: u => togetherHooks.signIn(u), leaveTogether,
+  // Report (0.6.91, SPEC-038)
+  openReport, get reportOpen() { return reportOpen; }, reportList, reportLimited, hidePlayer, get hidden() { return [...hiddenPlayers]; }, landBox, applyRestores, checkMpStop,
+  reportAiLine, aiFlagHtml, aiLineHidden, get mpStopUntil() { return mpStopUntil; }, setMpStopForTest: t => { mpStopUntil = t; }, get lastReportArgs() { return lastReportArgs; }, setWriteBlock: (x, y, z, t) => setBlock(x, y, z, t),
+  addOtherForTest: (key, meta) => { const o = makeOther(key, meta); others.set(key, Object.assign(o, { name: safeName(meta.name) })); }, get othersList() { return [...others].map(([k, o]) => ({ key: k, name: o.name, visible: o.g.visible })); }, setWorldIdForTest: id => { worldId = id; }, SAFETY_LINES: window.SAFETY_LINES,
   // Share the game (0.6.88, SPEC-030)
   get share() { return { on: shareOn, gems: shareGems, given: shareGiven }; }, setShareReward(on, gems) { shareOn = !!on; shareGems = gems; }, openShare: () => shareHooks.open(),
   // 0.6.87: joining a world, notes, the player count and the map

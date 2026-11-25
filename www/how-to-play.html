@@ -7,7 +7,7 @@
 <meta name="description" content="How to play Adventurers of Drenerics: moving, digging, building, the bag, gems, powers, monsters, magic, saving and playing with friends.">
 <!-- This guide must describe the game as it is. Every new feature or changed rule gets its part here in the same release,
      and guide-version below is set to the game's version (scripts/tests/site-pages.test.mjs checks it). -->
-<meta name="guide-version" content="0.6.90">
+<meta name="guide-version" content="0.6.91">
 <!-- site-head -->
 <link rel="stylesheet" href="/site.css">
 <link rel="icon" href="/favicon.ico" sizes="32x32">
@@ -40,14 +40,14 @@
 <nav class="side" aria-label="Parts of the guide">
 <h2>Start here</h2><ol><li><a href="#start">Starting a game</a></li><li><a href="#vital">Vital, your guide</a></li><li><a href="#controls">Controls</a></li></ol>
 <h2>Things you do</h2><ol><li><a href="#quickbar">The quick bar and the bag</a></li><li><a href="#dig">Digging</a></li><li><a href="#build">Building</a></li><li><a href="#gems">Gems</a></li><li><a href="#bagfull">When the bag is full</a></li><li><a href="#powers">Powers and levels</a></li><li><a href="#monsters">Monsters and fighting</a></li><li><a href="#gear">Gear and durability</a></li><li><a href="#magic">Magic</a></li><li><a href="#water">Water and swimming</a></li><li><a href="#world">The world</a></li><li><a href="#teleport">Teleport to the start</a></li><li><a href="#saving">Saving your game</a></li></ol>
-<h2>With others</h2><ol><li><a href="#friends">Playing with friends</a></li><li><a href="#quiz">Quiz friends</a></li></ol>
+<h2>With others</h2><ol><li><a href="#friends">Playing with friends</a></li><li><a href="#report">Reporting and hiding</a></li><li><a href="#quiz">Quiz friends</a></li></ol>
 <h2>Settings and grown-ups</h2><ol><li><a href="#settings">Settings, sound and quitting</a></li><li><a href="#grownups">For grown-ups: parental controls</a></li></ol>
 </nav>
 <!-- /guide-list -->
 <main id="main">
 
   <h1>How to play</h1>
-  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.90</span>. New things are added here with every version; see <a href="/release-notes.html">What is new</a> for what changed.</div>
+  <div class="muted">Adventurers of Drenerics. This guide is up to date with version <span id="guideVersion">0.6.91</span>. New things are added here with every version; see <a href="/release-notes.html">What is new</a> for what changed.</div>
 
   <p>Adventurers of Drenerics is a world made of blocks. You dig into it, build with what you dig, collect gems, grow stronger and meet monsters. You can play alone or in the same world as your friends.</p>
   <a class="btn btn-play" href="/play/">Play now</a>
@@ -58,14 +58,14 @@
   scripts/tests/site-look.test.mjs fails otherwise. A new part goes in the group its spec names.
 Start here: start, vital, controls
 Things you do: quickbar, dig, build, gems, bagfull, powers, monsters, gear, magic, water, world, teleport, saving
-With others: friends, quiz
+With others: friends, report, quiz
 Settings and grown-ups: settings, grownups
 -->
   <!-- guide-jump -->
 <details class="jump"><summary>Jump to a part</summary><div>
 <h2>Start here</h2><ol><li><a href="#start">Starting a game</a></li><li><a href="#vital">Vital, your guide</a></li><li><a href="#controls">Controls</a></li></ol>
 <h2>Things you do</h2><ol><li><a href="#quickbar">The quick bar and the bag</a></li><li><a href="#dig">Digging</a></li><li><a href="#build">Building</a></li><li><a href="#gems">Gems</a></li><li><a href="#bagfull">When the bag is full</a></li><li><a href="#powers">Powers and levels</a></li><li><a href="#monsters">Monsters and fighting</a></li><li><a href="#gear">Gear and durability</a></li><li><a href="#magic">Magic</a></li><li><a href="#water">Water and swimming</a></li><li><a href="#world">The world</a></li><li><a href="#teleport">Teleport to the start</a></li><li><a href="#saving">Saving your game</a></li></ol>
-<h2>With others</h2><ol><li><a href="#friends">Playing with friends</a></li><li><a href="#quiz">Quiz friends</a></li></ol>
+<h2>With others</h2><ol><li><a href="#friends">Playing with friends</a></li><li><a href="#report">Reporting and hiding</a></li><li><a href="#quiz">Quiz friends</a></li></ol>
 <h2>Settings and grown-ups</h2><ol><li><a href="#settings">Settings, sound and quitting</a></li><li><a href="#grownups">For grown-ups: parental controls</a></li></ol>
 </div></details>
 <!-- /guide-jump -->
@@ -361,7 +361,20 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="quiz">18. Quiz friends</h2>
+  <h2 id="report">18. Reporting and hiding</h2>
+  <p>If something looks wrong, rude or scary, you can tell us. Tap the flag on a fun fact, or open Settings in a shared world and tap Report. Choose what it is about and what is wrong. A grown-up will look at it. You can also hide a player: you will not see them for the rest of your visit. If something upset you, tell a grown-up you trust.</p>
+  <ol>
+    <li>In a shared world, open <em>Settings</em> and tap <em>Report something wrong</em>.</li>
+    <li>Tap what it is about: <em>Something someone built</em> (what you are looking at), <em>A player</em> (then tap their name) or <em>Something else</em>.</li>
+    <li>Tap what is wrong: <em>Rude or mean</em>, <em>Scary</em> or <em>Not right</em>.</li>
+    <li>After reporting a player, you can tap <em>Yes, hide them</em>. Their character and name are no longer shown to you until you leave the world. What they built stays.</li>
+  </ol>
+  <p>You can send up to 5 reports in 10 minutes. Nobody types anything, and reports never go to other players.</p>
+  <a class="top" href="#main">Back to top</a>
+  </section>
+
+  <section class="part">
+  <h2 id="quiz">19. Quiz friends</h2>
   <p>Now and then a friendly character walks up to you with a <strong>?</strong> over its head and waves, to ask a maths question or a word to spell. There are three: an owl, a turtle and a small robot. The first friend comes as soon as you start playing, or 20 seconds after <a href="#vital">Vital</a> has left if he came first. After you answer right, the next one comes after about a minute of moving around. If a friend leaves without a right answer, the next one comes 4 to 7 minutes later. Apart from the first one, a friend waits until no monster is close.</p>
   <ul>
     <li>The friend stops two blocks away and waits. It never opens anything by itself.</li>
@@ -385,7 +398,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part">
-  <h2 id="settings">19. Settings, sound and quitting</h2>
+  <h2 id="settings">20. Settings, sound and quitting</h2>
   <p>The <em>Settings</em> button is at the top right. In Settings you will find:</p>
   <ul>
     <li>The game's version, and <em>What has changed</em> in each version.</li>
@@ -404,7 +417,7 @@ Settings and grown-ups: settings, grownups
   </section>
 
   <section class="part grown">
-  <h2 id="grownups">20. For grown-ups: parental controls</h2>
+  <h2 id="grownups">21. For grown-ups: parental controls</h2>
   <p>This part is for parents and guardians.</p>
   <h3>What is built in for every child</h3>
   <ul>
@@ -434,6 +447,7 @@ Settings and grown-ups: settings, grownups
     <tr><td>Share the game</td><td>Share the game: in the parent area, tap Share the game to send the game's address to another family. As a thank-you, the game gets 500 gems, once.</td><td>Tap <em>Share the game</em>. Your device's own share window opens with a short message and the game's address; nobody types anything. The same button is on the parent portal when you are signed in: a game signed in to the same account in the parent area then gets the gems, once</td></tr>
     <tr><td>Dragons</td><td>Friendly dragons fly over the land and sometimes come down to eat a tree. Stay high keeps them in the sky; Off removes them</td><td>In the parent area, next to Learning level: tap On, Stay high or Off</td></tr>
     <tr><td>Parent portal</td><td>Shows the game's stats and what has been played</td><td>Tap <em>Open parent portal</em>. A page opens and asks you to sign in with your email</td></tr>
+    <tr><td>Reports</td><td>Your child can report AI-written text, things other players built, and players, with taps only. Reports hold no names, pictures or typed words.</td><td>You can see the reports sent from this game in the parent area, under <em>Reports sent from this game</em>.</td></tr>
     <tr><td>Playing together</td><td>Children can join a friend's world with a code. You can turn this off: if your child is in a shared world, they leave it and keep playing on their own.</td><td>In the parent area, tap <em>Sign in with Google</em>, then tap <em>On</em> or <em>Off</em> under Playing together. Only a parent or teacher signed in with Google, or a teacher signed in with their school email code (once the teacher sign-in opens), can change this. Using a school Google account? If Google says your administrator blocked access, sign in with your school email code instead (once the teacher sign-in opens), or ask your school's IT team to allow Adventurers of Drenerics.</td></tr>
     <tr><td>Save to the cloud</td><td>Keeps one game safe online, so it can be carried on from another device</td><td>Tap <em>Sign in with Google</em>. While you are signed in, the game saves to the cloud every 30 seconds</td></tr>
     <tr><td>Save now</td><td>Saves this game to the cloud straight away</td><td>Tap <em>Save now</em>. If the cloud already holds a different game, it asks before replacing it</td></tr>

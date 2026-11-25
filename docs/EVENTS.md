@@ -28,6 +28,9 @@ Sent every 10 seconds and when the page closes. Each row: the event kind, game v
 | `log_opened` | The world's log is opened; at most once a minute (`logOnce`, 0.6.87) | `notes N` | "Gameplay records" |
 | `together_switch` | A grown-up signed in with Google changes Playing together in the parent area (0.6.90, SPEC-039; approved by Nick 24 Nov 2026) | `on` or `off` | "Gameplay records" |
 | `safety_reminder` | The Playing together card is shown, the first time a shared world would start on this device, and when OK is tapped (0.6.90, SPEC-039; approved by Nick 24 Nov 2026) | `shown` or `closed` | "Gameplay records" |
+| `report_sent` | A child sends a report (0.6.91, SPEC-038; approved by Nick 24 Nov 2026) | Kind and category only (for example `build rude`) | "Gameplay records" |
+| `player_hidden` | A child hides a player after reporting them, on this device until leaving the world (0.6.91, SPEC-038; approved by Nick 24 Nov 2026) | `hidden N` (a count only) | "Gameplay records" |
+| `multiplayer_stopped` | This visit finds that the owner stopped multiplayer for it (0.6.91, SPEC-038; approved by Nick 24 Nov 2026) | Days left, or `until lifted` | "Gameplay records" |
 
 Since 23 Nov 2026 the "Gameplay records" row on the privacy page describes these records by category (with examples), says the world code is kept with each record, and gives safety as the reason. It no longer lists every kind by name. The world's log itself (the join and leave notes) is not sent: it stays in memory on the device.
 
@@ -52,6 +55,10 @@ Sent every 10 seconds. World code, game version, kind, position rounded to 0.1, 
 | `world_create` | A new shared world is made | World code, the world's blocks | "Shared world" |
 | `world_save` | A shared world's changes are saved | World code, the world's blocks, a save stamp | "Shared world" |
 | `world_get` | A shared world is opened by its code | World code (read only) | "Shared world" |
+| `report_add` | A child sends a report (0.6.91, SPEC-038). Kept up to the owner's period (12 months to start), then deleted automatically; only the owner's account reads it | Kind, category; for an AI line its number; for a build the world code, place, direction looked and blocks changed nearby; for a player their visit code; this visit code; the time. Nothing typed, no name, no picture | "Reports (since 0.6.91)" |
+| `reports_purge` | Called by `report_add` and the owner's page: deletes reports older than the keep period. Sends nothing about the player | None | "Reports (since 0.6.91)" |
+| `mp_stop_until` | Before joining or sharing a world, and once a minute in a shared world (0.6.91, SPEC-038): has the owner stopped multiplayer for this visit? | This visit code (read only) | "Reports (since 0.6.91)" |
+| `world_restores_get` | When a shared world is opened, and when the owner's page says so (0.6.91, SPEC-038): the owner's "put the land back" steps for this world | World code (read only) | "Shared world" |
 
 ## 5. Cloud save: table `cloud_saves` (parent signed in only)
 | Record | When | Fields | Privacy page row |
@@ -84,6 +91,12 @@ Sent over the shared world's live connection to the other devices in that world 
 | `snap` | Things on the ground and the eaten trees, for a device that just joined | "Shared world: game things (since 0.6.81)" |
 | `snapreq` | Asking for a `snap` | "Shared world: game things (since 0.6.81)" |
 | `eat` | A dragon eats a tree | "Shared world: game things (since 0.6.81)" |
+
+Sent by the owner's admin page only, never by a game (0.6.91, SPEC-038). A game that receives one asks the server before doing anything:
+| Record | When | Fields | Privacy page row |
+|---|---|---|---|
+| `mpstop` | The owner stopped multiplayer for a visit code in that world | `code`: the visit code | "Reports (since 0.6.91)" |
+| `restore` | The owner put the land back in a 32 by 32 box of that world | None | "Shared world" |
 
 ## 8. Shared world presence (not stored on our servers)
 Each device in a shared world sends this about its own player twice a second to the other devices in that world, keyed by the visit code.

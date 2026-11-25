@@ -3750,3 +3750,82 @@ test('SPEC-039: a shared game opened with no internet plays on its own and says 
     assert.ok(await page.evaluate(() => window.gameTest.worldLog.some(l => l.text === "Can't reach your shared world. Playing on your own until it's back.")));
     assert.equal(await page.evaluate(() => window.gameTest.together.worldId), 'TESTWORLD', 'the world code is kept, to try again');
   }, { saves: [phoneGame()], noSupabase: true }));
+
+// ---- Report anything that looks wrong (0.6.91, SPEC-038) ----
+const REPORT_FIELDS = ['p_kind', 'p_category', 'p_reporter', 'p_ai_line', 'p_world', 'p_x', 'p_y', 'p_z', 'p_look', 'p_changed', 'p_player'];
+test('SPEC-038: in a shared world Settings has Report; a build is reported in 3 taps with no typing and only the allowed fields; the parent area lists it', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.together.worldId === 'TESTWORLD', null, { timeout: 60000 });
+    await page.evaluate(() => document.getElementById('settingsBtn').click());
+    assert.match(await page.evaluate(() => document.getElementById('settingsReport').textContent), /Report something wrong/);
+    await page.evaluate(() => document.getElementById('settingsReport').click());
+    assert.equal(await page.evaluate(() => window.gameTest.reportOpen), true);
+    assert.equal(await page.evaluate(() => document.querySelectorAll('#reportPanel input,#reportPanel textarea,#reportPanel select,#reportPanel a').length), 0, 'no typing');
+    const small = await page.evaluate(() => [...document.querySelectorAll('#reportPanel button')].filter(b => b.getBoundingClientRect().height < 48).length);
+    assert.equal(small, 0, 'buttons at least 48 px');
+    await page.evaluate(() => document.querySelector('[data-rkind="build"]').click());   // tap 1
+    await page.evaluate(() => document.querySelector('[data-rcat="rude"]').click());     // tap 2
+    assert.match(await page.evaluate(() => document.getElementById('reportThanks').textContent), /Thank you! A grown-up will look at it\. If something upset you, tell a grown-up you trust\./);
+    const a = await page.evaluate(() => window.gameTest.lastReportArgs);
+    assert.deepEqual(Object.keys(a).filter(k => !REPORT_FIELDS.includes(k)), []);
+    assert.equal(a.p_kind, 'build'); assert.equal(a.p_category, 'rude'); assert.equal(a.p_world, 'TESTWORLD');
+    assert.ok(Number.isInteger(a.p_x) && Number.isInteger(a.p_z) && Number.isInteger(a.p_changed) && a.p_look >= 0 && a.p_look < 360);
+    assert.doesNotMatch(JSON.stringify(a), /Test Hero/, 'no name in a report');
+    await page.evaluate(() => document.querySelector('[data-rdone]').click());          // tap 3: OK
+    assert.equal(await page.evaluate(() => window.gameTest.reportOpen), false);
+    // the parent area lists it, on this device
+    const list = await page.evaluate(() => window.gameTest.reportList());
+    assert.equal(list.length, 1); assert.equal(list[0].kind, 'build');
+    await page.evaluate(() => { const t = [...document.body.children].find(d => d.style.width === '70px' && d.style.top === '0px'); for (let i = 0; i < 5; i++) t.click(); });
+    assert.match(await page.evaluate(() => document.getElementById('reportsSent').textContent), /Reports sent from this game.*Rude or mean, something someone built/);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [phoneGame()] }));
+
+test('SPEC-038: a player is reported and hidden (no character, no name, not in the log); a 6th report in 10 minutes is not sent', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.together.worldId === 'TESTWORLD', null, { timeout: 60000 });
+    await page.evaluate(() => window.gameTest.addOtherForTest('abcdef123456', { name: 'Sir Kestrel 4', x: 200002, y: 30, z: 200002, yaw: 0 }));
+    await page.evaluate(() => window.gameTest.openReport(true));
+    await page.evaluate(() => document.querySelector('[data-rkind="player"]').click());
+    assert.match(await page.evaluate(() => document.getElementById('reportPanel').textContent), /Sir Kestrel 4/);
+    await page.evaluate(() => document.querySelector('[data-rplayer="abcdef123456"]').click());
+    await page.evaluate(() => document.querySelector('[data-rcat="scary"]').click());
+    const a = await page.evaluate(() => window.gameTest.lastReportArgs);
+    assert.equal(a.p_kind, 'player'); assert.equal(a.p_player, 'abcdef123456'); assert.equal(a.p_x, undefined);
+    assert.match(await page.evaluate(() => document.getElementById('reportPanel').textContent), /Hide this player\?/);
+    await page.evaluate(() => document.querySelector('[data-rhide="1"]').click());
+    const st = await page.evaluate(() => ({ hidden: window.gameTest.hidden, others: window.gameTest.othersList }));
+    assert.deepEqual(st.hidden, ['abcdef123456']);
+    assert.equal(st.others[0].visible, false, 'the character is not drawn');
+    await page.evaluate(() => document.querySelector('[data-rdone]').click());
+    // 4 more reports: 5 in all; the 6th is not sent
+    for (let i = 0; i < 4; i++) await page.evaluate(() => { window.gameTest.openReport(true); document.querySelector('[data-rkind="other"]').click(); document.querySelector('[data-rcat="wrong"]').click(); document.querySelector('[data-rdone]').click(); });
+    assert.equal(await page.evaluate(() => window.gameTest.reportList().length), 5);
+    await page.evaluate(() => window.gameTest.openReport(true));
+    assert.match(await page.evaluate(() => document.getElementById('reportPanel').textContent), /Thanks, we have your reports/);
+    assert.equal(await page.evaluate(() => window.gameTest.reportList().length), 5, 'nothing sent');
+    await page.evaluate(() => window.gameTest.openReport(false));
+    await page.evaluate(() => document.getElementById('settingsBtn').click());
+    assert.match(await page.evaluate(() => document.getElementById('settingsReport').textContent), /Thanks, we have your reports/);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [phoneGame()] }));
+
+test('SPEC-038: an AI line flag reports and hides it; put the land back; stopping multiplayer leaves the world within 5 seconds', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.together.worldId === 'TESTWORLD', null, { timeout: 60000 });
+    // AI line flag (ready for SPEC-037)
+    await page.evaluate(() => { const d = document.createElement('div'); d.id = 'aiTest'; d.innerHTML = window.gameTest.aiFlagHtml('fact42'); document.body.append(d); document.querySelector('[data-aiflag="fact42"]').click(); });
+    assert.match(await page.evaluate(() => document.getElementById('aiTest').textContent), /Thank you! A grown-up will check it\./);
+    assert.equal(await page.evaluate(() => window.gameTest.aiLineHidden('fact42')), true);
+    assert.equal(await page.evaluate(() => window.gameTest.lastReportArgs.p_ai_line), 'fact42');
+    // put the land back: a block changed near the player is put back as the seed made it
+    const land = await page.evaluate(() => { const g = window.gameTest, [x, y, z] = g.pos.map(Math.floor); g.setWriteBlock(x + 3, y + 6, z + 3, 3);
+      const before = g.landBox(x, z, false); g.landBox(x, z, true); return { before, after: g.landBox(x, z, false) }; });
+    assert.ok(land.before >= 1); assert.equal(land.after, 0);
+    // stop multiplayer for this visit
+    await page.evaluate(() => window.gameTest.setMpStopForTest(Date.now() + 86400000));
+    await page.waitForFunction(() => window.gameTest.together.worldId === null, null, { timeout: 5000 });
+    assert.ok(await page.evaluate(() => window.gameTest.worldLog.some(l => l.text === 'Playing together is turned off for now.')));
+    assert.equal(await page.evaluate(() => window.gameTest.together.on), true, 'the parent switch is not changed');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [phoneGame()] }));

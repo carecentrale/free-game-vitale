@@ -148,3 +148,22 @@ test('SPEC-039: terms speak to parents, guide and privacy say parent portal, the
   assert.match(game, /TOGETHER_CARD_MS = 4000/);
   assert.match(game, /if \(togetherCardOpen\) return;/);
 });
+
+// ---- Report (0.6.91, SPEC-038): what a report holds, and that a device cannot read the reports ----
+test('SPEC-038: the game only adds reports through report_add with the allowed fields; devices cannot read reports; only the owner reads and acts', () => {
+  const mig = fs.readFileSync(path.join(root, 'docs', 'migrations', '0015_reports.sql'), 'utf8');
+  assert.match(mig, /revoke all on public\.reports from anon, authenticated;/);
+  assert.match(mig, /create policy "owner reads reports" on public\.reports\s+for select to authenticated using \(\(auth\.jwt\(\) ->> 'email'\) = 'yammay@gmail\.com'\)/);
+  assert.doesNotMatch(mig, /grant [^;]*insert[^;]* on public\.reports/, 'no direct insert: only through report_add');
+  assert.match(mig, /interval '10 minutes'\) >= 5/, 'at most 5 in 10 minutes on the server too');
+  for (const t of ['mp_stops', 'world_restores']) assert.match(mig, new RegExp('revoke all on public\\.' + t + ' from anon, authenticated;'));
+  // the columns hold no name and nothing typed
+  const cols = mig.slice(mig.indexOf('create table if not exists public.reports'), mig.indexOf(');', mig.indexOf('create table if not exists public.reports')));
+  assert.doesNotMatch(cols, /\bname\b|\btext_typed\b|picture|image|email/);
+  // the game never reads the reports table and sends only these fields
+  assert.doesNotMatch(game, /sb\.from\('reports'\)/);
+  const send = game.slice(game.indexOf('function sendReport(r)'), game.indexOf('// ---- AI lines'));
+  const keys = [...new Set([...send.matchAll(/\b(p_[a-z_]+)\b/g)].map(m => m[1]))].sort();
+  assert.deepEqual(keys, ['p_ai_line', 'p_category', 'p_changed', 'p_kind', 'p_look', 'p_player', 'p_reporter', 'p_world', 'p_x', 'p_y', 'p_z']);
+  assert.doesNotMatch(send, /playerName|\.name\b(?!\))/, 'no name is sent');
+});

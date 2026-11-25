@@ -2,6 +2,21 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.91: Report anything that looks wrong (SPEC-038)
+Built from the PM hand-off SPEC-038 version 3 (approved by Nick 24 Nov 2026, ready to build), second in Nick's build order of 25 Nov 2026.
+- **Report in Settings:** in a shared world only, a red *Report something wrong* button near the top of Settings. Taps only, buttons at least 48 px: what it is about (*Something someone built*, *A player*, *Something else*), for a player their game-made name, then what is wrong (*Rude or mean*, *Scary*, *Not right*). Every report ends with "Thank you! A grown-up will look at it. If something upset you, tell a grown-up you trust."
+- **What a report sends** (database function `report_add`): kind and category; a build's world code, place (the block in the middle of the screen), direction looked and how many blocks differ from the seed's land in the 32 by 32 box; a player's visit code; an AI line's number; this visit code. No name, picture or typing. At most 5 in 10 minutes (on the device and on the server); then "Thanks, we have your reports" and nothing is sent. A report with no internet waits and is tried again every 30 seconds during the visit.
+- **Hide a player:** after reporting a player, "Hide this player?" Yes: their character, name tag, map dot and name in the log and Powers are hidden on this device until the child leaves the world. Their blocks stay.
+- **AI lines:** the flag button and its rule (report, hide the line on this device, "Thank you! A grown-up will check it.") are in the game, ready for SPEC-037 and SPEC-027; no AI text exists yet.
+- **Parent area:** "Reports sent from this game" (date, category, what about), kept on this device only.
+- **Admin page:** new card "Reports (owner only)": open count, reports per day for 30 days, by kind and by category, then the list (newest first) with how many reports point at the same thing. Actions: mark done; *Put the land back* for a build (the games in that world rebuild the box from the seed as ordinary block changes, once, kept in the world record); *Stop multiplayer* for a player (1, 7 or 30 days, or until lifted) and *Lift*; keep period in months (12 to start). Removing AI lines comes with SPEC-037.
+- **Stop multiplayer:** the game asks the server (`mp_stop_until`) before joining or sharing a world, once a minute in a shared world, and at once when the owner's page says so on the world's channel. Then it leaves like Playing together Off, with "Playing together is turned off for now.", and cannot join or share until it ends. The parent's switch is not changed.
+- **Database:** `docs/migrations/0015_reports.sql` (reports, keep period, stop list, land restores). **Not applied yet:** waits for Nick's yes. Until then reports wait on the device and the owner card says it is not available.
+- **Records:** `report_sent`, `player_hidden`, `multiplayer_stopped` (approved 24 Nov 2026) and the database functions in `docs/EVENTS.md`. Privacy page: new rows "Reports" and "Playing together choice", keep period, deletion; Last updated 25 November 2026.
+- Guide: new part "Reporting and hiding" (group "With others") and a Reports row for grown-ups. Release notes.
+- Tests: 3 browser tests and a fast test of the database rules and the fields sent.
+- Checked: syntax, all fast tests, the 7 SPEC-038 and SPEC-039 browser tests and nearby browser tests. **Not checked:** played by Nick; two devices in one world; the database rules on the live database (not applied); the owner card against real reports; any phone or the Android app.
+
 ## 0.6.90: Playing together, safely (SPEC-039)
 Built from the PM hand-off SPEC-039 version 8 (approved by Nick 24 Nov 2026, ready to build), first in Nick's build order of 25 Nov 2026.
 - **Parent switch:** a new part *Playing together: On / Off* in the parent area (On to start). Only a grown-up signed in with Google there can change it; Facebook alone does not unlock it, and without Google the buttons are greyed with "Connect your Google account to change this". Kept with the saved game (and its cloud save), and on this device for the next new game, so a new game cannot get round it.
