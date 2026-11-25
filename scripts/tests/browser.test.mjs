@@ -4437,13 +4437,13 @@ test('SPEC-026: digging, placing, landing and gems make small effects (60 at mos
   }, { device: PC, saves: [phoneGame()] }));
 
 // ---- Teacher Mirelo, built-in talks (0.6.103; the first part of SPEC-027) ----
-test('Teacher Mirelo (test switch): the AI greeting, words or maths, a talk with answers from the game, Show me, Why, easier and harder, the answer after two wrong tries, 12 replies at most, no gems, nothing typed, nothing sent', { skip, timeout: 300000 }, () =>
+test('Teacher Mirelo (owner\'s preview): the AI greeting, words or maths, a talk with answers from the game, Show me, Why, easier and harder, the answer after two wrong tries, 12 replies at most, no gems, nothing typed, nothing sent', { skip, timeout: 300000 }, () =>
   withGame(async (page, errors, requests) => {
     await page.waitForFunction(() => window.gameTest && window.gameTest.teach, null, { timeout: 60000 });
     assert.equal(await page.evaluate(() => window.gameTest.teach.on), false, 'without the switch there is no Teacher Mirelo');
-    await page.goto(page.url().split('?')[0] + '?teacher=1', { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => window.gameTest && window.gameTest.teach && window.gameTest.teach.on && window.gameProbe, null, { timeout: 90000 });
     await playing(page);
+    // the switch is the owner's preview in the parent area (0.6.104); here it is set as that switch sets it, and it is kept on the device
+    assert.equal(await page.evaluate(() => { const T = window.gameTest.teach; T.setOn(true); return T.on && localStorage.getItem('kidsgame.teacherPreview'); }), '1');
     const sent = requests.length;
     const r = await page.evaluate(() => {
       const G = window.gameTest, T = G.teach, out = {}, st = () => T.state(), tap = mean => { const s = st(), i = s.replies.findIndex(x => x.mean === mean); T.reply(i); return i; };

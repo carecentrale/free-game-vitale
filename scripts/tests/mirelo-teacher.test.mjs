@@ -57,8 +57,11 @@ test('no typing, no listening, nothing sent, no gems; the right answer is the ga
   assert.match(plain, /aiFlagHtml\('lesson-' \+ teach\.lesson\.id\)/, 'every turn of a talk has the flag');
 });
 
-test('only the test switch shows him: no pass exists yet, and nothing a child can see mentions one', () => {
-  assert.match(plain, /let teachOn = \/\[\?&\]teacher=1\\b\/\.test\(location\.search\);/);
+test('only the owner\'s preview switch shows him: no pass exists yet, and nothing a child can see mentions one', () => {
+  assert.doesNotMatch(game, /teacher=1|[?&]teacher\b/, 'nothing in the page address turns him on (0.6.104)');
+  assert.match(plain, /teachOn = localStorage\.getItem\(TEACH_KEY\) === '1'/);
+  assert.match(game, /const mine = !!\(cloudUser && cloudUser\.email === TEACH_OWNER\);/, 'only the owner\'s Google account sees the preview switch');
+  assert.match(game, /document\.getElementById\('teachCtl'\)\.innerHTML = !mine \? '' :/);
   assert.match(game, /if \(teachOn && !mireloNeedsLesson\(\)\) \{ openTeach\(\); return; \}/);
   assert.match(game, /\(teachOn \? `<div[^`]*Mirelo's voice/, 'the voice switch shows only with him');
   for (const f of ['www/how-to-play.html', 'www/index.html']) assert.doesNotMatch(fs.readFileSync(path.join(root, f), 'utf8'), /Teacher Mirelo|Teacher Pass/, f + ' must not show a feature that is not in the game');

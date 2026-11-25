@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.103 (3D)</title>
+<title>Adventurers of Drenerics v0.6.104 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -3192,6 +3192,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.104', title: 'Behind the scenes', items: [
+    'More work behind the scenes. Nothing changes in the game yet.',
+  ] },
   { v: '0.6.103', title: 'Behind the scenes', items: [
     'Work behind the scenes on something new for Mirelo. Nothing changes in the game yet.',
   ] },
@@ -5536,7 +5539,7 @@ function mireloFollow(f, dt) {
 // There is nothing to type and nothing to say into the game, nothing is sent anywhere, and talks give no gems.
 // What is here: 100 lessons written into the game (60 maths, 40 words). What is NOT here yet: the passes (there is no
 // way to buy anything in the game), and the live talks written by the AI service, which need the pass. So for now
-// Teacher Mirelo shows only with the test switch ?teacher=1, and no child sees him or any word about him.
+// Teacher Mirelo shows only after the owner turns on his preview in the parent area, and no child sees a word about him.
 const MIRELO_LESSONS = {
   math: {
     '0:count': [["Let's count! Point at each thing once and say the next number. The last number you say is how many there are.", "Start at one side. Touch the first and say one, the next and say two. Keep going, and don't skip any!"], ["Counting is like walking: one step for each thing. Go slowly and give every thing its own number.", "Make a line in your mind. Count along the line from left to right, one number for each thing."]],
@@ -5595,7 +5598,12 @@ const TEACH_LINES = {
   end: 'We solved {n} puzzles together!', end1: 'We solved a puzzle together!', end0: 'Thank you for thinking with me!',
   badge: ' You earned a Learning with Mirelo badge!',
 };
-let teachOn = /[?&]teacher=1\b/.test(location.search);   // the test switch (see above)
+// The preview switch (0.6.104): "Teacher Mirelo (preview)" in the parent area, shown only to the game's owner signed in
+// with Google, and kept on that device. No address switch any more: nothing in the page address turns him on.
+const TEACH_KEY = 'kidsgame.teacherPreview', TEACH_OWNER = 'yammay@gmail.com';
+let teachOn = false;
+try { teachOn = localStorage.getItem(TEACH_KEY) === '1'; } catch (e) {}
+function setTeachOn(on) { teachOn = !!on; try { if (on) localStorage.setItem(TEACH_KEY, '1'); else localStorage.removeItem(TEACH_KEY); } catch (e) {} if (!on) closeTeach(); }
 let teachPanel = null, teach = null;                     // the open panel; the talk in progress
 let mireloVoice = true;                                  // "Mirelo's voice" in Settings, kept on this device
 try { mireloVoice = localStorage.getItem('kidsgame.mireloVoice') !== '0'; } catch (e) {}
@@ -8676,7 +8684,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.103';
+const VERSION = '0.6.104';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -8896,6 +8904,7 @@ function renderReportsSent() {
     '<div id="learnLevel" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="dragonCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="calmCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
+    '<div id="teachCtl" style="margin:0;text-align:left"></div>' +
     '<div id="shareCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="quizReport" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="reportsSent" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
@@ -8964,6 +8973,15 @@ function renderReportsSent() {
       `<div style="display:flex;gap:6px">${[false, true].map(on => `<button data-calm="${on ? 1 : 0}" aria-pressed="${on === calmMotion}" style="${learnBtn}flex:1;padding:10px;background:${on === calmMotion ? '#3b6fd8' : 'transparent'};font-weight:${on === calmMotion ? 700 : 400}">${on === calmMotion ? '&#10003; ' : ''}${on ? 'On' : 'Off'}</button>`).join('')}</div>` +
       '<div style="font-size:12px;opacity:.75;margin-top:6px">Kept in this saved game.</div>';
   }
+  // Teacher Mirelo (preview): only the owner's Google account sees this switch (0.6.104). Kept on this device.
+  function renderTeach() {
+    const mine = !!(cloudUser && cloudUser.email === TEACH_OWNER);
+    document.getElementById('teachCtl').innerHTML = !mine ? '' : '<div style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px"><div style="font-size:15px;font-weight:700;margin-bottom:4px">Teacher Mirelo (preview)</div>' +
+      '<div style="font-size:12px;opacity:.75;margin-bottom:8px">For the owner only, to try Mirelo\'s lessons before they are released. On: tap Mirelo for words and maths talks on this device.</div>' +
+      `<div style="display:flex;gap:6px">${[false, true].map(on => `<button data-teach="${on ? 1 : 0}" aria-pressed="${on === teachOn}" style="${learnBtn}flex:1;padding:10px;background:${on === teachOn ? '#3b6fd8' : 'transparent'};font-weight:${on === teachOn ? 700 : 400}">${on === teachOn ? '&#10003; ' : ''}${on ? 'On' : 'Off'}</button>`).join('')}</div>` +
+      '<div style="font-size:12px;opacity:.75;margin-top:6px">Kept on this device.</div></div>';
+  }
+  document.getElementById('teachCtl').addEventListener('click', e => { const b = e.target.closest('[data-teach]'); if (b) { setTeachOn(b.dataset.teach === '1'); renderTeach(); } });
   renderCalm();
   document.getElementById('calmCtl').addEventListener('click', e => {
     const b = e.target.closest('[data-calm]');
@@ -9050,6 +9068,7 @@ function renderReportsSent() {
     $c('cloudFacebook').style.display = 'none';   // Google only for now (SPEC-039): kept in the code for later
     if (cloudUser) setTimeout(() => shareHooks.check(), 0);
     renderTogether();
+    renderTeach();   // the owner's preview switch shows once the owner is signed in (0.6.104)
   }
   // ---- Playing together (0.6.90, SPEC-039): On or Off. Only a grown-up signed in with Google here can change it
   // (a teacher's school email sign-in will too, once SPEC-005 is built). Facebook alone does not unlock it.
@@ -10563,7 +10582,7 @@ Promise.all([
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
   // Teacher Mirelo (0.6.103): the built-in talks, for the tests
-  teach: { get on() { return teachOn; }, set on(v) { teachOn = !!v; }, open: openTeach, close: closeTeach, reply: teachReply, stop: teachStop, lessons: MIRELO_LESSONS, why: MIRELO_WHY, lines: TEACH_LINES, lessonsAt: teachLessonsAt, wordQuestion: teachWordQuestion,
+  teach: { get on() { return teachOn; }, set on(v) { teachOn = !!v; }, setOn: setTeachOn, open: openTeach, close: closeTeach, reply: teachReply, stop: teachStop, lessons: MIRELO_LESSONS, why: MIRELO_WHY, lines: TEACH_LINES, lessonsAt: teachLessonsAt, wordQuestion: teachWordQuestion,
     state: () => teachPanel ? { line: teachPanel.dataset.line, replies: (teachPanel.replies || []).map(r => ({ mean: r.mean, label: r.label, a: r.a })), talk: teach && { subject: teach.subject, level: teach.level, lesson: teach.lesson && teach.lesson.id, kind: teach.lesson && teach.lesson.kind, right: teach.right, replies: teach.replies, tries: teach.tries, ended: teach.ended, q: teach.q && { text: teach.q.text, right: teach.q.right, answers: teach.q.answers.map(a => a.label || a.shape) } }, saved: JSON.parse(JSON.stringify(mir.teach)), inputs: teachPanel.querySelectorAll('input,textarea,select,[contenteditable]').length, flag: !!teachPanel.querySelector('[data-aiflag]'), badge: !!teachPanel.querySelector('.tai') } : null,
     get voice() { return mireloVoice; }, setVoice: setMireloVoice, setSaved: t => { mir.teach = teachFrom(t); } },
   // SPEC-026 (0.6.99): the effects on screen, the wind and the ground variety, for the tests
