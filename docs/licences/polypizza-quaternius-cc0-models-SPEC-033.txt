@@ -1,0 +1,32 @@
+Licence record for the 3D models of SPEC-033 (written by the product manager)
+Checked: 24 Nov 2026
+
+Source: Poly Pizza, models by Quaternius (https://poly.pizza/u/Quaternius).
+Bundle page "Ultimate Monsters Bundle" (https://poly.pizza/bundle/Ultimate-Monsters-Bundle-5oyGWAmOB6) says "Licence: Public Domain (CC0)" and links https://creativecommons.org/publicdomain/zero/1.0/ .
+Quaternius's own site says the packs are CC0: https://quaternius.com/packs/ultimatemonsters.html
+Each model page below was opened in Nicola's Chrome on 24 Nov 2026 and its licence line read from the page itself.
+
+The CC0 1.0 legal text is in CC0-1.0-legalcode.txt in this folder.
+
+- www/models/dragons/dragon-meadow-drake.glb
+  Used for: Meadow Drake and all baby dragons
+  Model page: https://poly.pizza/m/3rUm1cN3yp  ("Dragon (Ultimate Monsters)", by Quaternius, Oct 23, 2022)
+  Page says: "FBX /GLTF format • Public Domain (CC0)"
+  File downloaded: https://static.poly.pizza/ae5b8510-1fa5-4d53-b943-a4f3b88fb629.glb (251,540 bytes, SHA-256 d8a12f3f819e86518f5a44984db611ffaaa800895da33928d66519e629615705)
+  What we did: resampled animation keys, removed duplicate data and unused empty nodes (glTF-Transform 4: resample, dedup, prune); meshes, skeleton and clips unchanged.
+
+- www/models/dragons/dragon-great-sky.glb
+  Used for: Great Sky Dragon
+  Model page: https://poly.pizza/m/LlwD0QNUPj  ("Dragon Evolved (Ultimate Monsters)", by Quaternius, Oct 23, 2022)
+  Page says: "FBX /GLTF format • Public Domain (CC0)"
+  File downloaded: https://static.poly.pizza/90ed3740-d8c4-4910-88ce-ac2ed426022d.glb (436,000 bytes, SHA-256 f660d8f48be4ea3f39639f6206a0181127e7fe7503cb4bad8d07d27d80528f3a)
+  What we did: resampled animation keys, removed duplicate data and unused empty nodes (glTF-Transform 4: resample, dedup, prune); meshes, skeleton and clips unchanged.
+
+- www/models/dragons/dragon-long-tail-wyvern.glb
+  Used for: Long-tail Wyvern
+  Model page: https://poly.pizza/m/VBvzjFIYws  ("Dragon (older Quaternius animated pack)", by Quaternius, Jul 11, 2022)
+  Page says: "FBX /GLTF format • Public Domain (CC0)"
+  File downloaded: https://static.poly.pizza/9714f533-5d2d-4cfd-b8f1-c8dfff64a672.glb (268,896 bytes, SHA-256 983f28d4864199f45e1ca67005466d35f2381f08ecf2e234735bf65ecd7be252)
+  What we did: resampled animation keys, removed duplicate data and unused empty nodes (glTF-Transform 4: resample, dedup, prune); meshes, skeleton and clips unchanged.
+
+NOTE: this is a written record of what each page showed, like musopen-morning-commons.txt. Nicola: if you want a saved copy, open each model page and save it (Ctrl+S or print to PDF) into this folder.

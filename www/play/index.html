@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.93 (3D)</title>
+<title>Adventurers of Drenerics v0.6.94 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -3117,6 +3117,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.94', title: 'Dragons that fly like real dragons', items: [
+    'The dragons now fly like real dragons, and no two are the same! Some fly with their babies, and a few are very rare.',
+    'They fly head first, lean into their turns, beat their wings to climb and glide down with their wings spread.',
+  ] },
   { v: '0.6.93', title: 'Mirelo, the wandering mage', items: [
     'Meet Mirelo, a wandering mage! When you are ready, he teaches you to cast fireballs, and he stops by with magic tips.',
     'While he visits he walks along with you for a little while. Tap Come back later and he stays away for a day.',
@@ -7199,7 +7203,6 @@ function guardSpoils(en, k, how) {
 // back up. The tree grows back after 1 or 2 days (see eatenTrees). Dragons are not monsters: nothing hits them, and they
 // never come for the child. The parent area has a Dragons control: On, Stay high (they never come down) or Off.
 const DRAGON_CELL = 170, DRAGON_SEE = 240, DRAGON_MOST = 3;
-const DRAGON_COLS = [[0x55b955, 0xbfe8a0], [0x4a86d8, 0xb9d8ff], [0xf08a24, 0xffd59a], [0x8e5cc4, 0xe0c4ff]];
 const DRAGON_MODES = ['on', 'high', 'off'];
 let dragonMode = 'on';          // the parent's choice, kept with the saved game
 // Share the game (0.6.88, SPEC-030): the reward is given at most once to each saved game (shareGiven is kept in it)
@@ -7207,86 +7210,200 @@ let shareOn = true, shareGems = 500, shareGiven = false;
 const shareHooks = { check: () => {} };
 let dragonsTestOff = false;     // the builder's switch for the frame-rate check (?perf=1): no dragons at all
 const dragonCache = new Map();  // cell -> the dragon of that square, or null
-const dragonShapes = new Map(); // dragon id -> { group, wingL, wingR }
+const dragonShapes = new Map(); // dragon id (a baby: id#n) -> the drawn dragon (see dragonShape)
 let dragonEat = null;           // the dragon coming down to eat, and its tree: { id, tx, ty, tz, lx, ly, lz, t0, marked }
 let dragonWait = 120 + Math.random() * 120;   // seconds until a dragon may come down (2 to 4 minutes)
 let dragonTold = false;         // the first time a dragon eats in this visit, the message strip says so
 let crownFx = null;             // the tree's top shrinking away while it is eaten
+// ---- Dragons that fly like real dragons, every one different (0.6.94, SPEC-033) ----
+// Each dragon is made from the seed and its square: its kind (three animated models, and families with babies), its size,
+// proportions and colours (a few are rare), and its way of flying. Its path is a smooth wandering loop with climbs and
+// dives; it always faces the way it moves, leans into turns and tips its nose up or down. Everything comes from the seed
+// and the shared clock, so every device draws the same dragons. No dragon name is ever shown to a player.
+const DRAGON_KINDS = {
+  drake:  { file: '/models/dragons/dragon-meadow-drake.glb',     fly: 'Fast_Flying',   eat: 'Headbutt',      span: 5,  speed: 7.5, flap: 1.5, glide: 0.35, up: [18, 30], gl: 0.09, sit: 0.28 },
+  wyvern: { file: '/models/dragons/dragon-long-tail-wyvern.glb', fly: 'Dragon_Flying', eat: 'Dragon_Attack', span: 8,  speed: 6.5, flap: 0.7, glide: 0.5,  up: [25, 40], gl: 0.11, sit: 0.17 },
+  great:  { file: '/models/dragons/dragon-great-sky.glb',        fly: 'Flying_Idle',   eat: 'Headbutt',      span: 11, speed: 5.5, flap: 0.5, glide: 0.7,  up: [28, 40], gl: 0.09, sit: 0.3 },
+};
+const DRAGON_KIND_LIST = ['drake', 'wyvern', 'great'];
+// How often each kind lives in a square (the owner's weights, admin page; 0 = never), and rare colours in 100 dragons
+const DRAGON_WEIGHT_START = { drake: 45, wyvern: 30, great: 15, family: 10 };
+const dragonWeights = { ...DRAGON_WEIGHT_START };
+let dragonRarePct = 5;
+function setDragonWeights(map) {
+  const num = (k, d) => Number.isInteger(map[k]) && map[k] >= 0 && map[k] <= 100 ? map[k] : d;
+  const before = JSON.stringify(dragonWeights) + dragonRarePct;
+  for (const k of Object.keys(DRAGON_WEIGHT_START)) dragonWeights[k] = num('dragon_w_' + k, DRAGON_WEIGHT_START[k]);
+  dragonRarePct = num('dragon_rare_pct', 5);
+  if (before !== JSON.stringify(dragonWeights) + dragonRarePct) dragonCache.clear();   // the next look at the sky uses the new weights
+}
+// Friendly colours [body, belly]; the rare ones are gold, silver and pearl
+const DRAGON_PALETTE = [[0x4caf50, 0xc8eaa6], [0x3f7fd6, 0xbcd9ff], [0xf0862a, 0xffd9a3], [0x8a5cc2, 0xe2caff], [0x2aa6a0, 0xb8efe9], [0xc7503f, 0xffc9b0], [0xd9619b, 0xffd1e6], [0x7a8f3a, 0xe3ecb0]];
+const DRAGON_RARE = [[0xe2b21f, 0xfff0a6], [0xb9c2cc, 0xf3f6f9], [0xf1e7d6, 0xffffff]];
+// The builder's and owner's test switches: ?dragon=drake, wyvern, great or family makes every dragon that kind; ?dragon=rare, a rare colour
+const dragonForce = (/[?&]dragon=(drake|wyvern|great|family|rare)\b/.exec(location.search) || [])[1] || null;
+function dragonKindFor(r, r2) {
+  if (dragonForce && dragonForce !== 'rare') return dragonForce === 'family' ? { kind: DRAGON_KIND_LIST[Math.floor(r2 * 3)], family: true } : { kind: dragonForce, family: false };
+  const w = dragonWeights, total = w.drake + w.wyvern + w.great + w.family;
+  if (total <= 0) return null;   // every kind set to 0: no dragons
+  let x = r * total;
+  for (const k of DRAGON_KIND_LIST) { if (x < w[k]) return { kind: k, family: false }; x -= w[k]; }
+  const grown = DRAGON_KIND_LIST.filter(k => w[k] > 0);
+  return { kind: grown.length ? grown[Math.floor(r2 * grown.length)] : 'drake', family: true };
+}
 function dragonOf(gx, gz) {
   const key = gx * 100003 + gz;
   if (dragonCache.has(key)) return dragonCache.get(key);
   let d = null;
-  if (hash3(gx, 1, gz, seed + 6101) < 0.75) {
-    const R = n => hash3(gx, n, gz, seed + 6101);
-    const cx = CENTER + (gx + 0.5) * DRAGON_CELL, cz = CENTER + (gz + 0.5) * DRAGON_CELL, r = 40 + R(2) * 35;
-    // the ground under its circle, every 1/32 of a turn, and the castles near it: it flies 25 to 40 blocks above the land
-    // under it, and rises over a castle's towers long before it reaches them
-    const ring = [];
-    for (let i = 0; i < 32; i++) { const a = i / 32 * Math.PI * 2; ring.push(Math.max(WATER_Y, groundY(Math.round(cx + Math.cos(a) * r), Math.round(cz + Math.sin(a) * r)))); }
-    const castles = castlesIn(Math.floor(cx - r - 40), Math.floor(cz - r - 40), Math.ceil(cx + r + 40), Math.ceil(cz + r + 40));
-    d = { id: gx + ':' + gz, cx, cz, r, w: (0.05 + R(3) * 0.04) * (R(4) < 0.5 ? -1 : 1), ph: R(5) * Math.PI * 2, up: 25 + R(6) * 15, ring, castles, col: DRAGON_COLS[Math.floor(R(7) * DRAGON_COLS.length)] };
+  // (the squares are numbered from far corners here: hash3 gives a square and the one opposite it across the middle the same numbers, which made twin dragons)
+  const R = n => hash3(gx + 100000, n, gz + 300007, seed + 6101);
+  const who = hash3(gx, 1, gz, seed + 6101) < 0.75 ? dragonKindFor(R(8), R(9)) : null;
+  if (who) {
+    const K = DRAGON_KINDS[who.kind];
+    const cx = CENTER + (gx + 0.5) * DRAGON_CELL, cz = CENTER + (gz + 0.5) * DRAGON_CELL;
+    const loopy = R(10), r = 20 + R(2) * 25;   // its loop is about 40 to 90 blocks across
+    const rare = dragonForce === 'rare' || R(11) * 100 < dragonRarePct;
+    const col = rare ? DRAGON_RARE[Math.floor(R(12) * DRAGON_RARE.length)] : DRAGON_PALETTE[Math.floor(R(7) * DRAGON_PALETTE.length)];
+    const size = 0.8 + R(13) * 0.45;   // 80 to 125 percent of its kind
+    d = { id: gx + ':' + gz, kind: who.kind, cx, cz, r, rare, col, size,
+      neck: 0.85 + R(14) * 0.3, tail: 0.85 + R(15) * 0.3, wing: 0.85 + R(16) * 0.3,   // each up to 15 percent longer or shorter
+      fig8: loopy > 0.8, k2: 0.1 + loopy * 0.2, p2: R(17) * Math.PI * 2, k3: 0.05 + R(18) * 0.15, p3: R(19) * Math.PI * 2,
+      dir: R(4) < 0.5 ? -1 : 1, ph: R(5) * Math.PI * 2, up: K.up[0] + R(6) * (K.up[1] - K.up[0]), hAmp: 2 + R(20) * 2, hp: R(21) * Math.PI * 2,
+      flap: K.flap * (0.85 + R(22) * 0.3) / Math.sqrt(size), glide: Math.min(0.9, K.glide * (0.8 + R(23) * 0.4) * size),
+      babies: who.family ? Array.from({ length: R(24) < 0.5 ? 1 : 2 }, (_, i) => ({ size: 0.4 + R(30 + i) * 0.2, side: i ? -1 : 1 })) : [] };
+    d.w = d.dir * K.speed * (0.85 + R(3) * 0.3) / (r * 1.15);   // radians a second along its loop
+    // the ground under its loop, every 1/32 of a lap, and the castles near it: it flies well above the land under it,
+    // and rises over a castle's towers long before it reaches them
+    d.ring = [];
+    for (let i = 0; i < 32; i++) { const q = dragonLoop(d, i / 32 * Math.PI * 2); d.ring.push(Math.max(WATER_Y, groundY(Math.round(q[0]), Math.round(q[1])))); }
+    d.castles = castlesIn(Math.floor(cx - r * 1.4 - 40), Math.floor(cz - r * 1.4 - 40), Math.ceil(cx + r * 1.4 + 40), Math.ceil(cz + r * 1.4 + 40));
   }
   dragonCache.set(key, d);
   return d;
 }
-// Where a dragon is at time t (seconds on the shared clock), flying its circle
+// The place on its loop at angle a: never a plain circle. Some dragons fly a figure-eight.
+function dragonLoop(d, a) {
+  if (d.fig8) return [d.cx + d.r * 1.2 * Math.cos(a), d.cz + d.r * 0.7 * Math.sin(2 * a)];
+  return [d.cx + d.r * (Math.cos(a) + d.k2 * Math.cos(2 * a + d.p2)), d.cz + d.r * (Math.sin(a) + d.k3 * Math.sin(3 * a + d.p3))];
+}
+// Where a dragon is at time t (seconds on the shared clock), flying its loop with climbs and dives of up to 8 blocks
 function dragonFly(d, t) {
-  const a = d.ph + d.w * t, x = d.cx + Math.cos(a) * d.r, z = d.cz + Math.sin(a) * d.r;
+  const a = d.ph + d.w * t, [x, z] = dragonLoop(d, a);
   // the land under it (smoothed between the 32 points of its ring), and any castle near (falling away over 40 blocks)
-  const u = (((a / (Math.PI * 2)) % 1) + 1) % 1 * 32, i = Math.floor(u), f = u - i;
-  let base = d.ring[i % 32] * (1 - f) + d.ring[(i + 1) % 32] * f;
+  const u = (((a / (Math.PI * 2)) % 1) + 1) % 1 * 32, i = Math.floor(u), f = u - i, sm = f * f * (3 - 2 * f);
+  let base = d.ring[i % 32] * (1 - sm) + d.ring[(i + 1) % 32] * sm;
   for (const c of d.castles) { const gap = Math.hypot(Math.max(c.fx0 - x, 0, x - c.fx1), Math.max(c.fz0 - z, 0, z - c.fz1)); base = Math.max(base, c.floorY + c.height - 15 - gap * 0.6); }
-  return { x, z, y: Math.min(H + 30, base + d.up + Math.sin(t * 0.3 + d.ph) * 3), yaw: a + (d.w > 0 ? 0 : Math.PI) };
+  return { x, z, y: Math.min(H + 30, base + d.up + Math.sin(2 * a + d.hp) * d.hAmp) };
 }
 const lerp = (a, b, f) => a + (b - a) * f;
-// Where a dragon is while it comes down to eat: down in a spiral (0 to 8 s), eating (8 to 13), sitting (13 to 15), back up (15 to 20)
+// Where a dragon is while it comes down to eat: it glides in on a curve and slows (0 to 8 s), eats (8 to 13), sits
+// (13 to 15) and takes off, slowly at first (15 to 20)
 function dragonAt(d, t) {
   const E = dragonEat, high = dragonMode !== 'on';
   if (!E || E.id !== d.id || high) return { ...dragonFly(d, t), state: 'fly' };
   const tau = t - E.t0;
   if (tau < 0 || tau >= 20) return { ...dragonFly(d, t), state: 'fly' };
-  const face = Math.atan2(E.tx - E.lx, E.tz - E.lz);
   if (tau < 8) {
-    const from = dragonFly(d, E.t0), f = tau / 8, s = f * f * (3 - 2 * f), sp = (1 - f) * 12, a = f * Math.PI * 3;
-    return { x: lerp(from.x, E.lx, s) + Math.cos(a) * sp, z: lerp(from.z, E.lz, s) + Math.sin(a) * sp, y: lerp(from.y, E.ly, s), yaw: a + Math.PI / 2, state: 'down' };
+    const from = dragonFly(d, E.t0), f = tau / 8, s = f * (2 - f);   // quick at first, slow at the end
+    const dx = E.lx - from.x, dz = E.lz - from.z, len = Math.hypot(dx, dz) || 1, bend = Math.sin(f * Math.PI) * Math.min(10, len * 0.3);
+    return { x: lerp(from.x, E.lx, s) - dz / len * bend, z: lerp(from.z, E.lz, s) + dx / len * bend, y: lerp(from.y, E.ly, s * s * (3 - 2 * s)), state: 'down', f };
   }
-  if (tau < 15) return { x: E.lx, y: E.ly, z: E.lz, yaw: face, state: tau < 13 ? 'eat' : 'sit' };
+  if (tau < 15) return { x: E.lx, y: E.ly, z: E.lz, state: tau < 13 ? 'eat' : 'sit', face: Math.atan2(E.tx + 0.5 - E.lx, E.tz + 0.5 - E.lz) };
   const to = dragonFly(d, t), f = (tau - 15) / 5, s = f * f;
-  return { x: lerp(E.lx, to.x, s), z: lerp(E.lz, to.z, s), y: lerp(E.ly, to.y, s), yaw: Math.atan2(to.x - E.lx, to.z - E.lz), state: 'up' };
+  return { x: lerp(E.lx, to.x, s), z: lerp(E.lz, to.z, s), y: lerp(E.ly, to.y, Math.sqrt(f) * f), state: 'up', f };
 }
-// An original friendly dragon: round body and belly, short snout with nostrils, big round eyes, small horns, a spiky
-// ridge of soft bumps, a tail, and two big wings that flap (pivots at the shoulders)
-function dragonModel([col, belly]) {
-  const g = new THREE.Group(), bin = shapeBin().at(0, 0, 0, 0);
-  bin.ball(1.3, col, 0, 0, 0, 0.85).ball(1.0, belly, 0, -0.35, 0.35, 0.6);          // body and belly
-  bin.ball(0.75, col, 0, 0.75, 1.55).ball(0.45, col, 0, 0.55, 2.2, 0.8);            // head and short snout
-  bin.ball(0.07, 0x2b1f17, -0.18, 0.62, 2.6).ball(0.07, 0x2b1f17, 0.18, 0.62, 2.6); // nostrils
-  for (const s of [-1, 1]) {
-    bin.ball(0.2, 0xffffff, s * 0.38, 1.0, 2.0).ball(0.11, 0x1a1a1a, s * 0.4, 1.02, 2.16);   // eyes
-    bin.add(new THREE.ConeGeometry(0.13, 0.45, 8), 0xf4ecd8, s * 0.35, 1.45, 1.35, 0, 1, 1, 1, -0.4, s * 0.25);   // small horns
-    bin.ball(0.25, col, s * 0.6, -0.95, 0.5, 1.2).ball(0.25, col, s * 0.6, -0.95, -0.5, 1.2);   // feet
+const DRAGON_LEAN = 35 * Math.PI / 180, DRAGON_TIP = 25 * Math.PI / 180;
+// Its place and how it is turned at time t. It faces the way it moves (worked out from its own path, a moment before
+// and after), leans into the turn (at most 35 degrees) and tips its nose up or down (at most 25 degrees).
+function dragonPose(d, t) {
+  const p = dragonAt(d, t);
+  const dirAt = tt => { const a = dragonAt(d, tt - 0.1), b = dragonAt(d, tt + 0.1); return { dx: b.x - a.x, dy: b.y - a.y, dz: b.z - a.z }; };
+  const v = dirAt(t), flat = Math.hypot(v.dx, v.dz), speed = Math.hypot(v.dx, v.dy, v.dz) / 0.2;
+  if (p.state === 'eat' || p.state === 'sit' || flat < 0.004) return { ...p, yaw: p.face !== undefined ? p.face : dragonPoseYaw(d, t), pitch: 0, roll: 0, speed, climb: 0 };
+  const yaw = Math.atan2(v.dx, v.dz);
+  const a = dirAt(t - 0.3), b = dirAt(t + 0.3);
+  const turn = Math.hypot(a.dx, a.dz) > 0.004 && Math.hypot(b.dx, b.dz) > 0.004 ? angDiff(Math.atan2(b.dx, b.dz), Math.atan2(a.dx, a.dz)) / 0.6 : 0;   // radians a second
+  let pitch = Math.max(-DRAGON_TIP, Math.min(DRAGON_TIP, Math.atan2(v.dy, flat)));
+  if (p.state === 'down' && p.f > 0.8) pitch = lerp(pitch, 0.3, (p.f - 0.8) / 0.2);   // it lifts its nose and brakes with its wings to land
+  return { ...p, yaw, pitch, roll: Math.max(-DRAGON_LEAN, Math.min(DRAGON_LEAN, turn * 1.6)), speed, climb: v.dy / 0.2 };
+}
+// The last way it was facing while it still moved (for the moment it stands still)
+function dragonPoseYaw(d, t) { for (let k = 1; k <= 20; k++) { const a = dragonAt(d, t - k * 0.2 - 0.1), b = dragonAt(d, t - k * 0.2 + 0.1); if (Math.hypot(b.x - a.x, b.z - a.z) > 0.004) return Math.atan2(b.x - a.x, b.z - a.z); } return 0; }
+// Does it beat its wings now? Climbing, taking off and slowing to land: yes. Level or going down: it glides for its own share of the time.
+function dragonFlaps(d, p, t) {
+  if (p.state === 'up' || (p.state === 'down' && p.f > 0.8)) return true;
+  if (p.state === 'down') return false;
+  if (p.climb > 0.35) return true;
+  return ((t * 0.09 + d.ph) % 1 + 1) % 1 >= d.glide;
+}
+// The model files: loaded only when a dragon of that kind is first near the child. Until then that dragon is not drawn.
+const dragonFiles = {};
+function dragonFile(kind) {
+  const K = DRAGON_KINDS[kind];
+  if (!dragonFiles[kind]) {
+    dragonFiles[kind] = { ready: null };
+    Promise.all([import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js'), import(SKELETON_UTILS)])
+      .then(([{ GLTFLoader }, { clone }]) => new Promise((ok, bad) => new GLTFLoader().load(K.file, g => ok({ g, clone }), undefined, bad)))
+      .then(({ g, clone }) => {
+        g.scene.updateMatrixWorld(true);   // the bones must be in place before the model is measured (else it measures 100 times too big)
+        const box = new THREE.Box3().setFromObject(g.scene), size = box.getSize(new THREE.Vector3());
+        const clip = n => g.animations.find(c => c.name.endsWith(n)) || null;
+        dragonFiles[kind].ready = { scene: g.scene, clone, fly: clip(K.fly), eat: clip(K.eat), wide: size.x, midY: (box.min.y + box.max.y) / 2, minY: box.min.y };
+      })
+      .catch(() => { dragonFiles[kind] = null; setTimeout(() => { if (dragonFiles[kind] === null) delete dragonFiles[kind]; }, 30000); });   // no internet: try again later
   }
-  for (let i = 0; i < 4; i++) bin.ball(0.16, belly, 0, 1.0 - i * 0.12, 0.9 - i * 0.6);     // soft bumps along the back
-  for (let i = 0; i < 5; i++) bin.ball(0.5 - i * 0.08, col, 0, -0.2 - i * 0.05, -1.2 - i * 0.55);   // the tail
-  bin.add(new THREE.ConeGeometry(0.25, 0.5, 4), belly, 0, -0.45, -4.0, 0, 1, 1, 1, -Math.PI / 2, 0);
-  for (const m of bin.meshes()) g.add(m);
-  // wings: a rounded membrane (drawn as a flat shape) on a pivot at each shoulder, about 8 blocks across with both open
-  const wing = s => {
-    const p = new THREE.Group(); p.position.set(s * 0.8, 0.5, 0.1);
-    const sh = new THREE.Shape();
-    sh.moveTo(0, 0.4); sh.quadraticCurveTo(1.6, 1.6, 3.4, 0.9); sh.quadraticCurveTo(3.0, 0.2, 3.3, -0.4); sh.quadraticCurveTo(2.4, -0.3, 2.2, -1.0);
-    sh.quadraticCurveTo(1.4, -0.6, 1.1, -1.2); sh.quadraticCurveTo(0.6, -0.5, 0, -0.6); sh.lineTo(0, 0.4);
-    const geo = new THREE.ShapeGeometry(sh, 6);
-    const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: belly, side: THREE.DoubleSide }));
-    m.rotation.x = -Math.PI / 2; m.scale.set(s, 1, 1);
-    const bone = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 3.4, 6), lifeMat(col)); bone.rotation.z = Math.PI / 2; bone.position.set(s * 1.7, 0, -0.6);
-    p.add(m, bone);
-    g.add(p);
-    return p;
-  };
-  g.userData = { wingL: wing(-1), wingR: wing(1) };
-  g.scale.setScalar(1.1);
-  return g;
+  return dragonFiles[kind] && dragonFiles[kind].ready;
+}
+// One dragon to draw: its own copy of the model and skeleton, its colours, size and proportions. null until the file is loaded.
+// scale: for a baby, its share of the grown dragon's size.
+function dragonShape(d, kind, scale = 1) {
+  const F = dragonFile(kind), K = DRAGON_KINDS[kind];
+  if (!F) return null;
+  const group = new THREE.Group(), body = F.clone(F.scene), k = K.span / F.wide * d.size * scale;
+  group.rotation.order = 'YXZ';
+  body.scale.setScalar(k);
+  body.position.y = -F.midY * k;
+  const mats = new Map();
+  body.traverse(o => {
+    if (!o.isMesh) return;
+    o.frustumCulled = false;   // a skinned model's box does not follow its bones
+    const paint = m => {
+      if (!mats.has(m)) {
+        const c = m.clone(), n = m.name || '';
+        if (/Main/.test(n)) c.color.setHex(d.col[0]); else if (/Secondary|Belly/.test(n)) c.color.setHex(d.col[1]);
+        if (d.rare && /Main|Secondary|Belly/.test(n)) { c.metalness = 0.55; c.roughness = 0.35; }
+        mats.set(m, c);
+      }
+      return mats.get(m);
+    };
+    o.material = Array.isArray(o.material) ? o.material.map(paint) : paint(o.material);
+  });
+  const bone = n => body.getObjectByName(n);
+  const grow = (n, f) => { const b = bone(n); if (b) b.scale.multiplyScalar(f); return b; };
+  if (grow('Neck', d.neck)) grow('Head', 1 / d.neck);   // a longer or shorter neck, the head its own size
+  grow(bone('Tail1') ? 'Tail1' : 'Body1', d.tail);
+  grow('Wing1L', d.wing); grow('Wing1R', d.wing);
+  group.add(body);
+  const mixer = new THREE.AnimationMixer(body), fly = F.fly && mixer.clipAction(F.fly), eat = F.eat && mixer.clipAction(F.eat);
+  for (const a of [fly, eat]) if (a) { a.play(); a.paused = true; }
+  if (eat) eat.setEffectiveWeight(0);
+  scene.add(group);
+  return { group, mixer, fly, eat, mats, kind, ground: (F.midY - F.minY) * k, K };
+}
+function dropDragonShape(sh) { scene.remove(sh.group); sh.mixer.stopAllAction(); for (const m of sh.mats.values()) m.dispose(); }
+// Puts one drawn dragon in its place and pose. beat: how fast its wings go (a baby's go faster).
+function poseDragonShape(sh, d, p, t, beat) {
+  const sitting = p.state === 'eat' || p.state === 'sit';
+  sh.group.position.set(p.x, p.y + (sitting ? sh.ground : 0), p.z);   // sitting: its feet on the ground
+  sh.group.rotation.set(-p.pitch, p.yaw, -p.roll);
+  if (!sh.fly) return;
+  const eating = p.state === 'eat' && sh.eat;
+  sh.fly.setEffectiveWeight(eating ? 0 : 1);
+  if (sh.eat) { sh.eat.setEffectiveWeight(eating ? 1 : 0); if (eating) sh.eat.time = ((t * 0.9) % 1) * sh.eat.getClip().duration; }
+  const dur = sh.fly.getClip().duration;
+  // gliding: the flying clip held with the wings spread; sitting: held with the wings down; otherwise the wings beat
+  sh.fly.time = sitting ? sh.K.sit * dur : dragonFlaps(d, p, t) ? (((t * beat * (p.state === 'fly' ? 1 : 1.6) + d.ph) % 1 + 1) % 1) * dur : sh.K.gl * dur;
+  sh.mixer.update(0);
 }
 // The dragons near this child (at most 3), nearest first
 function dragonsNear() {
@@ -7347,6 +7464,7 @@ function updateDragons(dt) {
   if (E && !E.marked && t - E.t0 >= 8) {   // it has landed and starts eating: the tree becomes a stump (for every player)
     E.marked = true;
     eatTree(E.tx, E.tz);
+    { const [gx, gz] = E.id.split(':').map(Number), who = dragonOf(gx, gz); if (who) logOnce('dragon_landed', who.kind + (who.babies.length ? ' family' : '') + ' tree'); }   // 0.6.94
     const near = Math.hypot(E.tx - px, E.tz - pz) < 80;
     if (near && dragonMode !== 'off') {
       leafBurst(E.tx + 0.5, E.ty + 3, E.tz + 0.5);
@@ -7377,19 +7495,23 @@ function updateDragons(dt) {
       }
     }
   }
-  // Draw the dragons near this child
-  const show = dragonMode !== 'off' && !dragonsTestOff ? dragonsNear() : [], keep = new Set(show.map(o => o.d.id));
-  for (const [id, s] of dragonShapes) if (!keep.has(id)) { dropGroup(s.group); dragonShapes.delete(id); }
+  // Draw the dragons near this child, each with its babies close behind and a little to the side
+  const show = dragonMode !== 'off' && !dragonsTestOff ? dragonsNear() : [], keep = new Set();
+  for (const { d } of show) { keep.add(d.id); d.babies.forEach((b, i) => keep.add(d.id + '#' + i)); }
+  for (const [id, sh] of dragonShapes) if (!keep.has(id)) { dropDragonShape(sh); dragonShapes.delete(id); }
   for (const { d } of show) {
-    let s = dragonShapes.get(d.id);
-    if (!s) { const group = dragonModel(d.col); scene.add(group); s = { group, ...group.userData }; dragonShapes.set(d.id, s); }
-    const p = dragonAt(d, t);
-    s.group.position.set(p.x, p.y + (p.state === 'eat' || p.state === 'sit' ? 1.2 : 0), p.z);
-    s.group.rotation.y += angDiff(p.yaw, s.group.rotation.y) * Math.min(1, dt * 3);
-    // flapping now and then in the sky; folded wings on the ground; munching nods while eating
-    const flap = p.state === 'eat' || p.state === 'sit' ? -1.2 : p.state === 'fly' ? (Math.sin(t * 0.5 + d.ph) > 0.3 ? Math.sin(t * 6) * 0.6 : 0.1) : Math.sin(t * 7) * 0.7;
-    s.wingL.rotation.z = flap; s.wingR.rotation.z = -flap;
-    s.group.rotation.x = p.state === 'eat' ? 0.25 + Math.sin(t * 8) * 0.12 : 0;
+    let sh = dragonShapes.get(d.id);
+    if (!sh) { sh = dragonShape(d, d.kind); if (sh) dragonShapes.set(d.id, sh); }
+    const p = dragonPose(d, t);
+    if (sh) poseDragonShape(sh, d, p, t, d.flap);
+    d.babies.forEach((b, i) => {
+      const id = d.id + '#' + i;
+      let bs = dragonShapes.get(id);
+      if (!bs) { bs = dragonShape(d, 'drake', b.size * DRAGON_KINDS[d.kind].span / DRAGON_KINDS.drake.span); if (bs) dragonShapes.set(id, bs); }
+      if (!bs) return;
+      const q = dragonPose(d, t - 0.9 - i * 0.7), off = 1.2 + DRAGON_KINDS[d.kind].span * d.size * 0.3;   // behind, and beside
+      poseDragonShape(bs, d, { ...q, x: q.x + Math.cos(q.yaw) * off * b.side, z: q.z - Math.sin(q.yaw) * off * b.side }, t, d.flap * 1.8);
+    });
   }
 }
 // Green leaves that fly off the tree
@@ -7662,7 +7784,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.93';
+const VERSION = '0.6.94';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7700,6 +7822,7 @@ function applyOwnerSettings(map) {
   setGuardSteps(map);
   // Share reward (SPEC-030): on or off and how many gems, set by the owner in the admin page (0013)
   setMireloTimes(map);   // Mirelo's timings (SPEC-028, migration 0017)
+  setDragonWeights(map);   // how often each kind of dragon lives in a square (SPEC-033, migration 0018)
   shareOn = map.share_on !== 0;
   shareGems = Number.isInteger(map.share_gems) && map.share_gems >= 1 && map.share_gems <= 5000 ? map.share_gems : 500;
 }
@@ -7709,7 +7832,7 @@ fetch(SB_URL + '/rest/v1/game_settings?select=key,value', { headers: { apikey: S
   .then(rows => {
     if (!Array.isArray(rows)) return;
     const map = {};
-    for (const row of rows) if (row && typeof row.key === 'string' && (/^m[ps]_/.test(row.key) || /^guard_/.test(row.key) || /^mirelo_/.test(row.key) || row.key === 'carts_max' || row.key === 'share_on' || row.key === 'share_gems')) map[row.key] = row.value;
+    for (const row of rows) if (row && typeof row.key === 'string' && (/^m[ps]_/.test(row.key) || /^guard_/.test(row.key) || /^mirelo_/.test(row.key) || /^dragon_/.test(row.key) || row.key === 'carts_max' || row.key === 'share_on' || row.key === 'share_gems')) map[row.key] = row.value;
     applyOwnerSettings(map);
     try { localStorage.setItem('kidsgame.ownerSettings', JSON.stringify(map)); } catch (e) {}
   })
@@ -9475,7 +9598,11 @@ window.gameTest = {
   merchants: () => [...merchants.values()].map(m => ({ key: m.road.key, shown: m.group.visible, guards: (m.guards || []).map(g => g.kind), speed: m.speed || MERCH_SPEED, worth: offersWorth(m.offers), offers: m.offers.length, x: m.group.position.x, z: m.group.position.z, stopped: m.stopped, fighting: !!m.fighting, guardShown: (m.guards || []).filter(g => g.root.visible).length })),
   merchantOffers, CASTLE_BLOCK_BUYS: () => CASTLE_BLOCK_BUYS.map(o => o.get[0]),
   get dragonMode() { return dragonMode; }, setDragonMode: m => { dragonMode = m; }, set dragonsTestOff(v) { dragonsTestOff = !!v; },
-  dragons: () => [...dragonShapes.keys()], dragonsNear: () => dragonsNear().map(o => ({ id: o.d.id, x: o.p.x, y: o.p.y, z: o.p.z, state: o.p.state, dist: o.dist })),
+  dragons: () => [...dragonShapes.keys()], dragonsNear: () => dragonsNear().map(o => ({ id: o.d.id, x: o.p.x, y: o.p.y, z: o.p.z, state: o.p.state, dist: o.dist, kind: o.d.kind, babies: o.d.babies.length, rare: o.d.rare, size: o.d.size, col: o.d.col[0] })),
+  // SPEC-033 (0.6.94): the dragon of a square and its pose at a time, for the tests
+  dragonOf: (gx, gz) => { const d = dragonOf(gx, gz); return d && { id: d.id, kind: d.kind, babies: d.babies.length, rare: d.rare, size: d.size, col: d.col[0], neck: d.neck, tail: d.tail, wing: d.wing, r: d.r, fig8: d.fig8, flap: d.flap, glide: d.glide, w: d.w }; },
+  dragonPose: (gx, gz, t) => { const d = dragonOf(gx, gz); if (!d) return null; const p = dragonPose(d, t); return { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, roll: p.roll, state: p.state, speed: p.speed, flaps: dragonFlaps(d, p, t) }; },
+  setDragonWeights, get dragonWeights() { return { ...dragonWeights, rare: dragonRarePct }; }, dragonShapeInfo: () => [...dragonShapes].map(([id, sh]) => ({ id, kind: sh.kind, y: sh.group.position.y })), clearDragons: () => dragonCache.clear(),
   get dragonEat() { return dragonEat; }, pickTree, startEat, eatTree, eatenList, treeLook, dayNum,
   dragonWaitNow: () => { dragonWait = 0; },
   splitShares, sharedOn, isLeader, get sharedNow() { return sharedNow(); }, guardSpoils, defeatEnemy, get corpseList() { return corpses.map(c => ({ kind: c.kind, t: c.t, guard: !!c.guard })); }, CORPSE_TIME, GUARD_BODY_TIME, get dropList() { return [...drops.values()].map(d => ({ x: d.x, y: d.y, z: d.z, id: d.id, guard: !!d.guard })); },

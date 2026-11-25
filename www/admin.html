@@ -106,6 +106,7 @@ async function load() {
   loadDebugLog();
   loadCastleGap();
   loadMirelo().catch(() => {});
+  loadDragons().catch(() => {});
   loadBadges();
   loadForceDays();
   loadMerchantCards();
@@ -293,6 +294,31 @@ $('teacherTest').addEventListener('click', async () => {
     .then(x => x.json()).catch(() => ({ ok: false, error: 'network' }));
   $('teacherMsg').textContent = r.ok ? 'Sent to your own address. Check that it shows the sender, the mailing address, the Contact link and an unsubscribe link.'
     : r.error === 'no_mailing_address' ? 'Not sent: the mailing address is empty.' : 'Not sent (' + (r.error || 'error') + ').';
+});
+
+// ---- Dragons (0.6.94, SPEC-033): rarity weights (game settings) and the owner's names for the kinds (migration 0018) ----
+const DRAGON_START = { dragon_w_drake: 45, dragon_w_wyvern: 30, dragon_w_great: 15, dragon_w_family: 10, dragon_rare_pct: 5 };
+const DRAGON_NAMES = { drake: 'Meadow Drake', wyvern: 'Long-tail Wyvern', great: 'Great Sky Dragon', family: 'Dragon with babies' };
+async function loadDragons() {
+  const [w, n] = await Promise.all([sb.from('game_settings').select('key,value').like('key', 'dragon_%'), sb.from('dragon_names').select('kind,name')]);
+  const have = Object.fromEntries((w.data || []).map(r => [r.key, r.value])), names = Object.fromEntries((n.data || []).map(r => [r.kind, r.name]));
+  for (const el of document.querySelectorAll('[data-dragon]')) el.value = have[el.dataset.dragon] ?? DRAGON_START[el.dataset.dragon];
+  for (const el of document.querySelectorAll('[data-dname]')) el.value = names[el.dataset.dname] ?? DRAGON_NAMES[el.dataset.dname];
+  if (w.error || n.error || !(w.data || []).length) $('dragonsMsg').textContent = 'Not in the database yet (migration 0018): the game uses the starting values.';
+}
+$('saveDragons').addEventListener('click', async () => {
+  const rows = [...document.querySelectorAll('[data-dragon]')].map(el => ({ key: el.dataset.dragon, v: Math.round(Number(el.value)) }));
+  if (rows.some(r => !(r.v >= 0 && r.v <= 100))) { $('dragonsMsg').textContent = 'Choose from 0 to 100.'; return; }
+  const names = [...document.querySelectorAll('[data-dname]')].map(el => ({ kind: el.dataset.dname, name: el.value.trim().slice(0, 30) }));
+  if (names.some(n => !n.name)) { $('dragonsMsg').textContent = 'Every kind needs a name.'; return; }
+  let ok = 0, err = '';
+  for (const r of rows) {
+    const { data, error } = await sb.from('game_settings').update({ value: r.v, updated_at: new Date().toISOString() }).eq('key', r.key).select('value');
+    if (error) err = error.message; else if (data && data.length) ok++;
+  }
+  const nres = await sb.from('dragon_names').upsert(names.map(n => ({ ...n, updated_at: new Date().toISOString() }))).select('kind');
+  if (nres.error) err = nres.error.message;
+  $('dragonsMsg').textContent = err ? 'Not saved: ' + err : ok === rows.length && nres.data && nres.data.length === names.length ? 'Saved.' : 'Not saved: only the owner\'s account can change this (or migration 0018 is not applied yet).';
 });
 
 // ---- Mirelo's timings (0.6.93, SPEC-028): game settings everyone reads and only the owner changes (migration 0017) ----
@@ -673,6 +699,19 @@ load();
       <button class="danger" id="deleteCloud">Delete cloud save</button>
     </div>
     <div class="muted" id="cloudNote">Deletes the game saved to the cloud for the account you are signed in with. The game on each device is not changed. Automatic cloud saves stay off until a game presses Save now.</div>
+  </div>
+
+  <div class="card" id="dragonsCard">
+    <b>Dragons (owner only)</b>
+    <div class="muted" style="margin:6px 0">The names are for you only: no dragon name is shown to players. Rarity: how often each kind lives in a part of the sky, from 0 (never) to 100. A game uses new values the next time it opens.</div>
+    <table style="width:100%;font-size:14px"><tr class="muted"><td>Kind</td><td>Your name for it (up to 30 letters)</td><td>Rarity (0 to 100)</td></tr>
+      <tr><td>Small and quick</td><td><input data-dname="drake" maxlength="30"></td><td><input data-dragon="dragon_w_drake" type="number" min="0" max="100" step="1" style="max-width:90px"></td></tr>
+      <tr><td>Long tail, swoops</td><td><input data-dname="wyvern" maxlength="30"></td><td><input data-dragon="dragon_w_wyvern" type="number" min="0" max="100" step="1" style="max-width:90px"></td></tr>
+      <tr><td>The biggest, soars</td><td><input data-dname="great" maxlength="30"></td><td><input data-dragon="dragon_w_great" type="number" min="0" max="100" step="1" style="max-width:90px"></td></tr>
+      <tr><td>A grown dragon with 1 or 2 babies</td><td><input data-dname="family" maxlength="30"></td><td><input data-dragon="dragon_w_family" type="number" min="0" max="100" step="1" style="max-width:90px"></td></tr>
+    </table>
+    <div class="row" style="margin-top:8px"><label class="muted">Rare colours (gold, silver, pearl), dragons in 100: <input data-dragon="dragon_rare_pct" type="number" min="0" max="100" step="1" style="max-width:90px"></label>
+      <button class="secondary" id="saveDragons">Save</button><span id="dragonsMsg" class="muted"></span></div>
   </div>
 
   <div class="card" id="mireloCard">

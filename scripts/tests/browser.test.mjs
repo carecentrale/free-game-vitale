@@ -4057,3 +4057,74 @@ test('SPEC-028: two "Not now" (or the owner\'s minutes) unlock the fireball as b
     assert.equal(await page.evaluate(() => localStorage.getItem('kidsgame.mirelo')), '0');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [phoneGame()] }));
+
+// ---- Dragons that fly like real dragons (0.6.94, SPEC-033) ----
+test('SPEC-033: every kind flies head first (within 10 degrees), leans at most 35 and tips at most 25 degrees, flaps to climb and glides; kinds and rare colours follow the weights; no two dragons alike', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.dragonOf, null, { timeout: 60000 });
+    const r = await page.evaluate(() => {
+      const G = window.gameTest, deg = a => a * 180 / Math.PI, diff = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+      const out = { worst: 0, lean: 0, tip: 0, kinds: {}, n: 0, rare: 0, flaps: 0, glides: 0, looks: new Set(), family: 0, perKind: {}, flat: 0 };
+      for (let gx = -30; gx < 30; gx++) for (let gz = -30; gz < 30; gz++) {
+        const d = G.dragonOf(gx, gz);
+        if (!d) continue;
+        out.n++; out.kinds[d.babies ? 'family' : d.kind] = (out.kinds[d.babies ? 'family' : d.kind] || 0) + 1; if (d.rare) out.rare++;
+        if (Math.abs(gx) <= 3 && Math.abs(gz) <= 3) { out.near = (out.near || 0) + 1; (out.nl = out.nl || new Set()).add([d.kind, d.babies, d.col, d.size.toFixed(3), d.neck.toFixed(3), d.tail.toFixed(3), d.wing.toFixed(3), d.r.toFixed(1), d.flap.toFixed(3)].join('|')); }
+        out.looks.add([d.kind, d.babies, d.col, d.size.toFixed(3), d.neck.toFixed(3), d.tail.toFixed(3), d.wing.toFixed(3), d.r.toFixed(1), d.flap.toFixed(3)].join('|'));
+        if ((out.perKind[d.kind] = (out.perKind[d.kind] || 0) + 1) > 12) continue;   // 12 of each kind are watched for two minutes
+        let lo = Infinity, hi = -Infinity;
+        for (let t = 1000; t < 1120; t += 0.5) {
+          const p = G.dragonPose(gx, gz, t), a = G.dragonPose(gx, gz, t - 0.25), b = G.dragonPose(gx, gz, t + 0.25);
+          const way = Math.atan2(b.x - a.x, b.z - a.z);
+          out.worst = Math.max(out.worst, deg(diff(p.yaw, way)));
+          out.lean = Math.max(out.lean, deg(Math.abs(p.roll))); out.tip = Math.max(out.tip, deg(Math.abs(p.pitch)));
+          if (p.flaps) out.flaps++; else out.glides++;
+          lo = Math.min(lo, p.y); hi = Math.max(hi, p.y);
+          if (p.speed < 1) out.flat++;
+        }
+      }
+      out.looks = out.looks.size; out.nearLooks = out.nl ? out.nl.size : 0; delete out.nl;
+      return out;
+    });
+    assert.ok(r.n > 2000, 'dragons looked at: ' + r.n);
+    assert.ok(r.worst <= 10, 'facing is within 10 degrees of the way it moves: worst ' + r.worst.toFixed(1));
+    assert.ok(r.lean <= 35.01 && r.lean > 5, 'leans into turns, at most 35 degrees: ' + r.lean.toFixed(1));
+    assert.ok(r.tip <= 25.01 && r.tip > 1, 'tips its nose, at most 25 degrees: ' + r.tip.toFixed(1));
+    assert.ok(r.flaps > 0 && r.glides > 0, 'flaps and glides');
+    assert.equal(r.flat, 0, 'no dragon stops in mid-air');
+    const share = k => (r.kinds[k] || 0) / r.n * 100;
+    for (const [k, w] of [['drake', 45], ['wyvern', 30], ['great', 15], ['family', 10]]) assert.ok(Math.abs(share(k) - w) <= 5, k + ': ' + share(k).toFixed(1) + ' for a weight of ' + w);
+    assert.ok(Math.abs(r.rare / r.n * 100 - 5) <= 5 && r.rare > 0, 'rare colours about 1 in 20: ' + (r.rare / r.n * 100).toFixed(1));
+    assert.ok(r.near >= 10 && r.nearLooks === r.near, 'near the start, no two dragons look and fly the same: ' + r.nearLooks + ' of ' + r.near);
+    // a kind set to 0 no longer appears
+    const none = await page.evaluate(() => { const G = window.gameTest; G.setDragonWeights({ dragon_w_drake: 0, dragon_w_wyvern: 30, dragon_w_great: 15, dragon_w_family: 0 }); let n = 0; for (let gx = -15; gx < 15; gx++) for (let gz = -15; gz < 15; gz++) { const d = G.dragonOf(gx, gz); if (d && (d.kind === 'drake' || d.babies)) n++; } G.setDragonWeights({}); return n; });
+    assert.equal(none, 0);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [phoneGame()] }));
+
+test('SPEC-033: coming down to eat, the dragon faces the way it moves, lands and sits on the ground facing the tree, and takes off head first; the models load and are drawn', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.dragonsNear && window.gameTest.dragonsNear().length > 0, null, { timeout: 150000 });
+    await page.waitForFunction(() => window.gameTest.dragons().length > 0, null, { timeout: 150000 });   // the model file has loaded and a dragon is drawn
+    const r = await page.evaluate(() => {
+      const G = window.gameTest, d = G.dragonsNear()[0], [gx, gz] = d.id.split(':').map(Number), t0 = G.sharedNow / 1000 + 100;
+      const deg = a => a * 180 / Math.PI, diff = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+      const land = { lx: d.x + 30, ly: 24, lz: d.z + 20 };
+      G.startEat({ id: d.id, tx: Math.floor(land.lx + 3), ty: 23, tz: Math.floor(land.lz), ...land, t0 });
+      let worst = 0; const states = new Set();
+      for (let tau = 0.5; tau < 19.6; tau += 0.25) {
+        const t = t0 + tau, p = G.dragonPose(gx, gz, t), a = G.dragonPose(gx, gz, t - 0.2), b = G.dragonPose(gx, gz, t + 0.2);
+        states.add(p.state);
+        if (p.state === 'eat' || p.state === 'sit' || a.state !== b.state || p.speed < 1) continue;
+        worst = Math.max(worst, deg(diff(p.yaw, Math.atan2(b.x - a.x, b.z - a.z))));
+      }
+      const sit = G.dragonPose(gx, gz, t0 + 10), face = Math.atan2(Math.floor(land.lx + 3) + 0.5 - land.lx, Math.floor(land.lz) + 0.5 - land.lz);
+      return { worst, states: [...states], sit, off: deg(diff(sit.yaw, face)), land, flare: G.dragonPose(gx, gz, t0 + 7.6).flaps, glide: G.dragonPose(gx, gz, t0 + 3).flaps, up: G.dragonPose(gx, gz, t0 + 16).flaps };
+    });
+    assert.deepEqual(r.states.sort(), ['down', 'eat', 'sit', 'up']);
+    assert.ok(r.worst <= 10, 'head first coming down and going up: worst ' + r.worst.toFixed(1));
+    assert.ok(Math.abs(r.sit.x - r.land.lx) < 0.01 && Math.abs(r.sit.y - r.land.ly) < 0.01, 'it sits where it landed, without sliding');
+    assert.ok(r.off < 1 && r.sit.pitch === 0 && r.sit.roll === 0, 'sitting level, facing the tree');
+    assert.equal(r.glide, false, 'glides in'); assert.equal(r.flare, true, 'beats its wings to slow down'); assert.equal(r.up, true, 'takes off with wing beats');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [phoneGame()] }));

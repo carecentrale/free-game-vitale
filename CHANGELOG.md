@@ -2,6 +2,21 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.94: Dragons that fly like real dragons, every one different (SPEC-033)
+Built from the PM hand-off SPEC-033 version 4 (approved by Nick 24 Nov 2026, ready to build).
+- **Three animated dragon models** (Quaternius, CC0, delivered by the PM; SHA-256 checked against the hand-off): a small quick one, a long-tailed one and a big soaring one, plus families (a grown dragon with 1 or 2 babies close behind and beside it). The code-made dragon of 0.6.81 is gone. Files load only when a dragon of that kind is first near; until then it is not drawn. 798 KB in all, none over 600 KB.
+- **Every dragon is made from the seed and its square:** kind (by the owner's weights: 45, 30, 15, 10 to start), size (80 to 125 percent), neck, tail and wing length (each up to 15 percent longer or shorter, by scaling bones), body and belly colours from eight friendly pairs, rare gold, silver or pearl (5 in 100 to start), its speed, wing beat, share of gliding and how loopy its path is.
+- **Flying:** each path is a smooth wandering loop about 40 to 90 blocks across (some fly a figure-eight) with climbs and dives of up to 8 blocks. The dragon always faces the way it moves, worked out from its own path (the 0.6.81 dragons faced the right way only twice a lap). It leans into turns (at most 35 degrees), tips its nose up or down (at most 25), beats its wings to climb, take off and slow down, and glides with spread wings otherwise.
+- **Landing to eat** (SPEC-022 timings unchanged): it glides in on a curve, slows, lifts its nose and beats its wings, sits on the ground facing the tree, eats (the model's own mouth clip), then takes off slowly at first. Babies land beside their parent.
+- **Fixed:** the numbers a dragon was made from were the same for a square and the square opposite it across the middle of the world, which made twin dragons. Dragons now use their own numbering.
+- **Owner:** new admin card "Dragons (owner only)": a name for each kind (for the owner only; no dragon name is shown to players), rarity 0 to 100, rare colours in 100. `docs/migrations/0018_dragons.sql` (five game settings and an owner-only names table; **not applied yet**: waits for Nick's yes; the game uses the starting weights until then).
+- Test switches: `?dragon=drake`, `wyvern`, `great`, `family` or `rare`.
+- Record: `dragon_landed` (kind and "tree", at most once a minute; approved 24 Nov 2026), in `docs/EVENTS.md`.
+- **Built differently:** no markings (stripes or spots): the models have plain colour materials. No separate wing colour for the same reason. Wings are held down while sitting (no folding clip). The admin card has no small pictures of the kinds. No hover before landing.
+- Guide (the Dragons lines), release notes, `docs/ASSETS.md`, licence copies.
+- Tests: `dragons.test.mjs` (files, no names shown, settings) and 2 browser tests (facing within 10 degrees over two minutes for 12 dragons of each kind, lean and tip limits, weights over 2,600 squares, rare colours, no two alike near the start; the landing).
+- Checked: syntax, fast tests, the browser tests, and the three models seen from the side in the workspace's Chrome (they face the way they move). **Not checked:** how they look in the game sky; the frame rate on the test phone; two devices; played by Nick.
+
 ## 0.6.93: Mirelo, the wandering mage (SPEC-028)
 Built from the PM hand-off SPEC-028 version 2 (approved by Nick 23 Nov 2026, ready to build), fourth in Nick's build order.
 - **The lesson:** at Fighting level 2 the "Magic unlocked!" panel no longer opens by itself. Mirelo walks in from out of sight with a "!" and his name. Tap him: *Show me* or *Not now*. He casts at a glowing target (not a block: it cannot be dug or picked up), the Spell button gets a pulsing ring, and when the child's fireball reaches the target the skill panel opens with "Fireball is yours!". A tap on the target sends the fireball to it; on a computer, point and press F.

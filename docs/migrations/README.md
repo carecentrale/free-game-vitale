@@ -28,6 +28,7 @@ Checked on 22 Nov 2026: each file below has the same text as the step recorded i
 | 17 | 0015_reports.sql | 0015_reports | 25 Nov 2026 (Nick: "yes do data base changes") |
 
 **Not applied:** `0008_guardian_packages.sql` (purchases, waits for the parent's approval). Its tables are not in the live database.
+`0018_dragons.sql` (SPEC-033, dragon rarity weights and the owner's dragon names: written 25 Nov 2026, waits for Nick's yes; the game uses the starting weights until then).
 `0017_mirelo_settings.sql` (SPEC-028, Mirelo's five timings: written 25 Nov 2026, waits for Nick's yes; the game uses the starting values until then).
 `0016_report_keys.sql` (Delete my data also deletes a device's reports: written 25 Nov 2026, waits for Nick's yes).
 
