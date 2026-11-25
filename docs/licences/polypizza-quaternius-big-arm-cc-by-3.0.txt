@@ -1,0 +1,12 @@
+Licence record for www/models/monsters/brute-big-arm.glb (written by the product manager)
+Checked: 24 Nov 2026
+
+Model page: https://poly.pizza/m/KaVJET0WHx  ("Big arm", by Quaternius, Mar 17, 2024)
+Page says: "FBX /GLTF format • Creative Commons Attribution" and links https://creativecommons.org/licenses/by/3.0/
+Licence: CC BY 3.0. Credit is required. Credit line for Settings and www/terms.html:
+  "Big arm" by Quaternius (https://poly.pizza/m/KaVJET0WHx), CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/). Changed: texture re-saved as WebP.
+File downloaded: https://static.poly.pizza/02774147-cf49-4915-a70f-81ac5a8d625b.glb (640,560 bytes, SHA-256 537c50a6061235c5f7e75b618a9571388c0af533ce9ef64ae5d17511fdbb19b4)
+What we did: resampled animation keys, removed duplicate data and unused empty nodes (glTF-Transform 4: resample, dedup, prune); meshes, skeleton and clips unchanged; its one texture re-saved as WebP at quality 90 (EXT_texture_webp, as imp.glb) to bring it from 640,560 bytes under the 600 KB limit.
+
+The CC BY 3.0 legal text is in CC-BY-3.0-legalcode.txt in this folder.
+NOTE: written record of what the page showed. Nicola: save the page itself into this folder if you want a copy.

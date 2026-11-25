@@ -2,6 +2,20 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.96: Believable monsters, every monster an animated model (SPEC-035)
+Built from the PM hand-off SPEC-035 version 3 (approved by Nick 24 Nov 2026, ready to build).
+- **Every monster is a real animated model** (Quaternius; delivered by the PM, SHA-256 checked). The four kinds drawn in code get looks: Brute (four looks), Goblin (two), Hood Goblin (two), Spear Imp (two, one of them flying just above the ground). Which look a monster has comes from its own number, so every device shows the same. The Imp and Spike Beast keep their models and now move with clips from a clips-only file (their skeletons match it bone for bone).
+- **Animations follow what it does**, blending over 0.2 seconds: standing, walking, flinching when its life drops, falling over when it is defeated (before, a body was laid on its side). The walk is played at the speed the monster really moves, so its feet do not slide. A Brute flexes once when the child comes within 5 blocks.
+- **Facing:** a monster turns smoothly toward the way it will walk and starts walking once it faces it (within 15 degrees). Before, it snapped round.
+- **Same fight:** health, toughness, weakness, gems, parts, the place a tap counts as a hit and each kind's height are unchanged. Monsters still never hurt the child; no attack clip is used.
+- **Colours and held things:** a look's main colour is mixed half-way with its kind's colour (plain-colour models only), and a kind's sword, spear or staff is fixed to the hand of a look that has none.
+- **Shared worlds:** no new message. The other devices play walk, stand, flinch and fall from what the leading device already sends (place and life).
+- **Files:** 11 new files, 3.38 MB; with imp.glb and puglin.glb 4.54 MB of the 4.5 MB (4,718,592 bytes) allowed; none over 600 KB. Each is loaded the first time that look appears; a box shows meanwhile, as before.
+- **Licences:** `docs/ASSETS.md` rows and licence copies for every monster file. "Big arm" is CC BY 3.0: its credit is in Settings (credits) and on the terms page.
+- **Built differently:** the look comes from the monster's number, not from its spawn place (the number is what every device shares). The textured Big arm look is not tinted. The Spike Beast walks on two legs as before (its model has two). A monster hit while its file is still loading shows no flinch.
+- Guide and release notes. Tests: `monsters.test.mjs` and one browser test (looks, facing within 15 degrees over 12 seconds of walking, walk speed, flinch, fall).
+- Checked: syntax, fast tests, the new browser test, the older Imp and Spike Beast bones test, life bar and shared-defeat tests, and one picture of six looks beside the character in the workspace's Chrome. **Not checked:** every look by eye; the frame rate on the test phone; two devices; played by Nick. Five older fight tests (sword tap, fireball tap, sword reach, guards' bodies) fail the same way on 0.6.89.
+
 ## 0.6.95: Dragons land everywhere and eat fish (SPEC-036)
 Built from the PM hand-off SPEC-036 version 2 (approved by Nick 24 Nov 2026, ready to build), straight after SPEC-033.
 - **Resting:** a dragon glides down and rests for 10 to 40 seconds on the solid top of blocks with open sky and room around: castle towers, walls and roofs first, then bridges, then hill and mountain tops and open ground, in land already made near a player. It looks around, then takes off. No block is ever changed.

@@ -1,0 +1,74 @@
+Licence record for the 3D models of SPEC-035 (written by the product manager)
+Checked: 24 Nov 2026
+
+Source: Poly Pizza, models by Quaternius (https://poly.pizza/u/Quaternius).
+Bundle page "Ultimate Monsters Bundle" (https://poly.pizza/bundle/Ultimate-Monsters-Bundle-5oyGWAmOB6) says "Licence: Public Domain (CC0)" and links https://creativecommons.org/publicdomain/zero/1.0/ .
+Quaternius's own site says the packs are CC0: https://quaternius.com/packs/ultimatemonsters.html
+Each model page below was opened in Nicola's Chrome on 24 Nov 2026 and its licence line read from the page itself.
+
+The CC0 1.0 legal text is in CC0-1.0-legalcode.txt in this folder.
+
+- www/models/monsters/brute-yeti.glb
+  Used for: Brute, look 1
+  Model page: https://poly.pizza/m/ceRHrn8HHE  ("Yeti", by Quaternius, Oct 23, 2022)
+  Page says: "FBX /GLTF format • Public Domain (CC0)"
+  File downloaded: https://static.poly.pizza/40a831b3-686a-4af8-b189-a13b38a3c26a.glb (423,024 bytes, SHA-256 789fcdd3d32a1bf6ceaa0e30f9ac5d8d2c52d15fa0181d4d1d980a1b2a2ac869)
+  What we did: resampled animation keys, removed duplicate data and unused empty nodes (glTF-Transform 4: resample, dedup, prune); meshes, skeleton and clips unchanged.
+
+- www/models/monsters/brute-orc.glb
+  Used for: Brute, look 2
+  Model page: https://poly.pizza/m/5vO2YJsPEf  ("Orc", by Quaternius, Oct 23, 2022)
+  Page says: "FBX /GLTF format • Public Domain (CC0)"
+  File downloaded: https://static.poly.pizza/52a479b3-a635-4a23-92cb-6697eaa5eed5.glb (512,984 bytes, SHA-256 fb5d9da18e16fd3bd6f066692576845d411acf19536d46c7598f5d701b6db19f)
+  What we did: resampled animation keys, removed duplicate data and unused empty nodes (glTF-Transform 4: resample, dedup, prune); meshes, skeleton and clips unchanged.
+
+- www/models/monsters/brute-blue-demon.glb
+  Used for: Brute, look 3
+  Model page: https://poly.pizza/m/S7jYW6Amye  ("Blue Demon", by Quaternius, Oct 23, 2022)
+  Page says: "FBX /GLTF format • Public Domain (CC0)"
+  File downloaded: https://static.poly.pizza/6fbb8914-bd11-45e1-a906-51ace2ca5d2d.glb (439,488 bytes, SHA-256 6a8e743deba6f43f0f9b1e702016b04ddba1d3bf73b7101d2c86d64ae526f87c)
+  What we did: resampled animation keys, removed duplicate data and unused empty nodes (glTF-Transform 4: resample, dedup, prune); meshes, skeleton and clips unchanged.
+
+- www/models/monsters/goblin-orc-enemy.glb
+  Used for: Goblin, look 1
+  Model page: https://poly.pizza/m/Q3z8ZX4kUy  ("Orc Enemy", by Quaternius, Oct 23, 2022)
+  Page says: "FBX /GLTF format • Public Domain (CC0)"
+  File downloaded: https://static.poly.pizza/3076c5f7-9bdf-4c27-8083-f280ee6cd64b.glb (146,420 bytes, SHA-256 7cd4898ef9f64c65bc6f84b718e723550a42709f40e0b38487f976bfc47e893b)
+  What we did: resampled animation keys, removed duplicate data and unused empty nodes (glTF-Transform 4: resample, dedup, prune); meshes, skeleton and clips unchanged.
+
+- www/models/monsters/goblin-tribal.glb
+  Used for: Goblin, look 2
+  Model page: https://poly.pizza/m/t91lDHaqRW  ("Tribal", by Quaternius, Oct 23, 2022)
+  Page says: "FBX /GLTF format • Public Domain (CC0)"
+  File downloaded: https://static.poly.pizza/1b4759ca-2c00-4718-90f6-2f84bc8e44f9.glb (330,208 bytes, SHA-256 f42e476a67d5c3ffdfdd5dbcb29e9b9b6aaf235d118640f8fb4f2a40c4907951)
+  What we did: resampled animation keys, removed duplicate data and unused empty nodes (glTF-Transform 4: resample, dedup, prune); meshes, skeleton and clips unchanged.
+
+- www/models/monsters/hood-goblin-ninja.glb
+  Used for: Hood Goblin, look 1
+  Model page: https://poly.pizza/m/mCNoqcqpvC  ("Ninja", by Quaternius, Oct 23, 2022)
+  Page says: "FBX /GLTF format • Public Domain (CC0)"
+  File downloaded: https://static.poly.pizza/42162a27-0aaa-40be-b50e-919776021a11.glb (117,740 bytes, SHA-256 327c9ead9999cd25dbcda757c6c16be0cb1baee9bad224b99c917b4a9a00d15a)
+  What we did: resampled animation keys, removed duplicate data and unused empty nodes (glTF-Transform 4: resample, dedup, prune); meshes, skeleton and clips unchanged.
+
+- www/models/monsters/hood-goblin-ninja-2.glb
+  Used for: Hood Goblin, look 2
+  Model page: https://poly.pizza/m/xGYmeDpfTu  ("Ninja (second model)", by Quaternius, Oct 23, 2022)
+  Page says: "FBX /GLTF format • Public Domain (CC0)"
+  File downloaded: https://static.poly.pizza/2ed11876-720e-457a-8a69-4a14ba7234dc.glb (457,204 bytes, SHA-256 f9d38ed5156252a675b40a16c8a01795c16b78b464edbde1ab9fc46951ae420e)
+  What we did: resampled animation keys, removed duplicate data and unused empty nodes (glTF-Transform 4: resample, dedup, prune); meshes, skeleton and clips unchanged.
+
+- www/models/monsters/spear-imp-demon-2.glb
+  Used for: Spear Imp, look 1
+  Model page: https://poly.pizza/m/LnfIziKv4o  ("Demon (with trident)", by Quaternius, Oct 23, 2022)
+  Page says: "FBX /GLTF format • Public Domain (CC0)"
+  File downloaded: https://static.poly.pizza/46b52ba4-5d2a-4fc8-85cc-3e980f199141.glb (485,516 bytes, SHA-256 7da854e1d43428b89b1afca0feca3f323b869b1d8ed7df74d17354260b607262)
+  What we did: resampled animation keys, removed duplicate data and unused empty nodes (glTF-Transform 4: resample, dedup, prune); meshes, skeleton and clips unchanged.
+
+- www/models/monsters/spear-imp-demon.glb
+  Used for: Spear Imp, look 2 (shown hovering low)
+  Model page: https://poly.pizza/m/Mo2ky6vkf8  ("Demon (flying set)", by Quaternius, Oct 23, 2022)
+  Page says: "FBX /GLTF format • Public Domain (CC0)"
+  File downloaded: https://static.poly.pizza/c2e39eb4-4b8e-4d31-b014-d637bf4e15c6.glb (321,140 bytes, SHA-256 9b235359e2e28a8000a92de055ab9c8a9ed123da279461d452357dbbc30de117)
+  What we did: resampled animation keys, removed duplicate data and unused empty nodes (glTF-Transform 4: resample, dedup, prune); meshes, skeleton and clips unchanged.
+
+NOTE: this is a written record of what each page showed, like musopen-morning-commons.txt. Nicola: if you want a saved copy, open each model page and save it (Ctrl+S or print to PDF) into this folder.

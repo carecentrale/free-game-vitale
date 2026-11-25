@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.95 (3D)</title>
+<title>Adventurers of Drenerics v0.6.96 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -3117,6 +3117,10 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.96', title: 'Monsters that move like real creatures', items: [
+    'All the monsters have new looks and move like real creatures. Brutes stomp, Imps bounce and Goblins scurry!',
+    'They turn to face the way they walk, flinch when you hit them and fall over when they are beaten. Fights work as before.',
+  ] },
   { v: '0.6.95', title: 'Dragons rest and catch fish', items: [
     'Dragons now rest on castles, bridges and mountain tops, and dive into the water to catch fish!',
   ] },
@@ -3468,7 +3472,7 @@ function renderSettings() {
     // Load my game by itself (0.6.83): the same choice as the tick box on the start menu, kept on this device
     `<div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px"><div><b>&#127984; Load my game by itself</b><div style="font-size:13px;opacity:.8;margin-top:2px">Opens the game you played last, with no start menu. Off: the menu shows each time</div></div>` +
     `<button id="autoLoadSwitch" style="flex:none;min-height:48px;min-width:96px;border:0;border-radius:12px;font-size:17px;font-weight:600;color:#fff;cursor:pointer;background:${autoLoadOn() ? '#2e9e4f' : '#666b80'}">${autoLoadOn() ? 'On' : 'Off'}</button></div>` +
-    `<details style="margin-top:14px"><summary style="cursor:pointer;padding:12px 0">Music, sound and picture credits</summary><div id="creditList" style="font-size:13px;opacity:.9">${creditsHtml()}</div><div id="picCredit" style="font-size:13px;opacity:.9;margin-top:8px">Pictures in word questions: Twemoji, copyright Twitter, Inc and other contributors, licensed under CC BY 4.0.</div></details>` +
+    `<details style="margin-top:14px"><summary style="cursor:pointer;padding:12px 0">Music, sound and picture credits</summary><div id="creditList" style="font-size:13px;opacity:.9">${creditsHtml()}</div><div id="picCredit" style="font-size:13px;opacity:.9;margin-top:8px">Pictures in word questions: Twemoji, copyright Twitter, Inc and other contributors, licensed under CC BY 4.0.</div><div id="modelCredit" style="font-size:13px;opacity:.9;margin-top:8px">One of the Brute's looks: &quot;Big arm&quot; by Quaternius (poly.pizza/m/KaVJET0WHx), CC BY 3.0 (creativecommons.org/licenses/by/3.0). Changed: texture re-saved as WebP. The other creature and dragon models are by Quaternius, public domain (CC0).</div></details>` +
     `<div style="margin-top:10px"><b>Game version ${esc(VERSION)}</b>${updLine() ? `<div id="updLine" style="font-size:14px;opacity:.85;margin-top:2px">${esc(updLine())}</div>` : ''}</div>` +
     // The list of changes is folded away, so the Quit button below is easy to reach
     `<details><summary style="cursor:pointer;padding:12px 0;opacity:.85">What has changed, newest first</summary>` +
@@ -3964,12 +3968,12 @@ const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
 // toughness = damage taken off each hit; weak = the kinds of damage that hurt it double.
 // These are defaults. The admin can edit them later.
 const ENEMY_KINDS = {
-  goblin: { name: 'Goblin',      power: 1, health: 3,  toughness: 0, weak: ['fire'], parts: ['goblin_ear', 'goblin_skin'], body: 0x6cc04a, head: 0x7fd65a, cloth: 0x8b5a2b, scale: 1.0,  fight: 1.0, gems: 1, sword: true },
-  imp:    { name: 'Imp',         power: 2, health: 4,  toughness: 0, weak: ['holy'], parts: ['imp_horn', 'imp_tail'], body: 0xd9473b, head: 0xe05a4a, cloth: 0x3a2a4a, scale: 0.85, fight: 0.7, gems: 1, horns: true, file: '/models/imp.glb', height: 1.1 },
-  brute:  { name: 'Brute',       power: 4, health: 9,  toughness: 2, weak: ['fire'], parts: ['brute_tooth', 'brute_hide'], body: 0x6b4a8a, head: 0x7a5aa0, cloth: 0x4a3a2a, scale: 1.35, fight: 2.2, gems: 3, pack: true },
-  spear:  { name: 'Spear Imp',   power: 3, health: 6,  toughness: 1, weak: ['holy'], parts: ['spear_horn', 'spear_shaft'], body: 0xc0392b, head: 0xd9574a, cloth: 0x5a4a3a, scale: 0.95, fight: 1.2, gems: 2, spear: true, horns: true },
-  hood:   { name: 'Hood Goblin', power: 3, health: 6,  toughness: 1, weak: ['fire'], parts: ['hood_cloth', 'bone_charm'], body: 0x2f6b3a, head: 0x3f8a4c, cloth: 0x2a2a2a, scale: 1.0,  fight: 1.1, gems: 2, hood: true, scythe: true },
-  spike:  { name: 'Spike Beast', power: 3, health: 8,  toughness: 3, weak: [], parts: ['spike_quill', 'beast_hide'],       body: 0x8a6a3a, head: 0x9a7a4a, cloth: 0x5a4a2a, scale: 1.1,  fight: 1.6, gems: 2, beast: true, file: '/models/puglin.glb', height: 0.9 },
+  goblin: { name: 'Goblin',      power: 1, health: 3,  toughness: 0, weak: ['fire'], parts: ['goblin_ear', 'goblin_skin'], body: 0x6cc04a, head: 0x7fd65a, cloth: 0x8b5a2b, scale: 1.0,  fight: 1.0, gems: 1, sword: true, height: 1.3, looks: ['goblin-orc-enemy', 'goblin-tribal'] },
+  imp:    { name: 'Imp',         power: 2, health: 4,  toughness: 0, weak: ['holy'], parts: ['imp_horn', 'imp_tail'], body: 0xd9473b, head: 0xe05a4a, cloth: 0x3a2a4a, scale: 0.85, fight: 0.7, gems: 1, horns: true, file: '/models/imp.glb', height: 1.1, moves: true },
+  brute:  { name: 'Brute',       power: 4, health: 9,  toughness: 2, weak: ['fire'], parts: ['brute_tooth', 'brute_hide'], body: 0x6b4a8a, head: 0x7a5aa0, cloth: 0x4a3a2a, scale: 1.35, fight: 2.2, gems: 3, pack: true, height: 1.3, looks: ['brute-yeti', 'brute-orc', 'brute-blue-demon', 'brute-big-arm'] },
+  spear:  { name: 'Spear Imp',   power: 3, health: 6,  toughness: 1, weak: ['holy'], parts: ['spear_horn', 'spear_shaft'], body: 0xc0392b, head: 0xd9574a, cloth: 0x5a4a3a, scale: 0.95, fight: 1.2, gems: 2, spear: true, horns: true, height: 1.37, looks: ['spear-imp-demon-2', 'spear-imp-demon'] },
+  hood:   { name: 'Hood Goblin', power: 3, health: 6,  toughness: 1, weak: ['fire'], parts: ['hood_cloth', 'bone_charm'], body: 0x2f6b3a, head: 0x3f8a4c, cloth: 0x2a2a2a, scale: 1.0,  fight: 1.1, gems: 2, hood: true, scythe: true, height: 1.3, looks: ['hood-goblin-ninja', 'hood-goblin-ninja-2'] },
+  spike:  { name: 'Spike Beast', power: 3, health: 8,  toughness: 3, weak: [], parts: ['spike_quill', 'beast_hide'],       body: 0x8a6a3a, head: 0x9a7a4a, cloth: 0x5a4a2a, scale: 1.1,  fight: 1.6, gems: 2, beast: true, file: '/models/puglin.glb', height: 0.9, moves: true },
 };
 // Damage to an enemy: the base damage less its toughness (at least 1), doubled if the enemy is weak to that kind of damage
 function damageTo(en, base, type) {
@@ -4128,29 +4132,99 @@ function poseRig(rig, moving, ph, now, hitP = 0) {
   turnBone(rig, 'Head', moving ? Math.sin(ph * 2) * 0.05 : 0, moving ? 0 : Math.sin(now * 0.7 + ph) * 0.4, 0);
 }
 const SKELETON_UTILS = 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/utils/SkeletonUtils.js';
-function enemyModel(kind) {
-  const k = ENEMY_KINDS[kind];
-  if (k.file) {
+// ---- Believable monsters (0.6.96, SPEC-035): every monster is a real animated model that moves with its own animations ----
+// Goblin, Brute, Spear Imp and Hood Goblin each have several looks (which one comes from the monster's own number, so every
+// device shows the same); the Imp and Spike Beast keep their models and get their moves from a clips-only file. Each look
+// names the clips for standing, walking, being hit and falling. stride: how far one walk cycle carries the model, in the
+// model's own units (per its height for strideH), so the walk is played at the speed the monster moves and its feet do
+// not slide. hover: a flying look, shown just above the ground. Fight numbers do not change with the look.
+const MONSTER_SET = {   // the three animation sets the models come with
+  big:  { idle: 'Idle', walk: 'Walk', hit: 'HitReact', fall: 'Death', near: 'Punch', stride: 2.16 },        // two legs, 43 bones
+  blob: { idle: 'Idle', walk: 'Walk', hit: 'HitRecieve', fall: 'Death' },                                   // a round hopping body
+  fly:  { idle: 'Flying_Idle', walk: 'Fast_Flying', hit: 'HitReact', fall: 'Death', hover: 0.25 },          // wings
+  moves: { idle: 'Idle_Loop', walk: 'Walk_Loop', hit: 'Hit_Chest', fall: 'Death01', strideH: 0.78 },        // the Imp's and Spike Beast's skeleton
+};
+const MONSTER_LOOKS = {
+  'goblin-orc-enemy': 'blob', 'goblin-tribal': 'fly', 'brute-yeti': 'big', 'brute-orc': 'big', 'brute-blue-demon': 'big', 'brute-big-arm': 'big',
+  'spear-imp-demon-2': 'big', 'spear-imp-demon': 'fly', 'hood-goblin-ninja': 'blob', 'hood-goblin-ninja-2': 'big',
+};
+const MONSTER_MOVES = '/models/monsters/imp-spike-beast-moves.glb';
+const monsterFiles = {};
+// A model file with its animation clips (the old loader kept the model only)
+function loadMonsterFile(file) {
+  if (!monsterFiles[file]) {
+    monsterFiles[file] = import('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js')
+      .then(({ GLTFLoader }) => new Promise((ok, bad) => new GLTFLoader().load(file, g => ok({ scene: g.scene, clips: g.animations }), undefined, bad)))
+      .catch(() => { delete monsterFiles[file]; return null; });
+  }
+  return monsterFiles[file];
+}
+// Which look a monster has: from its own number, the same on every device
+function monsterLook(kind, id) {
+  const looks = ENEMY_KINDS[kind].looks;
+  if (!looks) return null;
+  let h = 0; for (const ch of String(id)) h = (Math.imul(h, 31) + ch.charCodeAt(0)) | 0;
+  return looks[Math.abs(h) % looks.length];
+}
+// The thing a kind holds, when its model has none: made in code, fixed to the hand
+function monsterHeld(k) {
+  const g = new THREE.Group(), part = (geo, col, x, y, z) => { const m = new THREE.Mesh(geo, lifeMat(col)); m.position.set(x, y, z); g.add(m); return m; };
+  if (k.sword) { part(new THREE.BoxGeometry(0.08, 0.9, 0.08), 0xdfe6ee, 0, 0.55, 0); part(new THREE.BoxGeometry(0.3, 0.06, 0.1), 0x8b5a2b, 0, 0.1, 0); }
+  else if (k.spear) { part(new THREE.CylinderGeometry(0.04, 0.04, 2.6, 6), 0x8b5a2b, 0, 0.6, 0); part(new THREE.ConeGeometry(0.12, 0.4, 6), 0xdfe6ee, 0, 2.1, 0); }
+  else if (k.scythe) { part(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 6), 0x5a3a20, 0, 0.5, 0); part(new THREE.BoxGeometry(0.6, 0.12, 0.06), 0xb0b8c0, 0.28, 1.55, 0); }
+  else return null;
+  return g;
+}
+function enemyModel(kind, id = '') {
+  const k = ENEMY_KINDS[kind], look = monsterLook(kind, id);
+  if (k.file || look) {
     // Real model: shows a placeholder box until it loads, then swaps in the model
     const holder = new THREE.Group();
     holder.scale.setScalar(k.scale);
     holder.add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: k.body })));
     holder.children[0].position.y = 0.4;
-    loadModel(k.file).then(async loaded => {
+    holder.userData.look = look || kind;
+    const set = MONSTER_SET[look ? MONSTER_LOOKS[look] : 'moves'];
+    Promise.all([loadMonsterFile(look ? '/models/monsters/' + look + '.glb' : k.file), look ? null : loadMonsterFile(MONSTER_MOVES), import(SKELETON_UTILS)]).then(([loaded, moves, { clone }]) => {
       if (!loaded) return;
       // Each enemy gets its own copy of the model and its own skeleton. (Before 0.6.58 they all shared one, so only the newest one showed.)
-      const { clone } = await import(SKELETON_UTILS);
-      const sc = clone(loaded);
-      const rig = makeRig(sc);
+      const sc = clone(loaded.scene);
+      const rig = look ? null : makeRig(sc);   // (the code posing of 0.6.58 stays as the fallback when the moves file cannot be loaded)
+      sc.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(sc);
       const size = box.getSize(new THREE.Vector3());
       const f = k.height / Math.max(size.y, 0.01);
       sc.scale.setScalar(f);
-      sc.position.set(-(box.min.x + box.max.x) / 2 * f, -box.min.y * f, -(box.min.z + box.max.z) / 2 * f);
-      sc.traverse(c => { c.userData.enemy = holder.userData.enemy; });
+      sc.position.set(-(box.min.x + box.max.x) / 2 * f, -box.min.y * f + (set.hover || 0), -(box.min.z + box.max.z) / 2 * f);
+      const mats = new Map(), tint = new THREE.Color(k.body);
+      sc.traverse(c => {
+        c.userData.enemy = holder.userData.enemy;
+        if (!c.isMesh) return;
+        c.frustumCulled = false;
+        if (!look) return;
+        // the kind's colour, where the model allows: its main colour is mixed half-way with the kind's
+        const paint = m => { if (!mats.has(m)) { const n = m.clone(); if (/_Main$/.test(m.name)) n.color.lerp(tint, 0.5); mats.set(m, n); } return mats.get(m); };
+        c.material = Array.isArray(c.material) ? c.material.map(paint) : paint(c.material);
+      });
+      if (look && set !== MONSTER_SET.fly) {   // the kind's held thing, where the model has none (the flying looks carry nothing)
+        const hand = sc.getObjectByName('Middle1R') || sc.getObjectByName('LowerArmR'), held = !/Weapon|Wood/.test([...mats.keys()].map(m => m.name).join()) && hand ? monsterHeld(k) : null;
+        if (held) { held.scale.setScalar(1 / (hand.getWorldScale(new THREE.Vector3()).y || 1) * 0.9); hand.add(held); }
+      }
       holder.clear();
       holder.add(sc);
-      holder.userData.rig = rig;
+      // its animations: standing, walking, being hit, falling. Only the bones' turns are used from the moves file.
+      const src = look ? loaded.clips : moves ? moves.clips.map(c => new THREE.AnimationClip(c.name, c.duration, c.tracks.filter(t => t.name.endsWith('.quaternion')))) : [];
+      const clip = n => n && src.find(c => c.name === n || c.name.endsWith('|' + n));
+      if (clip(set.idle) && clip(set.walk)) {
+        const mixer = new THREE.AnimationMixer(sc), act = n => { const c = clip(n); return c ? mixer.clipAction(c) : null; };
+        const anim = { mixer, idle: act(set.idle), walk: act(set.walk), hit: act(set.hit), fall: act(set.fall), near: act(set.near), now: 'idle', once: null, onceT: 0,
+          stride: (set.stride || (set.strideH || 0) * size.y) * f * k.scale, walkDur: clip(set.walk).duration };
+        for (const a of [anim.hit, anim.fall, anim.near]) if (a) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
+        anim.idle.play();
+        holder.userData.anim = anim;
+        if (holder.userData.fallen) monsterFall(holder);   // it was defeated while its file was loading
+      }
+      if (rig) holder.userData.rig = rig;   // kept for the Imp and Spike Beast: used only if their moves could not be loaded
     }).catch(() => { /* the placeholder block stays if the model cannot be set up */ });
     return holder;
   }
@@ -4205,6 +4279,33 @@ function enemyModel(kind) {
   g.scale.setScalar(k.scale);
   return g;
 }
+// Plays the animation for what the monster is doing, blending over about 0.2 seconds: standing, walking (at the speed
+// it moves over the ground, so its feet do not slide), flinching when hit. hp: its life now (a drop means it was hit).
+function monsterAnim(en, moving, speed, dt) {
+  const A = en.group.userData.anim;
+  if (!A) return false;
+  const once = a => { if (A.once && A.once !== a) A.once.fadeOut(0.2); a.reset().setEffectiveWeight(1).fadeIn(0.1).play(); A.once = a; A.onceT = a.getClip().duration; };
+  if (en.animHp !== undefined && en.hp < en.animHp && A.hit) once(A.hit);   // it flinches when hit
+  en.animHp = en.hp;
+  // a Brute flexes when the child comes near (played on the spot, never toward the child)
+  if (A.near && !moving && !A.once) { const close = Math.hypot(en.x - px, en.z - pz) < 5; if (close && !en.flexed) { en.flexed = true; once(A.near); } else if (!close) en.flexed = false; }
+  if (A.once) { A.onceT -= dt; if (A.onceT <= 0.15) { A.once.fadeOut(0.2); A.once = null; } }
+  const want = moving ? 'walk' : 'idle';
+  if (want !== A.now) { A[want].reset().play(); A[A.now].crossFadeTo(A[want], 0.2, false); A.now = want; }
+  if (moving && A.stride > 0) A.walk.timeScale = Math.max(0.4, Math.min(3, speed * A.walkDur / A.stride));
+  A.mixer.update(dt);
+  return true;
+}
+// Defeated: it falls over with its own animation and stays down
+function monsterFall(group) {
+  const A = group.userData.anim;
+  group.userData.fallen = true;
+  if (!A || !A.fall) return false;
+  A.fall.reset().play();
+  for (const a of [A.idle, A.walk, A.hit, A.near]) if (a && a !== A.fall) a.crossFadeTo(A.fall, 0.15, false);
+  A.falling = A.fall.getClip().duration + 0.3;
+  return true;
+}
 function spawnEnemy(forceKind, near = null) {
   const cx = near ? near.x : px, cz = near ? near.z : pz;
   for (let tries = 0; tries < 20; tries++) {
@@ -4216,9 +4317,9 @@ function spawnEnemy(forceKind, near = null) {
     if (!(ground === T.GRASS || ground === T.SNOW || (ground === T.SAND && y >= WATER_Y))) continue;   // dry ground only
     if (Math.hypot(x + 0.5 - px, z + 0.5 - pz) < 6 || (near && Math.hypot(x + 0.5 - near.x, z + 0.5 - near.z) < 6)) continue;
     const kind = forceKind || ENEMY_LIST[Math.floor(Math.random() * ENEMY_LIST.length)];
-    const group = enemyModel(kind);
+    const id = enemyTag + (++enemySeq).toString(36), group = enemyModel(kind, id);
     scene.add(group);
-    const en = { id: enemyTag + (++enemySeq).toString(36), group, kind, hp: ENEMY_KINDS[kind].health, base: ENEMY_KINDS[kind].scale, x: x + 0.5, y: y + 1.01, z: z + 0.5, vx: 0, vy: 0, vz: 0, timer: 1, hitP: 0 };
+    const en = { id, group, kind, hp: ENEMY_KINDS[kind].health, base: ENEMY_KINDS[kind].scale, x: x + 0.5, y: y + 1.01, z: z + 0.5, vx: 0, vy: 0, vz: 0, timer: 1, hitP: 0 };
     group.traverse(c => { c.userData.enemy = en; });
     group.userData.enemy = en; // so a model that loads later can be tagged too
     enemies.push(en);
@@ -4329,10 +4430,17 @@ function updateEnemies(dt) {
       en.vz = Math.cos(a) * 1.0;
       if (Math.random() < 0.3) { en.vx = 0; en.vz = 0; }
     }
-    const nx = en.x + en.vx * dt;
-    if (!solidBox(nx, en.y, en.z, 0.3, 0.8) && groundBelow(nx, en.z, en.y)) en.x = nx; else en.timer = 0;
-    const nz = en.z + en.vz * dt;
-    if (!solidBox(en.x, en.y, nz, 0.3, 0.8) && groundBelow(en.x, nz, en.y)) en.z = nz; else en.timer = 0;
+    // 0.6.96 (SPEC-035): it turns smoothly to face the way it will walk, and walks once it faces it (within 15 degrees)
+    const heading = en.vx || en.vz ? Math.atan2(en.vx, en.vz) : null;
+    if (heading !== null) { const off = angDiff(heading, en.group.rotation.y), step = Math.sign(off) * Math.min(Math.abs(off), 7 * dt); en.group.rotation.y += step; en.turning = Math.abs(off - step) > 0.26; } else en.turning = false;
+    const sx0 = en.x, sz0 = en.z;
+    if (!en.turning) {
+      const nx = en.x + en.vx * dt;
+      if (!solidBox(nx, en.y, en.z, 0.3, 0.8) && groundBelow(nx, en.z, en.y)) en.x = nx; else en.timer = 0;
+      const nz = en.z + en.vz * dt;
+      if (!solidBox(en.x, en.y, nz, 0.3, 0.8) && groundBelow(en.x, nz, en.y)) en.z = nz; else en.timer = 0;
+    }
+    en.walked = Math.hypot(en.x - sx0, en.z - sz0) / Math.max(dt, 0.001);   // how fast it really moved (blocks a second)
     en.vy = Math.max(en.vy - GRAV * dt, -30);
     const ny = en.y + en.vy * dt;
     if (!solidBox(en.x, ny, en.z, 0.3, 0.8)) en.y = ny; else en.vy = 0;
@@ -4340,13 +4448,14 @@ function updateEnemies(dt) {
     const sq = en.hitP * 0.25 + Math.sin(now * 5 + en.x) * 0.05;
     // Walk bounce and side sway while moving, slow breathing while standing.
     // The bounce stretches the body up and down; the feet stay on the block.
-    const moving = en.vx || en.vz;
+    const moving = (en.vx || en.vz) && !en.turning;
     const ph = now * 8 + en.x * 3;
-    const bounce = moving ? Math.abs(Math.sin(ph)) * 0.08 : Math.sin(now * 2 + en.x) * 0.02;
     en.group.position.set(en.x, en.y, en.z);
+    // The animated models move by their own animations; the placeholder and the old posing keep the bounce and sway
+    if (monsterAnim(en, !!moving && en.walked > 0.2, en.walked, dt)) { en.group.scale.setScalar((1 - en.hitP * 0.08) * en.base); en.group.rotation.z = 0; continue; }
+    const bounce = moving ? Math.abs(Math.sin(ph)) * 0.08 : Math.sin(now * 2 + en.x) * 0.02;
     en.group.scale.set((1 + sq - bounce * 0.5) * en.base, (1 - sq + bounce) * en.base, (1 + sq - bounce * 0.5) * en.base);
     en.group.rotation.z = moving ? Math.sin(ph) * 0.08 : 0;
-    if (moving) en.group.rotation.y = Math.atan2(en.vx, en.vz);
     // Limbs: the loaded models move their bones; the monsters made in code swing their arms and legs
     const rig = en.group.userData.rig, limbs = en.group.userData.limbs;
     if (rig) poseRig(rig, !!moving, ph, now, en.hitP);
@@ -4371,6 +4480,7 @@ function updateCorpses(dt) {
   for (let i = corpses.length - 1; i >= 0; i--) {
     const c = corpses[i];
     c.t += dt;
+    { const A = c.group.userData.anim; if (A && A.falling > 0) { A.falling -= dt; A.mixer.update(dt); } }   // its fall plays out (0.6.96)
     // After CORPSE_TIME every body sinks and disappears, even if it is still falling or hovering
     if (c.t >= CORPSE_TIME) {
       if (c.sinkY === undefined) c.sinkY = c.group.position.y;
@@ -4483,9 +4593,11 @@ function defeatEnemy(en, how = null) {
   en.group.userData.enemy = null;
   const turn = en.group.rotation.y;
   en.group.scale.setScalar(en.base);
-  en.group.rotation.set(0, turn, -Math.PI / 2);
+  // 0.6.96 (SPEC-035): an animated model falls over with its own animation; the others are laid on their side as before
+  const falls = monsterFall(en.group) || (!!en.group.userData.look && !en.group.userData.anim && !en.group.userData.rig && !en.group.userData.limbs);   // (still loading: it falls when its file arrives)
+  en.group.rotation.set(0, turn, falls ? 0 : -Math.PI / 2);
   // A body killed in mid-air falls until it lands on a block
-  const lift = 0.25 * en.base;
+  const lift = falls ? 0 : 0.25 * en.base;
   const cy = Math.floor(en.y - 0.1); // the block the body would lie on
   const onBlock = solid(get(Math.floor(en.x), cy, Math.floor(en.z)));
   // A body on a block is set exactly on top of that block. An enemy's height is a fraction
@@ -7876,7 +7988,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.95';
+const VERSION = '0.6.96';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -8936,7 +9048,7 @@ function onWorldState(p, from) {
   }
 }
 function mirrorEnemy(id, kind, x, y, z) {
-  const group = enemyModel(kind);
+  const group = enemyModel(kind, id);
   scene.add(group);
   const en = { id, group, kind, hp: ENEMY_KINDS[kind].health, base: ENEMY_KINDS[kind].scale, x, y, z, vx: 0, vy: 0, vz: 0, timer: 1, hitP: 0, mirror: true };
   group.traverse(c => { c.userData.enemy = en; });
@@ -8972,6 +9084,7 @@ function updateMirrors(dt) {
     en.group.position.set(en.x, en.y, en.z);
     en.group.rotation.y += angDiff(en.tyaw, en.group.rotation.y) * a;
     const now = performance.now() / 1000, ph = now * 8 + en.x * 3, limbs = en.group.userData.limbs, rig = en.group.userData.rig;
+    if (monsterAnim(en, moving, 1, dt)) continue;   // the same animation on every device, from what the leading device already sends (0.6.96)
     if (rig) poseRig(rig, moving, ph, now, en.hitP);
     else if (limbs) { const s = moving ? Math.sin(ph) : 0; limbs.legs.forEach((l, i) => { l.rotation.x = (i ? s : -s) * 0.6; }); limbs.arms.forEach((r, i) => { r.rotation.x = (i ? -s : s) * 0.5; }); }
   }
@@ -9532,6 +9645,10 @@ Promise.all([
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  // SPEC-035 (0.6.96): each monster's look, animation and facing, for the tests
+  monsterLook, MONSTER_LOOKS, monsters: () => enemies.map(en => ({ id: en.id, kind: en.kind, look: en.group.userData.look || null, anim: en.group.userData.anim ? en.group.userData.anim.now : null, hasAnim: !!en.group.userData.anim, yaw: en.group.rotation.y, vx: en.vx, vz: en.vz, turning: !!en.turning, walked: en.walked || 0, x: en.x, z: en.z, hp: en.hp, timeScale: en.group.userData.anim ? en.group.userData.anim.walk.timeScale : null, stride: en.group.userData.anim ? en.group.userData.anim.stride : null })),
+  hurtById: (id, n) => { const en = enemies.find(e => e.id === id); if (en) hurtEnemy(en, n); }, monsterOnce: id => { const en = enemies.find(e => e.id === id); return !!(en && en.group.userData.anim && en.group.userData.anim.once); },
+  lastBody: () => { const c = corpses[corpses.length - 1]; return c ? { fallen: !!c.group.userData.fallen, onSide: Math.abs(c.group.rotation.z) > 1 } : null; },
   // Mirelo (0.6.93, SPEC-028)
   castAt: (x, y, z) => { spellCool = 0; castFireball(new THREE.Vector3(x, y, z)); },
   mirelo: { get state() { return { ...mir, on: mireloOn, sinceL2: mireloRun.sinceL2, wait: mireloRun.wait, tipWait: mireloRun.tipWait, lesson: mireloRun.lesson ? { stage: mireloRun.lesson.stage, x: mireloRun.lesson.x, y: mireloRun.lesson.y, z: mireloRun.lesson.z } : null, here: !!(friend && friend.mage), friend: friend && friend.mage ? { state: friend.state, x: friend.x, z: friend.z, age: friend.age, tipDone: !!friend.tipDone } : null, set: { ...mireloSet } }; },

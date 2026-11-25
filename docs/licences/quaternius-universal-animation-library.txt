@@ -1,0 +1,16 @@
+Licence record for www/models/monsters/imp-spike-beast-moves.glb (written by the product manager)
+Checked: 24 Nov 2026
+
+What it is: 7 animation clips (Idle_Loop, Walk_Loop, Jog_Fwd_Loop, Sword_Attack, Punch_Cross, Hit_Chest, Death01) taken from Quaternius "Universal Animation Library" (free Standard version, file UAL1_Standard.glb). No mesh, no texture: skeleton and clips only.
+Why: www/models/imp.glb and www/models/puglin.glb have no clips. Their bones carry the same names as this library (Quaternius universal rig: neck_01, hand_l, index_01_l and so on; 55 of 55 imp bones match), so three.js plays these clips on them directly by bone name. Pinky and ball_leaf tracks were removed (the imp and puglin have no such bones).
+Licence pages:
+  https://quaternius.com/packs/universalanimationlibrary.html : "Free to use in personal, educational and commercial projects. (CC0 License)", License field: CC0
+  https://quaternius.itch.io/universal-animation-library : "Free to use in personal, educational and commercial projects. (CC0 License)"; files: Universal Animation Library[Standard].zip (15 MB, free), Pro and Source versions paid.
+Copy used: UAL1_Standard.glb as kept in two public GitHub repositories, byte-identical (same SHA-256), because the cloud workspace cannot download from itch.io:
+  https://github.com/aswinkumarks/IONFALL/blob/HEAD/art/characters/ual/UAL1_Standard.glb
+  https://github.com/dragon-fish/parkour-game/blob/HEAD/assets/animations/ual1_standard.glb
+  7,618,436 bytes, SHA-256 69591853d817488edaa8fd9bf8fc1d821eaeaf789f8627b3cd23b41c4ed67997
+CC0 lets anyone copy and pass on the file, so a copy carries the same licence. If you prefer the copy from the official zip, download the Standard zip from itch.io and run the same trim (README step 5).
+What we did: kept the 7 clips listed, removed meshes, materials, textures and unused tracks (glTF-Transform 4: resample, dedup, prune).
+
+The CC0 1.0 legal text is in CC0-1.0-legalcode.txt in this folder.

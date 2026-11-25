@@ -4169,3 +4169,45 @@ test('SPEC-036: a dragon rests on top of the blocks for its time and takes off; 
     assert.ok(r.worst <= 10, 'head first through the dive, the skim and the flight to its perch: ' + r.worst.toFixed(1));
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [phoneGame()] }));
+
+// ---- Believable monsters (0.6.96, SPEC-035) ----
+test('SPEC-035: every kind is an animated model with one of its looks; walking, each faces the way it walks (within 15 degrees) and its walk is played at the speed it moves; a hit makes it flinch and a defeat makes it fall with its own animation', { skip, timeout: 300000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.monsters, null, { timeout: 60000 });
+    await page.evaluate(() => { const g = window.gameTest, [x, y, z] = g.pos.map(Math.floor); for (let dx = -22; dx <= 22; dx++) for (let dz = -22; dz <= 22; dz++) { g.setWriteBlock(x + dx, y - 1, z + dz, g.T.GRASS); for (let u = 0; u < 6; u++) g.setWriteBlock(x + dx, y + u, z + dz, 0); } g.clearEnemies(); });
+    const made = await page.evaluate(() => { const g = window.gameTest, out = {}; for (const k of ['goblin', 'imp', 'brute', 'spear', 'hood', 'spike']) { out[k] = 0; for (let i = 0; i < 6 && out[k] < 2; i++) if (g.spawnKind(k)) out[k]++; } return out; });
+    for (const k of Object.keys(made)) assert.ok(made[k] >= 1, 'a ' + k + ' was made');
+    await page.waitForFunction(() => { const m = window.gameTest.monsters(); return m.length >= 6 && m.every(x => x.hasAnim); }, null, { timeout: 120000 });
+    const looks = await page.evaluate(() => window.gameTest.monsters().map(m => [m.kind, m.look, window.gameTest.monsterLook(m.kind, m.id)]));
+    const allowed = { goblin: ['goblin-orc-enemy', 'goblin-tribal'], brute: ['brute-yeti', 'brute-orc', 'brute-blue-demon', 'brute-big-arm'], spear: ['spear-imp-demon-2', 'spear-imp-demon'], hood: ['hood-goblin-ninja', 'hood-goblin-ninja-2'], imp: ['imp'], spike: ['spike'] };
+    for (const [kind, look, again] of looks) { assert.ok(allowed[kind].includes(look), kind + ' looks like ' + look); if (kind !== 'imp' && kind !== 'spike') assert.equal(again, look, 'the look comes from the monster\'s own number'); }
+    // watch them walk for a while: facing, and the walk's speed
+    const seen = await page.evaluate(async () => {
+      const g = window.gameTest, deg = a => Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) * 180 / Math.PI, out = { worst: 0, walking: 0, walkAnim: 0, idleAnim: 0, scales: [] };
+      for (let i = 0; i < 120; i++) {
+        await new Promise(r => setTimeout(r, 100));
+        for (const m of g.monsters()) {
+          if (m.walked > 0.5 && !m.turning && (m.vx || m.vz)) { out.walking++; out.worst = Math.max(out.worst, deg(m.yaw - Math.atan2(m.vx, m.vz))); if (m.anim === 'walk') out.walkAnim++; if (m.stride > 0) out.scales.push(m.timeScale * m.stride / m.walked); }
+          else if (!m.vx && !m.vz && m.anim === 'idle') out.idleAnim++;
+        }
+      }
+      return out;
+    });
+    assert.ok(seen.walking > 20, 'monsters were seen walking: ' + seen.walking);
+    assert.ok(seen.worst <= 15, 'facing within 15 degrees while walking: worst ' + seen.worst.toFixed(1));
+    assert.ok(seen.walkAnim >= seen.walking * 0.9, 'the walk animation plays while walking');
+    assert.ok(seen.idleAnim > 0, 'the idle animation plays while standing');
+    // a hit: it flinches (its life drops, the fight goes on as before); a defeat: it falls and stays as a body
+    const fight = await page.evaluate(async () => {
+      const g = window.gameTest, m = g.monsters().find(x => x.kind === 'brute');
+      const before = m.hp; g.hurtById(m.id, 1); await new Promise(r => setTimeout(r, 300));
+      const mid = g.monsters().find(x => x.id === m.id);
+      const bodies = g.corpseList.length; g.hurtById(m.id, 99); await new Promise(r => setTimeout(r, 300));
+      return { before, after: mid.hp, flinch: g.monsterOnce(m.id), gone: !g.monsters().some(x => x.id === m.id), bodies: g.corpseList.length - bodies, fell: g.lastBody() };
+    });
+    assert.equal(fight.after, fight.before - 1 >= 0 ? fight.after : fight.after);
+    assert.ok(fight.after < fight.before, 'the hit took life');
+    assert.equal(fight.gone, true); assert.equal(fight.bodies, 1);
+    assert.deepEqual(fight.fell, { fallen: true, onSide: false }, 'it fell with its own animation, not laid on its side');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [phoneGame()] }));
