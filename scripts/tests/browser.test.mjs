@@ -4375,3 +4375,55 @@ test('SPEC-040: Insights draws a chart for every record kind it is given (also o
     assert.ok(!(r.text.match(/\b[a-z0-9]{16,}\b/g) || []).some(w => /[0-9]/.test(w) && /[a-z]/.test(w)), 'no visit code is shown: ' + (r.text.match(/\b[a-z0-9]{16,}\b/g) || []).join(' '));
     assert.deepEqual(errors.filter(e => !/supabase|Failed to load|net::/i.test(e)), [], 'errors: ' + errors.join(' | '));
   }, { device: PC, saves: [phoneGame()] }));
+
+// ---- Living world (0.6.99, SPEC-026) ----
+test('SPEC-026: digging, placing, landing and gems make small effects (60 at most, 1.5 seconds at most, one draw); a leaf falls near a tree; plants lean with the wind and trunks do not; Calm motion stops it all; the ground is varied the same way every time', { skip, timeout: 300000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.fx && window.gameTest.fx.windy().grass, null, { timeout: 90000 });
+    await page.waitForTimeout(1500);
+    if (process.env.SHOT) await page.screenshot({ path: '/tmp/view/world.png' });
+    const r = await page.evaluate(async () => {
+      const G = window.gameTest, F = G.fx, T = F.T, out = {}, P = G.pos, wait = ms => new Promise(ok => setTimeout(ok, ms));
+      const x = Math.floor(P[0]) + 2, y = Math.floor(P[1]) + 1, z = Math.floor(P[2]);
+      F.clear(); F.block(x, y, z, T.GRASS, false); out.dig = F.list().filter(p => p.kind === 'dig').length; out.digCols = new Set(F.list().map(p => p.col)).size;
+      F.block(x, y, z, T.STONE, true); out.place = F.list().filter(p => p.kind === 'place').length;
+      F.dust(P[0], P[1], P[2]); out.dust = F.list().filter(p => p.kind === 'dust').length;
+      F.sparkle(P[0], P[1] + 1, P[2]); out.sparkle = F.list().filter(p => p.kind === 'sparkle').length;
+      for (let i = 0; i < 20; i++) F.block(x, y, z, T.DIRT, false);
+      out.most = F.list().length; out.lives = Math.max(...F.list().map(p => p.life));
+      await wait(300); out.draws = F.draws(); out.wind1 = F.wind();
+      // (the test browser draws only a few frames a second, and the effects' clock follows the frames)
+      for (let i = 0; i < 200 && F.list().some(p => p.kind !== 'leaf'); i++) await wait(250);
+      out.after = F.list().filter(p => p.kind !== 'leaf').length; out.wind2 = F.wind();
+      // a leaf: asked for many times, as the game does every 5 seconds
+      const tree = F.tree(P[0], P[2], 80); out.tree = !!tree;
+      if (tree) { G.setPos(tree.x + 3, P[1] + 6, tree.z + 3); await wait(500); }
+      const P2 = G.pos; P[0] = P2[0]; P[1] = P2[1]; P[2] = P2[2];
+      let leaf = null; for (let i = 0; i < 400 && !leaf; i++) { if (F.leaf()) leaf = F.list().find(p => p.kind === 'leaf'); }
+      out.leaf = leaf && { d: Math.hypot(leaf.x - P[0], leaf.z - P[2]) };
+      if (leaf) { for (let i = 0; i < 200 && F.list().some(p => p.kind === 'leaf'); i++) await wait(250); out.leafGone = !F.list().some(p => p.kind === 'leaf'); }
+      out.windy = F.windy();
+      // Calm motion: nothing shows and nothing can be added
+      F.setCalm(true); out.calmList = F.list().length; F.block(x, y, z, T.GRASS, false); F.sparkle(P[0], P[1], P[2]); out.calmAdd = F.list().length; out.calmWind = F.wind().on; out.calmLeaf = F.leaf();
+      F.setCalm(false); out.backOn = F.wind().on;
+      // ground variety: from the block's place only
+      const looks = []; for (let i = 0; i < 400; i++) looks.push(F.look(200000 + i, 12, 200000 + (i * 7) % 31, 4));
+      out.turns = [0, 1, 2, 3].map(k => looks.filter(l => l.turn === k).length); out.shadeMin = Math.min(...looks.map(l => l.shade)); out.shadeMax = Math.max(...looks.map(l => l.shade));
+      out.same = JSON.stringify(F.look(200011, 12, 200007, 24)) === JSON.stringify(F.look(200011, 12, 200007, 24));
+      out.ways = { grass: F.turns(T.GRASS), dirt: F.turns(T.DIRT), sand: F.turns(T.SAND), snow: F.turns(T.SNOW), stone: F.turns(T.STONE), gem: F.turns(T.GEM), castle: F.turns(T.CSTONE), roof: F.turns(T.ROOF), wood: F.turns(T.WOOD) };
+      return out;
+    });
+    assert.equal(r.dig, 8, 'a dug block throws bits'); assert.ok(r.digCols > 1, 'in the block\'s colours, a little varied'); assert.equal(r.place, 4, 'a placed block makes a smaller puff');
+    assert.equal(r.dust, 8); assert.equal(r.sparkle, 8);
+    assert.equal(r.most, 60, 'at most 60 at once'); assert.ok(r.lives <= 1.5, 'each lasts at most 1.5 seconds'); assert.ok(r.draws > 0 && r.draws <= 60);
+    assert.equal(r.after, 0, 'they are gone after 1.5 seconds'); assert.ok(r.wind2.t > r.wind1.t, 'the wind moves on');
+    assert.ok(r.tree, 'there is a tree within 80 blocks of the start'); assert.ok(r.leaf, 'a leaf falls from a tree near the player'); assert.ok(r.leaf.d <= 22, 'within 20 blocks: ' + r.leaf.d); assert.equal(r.leafGone, true);
+    for (const k of ['grass', 'flower', 'plant', 'bush']) { const [a, b] = r.windy[k].split('/').map(Number); assert.ok(a === b && b > 0, k + ' moves: ' + r.windy[k]); }
+    for (const k of ['common', 'pine', 'palm']) { const [a, b] = r.windy[k].split('/').map(Number); assert.ok(a > 0 && a < b, k + ': the top moves, the trunk does not: ' + r.windy[k]); }
+    for (const k of ['mushroom', 'stone', 'stump', 'cactus', 'snowman']) assert.match(r.windy[k], /^0\//, k + ' stays still');
+    assert.equal(r.calmList, 0); assert.equal(r.calmAdd, 0); assert.equal(r.calmWind, 0); assert.equal(r.calmLeaf, false); assert.equal(r.backOn, 1);
+    assert.ok(r.turns.every(n => n > 50), 'all four turns are used: ' + r.turns); assert.ok(r.shadeMin >= 0.95 && r.shadeMax <= 1.05 && r.shadeMax - r.shadeMin > 0.08, 'up to 5% lighter or darker');
+    assert.equal(r.same, true);
+    assert.deepEqual(r.ways, { grass: 4, dirt: 24, sand: 24, snow: 24, stone: 24, gem: 0, castle: 0, roof: 0, wood: 0 });
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { device: PC, saves: [phoneGame()] }));

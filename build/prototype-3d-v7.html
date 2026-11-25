@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.98 (3D)</title>
+<title>Adventurers of Drenerics v0.6.99 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -2013,7 +2013,7 @@ function saveGame() {
   try {
     localStorage.setItem(slotKey(activeSlot), JSON.stringify({
       v: 1, at: Date.now(), name: playerName, profile, worldId, inv, gear, qb, recent, sel, pw, skills,
-      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(), quiz: quizStats, levels: quizLevels, mirelo: mir, dragons: dragonMode, shared: shareGiven, together: playTogether, togetherBy, local: localWorld,
+      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(), quiz: quizStats, levels: quizLevels, mirelo: mir, dragons: dragonMode, calm: calmMotion, shared: shareGiven, together: playTogether, togetherBy, local: localWorld,
       drops: [...drops.values()].filter(d => !d.guard).map(d => [d.x, d.y, d.z, d.id, d.at])
     }));
   } catch (e) {}
@@ -2184,8 +2184,59 @@ const texEarth = makeTex((g, S) => {   // packed earth with wheel ruts
   g.fillStyle = shade(0x7e5a34, 0);
   for (const x of [4, 11]) g.fillRect(x, 0, 1, S);
 });
+// ---- Living world (0.6.99, SPEC-026): wind in the plants and ripples on the water, both done on the graphics card ----
+// One clock (windU) drives every plant and the water. windOn is 1, or 0 when the parent has chosen Calm motion.
+const windU = { value: 0 }, windOn = { value: 1 };
+// How far the top of each kind of plant moves, in blocks, and (for trees) how far up the swaying starts, as a share of
+// the height. Trunks, mushrooms, stones, stumps and the things made in code stay still.
+const WIND = { grass: [0.1, 0], flower: [0.1, 0], plant: [0.1, 0], bush: [0.1, 0], common: [0.25, 0.35], pine: [0.25, 0.3], palm: [0.25, 0.6] };
+const WIND_STILL = /trunk|brown/i;   // the trees' trunk materials
+// A copy of a scenery material whose vertices lean with the wind. partM places the part in its plant (height in blocks).
+function windMat(mat, kind, partM) {
+  const W = WIND[kind];
+  if (!W || !mat || W[1] && WIND_STILL.test(mat.name || '')) return mat;
+  const m = mat.clone(), top = DECOR_HEIGHT[kind] || 1;
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uWind = windU; sh.uniforms.uWindOn = windOn;
+    sh.uniforms.uPartM = { value: partM }; sh.uniforms.uSway = { value: new THREE.Vector3(W[0] * 0.85, W[1] * top, top) };
+    sh.vertexShader = 'uniform float uWind;\nuniform float uWindOn;\nuniform mat4 uPartM;\nuniform vec3 uSway;\n' + sh.vertexShader.replace('#include <project_vertex>', `vec4 mvPosition = vec4( transformed, 1.0 );
+#ifdef USE_INSTANCING
+  float windH = ( uPartM * mvPosition ).y;
+  mvPosition = instanceMatrix * mvPosition;
+  float windW = clamp( ( windH - uSway.y ) / max( uSway.z - uSway.y, 0.01 ), 0.0, 1.0 );
+  vec2 windP = mvPosition.xz + modelMatrix[ 3 ].xz;
+  float windA = sin( uWind * 1.1 + windP.x * 0.35 + windP.y * 0.27 ) * 0.65 + sin( uWind * 1.9 + windP.x * 0.13 - windP.y * 0.41 ) * 0.35;
+  float windB = sin( uWind * 0.8 + windP.y * 0.3 + windP.x * 0.19 );
+  mvPosition.x += uSway.x * uWindOn * windW * windW * windA;
+  mvPosition.z += uSway.x * uWindOn * windW * windW * 0.6 * windB;
+#endif
+mvPosition = modelViewMatrix * mvPosition;
+gl_Position = projectionMatrix * mvPosition;`);
+  };
+  m.customProgramCacheKey = () => 'wind';
+  return m;
+}
 const mapMat = map => new THREE.MeshLambertMaterial({ map });
 const waterMat = new THREE.MeshLambertMaterial({ color: 0x2f7fd0, transparent: true, opacity: 0.6 });
+// Water: slow ripples that drift across it and a gentle shimmer, from a moving pattern worked out for each point of the
+// water. The same material and the same draws as before: no extra draw per chunk, no reflections, still see-through.
+// The pattern repeats every 64 blocks, so the numbers stay small on a phone's graphics card.
+waterMat.onBeforeCompile = sh => {
+  sh.uniforms.uWind = windU; sh.uniforms.uWindOn = windOn;
+  sh.vertexShader = 'varying vec2 vRip;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+#ifdef USE_INSTANCING
+  vRip = mod( instanceMatrix[ 3 ].xz + modelMatrix[ 3 ].xz, 64.0 ) + position.xz;
+#else
+  vRip = position.xz;
+#endif`);
+  sh.fragmentShader = 'uniform float uWind;\nuniform float uWindOn;\nvarying vec2 vRip;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+  float rip1 = sin( 6.2831853 * ( vRip.x * 0.1875 + vRip.y * 0.0625 ) + uWind * 0.7 );
+  float rip2 = sin( 6.2831853 * ( vRip.y * 0.25 - vRip.x * 0.125 ) - uWind * 0.5 );
+  float rip3 = sin( 6.2831853 * ( vRip.x * 0.5 + vRip.y * 0.4375 ) + uWind * 1.3 );
+  diffuseColor.rgb *= 1.0 + uWindOn * ( 0.12 * rip1 * rip2 + 0.04 * rip3 );
+  diffuseColor.rgb += uWindOn * 0.22 * pow( max( 0.0, rip1 * rip2 * rip3 ), 3.0 );`);
+};
+waterMat.customProgramCacheKey = () => 'ripples';
 // Six faces per block: +x, -x, +y (top), -y (bottom), +z, -z
 const blockMats = {
   [T.GRASS]: [mapMat(texGrassSide), mapMat(texGrassSide), mapMat(texGrassTop), mapMat(texDirt), mapMat(texGrassSide), mapMat(texGrassSide)],
@@ -2336,6 +2387,20 @@ function innerFaceHidden(d, i, t) {
   return solid(a) && solid(b) && solid(c) && solid(e) && solid(f) && solid(g);
 }
 // Makes the meshes for one chunk: one instanced mesh per block type, with only the faces that can be seen
+// Ground variety (0.6.99, SPEC-026): each grass, dirt, sand, snow and stone block is turned and shaded up to 5% lighter
+// or darker, so a big field does not show one tile over and over. Both come from the block's place only, so a block
+// looks the same every time and on every device. A turned cube is the same cube: nothing is added to draw.
+// Grass is turned about the up axis only (four ways), so its sides keep their grass at the top; the others, whose six
+// faces are alike, are turned any of the 24 ways a cube can lie. Gems, castle blocks, roofs and planks are not turned.
+const GROUND_TURNS = (() => {
+  const quarter = (axis, k) => { const m = new THREE.Matrix4()['makeRotation' + axis](k * Math.PI / 2); m.elements.forEach((v, i) => { m.elements[i] = Math.round(v); }); return m; };
+  const about = [0, 1, 2, 3].map(k => quarter('Y', k));
+  const ups = [quarter('X', 0), quarter('X', 1), quarter('X', 2), quarter('X', 3), quarter('Z', 1), quarter('Z', 3)];
+  const all = ups.flatMap(u => about.map(a => new THREE.Matrix4().multiplyMatrices(u, a)));
+  return { [T.GRASS]: about, [T.DIRT]: all, [T.SAND]: all, [T.SNOW]: all, [T.STONE]: all };
+})();
+const groundC = new THREE.Color();
+const groundLook = (x, y, z, ways) => ({ turn: Math.min(ways - 1, Math.floor(hash3(x, y, z, 2601) * ways)), shade: 0.95 + hash3(x, y, z, 2602) * 0.1 });
 function buildChunkMeshes(cx, cz) {
   const lists = {};
   for (const t of drawTypes) lists[t] = [];
@@ -2369,10 +2434,16 @@ function buildChunkMeshes(cx, cz) {
     const L = lists[t], n = L.length / 3;
     if (!n) continue;
     const im = new THREE.InstancedMesh(blockGeo, blockMats[t], n);
+    const turns = GROUND_TURNS[t];   // ground variety (0.6.99): this kind of block is turned and lightly shaded
     for (let i = 0; i < n; i++) {
-      m4.makeTranslation(L[3 * i] + 0.5, L[3 * i + 1] + 0.5, L[3 * i + 2] + 0.5);
+      if (turns) {
+        const v = groundLook(ox + L[3 * i], L[3 * i + 1], oz + L[3 * i + 2], turns.length);
+        m4.copy(turns[v.turn]).setPosition(L[3 * i] + 0.5, L[3 * i + 1] + 0.5, L[3 * i + 2] + 0.5);
+        im.setColorAt(i, groundC.setRGB(v.shade, v.shade, v.shade));
+      } else m4.makeTranslation(L[3 * i] + 0.5, L[3 * i + 1] + 0.5, L[3 * i + 2] + 0.5);
       im.setMatrixAt(i, m4);
     }
+    if (turns) im.instanceColor.needsUpdate = true;
     im.instanceMatrix.needsUpdate = true;
     im.userData.water = t === T.WATER;
     if (t === T.WATER) im.renderOrder = 1;   // water is drawn after the solid blocks
@@ -2907,7 +2978,7 @@ function gain(p, n) {
 // ---- Inventory and quick bar ----
 function addItem(id, n = 1) {
   inv[id] = (inv[id] || 0) + n;
-  if (id === 'gem' && n > 0) sfx('gem');
+  if (id === 'gem' && n > 0) { sfx('gem'); fxSparkle(px, py + 0.9, pz); }   // a short sparkle (0.6.99)
   recent = [id, ...recent.filter(r => r !== id)].slice(0, 6);
   renderUI();
 }
@@ -3117,6 +3188,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.99', title: 'The world comes alive', items: [
+    'The world comes alive: grass and trees sway in the wind, water ripples, and digging, landing and gems make little effects.',
+  ] },
   { v: '0.6.98', title: 'Bird facts', items: [
     'Tap a bird to learn a fun fact about it, with new facts all the time!',
     'If a fact looks wrong, tap the little flag and a grown-up will check it.',
@@ -3835,6 +3909,7 @@ function digCell(x, y, z) {
   if (full && drops.size >= MAX_DROPS) { say('Too many things on the ground. Pick some up first.', 2500); return false; }
   setBlock(x, y, z, T.AIR);
   shareBlock(x, y, z, T.AIR);
+  fxBlock(x, y, z, t, false);   // a puff of bits in the block's colours (0.6.99)
   const id = (t === T.GRASS || t === T.DIRT || t === T.SAND || t === T.SNOW) ? 'dirt' : t === T.STONE ? 'stone' : BLOCK_ITEM[t] || 'gem';
   if (full) {
     putDrop(x, y, z, id);
@@ -3955,6 +4030,7 @@ function placeCell(x, y, z, forceId) {
   }
   setBlock(x, y, z, item.block);
   shareBlock(x, y, z, item.block);
+  fxBlock(x, y, z, item.block, true);   // a smaller puff (0.6.99)
   inv[id]--;
   gain('build', 1);
   sfx('place');
@@ -4078,7 +4154,7 @@ async function loadDecor() {
         const holder = normalizeDecor(s, DECOR_HEIGHT[d.kind] || 1);
         holder.updateMatrixWorld(true);
         const parts = [];
-        holder.traverse(o => { if (o.isMesh) parts.push({ geo: o.geometry, mat: o.material, m: o.matrixWorld.clone() }); });
+        holder.traverse(o => { if (o.isMesh) parts.push({ geo: o.geometry, mat: windMat(o.material, d.kind, o.matrixWorld.clone()), m: o.matrixWorld.clone() }); });   // the plants' own materials lean with the wind (0.6.99)
         return parts;
       });
     }
@@ -6400,6 +6476,7 @@ function update(dt) {
   if (climbing) vy = SWIM_UP;
   else if (inWater) vy = jd ? SWIM_UP : Math.max(vy - GRAV * 0.15 * dt, -SINK);   // hold jump to swim up; otherwise sink slowly
   else vy = Math.max(vy - GRAV * dt, -30);
+  if (onGround || vy > 0 || inWater) fallTop = py; else fallTop = Math.max(fallTop, py);   // the highest point of this fall
   const ny = py + vy * dt;
   if (!hits(px, ny, pz)) { py = ny; onGround = false; }
   // The landing squash is for a real landing only. Standing on the ground also "lands" a tiny bit every frame (gravity pulls, the ground stops it);
@@ -6408,6 +6485,8 @@ function update(dt) {
     if (vy < 0) {
       onGround = true;
       if (vy < -LAND_SQUASH_SPEED) { squash = 1; sfx('land'); }
+      if (fallTop - py >= 2.9 && !inWater) fxDust(px, py, pz);   // landing after a fall of three blocks or more (0.6.99)
+      fallTop = py;
       // Rest exactly on top of the block below. Without this the character stopped a little above the ground, and on a shorter
       // frame the small pull of gravity did not reach it: for that frame the character counted as in the air (arms flicked up, a jump could be missed).
       const rest = Math.floor(ny + FOOT) + 1 - FOOT + 1e-6;
@@ -7334,6 +7413,8 @@ function guardSpoils(en, k, how) {
 const DRAGON_CELL = 170, DRAGON_SEE = 240, DRAGON_MOST = 3;
 const DRAGON_MODES = ['on', 'high', 'off'];
 let dragonMode = 'on';          // the parent's choice, kept with the saved game
+let fallTop = 0;                // where the character's fall started, for the dust on landing (0.6.99)
+let calmMotion = false;         // the parent's Calm motion choice (0.6.99, SPEC-026): no swaying, falling leaves or effects; kept with the saved game
 // Share the game (0.6.88, SPEC-030): the reward is given at most once to each saved game (shareGiven is kept in it)
 let shareOn = true, shareGems = 500, shareGiven = false;
 const shareHooks = { check: () => {} };
@@ -7732,6 +7813,94 @@ function updateDragons(dt) {
     });
   }
 }
+// ---- Living world: small effects (0.6.99, SPEC-026) ----
+// Bits when a block is dug or placed, dust on landing from 3 blocks or more, a sparkle for a gem, and now and then a
+// leaf falling from a tree. At most 60 at once, all in one draw, each for 1.5 seconds at most. Nothing is saved or sent:
+// each device shows the effects for what it sees happen (also a block dug by another child in a shared world).
+const FX_MAX = 60, FX_LIFE = 1.5, LEAF_EVERY = 5, LEAF_REACH = 20;
+const fxList = [];
+let fxDraw = null, leafWait = 3;
+const fxM = new THREE.Matrix4(), fxQ = new THREE.Quaternion(), fxE = new THREE.Euler(), fxP = new THREE.Vector3(), fxS = new THREE.Vector3(), fxC = new THREE.Color();
+function setCalm(on) {
+  calmMotion = !!on;
+  windOn.value = calmMotion ? 0 : 1;
+  if (calmMotion) fxList.length = 0;
+}
+function fxAdd(p) {
+  if (calmMotion || fxList.length >= FX_MAX) return false;
+  p.t = 0; p.life = Math.min(FX_LIFE, p.life);
+  fxList.push(p);
+  return true;
+}
+const fxTint = (t, k) => { const c = MAP_COLORS[t] || [136, 136, 136], m = 0.8 + Math.random() * 0.35 + (k || 0); return fxC.setRGB(Math.min(1, c[0] / 255 * m), Math.min(1, c[1] / 255 * m), Math.min(1, c[2] / 255 * m), THREE.SRGBColorSpace).getHex(); };
+// Bits in the block's colours: 8 for a dug block, 4 smaller ones for a placed block
+function fxBlock(x, y, z, t, placed) {
+  if (!MAP_COLORS[t] || t === T.WATER) return;
+  for (let i = 0; i < (placed ? 4 : 8); i++) {
+    const a = Math.random() * Math.PI * 2, sp = (placed ? 0.7 : 1.4) * (0.5 + Math.random());
+    fxAdd({ kind: placed ? 'place' : 'dig', x: x + 0.5 + Math.cos(a) * 0.3, y: y + 0.5 + rnd(-0.2, 0.3), z: z + 0.5 + Math.sin(a) * 0.3, vx: Math.cos(a) * sp, vy: (placed ? 0.8 : 1.6) + Math.random() * 1.6, vz: Math.sin(a) * sp,
+      g: 9, life: 0.45 + Math.random() * 0.35, size: placed ? 0.08 : 0.12, col: fxTint(t), spin: rnd(-6, 6) });
+  }
+}
+// A little dust cloud at the feet, in the colour of the ground landed on
+function fxDust(x, y, z) {
+  const t = get(Math.floor(x), Math.floor(y - 0.5), Math.floor(z));
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4 + Math.random() * 0.5, sp = 1 + Math.random() * 0.8;
+    fxAdd({ kind: 'dust', x: x + Math.cos(a) * 0.25, y: y + 0.08, z: z + Math.sin(a) * 0.25, vx: Math.cos(a) * sp, vy: 0.5 + Math.random() * 0.5, vz: Math.sin(a) * sp, g: 1.2, drag: 3, life: 0.5 + Math.random() * 0.3, size: 0.17, col: fxTint(solid(t) ? t : T.DIRT, 0.08), spin: 0 });
+  }
+}
+// A short sparkle where a gem was picked up
+function fxSparkle(x, y, z) {
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4;
+    fxAdd({ kind: 'sparkle', x: x + Math.cos(a) * 0.2, y: y + rnd(-0.1, 0.3), z: z + Math.sin(a) * 0.2, vx: Math.cos(a) * 0.9, vy: 1.2 + Math.random() * 1.5, vz: Math.sin(a) * 0.9, g: 2.5, life: 0.5 + Math.random() * 0.3, size: 0.08, col: [0xfff3a0, 0x7df9ff, 0xffffff][i % 3], spin: 8 });
+  }
+}
+// Now and then a leaf drifts down from a tree near the player and disappears on the ground
+const LEAF_COLS = { common: [0x4caf50, 0x8bc34a, 0xc9a13a], pine: [0x2f6b3a, 0x3f8f4a], palm: [0x5aa845, 0x9bbf4a] };
+function fxLeaf() {
+  const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 13;
+  const tr = treeNear(px + Math.cos(a) * r, pz + Math.sin(a) * r, 4);
+  if (!tr || Math.hypot(tr.x - px, tr.z - pz) > LEAF_REACH) return false;
+  const gx = Math.floor(tr.x), gz = Math.floor(tr.z), gy = groundY(gx, gz), dec = decorAt(gx, gy, gz);
+  if (!dec || !solid(get(gx, gy, gz)) || eatenTrees.has(gx + ',' + gz)) return false;   // dug away, or eaten by a dragon
+  const b = Math.random() * Math.PI * 2, out = 0.6 + Math.random() * 0.9, cols = LEAF_COLS[dec.kind] || LEAF_COLS.common;
+  return fxAdd({ kind: 'leaf', x: tr.x + Math.cos(b) * out, y: gy + 1 + DECOR_HEIGHT[dec.kind] * 0.36, z: tr.z + Math.sin(b) * out, vx: rnd(-0.3, 0.3), vy: -1.6, vz: rnd(-0.3, 0.3), g: 0, life: FX_LIFE, size: 0.14, col: cols[Math.floor(Math.random() * cols.length)], spin: 3, flat: true, floor: gy + 1.02, sway: Math.random() * 6 });
+}
+function updateFx(dt) {
+  windU.value = (windU.value + dt) % 10000;
+  if (calmMotion) { if (fxDraw) fxDraw.count = 0; return; }
+  leafWait -= dt;
+  if (leafWait <= 0) { leafWait = LEAF_EVERY; try { fxLeaf(); } catch (e) {} }   // one every 5 seconds at most
+  if (!fxList.length) { if (fxDraw) fxDraw.count = 0; return; }
+  if (!fxDraw) {
+    fxDraw = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial(), FX_MAX);
+    fxDraw.frustumCulled = false; fxDraw.count = 0;
+    fxDraw.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(FX_MAX * 3).fill(1), 3);
+    scene.add(fxDraw);
+  }
+  // drawn from a corner near the player: the world is 200,000 blocks from zero, too far for a graphics card's numbers
+  const ox = Math.floor(px), oz = Math.floor(pz);
+  fxDraw.position.set(ox, 0, oz);
+  let n = 0;
+  for (let i = fxList.length - 1; i >= 0; i--) {
+    const p = fxList[i];
+    p.t += dt;
+    p.vy -= p.g * dt;
+    if (p.drag) { const k = Math.max(0, 1 - p.drag * dt); p.vx *= k; p.vz *= k; }
+    p.x += (p.vx + (p.flat ? Math.sin(p.t * 4 + p.sway) * 0.5 : 0)) * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    if (p.t >= p.life || p.floor !== undefined && p.y <= p.floor) fxList.splice(i, 1);   // its time is up, or the leaf reached the ground
+  }
+  for (const p of fxList) {
+    const left = p.life - p.t, sc = p.size * Math.min(1, left / 0.2);
+    fxM.compose(fxP.set(p.x - ox, p.y, p.z - oz), fxQ.setFromEuler(fxE.set(p.t * p.spin, p.t * p.spin * 0.7, p.flat ? Math.sin(p.t * 4 + p.sway) * 0.8 : 0)), p.flat ? fxS.set(sc, sc * 0.15, sc * 0.7) : fxS.setScalar(sc));
+    fxDraw.setMatrixAt(n, fxM); fxDraw.setColorAt(n, fxC.setHex(p.col)); n++;
+  }
+  fxDraw.count = n;
+  fxDraw.instanceMatrix.needsUpdate = true; fxDraw.instanceColor.needsUpdate = true;
+}
+
 // ---- Birds for every part of the world (0.6.97, SPEC-034) ----
 // Small original birds made in code. Which birds live where comes from the seed and the biome; where each one is comes
 // from the seed and the clock all devices share, so every player sees the same birds and nothing is sent or saved. Birds
@@ -8174,6 +8343,7 @@ function frame(now) {
   try { updateCastleLife(dt); updateMerchants(dt); } catch (e) { logError(e, 'castle life'); }
   try { updateDragons(dt); } catch (e) { logError(e, 'dragons'); }
   try { updateBirds(dt); } catch (e) { logError(e, 'birds'); }   // 0.6.97 (SPEC-034)
+  try { updateFx(dt); } catch (e) { logError(e, 'effects'); }   // 0.6.99 (SPEC-026)
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
@@ -8200,6 +8370,7 @@ if (saved) {
   quizStats = quizStatsFrom(saved.quiz);
   quizLevels = quizLevelsFrom(saved.levels);
   if (DRAGON_MODES.includes(saved.dragons)) dragonMode = saved.dragons;   // the parent's Dragons choice (0.6.81)
+  setCalm(saved.calm === true);   // the parent's Calm motion choice (0.6.99)
   shareGiven = saved.shared === true;   // the share reward was already given to this game (0.6.88)
   if (worldLoaded) say('Welcome back, ' + playerName + '!', 2500);
 }
@@ -8252,7 +8423,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.98';
+const VERSION = '0.6.99';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -8471,6 +8642,7 @@ function renderReportsSent() {
     '<div id="togetherCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="learnLevel" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="dragonCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
+    '<div id="calmCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="shareCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="quizReport" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="reportsSent" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
@@ -8531,6 +8703,21 @@ function renderReportsSent() {
     dragonMode = b.dataset.dragon;
     saveGame();
     renderDragons();
+  });
+  // Calm motion (0.6.99, SPEC-026): off to start. On: plants stand still, no effects show and water does not ripple.
+  function renderCalm() {
+    document.getElementById('calmCtl').innerHTML = '<div style="font-size:15px;font-weight:700;margin-bottom:4px">Calm motion</div>' +
+      '<div style="font-size:12px;opacity:.75;margin-bottom:8px">Calm motion: no swaying, falling leaves or effects. For a child who finds movement distracting.</div>' +
+      `<div style="display:flex;gap:6px">${[false, true].map(on => `<button data-calm="${on ? 1 : 0}" aria-pressed="${on === calmMotion}" style="${learnBtn}flex:1;padding:10px;background:${on === calmMotion ? '#3b6fd8' : 'transparent'};font-weight:${on === calmMotion ? 700 : 400}">${on === calmMotion ? '&#10003; ' : ''}${on ? 'On' : 'Off'}</button>`).join('')}</div>` +
+      '<div style="font-size:12px;opacity:.75;margin-top:6px">Kept in this saved game.</div>';
+  }
+  renderCalm();
+  document.getElementById('calmCtl').addEventListener('click', e => {
+    const b = e.target.closest('[data-calm]');
+    if (!b) return;
+    setCalm(b.dataset.calm === '1');
+    saveGame();
+    renderCalm();
   });
   // ---- Share the game (0.6.88, SPEC-030): grown-ups only, inside the parent area. The device's own share window opens
   // with fixed text and the plain home page address (nobody types anything, nothing is added to the address). As it
@@ -9307,7 +9494,10 @@ function connectWorld() {
   ch.on('broadcast', { event: 'block' }, ({ payload }) => {
     const p = payload || {};
     if (!inBounds(p.x, p.y, p.z) || !Number.isInteger(p.t) || p.t < 0 || p.t > T_MAX) return;   // every block kind (before 0.6.81 only the first five came through)
+    const was = get(p.x, p.y, p.z);
     setBlock(p.x, p.y, p.z, p.t);
+    // this device shows the effect for what it sees happen: a block another child dug or placed nearby (0.6.99)
+    if (was !== p.t && Math.hypot(p.x - px, p.z - pz) < 40) { if (p.t === T.AIR) fxBlock(p.x, p.y, p.z, was, false); else if (!solid(was)) fxBlock(p.x, p.y, p.z, p.t, true); }
   });
   ch.on('presence', { event: 'sync' }, onPresence);
   // 0.6.81 (SPEC-024): the state of game things, from the leading device and to it (never text or anything about a child)
@@ -10042,6 +10232,11 @@ Promise.all([
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  // SPEC-026 (0.6.99): the effects on screen, the wind and the ground variety, for the tests
+  fx: { list: () => fxList.map(p => ({ kind: p.kind, x: p.x, y: p.y, z: p.z, t: p.t, life: p.life, col: p.col })), draws: () => fxDraw ? fxDraw.count : 0, max: FX_MAX, block: fxBlock, dust: fxDust, sparkle: fxSparkle, leaf: fxLeaf, clear: () => { fxList.length = 0; },
+    get calm() { return calmMotion; }, setCalm, wind: () => ({ t: windU.value, on: windOn.value }), look: groundLook, turns: t => GROUND_TURNS[t] ? GROUND_TURNS[t].length : 0,
+    windy: () => Object.fromEntries(Object.entries(decorTpl).map(([k, list]) => [k, list.flat().filter(p => !!p.mat.onBeforeCompile && p.mat.customProgramCacheKey() === 'wind').length + '/' + list.flat().length])),
+    set leafWait(v) { leafWait = v; }, tree: (x, z, r) => treeNear(x, z, r), digCell, T },
   // SPEC-037 (0.6.98): the bird facts on this device, the card and the tap, for the tests
   facts: { set: o => { birdFacts = factsFrom(o); writeJSON(FACTS_KEY, birdFacts); }, get: () => birdFacts, load: loadBirdFacts, band: factBand, next: nextBirdFact, open: openBirdCard, close: closeBirdCard,
     card: () => birdCard && { ...birdCard, shown: birdCardEl.style.display !== 'none', name: (birdCardEl.querySelector('.bcName') || {}).textContent, fact: (birdCardEl.querySelector('.bcFact') || {}).textContent || '', flag: !!birdCardEl.querySelector('[data-aiflag]') },
