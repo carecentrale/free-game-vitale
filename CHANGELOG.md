@@ -2,6 +2,18 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.95: Dragons land everywhere and eat fish (SPEC-036)
+Built from the PM hand-off SPEC-036 version 2 (approved by Nick 24 Nov 2026, ready to build), straight after SPEC-033.
+- **Resting:** a dragon glides down and rests for 10 to 40 seconds on the solid top of blocks with open sky and room around: castle towers, walls and roofs first, then bridges, then hill and mountain tops and open ground, in land already made near a player. It looks around, then takes off. No block is ever changed.
+- **Fishing:** over water at least 2 blocks deep a dragon dives, skims the water for a second and a half (a splash), flies off with a small fish in its claws (made in code: silver, blue or orange), lands on a perch or the shore within 40 blocks and eats it. There are no fish in the water and nothing is saved about fish.
+- **Taking turns:** trees, rests and fish take turns, one landing about every minute or two, so each happens about every 3 to 5 minutes. Trees next to castles may now be eaten (not inside one).
+- **Landing distance:** never closer to any player than the owner's distance: 3 blocks to start, 3 to 30 in the admin card "Dragons (owner only)" (`dragon_gap`, added to migration 0018, still not applied). It replaces the 8-block rule for trees too. A player who walks within 2 blocks of a resting dragon makes it take off within about 3 seconds.
+- **Stay high:** no dragon lands anywhere. **Shared worlds:** the picking device sends each landing (a place, a time, what for, how long) on the world's channel like a tree being eaten; the others draw the same thing.
+- Record `dragon_landed` now says what for: tree, rest or fish. Test switch `?dragonland=castle`, `bridge`, `peak` or `fish`.
+- **Built differently:** a tree is eaten about every 3 to 5 minutes (it was every 2 to 4), because the three kinds of landing share one turn. A resting dragon only looks around (no scratching or stretching clip). It takes off straight back to its path, not away from the player. A player who joins a shared world during a rest sees that dragon flying until its next landing. Babies do not get a share of the fish.
+- Guide and release notes. Tests: one browser test (rest, fish catch, facing, the perch) and a fast test.
+- Checked: syntax, fast tests, the dragon browser tests. **Not checked:** seen in the game; two devices; the frame rate on the test phone; played by Nick.
+
 ## 0.6.94: Dragons that fly like real dragons, every one different (SPEC-033)
 Built from the PM hand-off SPEC-033 version 4 (approved by Nick 24 Nov 2026, ready to build).
 - **Three animated dragon models** (Quaternius, CC0, delivered by the PM; SHA-256 checked against the hand-off): a small quick one, a long-tailed one and a big soaring one, plus families (a grown dragon with 1 or 2 babies close behind and beside it). The code-made dragon of 0.6.81 is gone. Files load only when a dragon of that kind is first near; until then it is not drawn. 798 KB in all, none over 600 KB.

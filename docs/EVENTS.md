@@ -28,7 +28,7 @@ Sent every 10 seconds and when the page closes. Each row: the event kind, game v
 | `log_opened` | The world's log is opened; at most once a minute (`logOnce`, 0.6.87) | `notes N` | "Gameplay records" |
 | `together_switch` | A grown-up signed in with Google changes Playing together in the parent area (0.6.90, SPEC-039; approved by Nick 24 Nov 2026) | `on` or `off` | "Gameplay records" |
 | `safety_reminder` | The Playing together card is shown, the first time a shared world would start on this device, and when OK is tapped (0.6.90, SPEC-039; approved by Nick 24 Nov 2026) | `shown` or `closed` | "Gameplay records" |
-| `dragon_landed` | A dragon lands to eat, at most once a minute (0.6.94, SPEC-033; approved by Nick 24 Nov 2026) | The dragon's kind and what it landed for (for example `wyvern tree`) | "Gameplay records" |
+| `dragon_landed` | A dragon lands to eat, at most once a minute (0.6.94, SPEC-033; approved by Nick 24 Nov 2026) | The dragon's kind and what it landed for: `tree`, `rest` or `fish` (0.6.95, SPEC-036), for example `wyvern fish` | "Gameplay records" |
 | `report_sent` | A child sends a report (0.6.91, SPEC-038; approved by Nick 24 Nov 2026) | Kind and category only (for example `build rude`) | "Gameplay records" |
 | `player_hidden` | A child hides a player after reporting them, on this device until leaving the world (0.6.91, SPEC-038; approved by Nick 24 Nov 2026) | `hidden N` (a count only) | "Gameplay records" |
 | `multiplayer_stopped` | This visit finds that the owner stopped multiplayer for it (0.6.91, SPEC-038; approved by Nick 24 Nov 2026) | Days left, or `until lifted` | "Gameplay records" |
@@ -92,7 +92,7 @@ Sent over the shared world's live connection to the other devices in that world 
 | `taken` | Who picked a thing up (visit code) | "Shared world: game things (since 0.6.81)" |
 | `snap` | Things on the ground and the eaten trees, for a device that just joined | "Shared world: game things (since 0.6.81)" |
 | `snapreq` | Asking for a `snap` | "Shared world: game things (since 0.6.81)" |
-| `eat` | A dragon eats a tree | "Shared world: game things (since 0.6.81)" |
+| `eat` | A dragon comes down: to eat a tree, to rest, or to catch a fish (0.6.95: a place and a time in the game, what for, how long) | "Shared world: game things (since 0.6.81)" |
 
 Sent by the owner's admin page only, never by a game (0.6.91, SPEC-038). A game that receives one asks the server before doing anything:
 | Record | When | Fields | Privacy page row |

@@ -1,8 +1,9 @@
--- 0018: Dragons, every one different (SPEC-033, approved by the owner 24 Nov 2026).
+-- 0018: Dragons, every one different (SPEC-033), and where they land (SPEC-036). Both approved by the owner 24 Nov 2026.
 -- What it does, in plain words:
 --   1. Five new game settings that everyone can read and only the owner's account can change (as in 0009): how often
 --      each kind of dragon lives in a square (0 to 100; 0 = never) and how many dragons in 100 have a rare colour.
 --      dragon_w_drake 45, dragon_w_wyvern 30, dragon_w_great 15, dragon_w_family 10, dragon_rare_pct 5.
+--      And dragon_gap: how close to a player a dragon may land, in blocks (3 to 30, starts at 3; SPEC-036).
 --   2. dragon_names: the owner's own name for each kind (up to 30 letters). Only the owner's account can read or change
 --      it. The game never loads it, and no dragon name is shown to players.
 -- Nothing here is about any player. Until this is applied the game uses the starting weights.
@@ -15,12 +16,12 @@ alter table public.game_settings add constraint game_settings_key_check
     'mp_iron_helmet', 'mp_gold_sword', 'mp_parts', 'ms_dirt', 'ms_stone', 'ms_castle_stone',
     'share_on', 'share_gems', 'reports_keep_months',
     'mirelo_visit_min', 'mirelo_stay_min', 'mirelo_away_hours', 'mirelo_unlock_min', 'mirelo_retry_min',
-    'dragon_w_drake', 'dragon_w_wyvern', 'dragon_w_great', 'dragon_w_family', 'dragon_rare_pct'));
+    'dragon_w_drake', 'dragon_w_wyvern', 'dragon_w_great', 'dragon_w_family', 'dragon_rare_pct', 'dragon_gap'));
 alter table public.game_settings drop constraint if exists dragon_range;
 alter table public.game_settings add constraint dragon_range
-  check (key not like 'dragon\_%' or value between 0 and 100);
+  check ((key not like 'dragon\_%' or value between 0 and 100) and (key <> 'dragon_gap' or value between 3 and 30));
 insert into public.game_settings (key, value) values
-  ('dragon_w_drake', 45), ('dragon_w_wyvern', 30), ('dragon_w_great', 15), ('dragon_w_family', 10), ('dragon_rare_pct', 5)
+  ('dragon_w_drake', 45), ('dragon_w_wyvern', 30), ('dragon_w_great', 15), ('dragon_w_family', 10), ('dragon_rare_pct', 5), ('dragon_gap', 3)
   on conflict (key) do nothing;
 
 create table if not exists public.dragon_names (

@@ -297,7 +297,7 @@ $('teacherTest').addEventListener('click', async () => {
 });
 
 // ---- Dragons (0.6.94, SPEC-033): rarity weights (game settings) and the owner's names for the kinds (migration 0018) ----
-const DRAGON_START = { dragon_w_drake: 45, dragon_w_wyvern: 30, dragon_w_great: 15, dragon_w_family: 10, dragon_rare_pct: 5 };
+const DRAGON_START = { dragon_w_drake: 45, dragon_w_wyvern: 30, dragon_w_great: 15, dragon_w_family: 10, dragon_rare_pct: 5, dragon_gap: 3 };
 const DRAGON_NAMES = { drake: 'Meadow Drake', wyvern: 'Long-tail Wyvern', great: 'Great Sky Dragon', family: 'Dragon with babies' };
 async function loadDragons() {
   const [w, n] = await Promise.all([sb.from('game_settings').select('key,value').like('key', 'dragon_%'), sb.from('dragon_names').select('kind,name')]);
@@ -308,7 +308,7 @@ async function loadDragons() {
 }
 $('saveDragons').addEventListener('click', async () => {
   const rows = [...document.querySelectorAll('[data-dragon]')].map(el => ({ key: el.dataset.dragon, v: Math.round(Number(el.value)) }));
-  if (rows.some(r => !(r.v >= 0 && r.v <= 100))) { $('dragonsMsg').textContent = 'Choose from 0 to 100.'; return; }
+  if (rows.some(r => r.key === 'dragon_gap' ? !(r.v >= 3 && r.v <= 30) : !(r.v >= 0 && r.v <= 100))) { $('dragonsMsg').textContent = 'Choose from 0 to 100 (landing distance: 3 to 30).'; return; }
   const names = [...document.querySelectorAll('[data-dname]')].map(el => ({ kind: el.dataset.dname, name: el.value.trim().slice(0, 30) }));
   if (names.some(n => !n.name)) { $('dragonsMsg').textContent = 'Every kind needs a name.'; return; }
   let ok = 0, err = '';
@@ -711,6 +711,7 @@ load();
       <tr><td>A grown dragon with 1 or 2 babies</td><td><input data-dname="family" maxlength="30"></td><td><input data-dragon="dragon_w_family" type="number" min="0" max="100" step="1" style="max-width:90px"></td></tr>
     </table>
     <div class="row" style="margin-top:8px"><label class="muted">Rare colours (gold, silver, pearl), dragons in 100: <input data-dragon="dragon_rare_pct" type="number" min="0" max="100" step="1" style="max-width:90px"></label>
+      <label class="muted">Landing distance from a player, in blocks (3 to 30): <input data-dragon="dragon_gap" type="number" min="3" max="30" step="1" style="max-width:90px"></label>
       <button class="secondary" id="saveDragons">Save</button><span id="dragonsMsg" class="muted"></span></div>
   </div>
 

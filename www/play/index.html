@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.94 (3D)</title>
+<title>Adventurers of Drenerics v0.6.95 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -3117,6 +3117,9 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.95', title: 'Dragons rest and catch fish', items: [
+    'Dragons now rest on castles, bridges and mountain tops, and dive into the water to catch fish!',
+  ] },
   { v: '0.6.94', title: 'Dragons that fly like real dragons', items: [
     'The dragons now fly like real dragons, and no two are the same! Some fly with their babies, and a few are very rare.',
     'They fly head first, lean into their turns, beat their wings to climb and glide down with their wings spread.',
@@ -7212,7 +7215,7 @@ let dragonsTestOff = false;     // the builder's switch for the frame-rate check
 const dragonCache = new Map();  // cell -> the dragon of that square, or null
 const dragonShapes = new Map(); // dragon id (a baby: id#n) -> the drawn dragon (see dragonShape)
 let dragonEat = null;           // the dragon coming down to eat, and its tree: { id, tx, ty, tz, lx, ly, lz, t0, marked }
-let dragonWait = 120 + Math.random() * 120;   // seconds until a dragon may come down (2 to 4 minutes)
+let dragonWait = /[?&]dragonland=/.test(location.search) ? 15 : 60 + Math.random() * 60;   // seconds until a dragon may come down
 let dragonTold = false;         // the first time a dragon eats in this visit, the message strip says so
 let crownFx = null;             // the tree's top shrinking away while it is eaten
 // ---- Dragons that fly like real dragons, every one different (0.6.94, SPEC-033) ----
@@ -7235,6 +7238,7 @@ function setDragonWeights(map) {
   const before = JSON.stringify(dragonWeights) + dragonRarePct;
   for (const k of Object.keys(DRAGON_WEIGHT_START)) dragonWeights[k] = num('dragon_w_' + k, DRAGON_WEIGHT_START[k]);
   dragonRarePct = num('dragon_rare_pct', 5);
+  dragonGap = Number.isInteger(map.dragon_gap) && map.dragon_gap >= 3 && map.dragon_gap <= 30 ? map.dragon_gap : 3;   // the landing distance (SPEC-036)
   if (before !== JSON.stringify(dragonWeights) + dragonRarePct) dragonCache.clear();   // the next look at the sky uses the new weights
 }
 // Friendly colours [body, belly]; the rare ones are gold, silver and pearl
@@ -7296,21 +7300,35 @@ function dragonFly(d, t) {
   return { x, z, y: Math.min(H + 30, base + d.up + Math.sin(2 * a + d.hp) * d.hAmp) };
 }
 const lerp = (a, b, f) => a + (b - a) * f;
-// Where a dragon is while it comes down to eat: it glides in on a curve and slows (0 to 8 s), eats (8 to 13), sits
-// (13 to 15) and takes off, slowly at first (15 to 20)
+// ---- Landings (0.6.95, SPEC-036): a dragon comes down to eat a tree, to rest somewhere high or open, or to catch a fish ----
+// dragonEat.what is 'tree', 'rest' or 'fish'. Times in seconds from t0 (on the shared clock):
+//   tree: glide down 0 to 8, eat 8 to 13, sit 13 to 15, take off 15 to 20 (as SPEC-022)
+//   rest: glide down 0 to 8, sit for dur seconds (10 to 40), take off in 5
+//   fish: dive to the water 0 to 6, skim it 6 to 7.5 (the splash, and the fish), fly to its perch 7.5 to 13.5,
+//         eat 13.5 to 18.5, sit 18.5 to 20.5, take off 20.5 to 25.5
+const landTimes = E => E.what === 'fish' ? { land: 13.5, eatEnd: 18.5, sitEnd: 20.5, end: 25.5 }
+  : E.what === 'rest' ? { land: 8, eatEnd: 8, sitEnd: 8 + E.dur, end: 13 + E.dur } : { land: 8, eatEnd: 13, sitEnd: 15, end: 20 };
 function dragonAt(d, t) {
   const E = dragonEat, high = dragonMode !== 'on';
   if (!E || E.id !== d.id || high) return { ...dragonFly(d, t), state: 'fly' };
-  const tau = t - E.t0;
-  if (tau < 0 || tau >= 20) return { ...dragonFly(d, t), state: 'fly' };
-  if (tau < 8) {
-    const from = dragonFly(d, E.t0), f = tau / 8, s = f * (2 - f);   // quick at first, slow at the end
-    const dx = E.lx - from.x, dz = E.lz - from.z, len = Math.hypot(dx, dz) || 1, bend = Math.sin(f * Math.PI) * Math.min(10, len * 0.3);
-    return { x: lerp(from.x, E.lx, s) - dz / len * bend, z: lerp(from.z, E.lz, s) + dx / len * bend, y: lerp(from.y, E.ly, s * s * (3 - 2 * s)), state: 'down', f };
-  }
-  if (tau < 15) return { x: E.lx, y: E.ly, z: E.lz, state: tau < 13 ? 'eat' : 'sit', face: Math.atan2(E.tx + 0.5 - E.lx, E.tz + 0.5 - E.lz) };
-  const to = dragonFly(d, t), f = (tau - 15) / 5, s = f * f;
-  return { x: lerp(E.lx, to.x, s), z: lerp(E.lz, to.z, s), y: lerp(E.ly, to.y, Math.sqrt(f) * f), state: 'up', f };
+  const tau = t - E.t0, T = landTimes(E);
+  if (tau < 0 || tau >= T.end) return { ...dragonFly(d, t), state: 'fly' };
+  // a glide from one place to another: quick at first, slow at the end, on a gentle curve
+  const glide = (from, to, f, state) => {
+    const s = f * (2 - f), dx = to.x - from.x, dz = to.z - from.z, len = Math.hypot(dx, dz) || 1, bend = Math.sin(f * Math.PI) * Math.min(10, len * 0.3);
+    return { x: lerp(from.x, to.x, s) - dz / len * bend, z: lerp(from.z, to.z, s) + dx / len * bend, y: lerp(from.y, to.y, s * s * (3 - 2 * s)), state, f };
+  };
+  const L = { x: E.lx, y: E.ly, z: E.lz };
+  if (E.what === 'fish') {
+    const from = dragonFly(d, E.t0), W = { x: E.wx, y: E.wy + 0.7, z: E.wz };
+    const dx = W.x - from.x, dz = W.z - from.z, len = Math.hypot(dx, dz) || 1, W2 = { x: W.x + dx / len * 9, y: W.y, z: W.z + dz / len * 9 };
+    if (tau < 6) { const f = tau / 6; return { x: lerp(from.x, W.x, f), z: lerp(from.z, W.z, f), y: lerp(from.y, W.y, f * f * (3 - 2 * f)), state: 'down', f: Math.min(f, 0.79), dive: true }; }
+    if (tau < 7.5) { const f = (tau - 6) / 1.5; return { x: lerp(W.x, W2.x, f), z: lerp(W.z, W2.z, f), y: W.y, state: 'skim', fish: true }; }
+    if (tau < T.land) { const f = (tau - 7.5) / 6, g = glide(W2, L, f, 'carry'); return { ...g, y: g.y + Math.sin(f * Math.PI) * 6, fish: true, f }; }
+  } else if (tau < T.land) return glide(dragonFly(d, E.t0), L, tau / 8, 'down');
+  if (tau < T.sitEnd) return { ...L, state: tau < T.eatEnd ? 'eat' : 'sit', face: Math.atan2(E.tx + 0.5 - E.lx, E.tz + 0.5 - E.lz), fish: E.what === 'fish' && tau < T.eatEnd - 1, look: E.what === 'rest' };
+  const to = dragonFly(d, t), f = (tau - T.sitEnd) / 5, s2 = f * f;
+  return { x: lerp(E.lx, to.x, s2), z: lerp(E.lz, to.z, s2), y: lerp(E.ly, to.y, Math.sqrt(f) * f), state: 'up', f };
 }
 const DRAGON_LEAN = 35 * Math.PI / 180, DRAGON_TIP = 25 * Math.PI / 180;
 // Its place and how it is turned at time t. It faces the way it moves (worked out from its own path, a moment before
@@ -7324,15 +7342,15 @@ function dragonPose(d, t) {
   const a = dirAt(t - 0.3), b = dirAt(t + 0.3);
   const turn = Math.hypot(a.dx, a.dz) > 0.004 && Math.hypot(b.dx, b.dz) > 0.004 ? angDiff(Math.atan2(b.dx, b.dz), Math.atan2(a.dx, a.dz)) / 0.6 : 0;   // radians a second
   let pitch = Math.max(-DRAGON_TIP, Math.min(DRAGON_TIP, Math.atan2(v.dy, flat)));
-  if (p.state === 'down' && p.f > 0.8) pitch = lerp(pitch, 0.3, (p.f - 0.8) / 0.2);   // it lifts its nose and brakes with its wings to land
+  if ((p.state === 'down' || p.state === 'carry') && p.f > 0.8) pitch = lerp(pitch, 0.3, (p.f - 0.8) / 0.2);   // it lifts its nose and brakes with its wings to land
   return { ...p, yaw, pitch, roll: Math.max(-DRAGON_LEAN, Math.min(DRAGON_LEAN, turn * 1.6)), speed, climb: v.dy / 0.2 };
 }
 // The last way it was facing while it still moved (for the moment it stands still)
 function dragonPoseYaw(d, t) { for (let k = 1; k <= 20; k++) { const a = dragonAt(d, t - k * 0.2 - 0.1), b = dragonAt(d, t - k * 0.2 + 0.1); if (Math.hypot(b.x - a.x, b.z - a.z) > 0.004) return Math.atan2(b.x - a.x, b.z - a.z); } return 0; }
 // Does it beat its wings now? Climbing, taking off and slowing to land: yes. Level or going down: it glides for its own share of the time.
 function dragonFlaps(d, p, t) {
-  if (p.state === 'up' || (p.state === 'down' && p.f > 0.8)) return true;
-  if (p.state === 'down') return false;
+  if (p.state === 'up' || p.state === 'carry' || (p.state === 'down' && p.f > 0.8)) return true;
+  if (p.state === 'down' || p.state === 'skim') return false;
   if (p.climb > 0.35) return true;
   return ((t * 0.09 + d.ph) % 1 + 1) % 1 >= d.glide;
 }
@@ -7390,12 +7408,25 @@ function dragonShape(d, kind, scale = 1) {
   scene.add(group);
   return { group, mixer, fly, eat, mats, kind, ground: (F.midY - F.minY) * k, K };
 }
+// The fish a dragon catches (SPEC-036): a small original fish made in code, silver, blue or orange. It is seen only in the
+// dragon's claws, from the splash until it is eaten. There are no fish in the water, and nothing is saved about fish.
+const FISH_COLS = [0xcfd8dc, 0x4a90d9, 0xf39c3d];
+function fishModel(d) {
+  const g = new THREE.Group(), col = FISH_COLS[Math.floor(hash3(Math.floor(d.cx), 3, Math.floor(d.cz), seed + 77) * FISH_COLS.length)], mat = lifeMat(col);
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.35, 10, 8), mat); body.scale.set(0.45, 0.6, 1.3);
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.35, 4), mat); tail.rotation.x = Math.PI / 2; tail.position.z = -0.6; tail.scale.x = 0.3;
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), lifeMat(0x1a1a1a)); eye.position.set(0.13, 0.06, 0.3);
+  g.add(body, tail, eye, eye.clone()); g.children[3].position.x = -0.13;
+  return g;
+}
 function dropDragonShape(sh) { scene.remove(sh.group); sh.mixer.stopAllAction(); for (const m of sh.mats.values()) m.dispose(); }
 // Puts one drawn dragon in its place and pose. beat: how fast its wings go (a baby's go faster).
 function poseDragonShape(sh, d, p, t, beat) {
   const sitting = p.state === 'eat' || p.state === 'sit';
   sh.group.position.set(p.x, p.y + (sitting ? sh.ground : 0), p.z);   // sitting: its feet on the ground
-  sh.group.rotation.set(-p.pitch, p.yaw, -p.roll);
+  sh.group.rotation.set(-p.pitch, p.yaw + (p.look ? Math.sin(t * 0.7 + d.ph) * 0.5 : 0), -p.roll);   // resting, it looks around
+  if (p.fish && !sh.fish) { sh.fish = fishModel(d); sh.fish.position.set(0, -sh.ground * 0.75, sh.ground * 0.5); sh.group.add(sh.fish); }
+  else if (!p.fish && sh.fish) { sh.group.remove(sh.fish); sh.fish = null; }
   if (!sh.fly) return;
   const eating = p.state === 'eat' && sh.eat;
   sh.fly.setEffectiveWeight(eating ? 0 : 1);
@@ -7437,7 +7468,7 @@ function pickTree() {
   for (let tries = 0; tries < 160; tries++) {
     const a = Math.random() * Math.PI * 2, r = 15 + Math.random() * 45, x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
     if (p.key === pid && view && (Math.cos(a) * view.x + Math.sin(a) * view.z) < 0.3) continue;   // in front of the child
-    if (!chunks.has(ckey(Math.floor(x / CS), Math.floor(z / CS))) || castleCovers(x, z, 8)) continue;
+    if (!chunks.has(ckey(Math.floor(x / CS), Math.floor(z / CS))) || castleCovers(x, z, 0)) continue;   // 0.6.95: trees next to castles may be eaten too (not inside one)
     let y = H - 1; while (y > 0 && !solid(get(x, y, z))) y--;
     if (get(x, y + 1, z) !== T.AIR) continue;
     const dec = decorAt(x, y, z);
@@ -7445,34 +7476,101 @@ function pickTree() {
     // where it lands: 3 blocks from the tree, on open ground, never near a child
     const la = Math.random() * Math.PI * 2, lx = x + 0.5 + Math.cos(la) * 3, lz = z + 0.5 + Math.sin(la) * 3;
     let ly = H - 1; while (ly > 0 && !solid(get(Math.floor(lx), ly, Math.floor(lz)))) ly--;
-    if (Math.abs(ly - y) > 3 || ps.some(q => Math.hypot(q.x - lx, q.z - lz) < 8 || Math.hypot(q.x - x, q.z - z) < 8)) continue;
+    if (Math.abs(ly - y) > 3 || ps.some(q => Math.hypot(q.x - lx, q.z - lz) < dragonGap || Math.hypot(q.x - x, q.z - z) < dragonGap)) continue;   // the owner's landing distance (0.6.95; it was 8)
     return { tx: x, ty: y, tz: z, lx, ly: ly + 1, lz };
   }
   return null;
 }
+// ---- Where a dragon may land to rest (0.6.95, SPEC-036): the solid top of blocks with open sky above and room around,
+// in land already made near a player: castle towers, walls and roofs, bridges, hill and mountain tops, open ground.
+// Never in water, never inside blocks, never closer to any player than the owner's landing distance.
+let dragonGap = 3;   // the owner's landing distance in blocks (admin page, game_settings dragon_gap, 3 to 30)
+const dragonLandForce = (/[?&]dragonland=(castle|bridge|peak|fish)\b/.exec(location.search) || [])[1] || null;   // the builder's and owner's test switch
+function topOpen(x, z) {   // the top solid block of a column with nothing above it, or null (water, a tree or scenery on it, not loaded)
+  if (!inPlay(x, z) || !chunks.has(ckey(Math.floor(x / CS), Math.floor(z / CS)))) return null;
+  let y = H - 2; while (y > 0 && get(x, y, z) === T.AIR) y--;
+  return solid(get(x, y, z)) && !decorAt(x, y, z) ? y : null;
+}
+function pickPerch(want = null, near = null, reach = 70) {
+  const ps = playersHere(), c0 = near || ps[Math.floor(Math.random() * ps.length)];
+  let best = null;
+  for (let tries = 0; tries < 220; tries++) {
+    const a = Math.random() * Math.PI * 2, r = (near ? 2 : 10) + Math.random() * reach, x = Math.floor(c0.x + Math.cos(a) * r), z = Math.floor(c0.z + Math.sin(a) * r);
+    const y = topOpen(x, z);
+    if (y === null || ps.some(q => Math.hypot(q.x - x - 0.5, q.z - z - 0.5) < dragonGap)) continue;
+    // room for it: the blocks around are no higher than where it stands
+    if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => { let h = H - 2; while (h > 0 && get(x + dx, h, z + dz) === T.AIR) h--; return h > y; })) continue;
+    const kind = castleCovers(x, z, 0) ? 'castle' : roadAt(x, z) === 2 ? 'bridge' : 'peak';
+    if (want && kind !== want) continue;
+    const score = y + (kind === 'castle' ? 30 : kind === 'bridge' ? 20 : 0) + Math.random() * 4;   // high places first: towers, then bridges, then hill tops
+    if (!best || score > best.score) best = { lx: x + 0.5, ly: y + 1, lz: z + 0.5, kind, score };
+  }
+  return best;
+}
+// Water at least 2 blocks deep under open sky, 15 to 70 blocks from a player and not closer than the landing distance to anyone
+function pickWater() {
+  const ps = playersHere(), p = ps[Math.floor(Math.random() * ps.length)];
+  for (let tries = 0; tries < 200; tries++) {
+    const a = Math.random() * Math.PI * 2, r = 15 + Math.random() * 55, x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+    if (!inPlay(x, z) || !chunks.has(ckey(Math.floor(x / CS), Math.floor(z / CS)))) continue;
+    let y = H - 2; while (y > 0 && get(x, y, z) === T.AIR) y--;
+    if (get(x, y, z) !== T.WATER || get(x, y - 1, z) !== T.WATER || ps.some(q => Math.hypot(q.x - x, q.z - z) < Math.max(dragonGap, 4))) continue;
+    return { wx: x + 0.5, wy: y + 1, wz: z + 0.5 };
+  }
+  return null;
+}
+// What the next landing is: trees, rests and fish take turns
+let landTurn = Math.floor(Math.random() * 3);
+function pickLanding(t) {
+  const ds = dragonsNear().filter(o => o.p.state === 'fly');
+  if (!ds.length) return null;
+  const nearest = (x, z) => ds.reduce((b, o) => Math.hypot(o.p.x - x, o.p.z - z) < Math.hypot(b.p.x - x, b.p.z - z) ? o : b).d.id;
+  const order = dragonLandForce === 'fish' ? ['fish'] : dragonLandForce ? ['rest'] : [['tree', 'rest', 'fish'], ['rest', 'fish', 'tree'], ['fish', 'tree', 'rest']][landTurn++ % 3];
+  for (const what of order) {
+    if (what === 'tree') { const tree = pickTree(); if (tree) return { id: nearest(tree.tx, tree.tz), ...tree, t0: t + 0.5, what }; }
+    if (what === 'rest') {
+      const spot = pickPerch(dragonLandForce && dragonLandForce !== 'fish' ? dragonLandForce : null);
+      if (spot) return { id: nearest(spot.lx, spot.lz), tx: Math.floor(spot.lx) + 2, ty: spot.ly - 1, tz: Math.floor(spot.lz), lx: spot.lx, ly: spot.ly, lz: spot.lz, t0: t + 0.5, what, dur: 10 + Math.floor(Math.random() * 31), on: spot.kind };
+    }
+    if (what === 'fish') {
+      const w = pickWater(), spot = w && pickPerch(null, { x: w.wx, z: w.wz }, 38);
+      if (spot) return { id: nearest(w.wx, w.wz), tx: Math.floor(w.wx), ty: w.wy - 1, tz: Math.floor(w.wz), lx: spot.lx, ly: spot.ly, lz: spot.lz, ...w, t0: t + 0.5, what };
+    }
+  }
+  return null;
+}
 function startEat(e) {
-  dragonEat = { ...e, marked: false };
+  dragonEat = { what: 'tree', ...e, marked: false };
   if (sharedOn()) sendSync('eat', e);
 }
 function onEat(p) {
   if (!p || typeof p.id !== 'string' || ![p.tx, p.ty, p.tz, p.lx, p.ly, p.lz, p.t0].every(Number.isFinite) || !inBounds(p.tx, p.ty, p.tz)) return;
-  dragonEat = { id: p.id, tx: p.tx, ty: p.ty, tz: p.tz, lx: p.lx, ly: p.ly, lz: p.lz, t0: p.t0, marked: false };
+  const what = ['rest', 'fish'].includes(p.what) ? p.what : 'tree';   // 0.6.95 (SPEC-036): what it comes down for
+  if (what === 'fish' && ![p.wx, p.wy, p.wz].every(Number.isFinite)) return;
+  const same = dragonEat && dragonEat.id === p.id && dragonEat.t0 === p.t0;   // the same landing again: a rest cut short
+  dragonEat = { id: p.id, tx: p.tx, ty: p.ty, tz: p.tz, lx: p.lx, ly: p.ly, lz: p.lz, t0: p.t0, what, dur: Math.max(1, Math.min(40, Number.isFinite(p.dur) ? p.dur : 20)), wx: p.wx, wy: p.wy, wz: p.wz, marked: same ? dragonEat.marked : false };
 }
 function updateDragons(dt) {
   const t = sharedNow() / 1000;
   const E = dragonEat;
-  if (E && !E.marked && t - E.t0 >= 8) {   // it has landed and starts eating: the tree becomes a stump (for every player)
+  if (E && !E.marked && t - E.t0 >= (E.what === 'fish' ? 6 : 8)) {   // it has landed (or reached the water)
     E.marked = true;
-    eatTree(E.tx, E.tz);
-    { const [gx, gz] = E.id.split(':').map(Number), who = dragonOf(gx, gz); if (who) logOnce('dragon_landed', who.kind + (who.babies.length ? ' family' : '') + ' tree'); }   // 0.6.94
+    { const [gx, gz] = E.id.split(':').map(Number), who = dragonOf(gx, gz); if (who) logOnce('dragon_landed', who.kind + (who.babies.length ? ' family ' : ' ') + E.what); }   // kind and what for (0.6.95)
     const near = Math.hypot(E.tx - px, E.tz - pz) < 80;
-    if (near && dragonMode !== 'off') {
+    if (E.what === 'tree') eatTree(E.tx, E.tz);   // the tree becomes a stump (for every player)
+    else if (E.what === 'fish' && near && dragonMode === 'on') { for (let i = 0; i < 3; i++) steamPuff(E.wx + (Math.random() - 0.5) * 1.5, E.wy + 0.2, E.wz + (Math.random() - 0.5) * 1.5); if (Math.hypot(E.wx - px, E.wz - pz) < 40) sfx('splash'); }   // the splash
+    if (E.what === 'tree' && near && dragonMode !== 'off') {
       leafBurst(E.tx + 0.5, E.ty + 3, E.tz + 0.5);
       crownFx = makeCrown(E.tx + 0.5, E.ty + 1, E.tz + 0.5);
       if (dragonMode === 'on' && !dragonTold) { dragonTold = true; say('Look! A dragon is eating a tree!', 3500); }
     }
   }
-  if (E && t - E.t0 >= 20) dragonEat = null;
+  // A player walks right up to a resting dragon: it stays calm, then takes off within 5 seconds (the picking device says so)
+  if (E && E.what === 'rest' && dragonPicker() && t - E.t0 >= 8 && t - E.t0 < 8 + E.dur - 4 && playersHere().some(q => Math.hypot(q.x - E.lx, q.z - E.lz) < 2)) {
+    E.dur = Math.max(1, Math.ceil(t - E.t0 - 8 + 3));
+    if (sharedOn()) sendSync('eat', { id: E.id, tx: E.tx, ty: E.ty, tz: E.tz, lx: E.lx, ly: E.ly, lz: E.lz, t0: E.t0, what: E.what, dur: E.dur });
+  }
+  if (E && t - E.t0 >= landTimes(E).end) dragonEat = null;
   if (crownFx) {
     crownFx.t += dt;
     const s = Math.max(0, 1 - crownFx.t / 5);
@@ -7484,15 +7582,9 @@ function updateDragons(dt) {
   if (!paused && !dragonEat && dragonPicker()) {
     dragonWait -= dt;
     if (dragonWait <= 0) {
-      dragonWait = 120 + Math.random() * 120;
-      const tree = pickTree();
-      if (tree) {
-        const ds = dragonsNear().filter(o => o.p.state === 'fly');
-        if (ds.length) {
-          const best = ds.reduce((b, o) => Math.hypot(o.p.x - tree.tx, o.p.z - tree.tz) < Math.hypot(b.p.x - tree.tx, b.p.z - tree.tz) ? o : b);
-          startEat({ id: best.d.id, ...tree, t0: t + 0.5 });
-        }
-      }
+      dragonWait = dragonLandForce ? 20 : 50 + Math.random() * 60;   // trees, rests and fish take turns: each about every 3 to 5 minutes
+      const e = pickLanding(t);
+      if (e) startEat(e);
     }
   }
   // Draw the dragons near this child, each with its babies close behind and a little to the side
@@ -7784,7 +7876,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.94';
+const VERSION = '0.6.95';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -9601,7 +9693,8 @@ window.gameTest = {
   dragons: () => [...dragonShapes.keys()], dragonsNear: () => dragonsNear().map(o => ({ id: o.d.id, x: o.p.x, y: o.p.y, z: o.p.z, state: o.p.state, dist: o.dist, kind: o.d.kind, babies: o.d.babies.length, rare: o.d.rare, size: o.d.size, col: o.d.col[0] })),
   // SPEC-033 (0.6.94): the dragon of a square and its pose at a time, for the tests
   dragonOf: (gx, gz) => { const d = dragonOf(gx, gz); return d && { id: d.id, kind: d.kind, babies: d.babies.length, rare: d.rare, size: d.size, col: d.col[0], neck: d.neck, tail: d.tail, wing: d.wing, r: d.r, fig8: d.fig8, flap: d.flap, glide: d.glide, w: d.w }; },
-  dragonPose: (gx, gz, t) => { const d = dragonOf(gx, gz); if (!d) return null; const p = dragonPose(d, t); return { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, roll: p.roll, state: p.state, speed: p.speed, flaps: dragonFlaps(d, p, t) }; },
+  dragonPose: (gx, gz, t) => { const d = dragonOf(gx, gz); if (!d) return null; const p = dragonPose(d, t); return { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, roll: p.roll, state: p.state, speed: p.speed, flaps: dragonFlaps(d, p, t), fish: !!p.fish }; },
+  pickPerch, pickWater, pickLanding, landTimes, get dragonGap() { return dragonGap; }, setDragonEatForTest: e => { dragonEat = e; },
   setDragonWeights, get dragonWeights() { return { ...dragonWeights, rare: dragonRarePct }; }, dragonShapeInfo: () => [...dragonShapes].map(([id, sh]) => ({ id, kind: sh.kind, y: sh.group.position.y })), clearDragons: () => dragonCache.clear(),
   get dragonEat() { return dragonEat; }, pickTree, startEat, eatTree, eatenList, treeLook, dayNum,
   dragonWaitNow: () => { dragonWait = 0; },

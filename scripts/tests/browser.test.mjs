@@ -4128,3 +4128,44 @@ test('SPEC-033: coming down to eat, the dragon faces the way it moves, lands and
     assert.equal(r.glide, false, 'glides in'); assert.equal(r.flare, true, 'beats its wings to slow down'); assert.equal(r.up, true, 'takes off with wing beats');
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }, { saves: [phoneGame()] }));
+
+// ---- Dragons land everywhere and eat fish (0.6.95, SPEC-036) ----
+test('SPEC-036: a dragon rests on top of the blocks for its time and takes off; a fish catch dives to the water, skims with the fish, carries it to a perch and eats it; places keep the landing distance', { skip, timeout: 240000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.dragonsNear && window.gameTest.dragonsNear().length > 0, null, { timeout: 150000 });
+    const r = await page.evaluate(() => {
+      const G = window.gameTest, d = G.dragonsNear()[0], [gx, gz] = d.id.split(':').map(Number), t0 = G.sharedNow / 1000 + 200, pos = G.pos;
+      const deg = a => a * 180 / Math.PI, diff = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+      const out = {};
+      // a perch near the child: on top of a solid block with air above, not closer than the landing distance
+      const spot = G.pickPerch();
+      out.spot = spot && { on: G.isSolid(G.blockAt(Math.floor(spot.lx), spot.ly - 1, Math.floor(spot.lz))), air: G.blockAt(Math.floor(spot.lx), spot.ly, Math.floor(spot.lz)) === 0, far: Math.hypot(spot.lx - pos[0], spot.lz - pos[2]) >= G.dragonGap, kind: spot.kind };
+      out.gap = G.dragonGap;
+      // a rest of 20 seconds
+      const L = { lx: d.x + 25, ly: 30, lz: d.z + 15 };
+      G.setDragonEatForTest({ id: d.id, tx: Math.floor(L.lx) + 2, ty: 29, tz: Math.floor(L.lz), ...L, t0, what: 'rest', dur: 20, marked: true });
+      out.times = G.landTimes({ what: 'rest', dur: 20 });
+      const st = tau => G.dragonPose(gx, gz, t0 + tau);
+      out.rest = [4, 9, 20, 27.5, 30, 33.5].map(tau => st(tau).state);
+      const sit = st(15); out.sitAt = [sit.x - L.lx, sit.y - L.ly, sit.z - L.lz].map(v => Math.abs(v) < 0.01);
+      // a fish catch
+      const W = { wx: d.x - 20, wy: 9, wz: d.z + 30 };
+      G.setDragonEatForTest({ id: d.id, tx: Math.floor(W.wx), ty: 8, tz: Math.floor(W.wz), ...L, ...W, t0, what: 'fish', marked: true });
+      out.fish = [3, 6.5, 10, 15, 19, 22, 26].map(tau => { const p = st(tau); return p.state + (p.fish ? '+fish' : ''); });
+      const skim = st(6.7); out.skimY = Math.abs(skim.y - (W.wy + 0.7)) < 0.01;
+      let worst = 0;
+      for (let tau = 0.5; tau < 25; tau += 0.25) { const p = st(tau), a = st(tau - 0.2), b = st(tau + 0.2); if (p.state === 'eat' || p.state === 'sit' || a.state !== b.state || p.speed < 1) continue; worst = Math.max(worst, deg(diff(p.yaw, Math.atan2(b.x - a.x, b.z - a.z)))); }
+      out.worst = worst;
+      G.setDragonEatForTest(null);
+      return out;
+    });
+    assert.ok(r.spot && r.spot.on && r.spot.air && r.spot.far, 'a resting place: ' + JSON.stringify(r.spot));
+    assert.equal(r.gap, 3);
+    assert.deepEqual(r.times, { land: 8, eatEnd: 8, sitEnd: 28, end: 33 });
+    assert.deepEqual(r.rest, ['down', 'sit', 'sit', 'sit', 'up', 'fly']);
+    assert.deepEqual(r.sitAt, [true, true, true], 'it sits where it landed');
+    assert.deepEqual(r.fish, ['down', 'skim+fish', 'carry+fish', 'eat+fish', 'sit', 'up', 'fly']);
+    assert.equal(r.skimY, true, 'it skims just over the water');
+    assert.ok(r.worst <= 10, 'head first through the dive, the skim and the flight to its perch: ' + r.worst.toFixed(1));
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [phoneGame()] }));

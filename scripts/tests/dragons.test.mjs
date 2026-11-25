@@ -48,10 +48,22 @@ test('friendly dragons: the attack and death clips are not used except the mouth
   assert.match(code, /DRAGON_LEAN = 35 \* Math\.PI \/ 180, DRAGON_TIP = 25 \* Math\.PI \/ 180/);
   assert.match(game, /logOnce\('dragon_landed'/);
   const mig = read('docs/migrations/0018_dragons.sql'), admin = read('www/admin.html');
-  for (const k of ['dragon_w_drake', 'dragon_w_wyvern', 'dragon_w_great', 'dragon_w_family', 'dragon_rare_pct']) { assert.ok(mig.includes(`'${k}'`)); assert.ok(admin.includes(`data-dragon="${k}"`)); }
+  for (const k of ['dragon_w_drake', 'dragon_w_wyvern', 'dragon_w_great', 'dragon_w_family', 'dragon_rare_pct', 'dragon_gap']) { assert.ok(mig.includes(`'${k}'`)); assert.ok(admin.includes(`data-dragon="${k}"`)); }
   assert.match(mig, /revoke all on public\.dragon_names from anon, authenticated;/);
   assert.doesNotMatch(game, /dragon_names/, 'the game never loads the names');
   // every key the table allowed before is still allowed
   const before = read('docs/migrations/0017_mirelo_settings.sql').match(/check \(key in \(([\s\S]*?)\)\);/)[1].match(/'[a-z0-9_]+'/g);
   for (const k of before) assert.ok(mig.includes(k), 'the key check lost ' + k);
+});
+
+test('SPEC-036: the landing distance is the owner\'s (3 to 30, 3 to start) for trees, rests and fish; Stay high lands nowhere; nothing is saved about fish and no block is changed', () => {
+  assert.match(game, /dragonGap = Number\.isInteger\(map\.dragon_gap\) && map\.dragon_gap >= 3 && map\.dragon_gap <= 30 \? map\.dragon_gap : 3;/);
+  assert.match(read('docs/migrations/0018_dragons.sql'), /key <> 'dragon_gap' or value between 3 and 30/);
+  const pick = game.slice(game.indexOf('function topOpen(x, z)'), game.indexOf('function startEat(e)'));
+  assert.equal((pick.match(/< dragonGap|Math\.max\(dragonGap, 4\)/g) || []).length, 2, 'rests and fish keep the landing distance');
+  assert.match(game.slice(game.indexOf('function pickTree()'), game.indexOf('function topOpen(x, z)')), /< dragonGap \|\| Math\.hypot\(q\.x - x, q\.z - z\) < dragonGap/);
+  assert.doesNotMatch(pick + game.slice(game.indexOf('function fishModel'), game.indexOf('function dropDragonShape')), /setBlock|writeBlock|shareBlock|saveGame|localStorage/);
+  assert.match(game, /const E = dragonEat, high = dragonMode !== 'on';\n  if \(!E \|\| E\.id !== d\.id \|\| high\) return \{ \.\.\.dragonFly\(d, t\), state: 'fly' \};/);
+  assert.match(game, /dragonland=\(castle\|bridge\|peak\|fish\)/);
+  assert.ok(read('www/how-to-play.html').includes('Dragons also like to rest up high'));
 });
