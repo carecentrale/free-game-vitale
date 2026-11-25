@@ -21,11 +21,13 @@ Sent every 10 seconds and when the page closes. Each row: the event kind, game v
 | `world_players` | First list of players after connecting (0.6.87) | `players N`, this child included | "Gameplay records" |
 | `player_joined` | Another device came into the world; recorded by the leading device only, so it is not counted twice (0.6.87) | Its visit code, `players N` | "Gameplay records" |
 | `player_left` | Another device left the world; leading device only (0.6.87) | Its visit code, `players N` | "Gameplay records" |
-| `world_left` | This device leaves a shared world: closing the game or Log off (0.6.87). Best effort: a closing page may not send it | `players N` | "Gameplay records" |
+| `world_left` | This device leaves a shared world: closing the game or Log off (0.6.87), or a grown-up turning playing together off (0.6.90). Best effort: a closing page may not send it | `players N` | "Gameplay records" |
 | `share_reward` | A grown-up tapped Share the game in the parent area, or a share made on the parent stats page reached this saved game, and the share gems were added (once per saved game, 0.6.88) | `game` or `account`, and the number of gems | "Gameplay records" |
 | `spawn_moved` | The character had to be moved so it was not inside the ground (0.6.87) | `start` or `up`, and `join` or `reload` | "Gameplay records" |
 | `map_opened` | The map is opened; at most once a minute (`logOnce`, 0.6.87) | `players N` | "Gameplay records" |
 | `log_opened` | The world's log is opened; at most once a minute (`logOnce`, 0.6.87) | `notes N` | "Gameplay records" |
+| `together_switch` | A grown-up signed in with Google changes Playing together in the parent area (0.6.90, SPEC-039; approved by Nick 24 Nov 2026) | `on` or `off` | "Gameplay records" |
+| `safety_reminder` | The Playing together card is shown, the first time a shared world would start on this device, and when OK is tapped (0.6.90, SPEC-039; approved by Nick 24 Nov 2026) | `shown` or `closed` | "Gameplay records" |
 
 Since 23 Nov 2026 the "Gameplay records" row on the privacy page describes these records by category (with examples), says the world code is kept with each record, and gives safety as the reason. It no longer lists every kind by name. The world's log itself (the join and leave notes) is not sent: it stays in memory on the device.
 

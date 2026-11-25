@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Adventurers of Drenerics v0.6.89 (3D)</title>
+<title>Adventurers of Drenerics v0.6.90 (3D)</title>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:sans-serif;touch-action:none;user-select:none}
   canvas{display:block}
@@ -248,6 +248,7 @@
     <div class="sp-title">Adventurers of Drenerics</div>
     <div class="sp-bar"><div class="sp-fill"></div></div>
     <div class="sp-text">Loading...</div>
+    <div class="sp-tip" id="spTip"></div>
   </div>
 </div>
 <style>
@@ -264,9 +265,15 @@
   #splash .sp-fill{height:100%;width:8%;background:#e8b93a;border-radius:4px;animation:spFill 5s ease-out forwards}
   #splash.done .sp-fill{width:100%;animation:none;transition:width .3s}
   #splash .sp-text{margin-top:1.4vh;font-size:clamp(14px,2.2vh,20px)}
+  #splash .sp-tip{margin:1vh auto 0;padding:0 8px;max-width:100%;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:clamp(12px,min(2vh,3.7vw),18px)}
   @keyframes spFill{to{width:90%}}
 </style>
 <script>setTimeout(function(){var e=document.getElementById('splash');if(e)e.remove();},20000);</script>
+<!-- Safety lines on the loading screen (0.6.90, SPEC-039): one short line each time the game opens, the next one in turn.
+     Which line was shown last is kept on this device only. The game never asks an age, so every player sees them. -->
+<script>(function(){var L=['Only play with friends and family you know.','Keep your world code for friends and family.','Be kind. Build nothing rude, mean or scary.','If something looks wrong, tap Report.','If something upsets you, tell a grown-up.'];
+var i=0;try{var n=parseInt(localStorage.getItem('kidsgame.safetyLine'),10);i=isFinite(n)?(n+1)%L.length:Math.floor(Math.random()*L.length);localStorage.setItem('kidsgame.safetyLine',String(i));}catch(e){}
+var t=document.getElementById('spTip');if(t)t.textContent=L[i];window.SAFETY_LINES=L;})();</script>
 <div id="hud"></div>
 <div id="chatBtn" role="button" aria-label="Activity log" title="Activity log"><svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H10l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="#fff"/><circle cx="8" cy="10.5" r="1.4" fill="#3b6fd8"/><circle cx="12" cy="10.5" r="1.4" fill="#3b6fd8"/><circle cx="16" cy="10.5" r="1.4" fill="#3b6fd8"/></svg><span id="chatCount"></span></div>
 <div id="chatPeek"></div>
@@ -2001,7 +2008,7 @@ function saveGame() {
   try {
     localStorage.setItem(slotKey(activeSlot), JSON.stringify({
       v: 1, at: Date.now(), name: playerName, profile, worldId, inv, gear, qb, recent, sel, pw, skills,
-      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(), quiz: quizStats, levels: quizLevels, dragons: dragonMode, shared: shareGiven,
+      pos: [px, py, pz], yaw: camYaw, world: encodeWorld(), quiz: quizStats, levels: quizLevels, dragons: dragonMode, shared: shareGiven, together: playTogether, togetherBy, local: localWorld,
       drops: [...drops.values()].filter(d => !d.guard).map(d => [d.x, d.y, d.z, d.id, d.at])
     }));
   } catch (e) {}
@@ -3105,6 +3112,12 @@ function updateTeleport(dt) {
 
 // ---- Settings: game version and what has changed. Copy of CHANGELOG.md, player-friendly wording. Update it with each release. ----
 const GAME_HISTORY = [
+  { v: '0.6.90', title: 'Playing together, safely', items: [
+    'Grown-ups can now turn playing together on or off, and a short card reminds you how to play safely with friends.',
+    'The loading screen shows a short safety tip each time the game opens.',
+    'In the parent area, Open parent stats is now called Open parent portal, and only Sign in with Google is shown.',
+    'A saved game that was in a shared world opens in that world again. With no internet you play on your own until it is back, then the game joins by itself.',
+  ] },
   { v: '0.6.89', title: 'Game tips go in the Activity log', items: [
     'Short game messages, like "Too far away! Get closer.", no longer show across the top of the screen. They show for a moment beside the speech bubble at the bottom left and stay in the Activity log to read again.',
     'The same message again adds to its line (for example "x3") instead of filling the log.',
@@ -3509,6 +3522,7 @@ function logOff() {
 }
 // Esc and the Android Back button: close an open panel first; with nothing open, ask whether to quit
 function backAction() {
+  if (togetherCardOpen) return;   // the joining card (0.6.90) closes with OK only
   if (mapOpen) toggleMap(false);
   else if (logOpen) toggleLog(false);
   else if (tipPanel) tipClose();
@@ -7151,7 +7165,7 @@ function itemIcon(id) {
 }
 
 // ================= v0.6.1: start wizard, shared worlds, other players, logging =================
-const VERSION = '0.6.89';
+const VERSION = '0.6.90';
 const SB_URL = 'https://rsrmuruskjtnxqmzvmnl.supabase.co';
 const SB_KEY = 'sb_publishable_htNBh34wAtN_LnqK3Nv6_A_OYT-v_MU';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -7202,14 +7216,90 @@ fetch(SB_URL + '/rest/v1/game_settings?select=key,value', { headers: { apikey: S
     try { localStorage.setItem('kidsgame.ownerSettings', JSON.stringify(map)); } catch (e) {}
   })
   .catch(() => {});
-const sbReady = import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm')
-  .then(m => { sb = m.createClient(SB_URL, SB_KEY, { auth: { persistSession: true } }); })
+// loadSb can be called again (0.6.90): a shared game opened with no internet tries again later
+const loadSb = () => import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm')
+  .then(m => { if (!sb) sb = m.createClient(SB_URL, SB_KEY, { auth: { persistSession: true } }); })
   .catch(() => {});
+const sbReady = loadSb();
 
 let paused = true;
 let profile = (saved && saved.profile) || null;   // { sex, race }
 let worldId = (saved && saved.worldId) || null;   // 4-letter world code
 let worldDirty = false, lastStamp = null, channel = null, channelJoined = false;
+
+// ---- Playing together (0.6.90, SPEC-039) ----
+// On to start. A grown-up signed in with Google in the parent area can turn it Off: then the child cannot join a world
+// with a code or share one, and a child in a shared world leaves it within 5 seconds and keeps playing on their own.
+// Kept with the saved game (and in the cloud save), and on this device for the next new game, so a new game cannot
+// get round it. togetherBy is 'google' once a Google-signed-in grown-up has changed it: nothing about the account is kept.
+const TOGETHER_KEY = 'kidsgame.together', TOGETHER_CARD_KEY = 'kidsgame.togetherCard', TOGETHER_CARD_MS = 4000;
+const TOGETHER_OFF = 'A grown-up turned off playing together.';
+let playTogether = 'on', togetherBy = null;
+try { if (localStorage.getItem(TOGETHER_KEY) === 'off') playTogether = 'off'; } catch (e) {}
+if (saved && (saved.together === 'on' || saved.together === 'off')) { playTogether = saved.together; togetherBy = saved.togetherBy === 'google' ? 'google' : null; }
+let localWorld = !!(saved && saved.local && !saved.worldId);   // a world kept on this device only (made or left while Off)
+let resumeWait = null;   // the world code a reopened game is waiting to reach (no internet)
+const togetherOn = () => playTogether !== 'off';
+function setTogether(v, by) {
+  playTogether = v === 'off' ? 'off' : 'on';
+  if (by) togetherBy = by;
+  try { localStorage.setItem(TOGETHER_KEY, playTogether); } catch (e) {}
+  logEvent('together_switch', playTogether);
+  saveGame();
+  if (!togetherOn()) leaveTogether();
+}
+// Leave the shared world (Off): save, leave the live channel, clear the world code, keep the land on this device
+function leaveTogether() {
+  if (!worldId) return false;
+  saveGame();
+  if (channelJoined) logEvent('world_left', 'players ' + playersInWorld());
+  if (channel) { try { sb.removeChannel(channel); } catch (e) {} }
+  channel = null; channelJoined = false; resumeWait = null; worldDirty = false;
+  for (const o of others.values()) scene.remove(o.g);
+  others.clear();
+  const before = leaderKey; leaderKey = pid; syncClock = 0;
+  if (before !== pid) onLeaderChange(before);   // the monsters it was drawing are its own now
+  worldId = null; localWorld = true;
+  drawBubble();
+  say(TOGETHER_OFF, 5000);
+  saveGame();
+  renderUI();
+  return true;
+}
+setInterval(() => { if (!togetherOn() && worldId) leaveTogether(); }, 1000);
+// The joining card: once per device, the first time a shared world would start. OK shows after 4 seconds;
+// Esc and the Android Back button do not skip it. Resolves when OK is tapped.
+let togetherCardOpen = false;
+const togetherCardSeen = () => { try { return localStorage.getItem(TOGETHER_CARD_KEY) === '1'; } catch (e) { return false; } };
+function togetherCard() {
+  if (togetherCardSeen()) return Promise.resolve();
+  if (togetherCardOpen) return new Promise(ok => document.getElementById('togetherCard').addEventListener('togetherok', ok, { once: true }));
+  togetherCardOpen = true;
+  const wasPaused = paused; paused = true;
+  logEvent('safety_reminder', 'shown');
+  const el = document.createElement('div');
+  el.id = 'togetherCard';
+  el.dataset.at = String(Date.now());   // when it opened (the tests check the 4-second wait with it)
+  el.style.cssText = 'position:fixed;inset:0;z-index:90;background:rgba(10,12,25,.9);display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;font-family:system-ui,sans-serif';
+  el.innerHTML = '<div style="background:#1e2236;color:#fff;border-radius:14px;padding:20px;max-width:380px;max-height:92vh;overflow:auto;box-sizing:border-box;text-align:left">' +
+    '<div style="font-size:20px;font-weight:700;margin-bottom:10px;text-align:center">Playing together</div>' +
+    ['Only play with friends and family you know.', 'Keep your world code for friends and family.', 'Be kind: build nothing rude, mean or scary.',
+      'If something looks wrong, tap Report.', 'If something upsets you, tell a grown-up.'].map(t => '<div style="font-size:16px;margin:8px 0">' + t + '</div>').join('') +
+    '<button id="togetherOk" style="visibility:hidden;display:block;width:100%;margin-top:14px;background:#3b6fd8;color:#fff;border:0;border-radius:10px;padding:12px;font-size:17px;font-weight:700;cursor:pointer">OK</button></div>';
+  document.body.append(el);
+  return new Promise(ok => {
+    setTimeout(() => { const b = document.getElementById('togetherOk'); if (b) b.style.visibility = 'visible'; }, TOGETHER_CARD_MS);
+    document.getElementById('togetherOk').addEventListener('click', () => {
+      try { localStorage.setItem(TOGETHER_CARD_KEY, '1'); } catch (e) {}
+      logEvent('safety_reminder', 'closed');
+      togetherCardOpen = false;
+      el.dispatchEvent(new Event('togetherok'));
+      el.remove();
+      paused = wasPaused;
+      ok();
+    });
+  });
+}
 // Random id for this visit only. It is never stored, so it cannot follow a player from one visit to the next.
 const pid = Math.random().toString(36).slice(2) + Date.now().toString(36);
 try { localStorage.removeItem('kidsgame.pid'); } catch (e) {}   // remove the old stored device code
@@ -7256,8 +7346,9 @@ function flushEvents() {
 }
 setInterval(flushEvents, 10000);
 let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6.80)
+const togetherHooks = { render: () => {}, signIn: () => {} };   // set by the parent area below (0.6.90)
 // Parent area: tap the top-left corner 5 times within 3 seconds (a child won't find it by accident).
-// It shows a link to the parent stats page, which requires an email sign-in.
+// It shows a link to the parent portal (the parent stats page), which requires an email sign-in.
 (() => {
   const tap = document.createElement('div');
   tap.style.cssText = 'position:fixed;left:0;top:0;width:70px;height:70px;z-index:30;';
@@ -7267,7 +7358,7 @@ let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6
   panel.innerHTML = '<div style="background:#1e2236;color:#fff;border-radius:14px;padding:20px;max-width:380px;max-height:92vh;overflow:auto;box-sizing:border-box;font-family:system-ui,sans-serif;text-align:center">' +
     '<div style="font-size:18px;font-weight:700;margin-bottom:8px">Parent area</div>' +
     '<div style="font-size:14px;opacity:.85;margin-bottom:14px">See this game\'s stats and what has been played. You will sign in with your email.</div>' +
-    '<a id="parentLink" target="_blank" rel="noopener" style="display:block;background:#3b6fd8;color:#fff;border-radius:10px;padding:12px;text-decoration:none;font-weight:600;margin-bottom:10px">Open parent stats</a>' +
+    '<a id="parentLink" target="_blank" rel="noopener" style="display:block;background:#3b6fd8;color:#fff;border-radius:10px;padding:12px;text-decoration:none;font-weight:600;margin-bottom:10px">Open parent portal</a>' +
     '<div style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left">' +
     '<div style="font-size:15px;font-weight:700;margin-bottom:6px">Save to the cloud</div>' +
     '<div id="cloudStatus" style="font-size:13px;opacity:.85;margin-bottom:10px">Checking sign-in...</div>' +
@@ -7278,6 +7369,7 @@ let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6
     '<button id="cloudDelete" style="display:none;width:100%;background:transparent;color:#ffb4b4;border:1px solid #855;border-radius:10px;padding:10px;margin-bottom:8px;font-weight:600;cursor:pointer">Delete cloud save</button>' +
     '<button id="cloudOut" style="display:none;width:100%;background:transparent;color:#fff;border:1px solid #556;border-radius:10px;padding:8px;cursor:pointer">Sign out</button>' +
     '</div>' +
+    '<div id="togetherCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="learnLevel" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="dragonCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
     '<div id="shareCtl" style="border-top:1px solid #556;margin:0 0 12px;padding-top:12px;text-align:left"></div>' +
@@ -7297,6 +7389,7 @@ let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6
       renderLearn(false);
       renderShare('');
       checkAccountShare();
+      togetherHooks.render();
       panel.style.display = 'flex';
     }
   });
@@ -7402,7 +7495,7 @@ let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6
   learnEl.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.sub) renderLearn(false); });
   panel.addEventListener('click', e => { if (e.target === panel) panel.style.display = 'none'; });   // a tap on the dark area around the box closes it too (0.6.71)
 
-  // ---- Cloud save: parent signs in with Google or Facebook; kids never see this ----
+  // ---- Cloud save: parent signs in with Google (Facebook hidden since 0.6.90); kids never see this ----
   const $c = id => document.getElementById(id);
   let cloudUser = null;
   const setStatus = t => { $c('cloudStatus').textContent = t; };
@@ -7412,9 +7505,31 @@ let cloudSaveForUpdate = async () => true;   // set by the cloud save below (0.6
       ? 'Signed in as ' + (cloudUser.email || 'your account') + '. Your free cloud save holds one game, with its quiz friends report and learning levels. It saves to the cloud every 30 seconds.'
       : 'Not signed in. Sign in to keep this game safe on any device.');
     for (const id of ['cloudSave', 'cloudLoad', 'cloudDelete', 'cloudOut']) $c(id).style.display = cloudUser ? '' : 'none';
-    for (const id of ['cloudGoogle', 'cloudFacebook']) $c(id).style.display = cloudUser ? 'none' : '';
+    $c('cloudGoogle').style.display = cloudUser ? 'none' : '';
+    $c('cloudFacebook').style.display = 'none';   // Google only for now (SPEC-039): kept in the code for later
     if (cloudUser) setTimeout(() => shareHooks.check(), 0);
+    renderTogether();
   }
+  // ---- Playing together (0.6.90, SPEC-039): On or Off. Only a grown-up signed in with Google here can change it
+  // (a teacher's school email sign-in will too, once SPEC-005 is built). Facebook alone does not unlock it.
+  const googleUser = () => !!(cloudUser && ((cloudUser.app_metadata && (cloudUser.app_metadata.provider === 'google' ||
+    (cloudUser.app_metadata.providers || []).includes('google'))) || (cloudUser.identities || []).some(i => i && i.provider === 'google')));
+  function renderTogether() {
+    const can = googleUser(), cur = playTogether;
+    $c('togetherCtl').innerHTML = '<div style="font-size:15px;font-weight:700;margin-bottom:4px">Playing together</div>' +
+      '<div style="font-size:12px;opacity:.75;margin-bottom:8px">Children can join a friend\'s world with a code. Off: they cannot join or share a world, and a child in a shared world leaves it and keeps playing on their own.</div>' +
+      `<div style="display:flex;gap:6px">${['on', 'off'].map(m => `<button data-together="${m}" aria-pressed="${m === cur}"${can ? '' : ' disabled'} style="${learnBtn}flex:1;padding:10px;background:${m === cur ? '#3b6fd8' : 'transparent'};font-weight:${m === cur ? 700 : 400};${can ? '' : 'opacity:.45;cursor:default;'}">${m === cur ? '&#10003; ' : ''}${m === 'on' ? 'On' : 'Off'}</button>`).join('')}</div>` +
+      `<div id="togetherNote" style="font-size:12px;opacity:.75;margin-top:6px">${can ? (togetherBy === 'google' ? 'Changed by a grown-up signed in with Google. ' : 'Only a grown-up signed in with Google can change this. ') + 'Kept in this saved game.'
+        : 'Connect your Google account to change this. Tap Sign in with Google above.'}</div>`;
+  }
+  $c('togetherCtl').addEventListener('click', e => {
+    const b = e.target.closest('[data-together]');
+    if (!b || !googleUser() || b.dataset.together === playTogether) return;
+    setTogether(b.dataset.together, 'google');
+    renderTogether();
+  });
+  togetherHooks.render = renderTogether;
+  togetherHooks.signIn = user => showSignedIn(user ? { user } : null);   // for the automated tests only
   // The free cloud save holds one game. Automatic saves never replace a different game; a manual "Save now" asks first.
   const worldOf = s => { try { return JSON.parse(s).worldId || null; } catch (e) { return null; } };
   async function cloudSaveNow(manual) {
@@ -7794,14 +7909,14 @@ setInterval(() => {
   if (channel && channelJoined && profile) Promise.resolve(channel.track(myMeta())).catch(() => {});
 }, 500);
 setInterval(async () => {
-  if (!sb || !worldId || !worldDirty) return;
+  if (!sb || !worldId || !worldDirty || resumeWait) return;
   worldDirty = false;
   const stamp = new Date().toISOString();
   const { error } = await sb.rpc('world_save', { p_code: worldId, p_grid: JSON.stringify(encodeWorld()), p_stamp: stamp });
   if (error) worldDirty = true; else lastStamp = stamp;
 }, 4000);
 setInterval(async () => {
-  if (!sb || !worldId || worldDirty) return;
+  if (!sb || !worldId || worldDirty || resumeWait) return;
   const { data } = await sb.rpc('world_get', { p_code: worldId }).maybeSingle();
   if (data && data.grid && data.updated_at !== lastStamp) { lastStamp = data.updated_at; loadShared(data.grid, worldId); dirty = true; placeSafely(false); }
 }, 30000);
@@ -8134,14 +8249,29 @@ async function createWorld() {
   }
   throw new Error('Could not make a world code. Try again.');
 }
+// 0.6.90 (SPEC-039): with playing together Off the game leaves the world and plays on its own. The joining card shows
+// first if this device has not seen it. With no internet the child plays on the copy on this device and the game tries
+// again every 30 seconds; once it reaches the world it loads the others' changes and joins.
 async function resumeWorld(id) {
+  if (!togetherOn()) { leaveTogether(); return; }
+  await togetherCard();
+  if (!togetherOn()) { leaveTogether(); return; }
+  if (worldId !== id) return;
   try {
     await sbReady;
-    if (!sb) return;
+    if (!sb) await loadSb();
+    if (!sb) throw new Error('offline');
     const ok = await joinExisting(id);
+    if (!togetherOn() || worldId !== id) return;
+    resumeWait = null;
     if (ok) { connectWorld(); logEvent('world_joined', 'resume'); }
-    else { worldId = null; say('That world is gone. Start a new world from the Bag.', 5000); }
-  } catch (e) { logError(e, 'resume'); }
+    else { worldId = null; localWorld = true; say('That world is gone. Start a new world from the Bag.', 5000); saveGame(); }
+  } catch (e) {
+    if (!togetherOn() || worldId !== id) return;
+    if (resumeWait !== id) { logError(e, 'resume'); say("Can't reach your shared world. Playing on your own until it's back.", 5000); }
+    resumeWait = id;
+    setTimeout(() => { if (resumeWait === id) resumeWorld(id); }, 30000);
+  }
 }
 
 // ---- Start wizard: sex, race, name, then new or joined world ----
@@ -8168,7 +8298,11 @@ function wizRender() {
   } else if (wiz.step === 2) {
     html = '<h2>Your name</h2><p>Names are picked for you, so nobody needs to type one.</p><div class="name">' + esc(wiz.name) + '</div><button class="opt" data-shuffle="1">Shuffle name</button>';
   } else {
-    html = '<h2>Your world</h2>' + opts('mode', [['new', 'Start a new world'], ['join', "Join a friend's world"]], wiz.mode) +
+    if (!togetherOn()) {   // 0.6.90 (SPEC-039): a new world stays on this device; joining is not offered
+      wiz.mode = 'new';
+      html = '<h2>Your world</h2>' + opts('mode', [['new', 'Start a new world']], 'new') +
+        '<div class="opts"><button class="opt" id="wizJoinOff" disabled style="opacity:.45;cursor:default">Join a friend\'s world</button></div><p id="wizTogetherOff">' + TOGETHER_OFF + '</p>';
+    } else html = '<h2>Your world</h2>' + opts('mode', [['new', 'Start a new world'], ['join', "Join a friend's world"]], wiz.mode) +
       (wiz.mode === 'join' ? '<p>Type the 4-letter world code:</p><input id="wizCode" maxlength="4" autocomplete="off" value="' + esc(wiz.code) + '">' : '');
     ok = wiz.mode === 'new' || wiz.code.length === 4;
   }
@@ -8210,10 +8344,12 @@ async function finishWizard() {
   const slot = activeSlot !== null ? activeSlot : freeSlot();
   if (slot === null) { wizErr.textContent = 'You already have 100 saved games. Delete one the next time you open the game, then start a new one.'; return; }
   wizNext.disabled = true;
+  if (togetherOn()) { wizErr.textContent = ''; await togetherCard(); }   // the joining card, the first time only (0.6.90)
   wizErr.textContent = 'Setting up your world...';
   try {
     await sbReady;
-    if (wiz.mode === 'new') await createWorld();
+    if (!togetherOn()) { if (wiz.mode !== 'new') throw new Error(TOGETHER_OFF); worldId = null; localWorld = true; }   // a world on this device only
+    else if (wiz.mode === 'new') { await createWorld(); localWorld = false; }
     else {
       const found = await joinExisting(wiz.code, true);
       if (!found) throw new Error('No world has that code. Check it with your friend.');
@@ -8229,12 +8365,12 @@ async function finishWizard() {
   profile = { sex: wiz.sex, race: wiz.race };
   playerName = wiz.name;
   applyLook();
-  connectWorld();
+  if (worldId) { localWorld = false; connectWorld(); }
   logEvent('game_started', wiz.mode);
   wizEl.classList.add('hide');
   paused = false;
   saveGame();
-  say('Welcome, ' + playerName + '! World code: ' + worldId, 6000);
+  say('Welcome, ' + playerName + '!' + (worldId ? ' World code: ' + worldId : ''), 6000);
 }
 
 // ---- Saved games menu: pick one of your saved games, delete one, or start a new game ----
@@ -8452,7 +8588,7 @@ logEvent('session_start', VERSION);
 logEvent('world_loaded', worldSource + ' seed ' + seed);
 setTimeout(() => shareHooks.check(), 3000);   // a share made on the parent stats page (SPEC-030)
 if (activeSlot === null && getChoice() !== 'new' && listSlots().length) showSlotMenu();
-else if (profile && worldId) { paused = false; resumeWorld(worldId); }
+else if (profile && (worldId || localWorld)) { paused = false; if (worldId) resumeWorld(worldId); }   // a world on this device only opens as it is (0.6.90)
 else openWizard();
 
 setInterval(saveGame, 5000);
@@ -8482,6 +8618,9 @@ Promise.all([
 // Read-only status for the automated browser test (scripts/tests/browser.test.mjs). Changes nothing.
 // Test hook: the game's rules, so the automated tests can check them directly (see scripts/tests/browser.test.mjs)
 window.gameTest = {
+  // Playing together (0.6.90, SPEC-039)
+  get together() { return { on: togetherOn(), by: togetherBy, worldId, local: localWorld, cardOpen: togetherCardOpen, resumeWait }; },
+  togetherSignIn: u => togetherHooks.signIn(u), leaveTogether, setWorldIdForTest: id => { worldId = id; }, SAFETY_LINES: window.SAFETY_LINES,
   // Share the game (0.6.88, SPEC-030)
   get share() { return { on: shareOn, gems: shareGems, given: shareGiven }; }, setShareReward(on, gems) { shareOn = !!on; shareGems = gems; }, openShare: () => shareHooks.open(),
   // 0.6.87: joining a world, notes, the player count and the map

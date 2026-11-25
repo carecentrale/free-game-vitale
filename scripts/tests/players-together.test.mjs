@@ -127,3 +127,24 @@ test('0.6.89: hints go into the Activity log, not across the top of the screen',
   assert.match(game, /if \(!logOpen && !hint\) logUnread\+\+;/, 'hints do not raise the red count');
   assert.match(game, /last\.text === text && now - last\.at < NOTE_SAME_MS/, 'the same hint again adds to the last line');
 });
+
+// ---- Playing together, safely (0.6.90, SPEC-039): the words on the pages and the records ----
+test('SPEC-039: terms speak to parents, guide and privacy say parent portal, the new records are listed, no Facebook button shown', () => {
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+  const terms = read('www/terms.html'), guide = read('www/how-to-play.html'), privacy = read('www/privacy.html'), events = read('docs/EVENTS.md');
+  assert.match(terms, /A parent or guardian accepts them for their child\. Children are not asked to agree to anything\./);
+  assert.doesNotMatch(terms, /By playing, you agree/);
+  assert.match(terms, /<h2>Playing together in shared worlds<\/h2>/);
+  assert.doesNotMatch(terms, /Last updated: 18 November 2026/);
+  assert.match(guide, /<td>Parent portal<\/td>/); assert.match(guide, /Tap <em>Open parent portal<\/em>/);
+  assert.match(guide, /<td>Playing together<\/td>/); assert.match(guide, /read the Playing together card/);
+  assert.doesNotMatch(guide + privacy, /parent stats page|Open parent stats|Sign in with Facebook/);
+  assert.match(game, />Open parent portal<\/a>/);
+  assert.match(game, /\$c\('cloudFacebook'\)\.style\.display = 'none'/);
+  for (const k of ['together_switch', 'safety_reminder']) { assert.match(events, new RegExp('`' + k + '`')); assert.match(game, new RegExp("logEvent\\('" + k + "'")); }
+  // the loading screen lines and the card's lines are the spec's five lines
+  for (const l of ['Only play with friends and family you know.', 'Keep your world code for friends and family.', 'If something looks wrong, tap Report.', 'If something upsets you, tell a grown-up.'])
+    assert.ok(game.split(l).length >= 3, 'on the loading screen and the card: ' + l);
+  assert.match(game, /TOGETHER_CARD_MS = 4000/);
+  assert.match(game, /if \(togetherCardOpen\) return;/);
+});

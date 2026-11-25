@@ -2,6 +2,20 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.90: Playing together, safely (SPEC-039)
+Built from the PM hand-off SPEC-039 version 8 (approved by Nick 24 Nov 2026, ready to build), first in Nick's build order of 25 Nov 2026.
+- **Parent switch:** a new part *Playing together: On / Off* in the parent area (On to start). Only a grown-up signed in with Google there can change it; Facebook alone does not unlock it, and without Google the buttons are greyed with "Connect your Google account to change this". Kept with the saved game (and its cloud save), and on this device for the next new game, so a new game cannot get round it.
+- **Off:** within 5 seconds (at once when changed on the device) the game saves, leaves the world's live channel, clears the world code and keeps the land as a world on this device only. The Activity log says "A grown-up turned off playing together." The start wizard offers no joining (the Join button is greyed with the same words) and a new world stays on the device with no code. Reopening such a game opens it as it is (before, a game with no world code opened the start wizard).
+- **Joining card:** the first time a shared world would start on this device (a new world, joining with a code, or reopening a shared game), a *Playing together* card with the five safety lines. OK appears after 4 seconds; Esc and the Android Back button do not skip it. Kept on the device only.
+- **Loading screen:** one of five safety lines under "Loading...", the next one each time the game opens (kept on the device).
+- **Reopening a shared game:** rejoins the same code at the saved place (0.6.87 rule, unchanged). New: with no internet the child plays on the device's copy with "Can't reach your shared world. Playing on your own until it's back.", the game tries again every 30 seconds (also loading the Supabase library again), then loads the others' changes and joins. Nothing is uploaded over the shared world while it waits.
+- **Google only:** the Sign in with Facebook button is hidden in the parent area (kept in the code). The top button reads *Open parent portal*.
+- **Terms of Use:** new opening for parents (children are not asked to agree to anything), new part "Playing together in shared worlds", Last updated 25 November 2026. The "Text written by AI" part waits for SPEC-037.
+- **Guide and privacy page:** "parent portal" everywhere; new lines in part 17 and a Playing together row in part 20 (the teacher email code is marked "once the teacher sign-in opens"); no Facebook sign-in.
+- **Records:** new kinds `together_switch` (on, off) and `safety_reminder` (shown, closed), approved by Nick 24 Nov 2026, in `docs/EVENTS.md` under "Gameplay records" (no change to the privacy page needed). `world_left` is also sent when Off makes the device leave.
+- Tests: 4 browser tests (card, loading line, switch and Off, no internet) and a fast test in `players-together.test.mjs`; the test page counts the card as seen unless a test asks for it; old checks for "Open parent stats", Facebook and the terms date updated.
+- Checked: syntax check, all fast tests, the SPEC-039 browser tests and the browser tests listed in `docs/VERSIONS.md`. **Not checked:** played by Nick; two real devices in one world; any phone or the Android app; a real Google sign-in (the tests stand in for it).
+
 ## 0.6.89: Game tips go in the Activity log
 Reported by Nick in the build chat on 24 Nov 2026 ("the 'too far' message shows on the screen and not in the activity log"). He chose to move every short hint to the log and to build it now.
 - Every short game message (`say()`: "Too far away! Get closer.", "+1 gem!", "Picked up ...", power ups, monster hits, and so on) now goes into the Activity log instead of the line across the top of the screen. It shows beside the speech bubble for at least 3 seconds (up to 3 lines), and stays in the log with its time. The top line (`#msg`) is gone.

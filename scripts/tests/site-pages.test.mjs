@@ -49,13 +49,14 @@ test('every part in the guide\'s list exists on the page', () => {
 
 test('the guide explains the parental controls: how to open the parent area and what is in it', () => {
   const part = guide.slice(guide.indexOf('<h2 id="grownups">'));
-  for (const word of ['Parent area', '5 times', 'Open parent stats', 'Sign in with Google', 'Sign in with Facebook', 'Save now', 'Load saved game from the cloud', 'Delete cloud save', 'Sign out']) {
+  for (const word of ['Parent area', '5 times', 'Open parent portal', 'Sign in with Google', 'Playing together', 'Save now', 'Load saved game from the cloud', 'Delete cloud save', 'Sign out']) {
     assert.ok(part.includes(word), 'the parental controls part does not mention: ' + word);
   }
 });
 
 test('every button the guide names in the parent area is in the game', () => {
-  for (const label of ['Open parent stats', 'Sign in with Google', 'Sign in with Facebook', 'Save now', 'Load saved game from the cloud', 'Delete cloud save', 'Sign out']) {
+  for (const label of ['Open parent portal', 'Sign in with Google', 'Save now',   // Facebook hidden since 0.6.90 (SPEC-039)
+ 'Load saved game from the cloud', 'Delete cloud save', 'Sign out']) {
     assert.ok(game.includes('>' + label + '<'), 'the game has no button: ' + label);
   }
 });

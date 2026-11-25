@@ -105,7 +105,8 @@ async function setupPage(page, base, opts = {}) {
     if (!fs.existsSync(local)) return route.fulfill({ status: 404, body: '' });
     route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(local) });
   });
-  await page.route(/cdn\.jsdelivr\.net\/npm\/@supabase/, route => route.fulfill({ status: 200, contentType: 'text/javascript', body: SUPABASE_STUB }));
+  // opts.noSupabase: the Supabase library cannot be loaded, as with no internet (0.6.90)
+  await page.route(/cdn\.jsdelivr\.net\/npm\/@supabase/, route => opts.noSupabase ? route.abort() : route.fulfill({ status: 200, contentType: 'text/javascript', body: SUPABASE_STUB }));
   // The castle spacing set by the owner (0.6.76): read once when the game opens
   await page.route(/\/rest\/v1\/game_settings/, route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ value: opts.castleGap || 500 }]) }));
   // opts.audioList: stands in for www/audio/credits.json, so the sound tests have files to ask for
@@ -115,15 +116,17 @@ async function setupPage(page, base, opts = {}) {
   // opts.quiz: quiz friends are on, as for a real player. In the other tests they are switched off, so that the friend
   // who now comes at the start (0.6.67) does not stand in the way of a tap or change the message on screen
   // opts.vital: Vital the guide comes, as for a new player (0.6.73). In the other tests his tips are switched off.
-  await page.addInitScript(({ saves, choice, quiz, vital }) => {
+  // opts.togetherCard: the Playing together card shows (0.6.90), as on a new device. In the other tests it counts as seen.
+  await page.addInitScript(({ saves, choice, quiz, vital, togetherCard }) => {
     if (!sessionStorage.getItem('seeded')) {
+      if (!togetherCard) localStorage.setItem('kidsgame.togetherCard', '1');
       if (!quiz) localStorage.setItem('kidsgame.quiz', '0');
       if (!vital) localStorage.setItem('kidsgame.vital', JSON.stringify({ on: false }));
       saves.forEach((j, i) => localStorage.setItem('kidsgame.slot.' + i, j));
       if (choice !== null) sessionStorage.setItem('kidsgame.choice', choice);
       sessionStorage.setItem('seeded', '1');
     }
-  }, { saves, choice, quiz: !!opts.quiz, vital: !!opts.vital });
+  }, { saves, choice, quiz: !!opts.quiz, vital: !!opts.vital, togetherCard: !!opts.togetherCard });
   if (opts.init) await page.addInitScript(opts.init);   // runs before the game, e.g. to stand in for the Android app
   await page.goto(base + '/play/', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof window.gameProbe === 'function', null, { timeout: 60000 });
@@ -3660,3 +3663,90 @@ test('share the game with the reward off (or 300 gems): the button still shares,
     assert.equal(await gems(), before + 300);
     assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
   }));
+
+// ---- Playing together, safely (0.6.90, SPEC-039) ----
+test('SPEC-039: the Playing together card shows once before a shared game reopens; OK after 4 seconds; Esc does not skip it', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.together.cardOpen, null, { timeout: 60000 });
+    // slow test machines may reach this after the 4 seconds: the OK button is checked against the time the card opened
+    const early = await page.evaluate(() => ({ vis: getComputedStyle(document.getElementById('togetherOk')).visibility, age: Date.now() - +document.getElementById('togetherCard').dataset.at }));
+    if (early.age < 3800) assert.equal(early.vis, 'hidden', 'no OK before 4 seconds');
+    assert.match(await page.evaluate(() => document.getElementById('togetherCard').textContent), /Only play with friends and family you know\..*tell a grown-up\./);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => window.gameTest.together.cardOpen), true, 'Esc does not skip it');
+    assert.equal(await page.evaluate(() => window.gameTest.quitOpen), false, 'Esc does not open Quit behind it');
+    await page.waitForFunction(() => getComputedStyle(document.getElementById('togetherOk')).visibility === 'visible', null, { timeout: 8000 });
+    assert.ok(await page.evaluate(() => Date.now() - +document.getElementById('togetherCard').dataset.at) >= 3900, 'OK shows after 4 seconds');
+    await page.evaluate(() => document.getElementById('togetherOk').click());
+    const st = await page.evaluate(() => ({ open: window.gameTest.together.cardOpen, card: !!document.getElementById('togetherCard'), seen: localStorage.getItem('kidsgame.togetherCard') }));
+    assert.deepEqual(st, { open: false, card: false, seen: '1' });
+    // not shown again on this device
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.gameTest && window.gameTest.together, null, { timeout: 60000 });
+    await page.waitForTimeout(1500);
+    assert.equal(await page.evaluate(() => !!document.getElementById('togetherCard')), false, 'shown once per device');
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [phoneGame()], togetherCard: true }));
+
+test('SPEC-039: the loading screen shows a safety line, a different one each time the game opens', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    const lines = await page.evaluate(() => window.SAFETY_LINES);
+    assert.equal(lines.length, 5);
+    const first = await page.evaluate(() => localStorage.getItem('kidsgame.safetyLine'));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const tip = await page.evaluate(() => (document.getElementById('spTip') || {}).textContent);
+    const second = await page.evaluate(() => localStorage.getItem('kidsgame.safetyLine'));
+    assert.notEqual(second, first, 'the next line in turn');
+    assert.equal(tip, lines[+second]);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }));
+
+test('SPEC-039: Playing together needs a Google sign-in; Off leaves the shared world, keeps playing alone and blocks joining', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.together.worldId === 'TESTWORLD', null, { timeout: 60000 });
+    const open = async () => { for (let i = 0; i < 5; i++) await page.mouse.click(12, 12); };
+    await open();
+    let st = await page.evaluate(() => ({ btn: document.getElementById('parentLink').textContent, fb: getComputedStyle(document.getElementById('cloudFacebook')).display,
+      off: document.querySelector('[data-together="off"]').disabled, note: document.getElementById('togetherNote').textContent }));
+    assert.equal(st.btn, 'Open parent portal');
+    assert.equal(st.fb, 'none', 'no Facebook button');
+    assert.equal(st.off, true, 'greyed out without Google');
+    assert.match(st.note, /Connect your Google account to change this/);
+    // Facebook alone does not unlock it
+    await page.evaluate(() => window.gameTest.togetherSignIn({ id: 'u1', email: 'p@example.com', app_metadata: { provider: 'facebook', providers: ['facebook'] }, identities: [{ provider: 'facebook' }] }));
+    assert.equal(await page.evaluate(() => document.querySelector('[data-together="off"]').disabled), true, 'Facebook does not unlock it');
+    // Google unlocks it
+    await page.evaluate(() => window.gameTest.togetherSignIn({ id: 'u1', email: 'p@example.com', app_metadata: { provider: 'google', providers: ['google'] }, identities: [{ provider: 'google' }] }));
+    await page.evaluate(() => document.querySelector('[data-together="off"]').click());
+    st = await page.evaluate(() => ({ t: window.gameTest.together, msg: window.gameTest.worldLog.map(l => l.text), save: JSON.parse(localStorage.getItem('kidsgame.slot.0')), dev: localStorage.getItem('kidsgame.together') }));
+    assert.equal(st.t.on, false); assert.equal(st.t.by, 'google'); assert.equal(st.t.worldId, null); assert.equal(st.t.local, true);
+    assert.ok(st.msg.includes('A grown-up turned off playing together.'));
+    assert.equal(st.save.together, 'off'); assert.equal(st.save.togetherBy, 'google'); assert.equal(st.save.worldId, null); assert.equal(st.save.local, true);
+    assert.equal(st.dev, 'off', 'remembered on this device for a new game');
+    assert.match(await page.evaluate(() => document.getElementById('togetherNote').textContent), /Changed by a grown-up signed in with Google/);
+    // the game keeps playing on its own
+    assert.equal(await page.evaluate(() => window.gameTest.together.worldId), null);
+    // a world code set again (as from a cloud save) is left within 5 seconds
+    await page.evaluate(() => window.gameTest.setWorldIdForTest('TESTWORLD'));
+    await page.waitForFunction(() => window.gameTest.together.worldId === null, null, { timeout: 5000 });
+    // reopening: plays on its own world, no wizard
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.gameTest && window.gameTest.together, null, { timeout: 60000 });
+    st = await page.evaluate(() => ({ t: window.gameTest.together, wiz: document.getElementById('wiz').classList.contains('hide') }));
+    assert.equal(st.t.on, false); assert.equal(st.t.local, true); assert.equal(st.wiz, true, 'the wizard does not open');
+    // the wizard of a new game offers no joining
+    await page.evaluate(() => { sessionStorage.setItem('kidsgame.choice', 'new'); });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForFunction(() => window.gameTest && !document.getElementById('wiz').classList.contains('hide'), null, { timeout: 60000 });
+    await page.evaluate(() => { for (let i = 0; i < 3; i++) { const b = document.querySelector('#wizBody [data-sex], #wizBody [data-race]'); if (b) b.click(); document.getElementById('wizNext').click(); } });
+    st = await page.evaluate(() => ({ off: document.getElementById('wizTogetherOff') && document.getElementById('wizTogetherOff').textContent, join: document.getElementById('wizJoinOff') && document.getElementById('wizJoinOff').disabled }));
+    assert.equal(st.off, 'A grown-up turned off playing together.'); assert.equal(st.join, true);
+    assert.deepEqual(errors, [], 'errors: ' + errors.join(' | '));
+  }, { saves: [phoneGame()] }));
+
+test('SPEC-039: a shared game opened with no internet plays on its own and says so', { skip, timeout: 120000 }, () =>
+  withGame(async (page, errors) => {
+    await page.waitForFunction(() => window.gameTest && window.gameTest.together.resumeWait === 'TESTWORLD', null, { timeout: 60000 });
+    assert.ok(await page.evaluate(() => window.gameTest.worldLog.some(l => l.text === "Can't reach your shared world. Playing on your own until it's back.")));
+    assert.equal(await page.evaluate(() => window.gameTest.together.worldId), 'TESTWORLD', 'the world code is kept, to try again');
+  }, { saves: [phoneGame()], noSupabase: true }));

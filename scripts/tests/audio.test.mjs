@@ -72,5 +72,5 @@ test('the terms page has the music and sounds wording and its new date', () => {
   assert.ok(terms.includes('Some models, artwork, music and sounds were made by others and are used under their own licences.'));
   assert.ok(terms.includes('Music and sounds. The music in the Game is classical music whose compositions are in the public domain.'));
   assert.ok(terms.includes('The sound effects are by Kenney (kenney.nl) and are released under Creative Commons CC0.'));
-  assert.ok(terms.includes('Last updated: 18 November 2026'));   // 0.6.72: the Twemoji credit was added
+  assert.ok(terms.includes('Last updated: 25 November 2026'));   // 0.6.72: the Twemoji credit was added; 0.6.90: terms for parents (SPEC-039)
 });
