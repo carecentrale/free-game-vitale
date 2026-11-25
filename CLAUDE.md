@@ -143,7 +143,7 @@ Requirements come from the Google Drive folder "Adventurers of Drenerics - PM re
 - One game folder: `Desktop\adventurers-of-drenerics-game`. Never create another project folder, clone or copy on the parent's computer.
 - Scratch work (test clones, downloads, temporary files) stays in the cloud workspace or the session's scratch folder.
 - If a clone or copy fails halfway, remove what it left straight away, or tell the parent exactly what was left and where.
-- Chats do not use the computer (see "Where the builder works"). Only if the parent asks for laptop work in that chat: first step of any session that needs the computer: check which computer and Windows account the chat is linked to. The build machine's account is `15144`. If it does not match, stop and say so. Do not guess paths.
+- Chats do not use the computer (see "Where the builder works"). Only if the parent asks for laptop work in that chat: first step of any session that needs the computer: check which computer and Windows account the chat is linked to. The build machine is the computer the Claude app calls `laptop-n8ld8gm1`, Windows account `15144` (its Desktop is `C:\Users\15144\Desktop`). Nick's account is also signed in on another computer, `nicks-laptop`, which is not the build machine (25 Nov 2026: a chat linked to it lost time trying to reach the build folders). If the device name or account does not match, stop and say so. Do not guess paths.
 - Anything new that is part of the game goes inside the game folder. Tools that only help to build or release it go in `Desktop\Claude tools for access\drenerics-build\`, never in the game folder. Either way, write it down here.
 - No downloads are kept in the game folder: once a download has been unpacked into `assets/`, delete it.
 
