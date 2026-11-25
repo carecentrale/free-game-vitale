@@ -26,7 +26,7 @@ async function ask(request: Record<string, unknown>): Promise<string> {
     headers: { 'content-type': 'application/json', 'x-api-key': Deno.env.get('ANTHROPIC_API_KEY')!, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify(request),
   });
-  if (!r.ok) throw new Error('ai ' + r.status);
+  if (!r.ok) { const t = await r.text().catch(() => ''); throw new Error('ai ' + r.status + ' ' + ((/"message":\s*"([^"]{0,70})/.exec(t) || [])[1] || '')); }   // Anthropic's own short reason, for example "credit balance is too low"
   const j = await r.json();
   return (j.content || []).map((c: { text?: string }) => c.text || '').join('');
 }
@@ -59,7 +59,10 @@ Deno.serve(async (req: Request) => {
       save: async (row: { kind: string; place: string; v: string[]; status: string; reason: string }) => { await db.from('bird_facts').insert({ kind: row.kind, place: row.place, v1: row.v[0] || '', v2: row.v[1] || '', v3: row.v[2] || '', v4: row.v[3] || '', v5: row.v[4] || '', status: row.status, reason: row.reason }); },
     }, MODEL, only);
     return json({ ok: true, ...out });
-  } catch (_e) {
-    return json({ ok: false, error: 'server' });
+  } catch (e) {
+    // what went wrong, in a few words (for example "ai 404"): never anything about a caller, a key or a request
+    const why = String((e as Error)?.message || e).replace(/[^a-zA-Z0-9 _.:-]/g, '').slice(0, 90);
+    console.error('bird-facts: ' + why);
+    return json({ ok: false, error: 'server', why });
   }
 });

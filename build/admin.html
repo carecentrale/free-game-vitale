@@ -449,7 +449,7 @@ $('saveFacts').addEventListener('click', async () => {
 $('runFacts').addEventListener('click', async () => {
   $('factsMsg').textContent = 'Writing and checking new facts. This can take a minute...';
   const { data, error } = await sb.functions.invoke('bird-facts', { body: { action: 'run' } });
-  $('factsMsg').textContent = error || !data || !data.ok ? 'Not done' + (data && data.error === 'no key' ? ': the Anthropic key is not set in Supabase yet.' : data && data.error === 'owner only' ? ': only the owner\'s account can do this.' : ': the function is not set up yet, or it failed.')
+  $('factsMsg').textContent = error || !data || !data.ok ? 'Not done' + (data && data.error === 'no key' ? ': the Anthropic key is not set in Supabase yet.' : data && data.error === 'owner only' ? ': only the owner\'s account can do this.' : data && data.why ? ': ' + data.why + (/credit balance/i.test(data.why) ? ' (add credit to the Anthropic account, then try again).' : '') : ': the function is not set up yet, or it failed.')
     : `Done: ${data.made} written, ${data.approved} approved, ${data.rejected} rejected.` + (data.made === 0 ? ' (Today\'s limit is used, or every kind is full.)' : '');
   loadFacts().catch(() => {});
 });
