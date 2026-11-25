@@ -2,7 +2,7 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
-Tap a bird for a fun fact written by AI (SPEC-037, version 5).
+## 0.6.98: Tap a bird for a fun fact written by AI (SPEC-037, version 5)
 - Tap or click a bird within 25 blocks: a card opens at the side with the bird's picture (drawn from its own shape), its name and one fun fact, in the reading version for the game's Words level (five versions, 10 to 20 words). A flag button reports a fact (the report function of 0.6.91) and hides it on the device. The card closes with X, a tap elsewhere or after 12 seconds; the game does not pause; a press on a bird never digs, fights, builds or casts. Dragons cannot be tapped.
 - The facts are written and checked on the server by the new backend function `bird-facts` (docs/functions/bird-facts): one request to Anthropic's API writes them, a second, separate request checks each one, and the word limits are counted in code. Only the bird kind, the place, the rules and facts already in the pool are sent. The game only downloads approved facts (all five versions, never one band) and keeps them on the device; facts seen stay on the device.
 - Database: migration `0019_bird_facts.sql` (table bird_facts, three flags hold a fact, setting facts_per_day). NOT applied: it waits for Nick's yes. Admin page: new card "Bird facts (owner only)".
