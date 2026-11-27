@@ -2,6 +2,13 @@
 
 Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one version.
 
+## 0.6.107: the Spell button stays lit after a fireball
+Found in play by Nick (27 Nov 2026, website on a PC): the fireball had to be chosen again before every shot.
+- Cause: since 0.6.74 the lit Spell button went dark after every cast, so each fireball needed a new tap on the button first.
+- Now a cast leaves the button lit and starts its 5 seconds again. It goes dark when it is tapped again, or 5 seconds after the last cast. Casting from a quick bar slot, right-click and F are unchanged.
+- No change to saves or to what the game records.
+- Checked: syntax check; fast tests, including the new `scripts/tests/spell-stays-lit.test.mjs`; the existing Spell button browser test was changed to cast twice without a new tap on the button, but was not run (the cloud browser cannot load the game's CDN). Not checked: played by Nick.
+
 ## Admin page, 25 Nov 2026: Insights (SPEC-040, version 1). No game version: the game is not changed
 Insights: charts of everything the game records, and of errors by game version.
 - A new section in the admin page, opened with the Insights button at the top, for the owner's account only. Filters: last 7, 30 or 90 days, and game version. Activity: records per day, visits per day, the share of visits in shared worlds, one small chart for every kind of record (a new kind shows by itself), and for a tapped kind its chart per day and its 10 most frequent details. Errors: errors per day split by game version, and the 20 most frequent errors (grouped by message and place) with count, first and last day, versions and the latest stack trace. Every chart has its numbers in a table and a Download CSV button. The charts are drawn by the page (SVG); nothing is loaded from outside. The older cards are unchanged.
