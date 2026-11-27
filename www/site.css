@@ -72,6 +72,18 @@ kbd{background:var(--key);border:1px solid var(--line);border-radius:6px;padding
 table{border-collapse:collapse;width:100%;background:var(--card);font-size:.92em}
 th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 th{color:var(--muted);font-weight:600}
+th,td{overflow-wrap:break-word;hyphens:manual}
+th:first-child,td:first-child{min-width:9em}
+.stack td:first-child{font-weight:600}
+@media (max-width:700px){
+  .stack,.stack tbody,.stack tr,.stack td{display:block;width:auto}
+  .stack thead{display:none}
+  .stack tr{border:1px solid var(--line);border-radius:var(--radius);margin:0 0 14px;padding:6px 4px;background:var(--card)}
+  .stack td{border-bottom:none;padding:4px 10px;min-width:0}
+  .stack td:first-child{font-size:1.08em;padding-top:8px}
+  .stack td[data-label]::before{content:attr(data-label);display:block;color:var(--muted);font-weight:600;font-size:.9em}
+  .stack{background:none}
+}
 input,select,textarea,button{font:inherit;color:inherit}
 input,select,textarea{width:100%;padding:12px;border-radius:10px;border:2px solid var(--line);background:var(--bg);min-height:48px}
 form .err{color:#b3261e;font-size:.9em;margin:2px 0 0}

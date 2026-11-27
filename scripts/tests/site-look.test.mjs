@@ -305,3 +305,26 @@ test('the teacher list: owner-only tables, code kept as a hash, 15 minutes and 5
   assert.ok(!/GMAIL_APP_PASSWORD\s*=|password:\s*'/.test(fn), 'a password in the code');
   assert.ok(read('www/privacy.html').includes('<h2 id="teachers">Teachers who ask to hear from us</h2>'));
 });
+
+// ---- Privacy page table (27 Nov 2026, found by Nick): the first column was squeezed so words broke mid-word ----
+test('the privacy table keeps words whole and turns into one card per row on phones', () => {
+  const page = read('www/privacy.html');
+  const a = page.indexOf('<table class="stack">'), b = page.indexOf('</table>', a);
+  assert.ok(a > 0, 'the privacy table should have class "stack"');
+  const table = page.slice(a, b);
+  assert.match(table, /<thead><tr><th>Type of information<\/th>/);
+  const rows = table.match(/<tr><td>[\s\S]*?<\/tr>/g) || [];
+  assert.ok(rows.length >= 10, 'privacy table rows not found');
+  for (const r of rows) {
+    const cells = r.match(/<td[^>]*>/g);
+    assert.equal(cells.length, 5, r.slice(0, 80));
+    assert.equal(cells[0], '<td>', 'the first cell stays plain (other tests find rows by it)');
+    assert.deepEqual(cells.slice(1).map(c => (c.match(/data-label="([^"]+)"/) || [])[1]),
+      ['What it is', 'Why we collect it', 'Where it is stored', 'Who can see it'], r.slice(0, 80));
+  }
+  // body allows breaking anywhere; table cells must not, or a column shrinks to one letter wide
+  assert.match(css, /th,td\{overflow-wrap:break-word/);
+  assert.match(css, /th:first-child,td:first-child\{min-width:9em\}/);
+  assert.match(css, /\.stack td\[data-label\]::before\{content:attr\(data-label\)/);
+  assert.ok(!/\.cards\s+(thead|tbody|td)/.test(css), 'the home page .cards grid must not be reused for tables');
+});
