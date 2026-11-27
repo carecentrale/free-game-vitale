@@ -311,6 +311,9 @@ test('the privacy table keeps words whole and turns into one card per row on pho
   const page = read('www/privacy.html');
   const a = page.indexOf('<table class="stack">'), b = page.indexOf('</table>', a);
   assert.ok(a > 0, 'the privacy table should have class "stack"');
+  assert.ok(page.includes('<div class="tablewrap bleed"><table class="stack">'), 'the privacy table is wider than the text column (class bleed)');
+  assert.match(css, /\.bleed\{width:min\(1088px,calc\(100vw - 32px\)\)/);
+  assert.match(css, /@media \(max-width:900px\)\{\n  \.stack,/);
   const table = page.slice(a, b);
   assert.match(table, /<thead><tr><th>Type of information<\/th>/);
   const rows = table.match(/<tr><td>[\s\S]*?<\/tr>/g) || [];

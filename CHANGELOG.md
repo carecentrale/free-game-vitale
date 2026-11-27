@@ -6,6 +6,7 @@ Version numbers: `0.MINOR.0`. Each prototype file in `build/` matches one versio
 Found by Nick (27 Nov 2026, dreneric.com/privacy.html on a PC): in the table "Information the game collects" the first column was so narrow that words broke in the middle ("Typ / e of / info / rma / tion").
 - Cause: the website lets long words break anywhere (for long links on phones), so the table thought every column could be one letter wide and gave all the room to the long "What it is" column.
 - Now table cells only break between words, and the first column is at least about 9 letters wide. On phones (700 pixels or narrower) each row of the table becomes its own card: the type of information as its title, then the four other columns with their names above them.
+- Second step, same day (Nick: "the rest is squished"): on screens wider than 900 pixels the table now uses the full width of the site (up to about 1090 pixels) instead of the narrow text column, and the "What it is" column gets about a third of it. Tablets and phones up to 900 pixels show the cards.
 - The words on the privacy page are the same. No change to what the game records.
 - Checked: fast tests, including a new test in `scripts/tests/site-look.test.mjs`; pictures of the page in the cloud test browser at 1400, 820 and 390 pixels wide (no side scrolling, whole words). Not checked: on Nick's own devices.
 

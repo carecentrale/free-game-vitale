@@ -75,7 +75,10 @@ th{color:var(--muted);font-weight:600}
 th,td{overflow-wrap:break-word;hyphens:manual}
 th:first-child,td:first-child{min-width:9em}
 .stack td:first-child{font-weight:600}
-@media (max-width:700px){
+/* a table wider than the text column: up to the site width, centred on the page */
+.bleed{width:min(1088px,calc(100vw - 32px));max-width:none;margin-left:50%;transform:translateX(-50%)}
+.stack th:nth-child(2){width:36%}
+@media (max-width:900px){
   .stack,.stack tbody,.stack tr,.stack td{display:block;width:auto}
   .stack thead{display:none}
   .stack tr{border:1px solid var(--line);border-radius:var(--radius);margin:0 0 14px;padding:6px 4px;background:var(--card)}
